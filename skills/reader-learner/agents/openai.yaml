@@ -1,0 +1,4 @@
+interface:
+  display_name: "Reader Learner"
+  short_description: "Update knowledge points and Obsidian vaults"
+  default_prompt: "Use $reader-learner to update my literature-reading knowledge points from reader feedback and generate the Obsidian knowledge vault."

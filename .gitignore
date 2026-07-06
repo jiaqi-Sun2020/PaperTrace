@@ -1,0 +1,61 @@
+# Python/runtime cache
+.git/
+.papertrace.git/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local scratch/output
+.tmp/
+tmp/
+*.log
+
+# Personal learner memory and exported vault data
+.agents/reader-learner/
+
+# Paper corpus and generated reader/news artifacts
+*.pdf
+2024/
+2025/
+2026/
+Optical/
+Quantum Deep Leaning/
+interset/
+news/
+readed/
+王老师/
+综述文章/
+*_reader/
+
+# Root-level generated demos/reports
+/*.html
+
+# Reader build outputs if generated inside tracked folders
+reader_wiki/
+reader_interactive.html
+feedback_explanations.md
+feedback_explanations.html
+feedback_research_context.md
+feedback_research_deep_dive.md
+feedback_research_deep_dive.html
+reader_feedback*.json
+news_feedback*.json
+
+# Local secrets and credentials
+.env
+.env.*
+*.pem
+*.p12
+*.pfx
+id_rsa*
+*secret*
+*secrets*
+*credential*
+*credentials*
+*token*
+*password*
+*passwd*
+*apikey*
+*api_key*

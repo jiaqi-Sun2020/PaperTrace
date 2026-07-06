@@ -1,0 +1,4 @@
+display_name: Lean HTML Skill
+short_description: Shared HTML and feedback export layer.
+default_prompt: Use lean-html-skill to attach reusable HTML feedback export controls.
+

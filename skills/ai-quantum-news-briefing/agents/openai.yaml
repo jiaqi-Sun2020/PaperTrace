@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI + Quantum Briefing"
+  short_description: "每日 AI、公司报告与量子资讯快报，可生成反馈 HTML"
+  default_prompt: "Use $ai-quantum-news-briefing to write today's AI and quantum technology briefing, generate a feedback HTML reader, and update my learner profile from exported feedback."
+
+policy:
+  allow_implicit_invocation: true

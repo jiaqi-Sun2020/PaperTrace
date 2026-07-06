@@ -1,0 +1,4 @@
+interface:
+  display_name: "Init Knowledge Profile"
+  short_description: "Initialize learner profiles from chat sessions"
+  default_prompt: "Use $init-knowledge-profile to turn my exported ChatGPT conversations into reviewable knowledge-profile candidates."
