@@ -858,12 +858,11 @@ def build_log_note(profile: dict[str, Any]) -> str:
             "updated": profile.get("updated_at", ""),
         }),
         "# Reader Learner Log\n",
-        "## Log\n",
-        f"- [{profile.get('updated_at', '')}] EXPORT_OBSIDIAN "
-        f"knowledge_points={len(profile.get('concepts', {}) or {})} "
-        f"evidence_signals={len(profile.get('events', []) or [])} "
-        f"sources={len(profile.get('sources', {}) or {})} "
-        f"review_queue={len(profile.get('review_queue', []) or [])}",
+        f"## [{profile.get('updated_at', '')}] export | Obsidian vault\n",
+        f"- knowledge_points: {len(profile.get('concepts', {}) or {})}",
+        f"- evidence_signals: {len(profile.get('events', []) or [])}",
+        f"- sources: {len(profile.get('sources', {}) or {})}",
+        f"- review_queue: {len(profile.get('review_queue', []) or [])}",
     ]).rstrip() + "\n"
 
 

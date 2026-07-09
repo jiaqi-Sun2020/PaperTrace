@@ -1,6 +1,6 @@
 ---
 name: lean-html-skill
-description: Render or post-process shared standalone HTML layers for PAPER skills, including compact report shells, reusable embedded CSS/JS, and manual feedback export panels that produce reader_feedback2.json or news_feedback2.json. Use when reader-skill, read-feedback-skill, ai-quantum-news-briefing, or another PAPER skill needs HTML output, interactive concept/freeform annotation, copy/download feedback JSON, or wants to avoid duplicating HTML/feedback UI logic inside domain-specific skills.
+description: Render or post-process shared standalone HTML layers for PAPER skills, including compact report shells, reusable embedded CSS/JS, Cosmic Sci-Fi Product Design System styling, and manual feedback export panels that produce reader_feedback2.json or news_feedback2.json. Use when reader-skill, read-feedback-skill, ai-quantum-news-briefing, or another PAPER skill needs HTML output, interactive concept/freeform annotation, copy/download feedback JSON, professional futuristic web styling, or wants to avoid duplicating HTML/feedback UI logic inside domain-specific skills.
 ---
 
 # Lean HTML Skill
@@ -15,12 +15,32 @@ Use this skill when a PAPER skill needs:
 - a shared reader/report HTML shell for domain-specific body content;
 - a reusable second-pass feedback panel for an existing HTML report;
 - `news_feedback2.json` or `reader_feedback2.json` export from an HTML page;
+- a reusable visual design layer that turns ordinary report/web UI into a Cosmic Sci-Fi product interface;
 - consistent “HTML page collects feedback, but never writes `.agents` directly” behavior.
+
+## Cosmic Sci-Fi Design Layer
+
+Default HTML styling uses the Cosmic Sci-Fi Product Design System. This layer is visual only: it maps existing structure into a professional "NASA x SpaceX x Quantum Computing x Future Operating System" interface while preserving functionality, data, user requirements, and interactions.
+
+Apply this flow for generated or post-processed HTML:
+
+User Request -> Requirement Analysis -> Information Architecture -> Cosmic Sci-Fi Design Mapping -> HTML/CSS/JS Generation -> Output
+
+Read `references/cosmic-sci-fi-design-system.md` before changing the visual style or adding new reusable HTML components.
+
+Design layer rules:
+
+- Keep functionality, information architecture, data schema, source links, annotation behavior, copy/download JSON controls, and import boundaries unchanged.
+- Use design tokens, semantic HTML, responsive CSS, accessible labels, and readable contrast. When post-processing existing pages, override legacy tokens such as `--bg`, `--panel`, `--ink`, `--muted`, `--line`, `--accent`, and `--shadow` so white surfaces cannot leak through.
+- Prefer deep-space backgrounds, quantum glass panels, restrained cyan/purple accents, command-center density, and subtle motion.
+- Default page background is `light`/white for readability. Inject a background control so the reader can switch to the Cosmic deep-space background when desired; persist that preference in browser localStorage.
+- Avoid game HUDs, cheap cyberpunk, excessive neon, heavy canvas particles, and visual changes that reduce readability.
+- Use `--design-system classic` or `--design-system none` only for compatibility or test isolation.
 
 ## Boundary
 
 - Do not mutate `.agents` or `knowledge_profile.json`.
-- Do not decide learner status. Preserve statuses from source feedback; collect explicit user marks only.
+- Do not infer learner status from content alone. Preserve explicit statuses from source feedback; when a saved mark has no status, use `unrated` for both news/daily reports and reader/paper reports.
 - Do not own paper/news domain logic, explanations, citations, or source-map interpretation.
 - Do not hide feedback in browser memory as if it were persisted. The user must click download/copy.
 
@@ -51,7 +71,32 @@ Write to a separate file:
 python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py attach-feedback --html <report.html> --feedback <feedback.json> --output <report_interactive.html>
 ```
 
+Use the legacy visual layer only when needed:
+
+```powershell
+python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py attach-feedback --html <report.html> --feedback <feedback.json> --design-system classic
+```
+
+Apply only the Cosmic visual layer without adding a feedback2 panel:
+
+```powershell
+python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py apply-design --html <report.html> --design-system cosmic
+```
+
+Default to the white background and keep Cosmic as a user-selectable option:
+
+```powershell
+python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py apply-design --html <report.html> --design-system cosmic --background-mode light
+```
+
+Audit the applied visual layer:
+
+```powershell
+python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py audit-design --html <report.html>
+```
+
 The script detects news feedback and exports `news_feedback2.json`; otherwise it exports `reader_feedback2.json`.
+All feedback controls default new marks to `unrated` unless the source feedback explicitly provides a status.
 
 ## Integration Pattern
 
@@ -67,4 +112,5 @@ For reader HTML integration, domain skills should run the shared contract valida
 ## Resources
 
 - `scripts/lean_html.py`: CLI utility for post-processing HTML reports with a feedback2 panel.
+- `references/cosmic-sci-fi-design-system.md`: visual-only Cosmic Sci-Fi Product Design System layer.
 - `references/feedback2-contract.md`: JSON shape and integration rules for second-pass feedback.

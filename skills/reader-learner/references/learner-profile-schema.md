@@ -226,3 +226,36 @@ Export rules:
 - Generate review and boundary maps from `review_queue` and concept statuses.
 - Use Obsidian wiki links so knowledge points and sources form the default graph.
 - Treat all generated notes as disposable derived output; edit the profile through `reader-learner` commands, then export again.
+
+## Audit / Lint Shape
+
+The reader-learner knowledge base follows the llm-wiki pattern:
+
+- raw feedback files and reader bundles are evidence;
+- `knowledge_profile.json` is normalized compiled state;
+- `obsidian-vault/` is a generated wiki view;
+- skill docs and `.agents/*.md` are the schema/runbook layer.
+
+Run:
+
+```bash
+python skills/reader-learner/scripts/audit_knowledge_base.py --profile .agents/reader-learner/knowledge_profile.json --fail-on-warning
+```
+
+The audit checks profile schema, concept labels, statuses, placeholder translations, dirty aliases, event/source references, review queue references, required vault files, `index.md` wiki links, parseable `log.md` entries, managed export manifest, and concept-note coverage.
+
+Use:
+
+```bash
+python skills/reader-learner/scripts/audit_knowledge_base.py --profile .agents/reader-learner/knowledge_profile.json --normalize-profile
+```
+
+only for deterministic cleanup: known translation placeholders, illegal aliases, duplicate events, broken concept/source/event references, and duplicate review queue items. It must create a backup and atomically rewrite JSON.
+
+For a full llm-wiki rebuild from raw feedback evidence, run:
+
+```bash
+python skills/reader-learner/scripts/rebuild_knowledge_base.py --profile .agents/reader-learner/knowledge_profile.json --feedback-root news --feedback-root 2026/7 --normalized-dir .agents/reader-learner/imports/rebuild_YYYYMMDD --sync-obsidian --obsidian-clean --audit --fail-on-warning
+```
+
+The rebuild command starts from `empty_profile_v2()`, upgrades older feedback shapes into strict v2 reader-feedback payloads, writes those normalized payloads as a persistent intermediate layer, imports them deterministically, regenerates `obsidian-vault/`, and writes both rebuild and audit reports.

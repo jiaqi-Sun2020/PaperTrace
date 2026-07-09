@@ -1,6 +1,6 @@
 ---
 name: ai-quantum-news-briefing
-description: Create concise, source-grounded AI and quantum technology briefings, turn briefings into interactive HTML pages with concept/freeform feedback export, and optionally update the user's learner profile from explicit news-reading feedback. Use for requests such as "今日资讯", "今日快报", "近三天资讯", "近4天快报", "AI+量子快报", company AI reports, research blogs, safety frameworks, model releases, policy updates, industry news, arXiv/Nature papers, quantum physics or quantum computing progress, requests to generate a briefing HTML reader, or when the user says to record daily briefing concepts as known/unknown/learning in `.agents/reader-learner/knowledge_profile.json`.
+description: Create concise, source-grounded AI and quantum technology briefings, turn briefings into interactive HTML pages with automatic unrated full-concept feedback JSON export plus optional concept/freeform feedback, and optionally update the user's learner profile from explicit news-reading feedback. Use for requests such as "今日资讯", "今日快报", "近三天资讯", "近4天快报", "AI+量子快报", company AI reports, research blogs, safety frameworks, model releases, policy updates, industry news, arXiv/Nature papers, quantum physics or quantum computing progress, requests to generate a briefing HTML reader, or when the user says to record daily briefing concepts as unrated/known/unknown/learning in `.agents/reader-learner/knowledge_profile.json`.
 ---
 
 # AI + Quantum News Briefing
@@ -19,6 +19,20 @@ Use this skill to produce the user's recurring Chinese news briefings on AI, fro
    - Prefer primary sources for company reports, research papers, safety frameworks, and technical releases.
    - Prefer Reuters/AP/FT/WSJ/Bloomberg/Nature/Science/Phys.org/official blogs for confirmation.
    - Treat Reddit/X/community summaries as "社区热议" only, not as confirmed facts.
+   - For broad AI candidate discovery, read `references/integration-aihot.md` and fetch the latest AI HOT selected pool:
+
+```powershell
+python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <YYYY-MM-DD> --output C:\Users\SSS\Desktop\PAPER\news\<YYYY-MM-DD>\aihot_candidates_<YYYY-MM-DD>.json
+```
+
+   - Treat AI HOT as a candidate source. Verify important final claims against original URLs, official blogs, publisher pages, paper pages, or reliable media.
+   - For academic items, do not start and stop at arXiv. Generate a compact venue sweep when the topic is research-frontier material:
+
+```powershell
+python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\academic_venue_sweep.py --term "<topic keywords>" --date-range "<YYYY-MM-DD..YYYY-MM-DD>" --format json --output C:\Users\SSS\Desktop\PAPER\news\<YYYY-MM-DD>\academic_search.json
+```
+
+   - Copy the resulting ledger into top-level `academic_search` in the final briefing config. If searches were actually completed and non-arXiv venues had no primary hit, use `--mark-checked-no-hit` or manually record `checked_venues`, `primary_hits`, and `status`.
 
 3. For recurring daily briefings, make the report delta-first.
    - Before drafting, read only the compact recent story context, not whole previous Markdown reports:
@@ -65,17 +79,17 @@ Read `references/news-html-feedback.md` before changing the HTML config or feedb
 
 Workflow:
 1. Create a source-grounded `news_feedback_config.json` with briefing sections, items, concepts, source title/URL, source excerpt, and date range.
-2. Generate the interactive HTML:
+2. Generate the interactive HTML. The page embeds every extracted concept as a saved feedback item with default `unrated`, and also writes the same full-concept `news_feedback.json` beside the HTML:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py --config <news_feedback_config.json> --output <briefing_reader.html>
+python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py --config <news_feedback_config.json> --output <briefing_reader.html> --default-status unrated
 ```
 
-3. In the HTML, click concept chips or select arbitrary text and click `Annotate selection`.
-4. Mark status, exact question, question type, explanation style, and note.
-5. Click `Save mark`.
-6. Export with `Download JSON` or `Copy for Codex`.
-7. Import the exported `news_feedback.json` with `scripts/import_news_feedback.py`.
+3. In the HTML, click concept chips or select arbitrary text only for corrections, explicit ratings, or extra questions.
+4. Mark status, exact question, question type, explanation style, and note when a specific item needs editing.
+5. Click `Save mark` only for changed items or new free-form annotations; do not require users to save every concept.
+6. Export with `Download JSON` or `Copy for Codex`; the export must include the full default `unrated` concept set plus the user's edits.
+7. Import the exported `news_feedback.json` with `scripts/import_news_feedback.py` only when the user asks to update the learner profile.
 
 The HTML page is a collection layer only. It must not write `.agents` directly.
 
@@ -91,13 +105,14 @@ Read `references/news-feedback-profile.md` before changing the profile bridge fo
 
 Rules:
 - Do not infer that the user knows or does not know a concept just because it appeared in the briefing.
-- If the user only says "记录今天日报关键词", mark extracted concepts as `unrated`.
+- For daily/news briefing generation and exposure-only daily keywords, default extracted concepts to `unrated`.
+- Keep literature/paper reader concepts as `unrated`; news and paper exposure share the same neutral default.
 - If the user says "X 我懂", use `known`; if "X 我能讲清楚/会用", use `mastered`; if "X 有点懂但还要例子", use `learning`; if "X 不懂/解释一下", use `unknown`.
 - Preserve news source title, URL, category, and source excerpt when available.
 - Delegate profile mutation to `reader-learner`; this skill should normalize news feedback, not maintain a separate memory file.
 
 Workflow:
-1. Create a small `news_feedback.json` file from the user's explicit feedback, requested exposure-only concepts, or the exported HTML feedback.
+1. Create `news_feedback.json` from `news_feedback_config.json` with `scripts/config_to_news_feedback.py`; use `unrated` unless the user explicitly marks a different status.
 2. Run:
 
 ```powershell
@@ -129,6 +144,12 @@ For company reports, summarize:
 ## Quantum Section Rules
 
 Always include a quantum section when the user previously asked for AI + quantum briefings or when the request says "资讯/快报" in this ongoing context.
+
+Read `references/academic-source-policy.md` before academic-frontier searches. Do not rely only on arXiv when the topic plausibly appears in APS PRL/PRA/PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum journal, or other primary venue pages.
+
+For academic or quantum configs, include top-level `academic_search`. The adversarial audit fails if this ledger is missing or does not cover PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv. If the user says "ICLA", treat it as ICLR unless context proves otherwise.
+
+For arXiv-only academic items, set `evidence_level` to `arXiv preprint` and add `venue_sweep_note` explaining which primary venues were checked. Prefer PRL/PRA/PRX/PRX Quantum, Nature Portfolio, Science/AAAS, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, and Quantum Journal URLs whenever available.
 
 Prioritize:
 - quantum computing hardware
@@ -181,4 +202,11 @@ Before finalizing:
 - Remove unsourced claims.
 - Separate company self-promotion from independently verified results.
 - Ensure quantum items are not old papers unless the user asked for background.
+- Ensure academic configs include top-level `academic_search`; if missing or incomplete, run `scripts/academic_venue_sweep.py`, search primary venues, and record the compact ledger before finalizing.
+- Ensure arXiv-only academic items include `venue_sweep_note`; arXiv-only claims must remain labeled as preprints.
 - Include a short "给你的科研观察" section.
+- Run the adversarial config audit before rendering final HTML:
+
+```powershell
+python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py --config <news_feedback_config.json>
+```

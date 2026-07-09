@@ -13,6 +13,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from config_to_news_feedback import export_feedback, write_json
+
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -468,7 +474,7 @@ def render_html(config: dict[str, Any]) -> str:
       <div class="field">
         <label for="statusSelect">Status</label>
         <select id="statusSelect">
-          <option value="unrated">unrated / 见过但未判断</option>
+          <option value="unrated" selected>unrated / 见过但未判断</option>
           <option value="unknown">unknown / 不清楚</option>
           <option value="learning">learning / 学习中</option>
           <option value="known">known / 已理解</option>
@@ -528,14 +534,31 @@ def render_html(config: dict[str, Any]) -> str:
   <script id="briefing-data" type="application/json">{js_json(config)}</script>
   <script>
     const CONFIG = JSON.parse(document.getElementById('briefing-data').textContent);
+    const DEFAULT_STATUS = CONFIG.default_status || 'unrated';
+    const INITIAL_FEEDBACK = Array.isArray(CONFIG.initial_feedback_items) ? CONFIG.initial_feedback_items : [];
     const itemMap = new Map(CONFIG.items.map(item => [item.id, item]));
     const storageKey = 'news-feedback::' + CONFIG.briefing_title + '::' + CONFIG.date_range;
     let saved = [];
     let active = null;
+
+    function mergeInitialFeedback(stored, initial) {{
+      const byId = new Map();
+      const order = [];
+      function add(entry, replace) {{
+        if (!entry || !entry.feedback_id) return;
+        if (!byId.has(entry.feedback_id)) order.push(entry.feedback_id);
+        if (replace || !byId.has(entry.feedback_id)) byId.set(entry.feedback_id, entry);
+      }}
+      initial.forEach(entry => add(entry, false));
+      stored.forEach(entry => add(entry, true));
+      return order.map(id => byId.get(id)).filter(Boolean);
+    }}
+
     try {{
-      saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      saved = mergeInitialFeedback(Array.isArray(stored) ? stored : [], INITIAL_FEEDBACK);
     }} catch (err) {{
-      saved = [];
+      saved = mergeInitialFeedback([], INITIAL_FEEDBACK);
     }}
 
     const $ = id => document.getElementById(id);
@@ -579,7 +602,7 @@ def render_html(config: dict[str, Any]) -> str:
       }};
       const existing = saved.find(entry => entry.feedback_id === active.feedback_id);
       conceptInput.value = concept;
-      statusSelect.value = existing ? existing.status : 'unrated';
+      statusSelect.value = existing ? existing.status : DEFAULT_STATUS;
       questionType.value = existing ? (existing.confusion_type || '') : '';
       styleSelect.value = existing ? (existing.explanation_style || '') : '';
       questionInput.value = existing ? (existing.user_question || '') : '';
@@ -595,7 +618,7 @@ def render_html(config: dict[str, Any]) -> str:
         return null;
       }}
       const base = active || {{}};
-      const status = statusSelect.value || 'unrated';
+      const status = statusSelect.value || DEFAULT_STATUS;
       return {{
         feedback_id: base.feedback_id || makeFeedbackId(concept, base.block_id),
         concept,
@@ -614,7 +637,8 @@ def render_html(config: dict[str, Any]) -> str:
         category: base.category || '',
         source_title: base.source_title || '',
         source_url: base.source_url || '',
-        action: 'news_feedback'
+        action: 'news_feedback',
+        source_kind: base.source_kind || 'news_briefing'
       }};
     }}
 
@@ -649,6 +673,7 @@ def render_html(config: dict[str, Any]) -> str:
         date_range: CONFIG.date_range,
         briefing_path: CONFIG.briefing_path || location.href,
         exported_at: new Date().toISOString(),
+        default_status: DEFAULT_STATUS,
         items: saved
       }};
     }}
@@ -688,12 +713,12 @@ def render_html(config: dict[str, Any]) -> str:
         div.className = 'saved-item';
         div.innerHTML = '<strong></strong><div class="tiny"></div><div class="button-row"><button type="button" class="action-btn secondary">Edit</button><button type="button" class="action-btn danger">Delete</button></div>';
         div.querySelector('strong').textContent = entry.concept;
-        div.querySelector('.tiny').textContent = (entry.status || 'unrated') + ' · ' + (entry.category || entry.block_id || 'news');
+        div.querySelector('.tiny').textContent = (entry.status || DEFAULT_STATUS) + ' · ' + (entry.category || entry.block_id || 'news');
         const buttons = div.querySelectorAll('button');
         buttons[0].addEventListener('click', () => {{
           active = entry;
           conceptInput.value = entry.concept || '';
-          statusSelect.value = entry.status || 'unrated';
+          statusSelect.value = entry.status || DEFAULT_STATUS;
           questionType.value = entry.confusion_type || '';
           styleSelect.value = entry.explanation_style || '';
           questionInput.value = entry.user_question || '';
@@ -769,18 +794,35 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, help="News briefing feedback config JSON.")
     parser.add_argument("--output", help="Output HTML path. Defaults beside config.")
+    parser.add_argument("--feedback-output", help="Auto-write full-concept news_feedback.json. Defaults beside HTML.")
+    parser.add_argument("--default-status", default="unrated", choices=["mastered", "known", "learning", "unknown", "unrated"], help="Default status for auto-exported concepts.")
+    parser.add_argument("--no-auto-feedback", action="store_true", help="Do not write the full-concept news_feedback.json sidecar.")
     return parser.parse_args(list(argv))
 
 
 def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     args = parse_args(argv)
     config_path = Path(args.config).expanduser().resolve()
-    config = normalize_config(load_json(config_path), config_path)
+    raw_config = load_json(config_path)
+    config = normalize_config(raw_config, config_path)
+    feedback = export_feedback(raw_config, config_path, args.default_status, "concept-source")
+    config["default_status"] = feedback["default_status"]
+    config["initial_feedback_items"] = feedback["items"]
     output_path = Path(args.output).expanduser().resolve() if args.output else config_path.with_suffix(".html")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(render_html(config), encoding="utf-8")
     print(f"Wrote {output_path}")
     print(f"Items: {len(config['items'])}")
+    if not args.no_auto_feedback:
+        feedback_path = (
+            Path(args.feedback_output).expanduser().resolve()
+            if args.feedback_output
+            else output_path.with_name("news_feedback.json")
+        )
+        write_json(feedback_path, feedback)
+        print(f"Wrote auto feedback: {feedback_path}")
+        print(f"Concept items: {len(feedback['items'])}")
+        print(f"Default status: {feedback['default_status']}")
     return 0
 
 

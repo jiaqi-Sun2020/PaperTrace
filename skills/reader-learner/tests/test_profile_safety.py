@@ -20,7 +20,9 @@ from profile_v2 import (  # noqa: E402
     load_json,
     normalize_safe_text,
     save_json,
+    validate_concept_label,
 )
+from audit_knowledge_base import audit_profile, normalize_profile  # noqa: E402
 
 
 def valid_feedback() -> dict:
@@ -85,6 +87,7 @@ def main() -> int:
         normalized = normalize_safe_text("Trans- former &lt;b&gt;attention&lt;/b&gt;", "concept", 120)
         if normalized != "Transformer attention":
             raise AssertionError(f"normalizer failed: {normalized}")
+        validate_concept_label("TLS 1.3", "concept")
 
         imported, changed = import_feedback(loaded, valid_feedback())
         if changed != 1:
@@ -129,6 +132,31 @@ def main() -> int:
         after = json.dumps(profile_for_bad, ensure_ascii=False, sort_keys=True)
         if before != after:
             raise AssertionError("invalid feedback mutated profile")
+
+        dirty_profile = empty_profile_v2()
+        dirty_profile["concepts"]["hamiltonian"] = {
+            "concept_id": "hamiltonian",
+            "label": "Hamiltonian",
+            "status": "learning",
+            "translation": "????",
+            "aliases": ["Hamiltonian", "This is a whole sentence, not an alias:"],
+            "aliases_en": ["Hamiltonian"],
+            "aliases_zh": [],
+            "event_ids": ["missing-event"],
+            "source_ids": ["missing-source"],
+        }
+        issues = audit_profile(dirty_profile)
+        if not any("translation" in issue["path"] for issue in issues):
+            raise AssertionError("audit did not catch placeholder translation")
+        cleanup = normalize_profile(dirty_profile, issues)
+        if cleanup.get("translations_repaired") != 1:
+            raise AssertionError("normalize_profile did not repair known translation")
+        if dirty_profile["concepts"]["hamiltonian"]["translation"] != "哈密顿量":
+            raise AssertionError("known translation repair wrote wrong value")
+        if len(dirty_profile["concepts"]["hamiltonian"]["aliases"]) != 1:
+            raise AssertionError("dirty sentence alias was not removed")
+        if dirty_profile["concepts"]["hamiltonian"]["event_ids"]:
+            raise AssertionError("broken event reference was not pruned")
 
     print("reader-learner safety passed: UTF-8, normalization, schema validation, and fail-fast imports.")
     return 0

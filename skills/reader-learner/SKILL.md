@@ -15,6 +15,13 @@ The JSON profile remains the source of truth. Obsidian export is a generated vis
 
 HTML knowledge-map presentation belongs to report skills. For news feedback, keep profile statuses and source/category evidence precise so `read-feedback-skill` can render the layered news knowledge map; do not store presentation layout decisions in `knowledge_profile.json`.
 
+The llm-wiki boundary is:
+
+- raw feedback JSON / reader bundles / news configs are immutable evidence sources;
+- `knowledge_profile.json` is the normalized learner state compiled from evidence;
+- `obsidian-vault/` is a generated wiki view with `index.md`, `log.md`, concept pages, source pages, maps, and review queues;
+- this skill owns profile mutation and wiki export; domain readers only export feedback.
+
 ## Files
 
 Default profile:
@@ -135,6 +142,14 @@ Import JSON feedback and immediately sync Obsidian:
 python <skill-dir>/scripts/import_reader_feedback.py --profile <profile> --feedback <feedback.json> --sync-obsidian
 ```
 
+Rebuild the whole learner profile/wiki from raw feedback roots:
+
+```bash
+python <skill-dir>/scripts/rebuild_knowledge_base.py --profile <profile> --feedback-root <project-root>/news --feedback-root <project-root>/2026/7 --normalized-dir <profile-dir>/imports/rebuild_YYYYMMDD --sync-obsidian --obsidian-clean --audit --fail-on-warning
+```
+
+Use rebuild when the user wants the knowledge base regenerated from original feedback files instead of incrementally updated. The rebuild path starts from an empty v2 profile, upgrades older reader/news feedback into strict reader-learner payloads with `concept_id`, `concept_type`, and `source_anchor`, imports them in deterministic path order, writes normalized feedback copies under `imports/`, syncs Obsidian, and runs the final audit.
+
 Migrate a legacy profile to v2:
 
 ```bash
@@ -158,6 +173,16 @@ Export raw evidence/event notes only when an audit trail is needed:
 ```bash
 python <skill-dir>/scripts/update_learner_profile.py --profile <profile> obsidian --include-events
 ```
+
+Audit and optionally normalize the profile/wiki boundary:
+
+```bash
+python <skill-dir>/scripts/audit_knowledge_base.py --profile <profile>
+python <skill-dir>/scripts/audit_knowledge_base.py --profile <profile> --normalize-profile
+python <skill-dir>/scripts/audit_knowledge_base.py --profile <profile> --fail-on-warning
+```
+
+Use `--normalize-profile` when old profile data contains placeholder translations, illegal aliases, duplicate evidence, duplicate review items, or broken event/source references. It creates a backup and uses the same atomic JSON writer as feedback import.
 
 Use a specific Obsidian app path or vault path:
 
@@ -230,6 +255,8 @@ If the vault is not visible in Obsidian's vault list, open it once with the scri
 - Do not launch Obsidian unless the user explicitly asks. Creating the vault and open scripts is enough.
 - Use `--clean` only to remove files from the previous managed export manifest; never delete unrelated vault files.
 - Do not manually edit generated Obsidian notes as the long-term memory source. If the user's knowledge boundary changes, update/import into `knowledge_profile.json`, then regenerate the vault.
+- The generated `log.md` must use parseable llm-wiki headings such as `## [timestamp] export | Obsidian vault`.
+- Run `audit_knowledge_base.py --fail-on-warning` after profile cleanup or vault export before reporting the knowledge base as healthy.
 
 ## Explanation Rules
 

@@ -169,18 +169,20 @@ def starts_label(text: str, label: str) -> bool:
     return bool(re.match(rf'^\*\*{re.escape(label)}:\*\*', text.strip(), flags=re.I))
 
 
-def validate_translation_contract(markdown: str) -> list[str]:
+def validate_translation_contract(markdown: str, allow_draft_translation: bool = False) -> list[str]:
     issues: list[str] = []
     marker_lut = tuple(marker.lower() for marker in DRAFT_TRANSLATION_MARKERS)
     lines = markdown.splitlines()
     for idx, line in enumerate(lines, start=1):
         stripped = line.strip()
-        if starts_label(stripped, "中文"):
-            body = strip_label(stripped, "中文")
-            lowered = body.lower()
-            if any(marker in lowered for marker in marker_lut):
-                issues.append(f"line {idx}: Chinese column contains draft/paraphrase marker")
-    if issues:
+        for label in ("中文", "涓枃"):
+            if starts_label(stripped, label):
+                body = strip_label(stripped, label)
+                lowered = body.lower()
+                if any(marker in lowered for marker in marker_lut):
+                    issues.append(f"line {idx}: Chinese column contains draft/paraphrase marker")
+                break
+    if issues and not allow_draft_translation:
         preview = "\n".join(f"- {issue}" for issue in issues[:12])
         if len(issues) > 12:
             preview += f"\n- ... {len(issues) - 12} more"
@@ -188,7 +190,7 @@ def validate_translation_contract(markdown: str) -> list[str]:
             "Chinese translation contract failed. The `**中文:**` column must contain faithful translations, "
             "not interpretive summaries or reading scaffolds.\n"
             f"{preview}\n"
-            "Regenerate `paper.md` with a real translation pass before HTML generation."
+            "Regenerate `paper.md` with a real translation pass before final HTML generation, or use --allow-draft-translation for an explicitly named draft preview."
         )
     return issues
 
@@ -2056,6 +2058,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--no-feedback-ui", action="store_true", help="Disable clickable concept feedback controls")
     parser.add_argument("--math-renderer", choices=("mathjax", "none"), default="mathjax", help="Render TeX formulas with MathJax, or keep TeX source with none")
     parser.add_argument("--mathjax-url", default=DEFAULT_MATHJAX_URL, help="MathJax script URL or local path used when --math-renderer mathjax")
+    parser.add_argument("--allow-draft-translation", action="store_true", help="Allow draft/paraphrase Chinese columns; output should be named as a draft preview")
     return parser.parse_args(list(argv))
 
 
@@ -2074,7 +2077,7 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     try:
         compile_result = compile_reader_wiki(
             base_dir,
-            strict=True,
+            strict=not args.allow_draft_translation,
             profile_path=profile_path if profile_path and profile_path.exists() else None,
         )
     except ValueError as exc:
@@ -2085,8 +2088,8 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         markdown = normalized_reader.read_text(encoding="utf-8")
 
     try:
-        draft_translation_issues = validate_translation_contract(markdown)
-        structure_issues = validate_reader_structure(markdown, base_dir)
+        draft_translation_issues = validate_translation_contract(markdown, args.allow_draft_translation)
+        structure_issues = [] if args.allow_draft_translation else validate_reader_structure(markdown, base_dir)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -2105,7 +2108,10 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     knowledge_panel = build_knowledge_panel(profile, glossary, concepts, profile_path)
     feedback_ui = build_feedback_ui(title, base_dir, concepts, not args.no_feedback_ui)
     output_path = Path(args.output).expanduser().resolve() if args.output else base_dir / "reader_interactive.html"
-    if output_path.name.lower() != "reader_interactive.html":
+    output_name = output_path.name.lower()
+    if output_name != "reader_interactive.html" and not (
+        args.allow_draft_translation and "draft" in output_name
+    ):
         print(
             "Final reader output must be named reader_interactive.html. "
             "Complete translation and structure first instead of creating draft/preview HTML.",
@@ -2124,7 +2130,7 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         args.math_renderer,
         args.mathjax_url,
     )
-    html_issues = validate_generated_html(html_output, concepts, args.math_renderer)
+    html_issues = [] if args.allow_draft_translation else validate_generated_html(html_output, concepts, args.math_renderer)
     if html_issues:
         print(
             "Generated HTML contract failed. reader_interactive.html was not written.\n"

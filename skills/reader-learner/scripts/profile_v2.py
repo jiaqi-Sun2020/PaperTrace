@@ -23,7 +23,7 @@ HTML_TAG_RE = re.compile(r"<[^>]+>")
 MOJIBAKE_RE = re.compile(r"(Ã|Â|ä¸|æ|å|ðŸ|锟|鈭|脳|涓|绫|鍥|鐭|噴)")
 SOURCE_INDEX_RE = re.compile(r"\b(p\.?\s*\d+|source\s+page|source\s+index|source:\s*p\.)\b", re.I)
 SECTION_HEADING_RE = re.compile(r"^(abstract|introduction|related work|method|methods|experiment|experiments|results|conclusion|references|acknowledg(e)?ments|appendix|keywords)\b", re.I)
-SENTENCE_PUNCT_RE = re.compile(r"[。！？；：.!?;:]")
+SENTENCE_PUNCT_RE = re.compile(r"[。！？；：!?;:]")
 PDF_HYPHEN_RE = re.compile(r"(?<=[A-Za-z])-\s+(?=[A-Za-z])")
 VALID_CONCEPT_TYPES = {
     "model_module",

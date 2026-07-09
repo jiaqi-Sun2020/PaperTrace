@@ -10,7 +10,9 @@ The HTML page is the feedback collection layer. It should not write `.agents` di
 - select arbitrary text and create a free-form annotation;
 - mark status as `mastered`, `known`, `learning`, `unknown`, or `unrated`;
 - add an exact question, note, question type, and preferred explanation style;
-- download or copy `news_feedback.json`.
+- open with every configured concept already present as a saved `unrated` feedback item;
+- optionally click news concepts or select arbitrary text to add extra manual annotations;
+- download or copy the full feedback set from the HTML after user edits.
 
 Then run:
 
@@ -56,10 +58,16 @@ Build HTML from a config file:
 
 ## Commands
 
-Generate HTML:
+The HTML generator embeds the full-concept feedback set in the page and writes the same JSON sidecar by default. The page opens with every configured concept already present with default `unrated` status, so the user does not need to click each chip before using `Download JSON`:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py --config <news_feedback_config.json> --output <briefing_reader.html>
+python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py --config <news_feedback_config.json> --output <briefing_reader.html> --feedback-output <news_feedback.json> --default-status unrated
+```
+
+Use `config_to_news_feedback.py` only when generating JSON without HTML:
+
+```powershell
+python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\config_to_news_feedback.py --config <news_feedback_config.json> --output <news_feedback.json> --status unrated
 ```
 
 Import exported feedback:
@@ -86,7 +94,10 @@ Only `new` and `material_update` items should be fully expanded. Recently seen s
 
 ## Boundary
 
-- HTML export is manual.
-- Exposure-only concepts should be `unrated`.
+- Full-concept HTML export is automatic from `news_feedback_config.json`: `Download JSON` must include all default concepts plus user edits.
+- `--no-auto-feedback` disables only the sidecar file write; the HTML should still embed the initial full-concept feedback set.
+- HTML `Save mark` is for corrections, questions, status changes, and free-form annotations, not for enrolling every default concept one by one.
+- Daily/news exposure-only concepts should default to `unrated`.
+- Literature/paper reader concepts remain `unrated`; do not reuse the news default for paper HTML.
 - Do not infer `unknown` unless the user marks it or asks a question.
 - Keep source title, URL, category, and excerpt so `.agents` can distinguish news-derived concepts from paper-reading feedback.

@@ -18,6 +18,7 @@ from typing import Any, Iterable
 
 
 VALID_STATUSES = {"mastered", "known", "learning", "unknown", "unrated"}
+DEFAULT_NEWS_STATUS = "unrated"
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -47,9 +48,9 @@ def clean_text(value: Any, limit: int = 4000) -> str:
     return " ".join(str(value or "").split()).strip()[:limit]
 
 
-def valid_status(value: Any) -> str:
+def valid_status(value: Any, default: str = DEFAULT_NEWS_STATUS) -> str:
     status = clean_text(value, 80).lower()
-    return status if status in VALID_STATUSES else "unrated"
+    return status if status in VALID_STATUSES else default
 
 
 def find_project_root(start: Path) -> Path:

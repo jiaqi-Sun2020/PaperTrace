@@ -1,0 +1,783 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>AI HOT — 精选</title>
+    <link>https://aihot.virxact.com/</link>
+    <description>AI HOT 每日精选 AI 行业动态。模型发布 / 产品发布 / 行业事件 / 论文 / 技巧观点。</description>
+    <language>zh-CN</language>
+    <atom:link href="https://aihot.virxact.com/feed.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Thu, 09 Jul 2026 00:45:39 GMT</lastBuildDate>
+    <ttl>15</ttl>
+    <generator>AI HOT (https://aihot.virxact.com/agent)</generator>
+    <item>
+      <title><![CDATA[Robbyant 发布 LingBot-VLA 2.0：开源 6B 跨实体机器人视觉-语言-动作模型]]></title>
+      <link>https://aihot.virxact.com/items/cmrcsrok60407ihx5jvrp15a1</link>
+      <description><![CDATA[Robbyant 推出 LingBot-VLA 2.0，一个 6B 参数的开源视觉-语言-动作（VLA）基础模型。它以 Qwen3-VL-4B-Instruct 为骨干，采用 MoE 动作专家架构，通过 55 维规范向量统一表示不同机器人的状态和动作。训练数据涵盖约 60，000 小时高质量数据（50，000 小时机器人轨迹 + 10，000 小时第一人称人类视频），覆盖 20 种机器人配置。在 GM-100 双机械臂基准测试中，模型在多个平台上超越 π0.5 和之前版本。模型权重、代码和技术报告已以 Apache-2.0 许可开源。
+
+🔗 阅读原文：https://www.marktechpost.com/2026/07/08/lingbot-vla-2-0
+
+via AI HOT · https://aihot.virxact.com/items/cmrcsrok60407ihx5jvrp15a1]]></description>
+      <category>AI 模型</category>
+      <pubDate>Thu, 09 Jul 2026 00:45:39 GMT</pubDate>
+      <guid isPermaLink="false">cmrcsrok60407ihx5jvrp15a1</guid>
+      <author>noreply@aihot.virxact.com (MarkTechPost（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[面向AI模型双重用途知识的"开关"：Anthropic与AE Studio提出GRAM方法]]></title>
+      <link>https://aihot.virxact.com/items/cmrcpjgf00373ihx5mtyo2fsy</link>
+      <description><![CDATA[Anthropic与AE Studio联合提出梯度路由辅助模块（GRAM）方法，通过在Transformer每层添加可移除的神经元模块，使模型在训练时将病毒学、网络安全、核物理、专业编程语言等双重用途知识仅路由到对应模块，而非扩散至全局。训练后删除模块即可消除该能力，保留则供可信部署使用。实验在合成数据、真实数据及50M到5B参数模型上测试，GRAM效果与数据过滤相当，移除模块不降低通用性能，且比事后"遗忘"技术更难恢复。该研究为平衡双重用途知识的安全访问与有益使用提供了更鲁棒的方案。
+
+🔗 阅读原文：https://www.anthropic.com/research/off-switch-dual-use
+
+via AI HOT · https://aihot.virxact.com/items/cmrcpjgf00373ihx5mtyo2fsy]]></description>
+      <category>论文</category>
+      <pubDate>Wed, 08 Jul 2026 23:27:02 GMT</pubDate>
+      <guid isPermaLink="false">cmrcpjgf00373ihx5mtyo2fsy</guid>
+      <author>noreply@aihot.virxact.com (Anthropic：Research（发表成果 · 网页）)</author>
+    </item>
+    <item>
+      <title><![CDATA[利润超10亿美元、ARR剑指千亿，Anthropic抢先OpenAI冲击IPO]]></title>
+      <link>https://aihot.virxact.com/items/cmrcp5by2031uihx57fypdkfo</link>
+      <description><![CDATA[Anthropic今年第三季度利润预计超10亿美元，已于6月1日秘密提交IPO申请，若成功将成为规模最大AI实验室IPO。其与OpenAI的年度经常性收入合计接近1000亿美元。凭借Claude Code在软件开发领域的快速普及，Anthropic在2026年实现AI模型盈利变现，成为B2B市场领跑者。SemiAnalysis报告认为其商业模式优越，若持续良好执行，市值可能触及6万亿美元。
+
+🔗 阅读原文：https://www.ithome.com/0/974/275.htm
+
+via AI HOT · https://aihot.virxact.com/items/cmrcp5by2031uihx57fypdkfo]]></description>
+      <category>行业动态</category>
+      <pubDate>Wed, 08 Jul 2026 22:30:38 GMT</pubDate>
+      <guid isPermaLink="false">cmrcp5by2031uihx57fypdkfo</guid>
+      <author>noreply@aihot.virxact.com (IT之家（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Seedream 5.0 Pro 登陆 Runway，支持14种语言]]></title>
+      <link>https://aihot.virxact.com/items/cmrcn8mlw02k5ihx5risshcr3</link>
+      <description><![CDATA[Seedream 5.0 Pro 现已登陆 Runway。可通过提示词或参考图生成高细节图像，图像内文字清晰可读，支持多达14种语言。立即点击下方链接尝试。
+
+🔗 阅读原文：https://x.com/runwayml/status/2074982268175630814
+
+via AI HOT · https://aihot.virxact.com/items/cmrcn8mlw02k5ihx5risshcr3]]></description>
+      <content:encoded><![CDATA[<p>Seedream 5.0 Pro is now in Runway. Generate highly detailed images from a prompt or reference, with legible in-image text in up to 14 different languages.</p>
+<p>Try it now at the link below.</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrcn8mlw02k5ihx5risshcr3">https://aihot.virxact.com/items/cmrcn8mlw02k5ihx5risshcr3</a></p>]]></content:encoded>
+      <category>AI 产品</category>
+      <pubDate>Wed, 08 Jul 2026 22:21:38 GMT</pubDate>
+      <guid isPermaLink="false">cmrcn8mlw02k5ihx5risshcr3</guid>
+      <author>noreply@aihot.virxact.com (X：Runway (@runwayml))</author>
+    </item>
+    <item>
+      <title><![CDATA[诉讼：男子使用Grok制作7000张继女色情图像后自杀]]></title>
+      <link>https://aihot.virxact.com/items/cmrcit2bg01f9ihx5cps026s8</link>
+      <description><![CDATA[一男子使用Grok生成7000张继女儿童性虐待材料（CSAM）后自杀。更多年轻女孩起诉X平台，指控其涉及Grok生成CSAM，并包庇儿童性犯罪者。
+
+🔗 阅读原文：https://arstechnica.com/tech-policy/2026/07/lawsuit-grok-user-made-7k-child-sex-images-xai-only-reported-one-gang-rape-prompt
+
+via AI HOT · https://aihot.virxact.com/items/cmrcit2bg01f9ihx5cps026s8]]></description>
+      <category>行业动态</category>
+      <pubDate>Wed, 08 Jul 2026 19:56:37 GMT</pubDate>
+      <guid isPermaLink="false">cmrcit2bg01f9ihx5cps026s8</guid>
+      <author>noreply@aihot.virxact.com (Ars Technica：AI（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Replit 推出社区档案与力量排名]]></title>
+      <link>https://aihot.virxact.com/items/cmrc8cfhc00jeihqc0r5wx6qz</link>
+      <description><![CDATA[本周新功能 🚀 Replit 社区档案--vibe coders 的工作证明。
+
+你的档案，你的展示。获取你的智能体使用和检查点的活跃度图表，外加面向专业用户的 Replit 力量排名。
+
+登录，认领你的档案，挑选你最棒的项目，与朋友分享你的数据。
+
+立即查看 → http://replit.com/community
+
+🔗 阅读原文：https://x.com/Replit/status/2074871322220339515
+
+via AI HOT · https://aihot.virxact.com/items/cmrc8cfhc00jeihqc0r5wx6qz]]></description>
+      <content:encoded><![CDATA[<p>本周新上线 🚀 Replit 社区个人资料 —— 专为氛围编码者打造的工作量证明。 你的个人资料，由你炫耀。获取你的智能体使用情况和检查点的活动图表，Pro 用户还可获得 Replit 实力排名。 登录，认领你的个人资料，挑选你最出色的项目，并与朋友分享你的数据。 立即查看实际效果 → http://replit.com/community</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrc8cfhc00jeihqc0r5wx6qz">https://aihot.virxact.com/items/cmrc8cfhc00jeihqc0r5wx6qz</a></p>]]></content:encoded>
+      <category>AI 产品</category>
+      <pubDate>Wed, 08 Jul 2026 15:00:47 GMT</pubDate>
+      <guid isPermaLink="false">cmrc8cfhc00jeihqc0r5wx6qz</guid>
+      <author>noreply@aihot.virxact.com (X：Replit (@Replit))</author>
+    </item>
+    <item>
+      <title><![CDATA[OpenRouter聊天室推出一键零数据保留]]></title>
+      <link>https://aihot.virxact.com/items/cmrc8c7rq00imihqcg5rp1u13</link>
+      <description><![CDATA[新功能：聊天室一键ZDR（零数据保留）
+在完全隐私保护下横向对比模型：https://openrouter.ai/chat
+
+🔗 阅读原文：https://x.com/OpenRouter/status/2074870468394250461
+
+via AI HOT · https://aihot.virxact.com/items/cmrc8c7rq00imihqcg5rp1u13]]></description>
+      <content:encoded><![CDATA[<p>New: one-click ZDR (zero-data retention) in the Chatroom</p>
+<p>Compare models side-by-side with full privacy: https://openrouter.ai/chat</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrc8c7rq00imihqcg5rp1u13">https://aihot.virxact.com/items/cmrc8c7rq00imihqcg5rp1u13</a></p>]]></content:encoded>
+      <category>AI 产品</category>
+      <pubDate>Wed, 08 Jul 2026 14:57:23 GMT</pubDate>
+      <guid isPermaLink="false">cmrc8c7rq00imihqcg5rp1u13</guid>
+      <author>noreply@aihot.virxact.com (X：OpenRouter (@OpenRouter))</author>
+    </item>
+    <item>
+      <title><![CDATA[OpenAI发布政府与国家安全合作伙伴关系方针]]></title>
+      <link>https://aihot.virxact.com/items/cmrcjj0xz01mqihx5zwai9t6j</link>
+      <description><![CDATA[OpenAI近日公布国家安全原则，阐明在政府及国家安全领域部署前沿AI系统的方针。原则强调在保护公民、防御关键基础设施、提供公共服务及应对新兴威胁（网络防御和生物安全）中发挥AI优势，同时确保民主问责、人类判断和法治。过去一个月，OpenAI通过Daybreak网络防御计划与澳大利亚、加拿大、日本、韩国、法国、德国、波兰、荷兰及欧盟ENISA等机构建立网络安全信任访问合作，并与英国政府开展网络安全测试评估。上月，OpenAI向部分美国政府及盟友合作伙伴开放GPT-Rosalind模型用于公共卫生和生物防御。原则适用于现有及未来合作，包括与Department of War的协议，明确禁止大规模国内监控、自主武器系统及高风险自动化决策。OpenAI支持立法对高风险军事用途（如国内监控、自主武器）建立保障措施。
+
+🔗 阅读原文：https://openai.com/index/government-national-security-partnerships
+
+via AI HOT · https://aihot.virxact.com/items/cmrcjj0xz01mqihx5zwai9t6j]]></description>
+      <category>行业动态</category>
+      <pubDate>Wed, 08 Jul 2026 13:30:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrcjj0xz01mqihx5zwai9t6j</guid>
+      <author>noreply@aihot.virxact.com (OpenAI：官网动态（RSS · 排除企业/客户案例）)</author>
+    </item>
+    <item>
+      <title><![CDATA[OpenAI 审计 SWE-Bench Pro 发现约 30% 的评测任务存在缺陷]]></title>
+      <link>https://aihot.virxact.com/items/cmrcigf5k01bqihx54i8oph9u</link>
+      <description><![CDATA[OpenAI 对编码评测基准 SWE-Bench Pro 进行详细审计，发现约 30% 的任务存在缺陷。在 731 个任务的公开子集中，前沿模型通过率在八个月内从 23.3% 提升至 80.3%，但数据质量检查显示大量任务存在测试过于严格、提示词描述不足、测试覆盖不全或误导性提示等问题。OpenAI 建议模型开发者仔细审视评测结果，并指出 AI 智能体在规模化数据质量检查中日益增长的实用性。
+
+🔗 阅读原文：https://openai.com/index/separating-signal-from-noise-coding-evaluations
+
+via AI HOT · https://aihot.virxact.com/items/cmrcigf5k01bqihx54i8oph9u]]></description>
+      <category>论文</category>
+      <pubDate>Wed, 08 Jul 2026 13:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrcigf5k01bqihx54i8oph9u</guid>
+      <author>noreply@aihot.virxact.com (OpenAI：官网动态（RSS · 排除企业/客户案例）)</author>
+    </item>
+    <item>
+      <title><![CDATA[在校研究生Kunkun开源管理相互调用Skill的方法]]></title>
+      <link>https://aihot.virxact.com/items/cmrc1iygj00twihyfe1hkvycv</link>
+      <description><![CDATA[在校研究生Kunkun开源了一套管理大量互相调用Skill的方法。核心方案包括：1）搭建HTML后台，按运行模式（手动/自动）、链路位置、专业领域三类标签筛选Skill；2）将连环调用的Skill绘制成Mermaid流程图，根据debug、新功能、合PR、改设计等阶段定位对应技能组；3）仿照Matt的ask Matt技能开发"ask me"技能，将调用决策浓缩成上下文喂给模型。该方法避免将所有调用交给模型自行判断，保持工程复杂场景下的人机对齐与可控性。项目已开源至GitHub。
+
+🔗 阅读原文：https://x.com/berryxia/status/2074827915779580055
+
+via AI HOT · https://aihot.virxact.com/items/cmrc1iygj00twihyfe1hkvycv]]></description>
+      <content:encoded><![CDATA[<p>现在的年轻小伙子一个比一个生猛啊！ 执行力和学习能力真的是拉满～</p>
+<p>Kunkun 还是一位在校读研的学生！</p>
+<p>分享了自己管理大量互相调用的Skill的实用方法，已经开源在GitHub。</p>
+<p>他建了一个HTML后台，把所有Skill按“运行模式（手动/自动）”“链路位置”“专业领域”打标签，方便快速筛选。</p>
+<p>同时把涉及连环调用的Skill做成Mermaid流程图，根据当前阶段（debug、新功能、合PR、改设计）快速定位该用哪一组Skill。</p>
+<p>另外还做了一个“ask me”技能，负责把“该调用哪个Skill”的决策浓缩成上下文喂给模型，并不是简单的把所有决策全扔给模型自己判断。</p>
+<p>本质上是在复杂工程场景下，不完全相信模型能自己管好Skill调用，使用用结构化的索引 + 流程图 + 决策浓缩，来保持人和模型之间的对齐和可控性。</p>
+<p>开源地址见评论区👇</p>
+<p>[引用 @Karadokuy]：分享一下我现在随着 skill 越来越多、并且互相之间都有调用关系的情况下，是如何去管理 skill 并且去协调这些 skill 的使用的。</p>
+<p>首先，我会建一个 HTML，它主要分为两块：</p>
+<p>第一块是类似后台的索引块。在索引块这边，你可以通过标签去选择、筛选出你想要的 skill。我把标签分为了以下几类： 1. 运行模式：它是需要人手动调用的技能，还是模型自动调用的技能？ 2. 链路位置：它是在哪一条链路上，在我的 skill 调用的哪条链路上？ 3. 专业领域：它到底是属于什么领域的技能？是做设计、做前端、做后端，还是做一系列工程领域的技能？ 我一般会分成这几类，方便我快速地去查看和调用。</p>
+<p>再往下，我做了一层非常有意思的设计。我把这里面所有技能中，特别是涉及到连环调用关系的技能，都做成了 Mermaid 图。我可以通过这种最小化的 Mermaid 图（环），首先判断我现在是在哪一个阶段： • 是要 debug？ • 还是开发一个新功能？ • 还是融合 PR？ • 或者是重新做页面设计？</p>
+<p>根据我所处的阶段和对应的环，去找到对应的流程，从而明确自己接下来调用技能的顺序是什么，以及要如何指挥模型去完成对应的任务。</p>
+<p>（这一块是专门用来方便我自己根据工作的进度来选择合适的技能组。）</p>
+<p>---</p>
+<p>对于模型测，我写了一个 ask me 技能，这个是仿照 Matt 的 ask Matt 技能来做的。https://github.com/mattpocock/skills/blob/main/skills/engineering/ask-matt/SKILL.md</p>
+<p>其负责将对应的“需要调用哪个技能”变成浓缩的上下文交给模型，然后模型可以根据自己当前的上下文情况去判断。</p>
+<p>这两个结合起来，能带来以下好处： 1. 保证在复杂的工程中，Skill 的调用不会乱（而不是将所有的 Skill 调用全然交给模型）。 2. 避免上下文混乱的同时，也能保证模型一直处于跟我比较对齐的状态，让我能更好地对齐和了解我的工作。</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrc1iygj00twihyfe1hkvycv">https://aihot.virxact.com/items/cmrc1iygj00twihyfe1hkvycv</a></p>]]></content:encoded>
+      <category>技巧观点</category>
+      <pubDate>Wed, 08 Jul 2026 12:08:18 GMT</pubDate>
+      <guid isPermaLink="false">cmrc1iygj00twihyfe1hkvycv</guid>
+      <author>noreply@aihot.virxact.com (X：Berry Xia (@berryxia))</author>
+    </item>
+    <item>
+      <title><![CDATA[加拿大不列颠哥伦比亚省拟起诉OpenAI：未上报ChatGPT暴力对话致校园枪击惨案]]></title>
+      <link>https://aihot.virxact.com/items/cmrbxa3ll003yihgens8d2sqg</link>
+      <description><![CDATA[加拿大不列颠哥伦比亚省7月7日宣布将起诉OpenAI，指控其未向执法部门上报一名ChatGPT用户2025年6月封禁前的暴力相关对话内容。该用户随后于今年2月在塔布勒岭制造校园枪击案，杀害8人。OpenAI CEO萨姆·奥尔特曼今年4月为此公开致歉，承认本应上报但未执行。受害家属已在加州法院提起诉讼，省政府正协调独立诉讼，要求赔偿用于社区重建。
+
+🔗 阅读原文：https://www.ithome.com/0/974/169.htm
+
+via AI HOT · https://aihot.virxact.com/items/cmrbxa3ll003yihgens8d2sqg]]></description>
+      <category>行业动态</category>
+      <pubDate>Wed, 08 Jul 2026 09:55:17 GMT</pubDate>
+      <guid isPermaLink="false">cmrbxa3ll003yihgens8d2sqg</guid>
+      <author>noreply@aihot.virxact.com (IT之家（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[GitLost：Noma Labs 发现 GitHub AI 代理提示词注入漏洞]]></title>
+      <link>https://aihot.virxact.com/items/cmrbu023x079pihl1q4rvhzky</link>
+      <description><![CDATA[Noma Labs 在 GitHub Agentic Workflows 中发现严重提示词注入漏洞 GitLost。未认证攻击者仅需在属于同一组织的公共仓库中创建一个嵌有恶意指令的 Issue，即可诱使基于 Claude 或 GitHub Copilot 的 AI 代理读取并公开该组织内私有仓库的内容。攻击无需编码技能或凭证，根源在于代理将用户可控内容视为可信指令，且 GitHub 的防护措施因 "Additionally" 关键词被绕过。Noma Labs 已公开 PoC 并建议限制跨仓库权限、隔离用户输入。
+
+🔗 阅读原文：https://noma.security/blog/gitlost-how-we-tricked-githubs-ai-agent-into-leaking-private-repos
+
+via AI HOT · https://aihot.virxact.com/items/cmrbu023x079pihl1q4rvhzky]]></description>
+      <category>行业动态</category>
+      <pubDate>Wed, 08 Jul 2026 08:29:47 GMT</pubDate>
+      <guid isPermaLink="false">cmrbu023x079pihl1q4rvhzky</guid>
+      <author>noreply@aihot.virxact.com (Hacker News 热门（buzzing.cc 中文翻译）)</author>
+    </item>
+    <item>
+      <title><![CDATA[黑客可利用9款最流行的AI工具组装大规模僵尸网络]]></title>
+      <link>https://aihot.virxact.com/items/cmrbqwsid06g2ihl1iiwufnz5</link>
+      <description><![CDATA[提示注入已成为AI安全的首要威胁--大语言模型无法区分合法指令与恶意指令。此前推送式和拉取式攻击规模均有限。研究人员提出一种名为HalluSquatting的新型拉取式提示注入攻击，首次能组装大规模僵尸网络、执行分布式拒绝服务攻击（DDoS）并大规模感染设备。该攻击可作用于AI编码工具，标志着提示注入攻击从单点突破转向规模化利用。
+
+🔗 阅读原文：https://arstechnica.com/security/2026/07/hackers-can-use-9-of-the-most-popular-ai-tools-to-assemble-massive-botnets
+
+via AI HOT · https://aihot.virxact.com/items/cmrbqwsid06g2ihl1iiwufnz5]]></description>
+      <category>论文</category>
+      <pubDate>Wed, 08 Jul 2026 07:00:51 GMT</pubDate>
+      <guid isPermaLink="false">cmrbqwsid06g2ihl1iiwufnz5</guid>
+      <author>noreply@aihot.virxact.com (Ars Technica：AI（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[工信部发布Claude Code后门安全风险提示]]></title>
+      <link>https://aihot.virxact.com/items/cmrboci2105r3ihl1zmi6wgpf</link>
+      <description><![CDATA[中国工信部发布风险提示，指出 Claude Code 2.1.91 至 2.1.196 版本内置监控机制，未经用户同意即向远程服务器回传用户地域、身份标识等敏感信息。建议相关单位立即全面排查，对受影响版本卸载或升级至已清除后门代码的最新安全版本，并加强开发工具外联权限管控与流量监测，防止敏感数据违规外传。
+
+🔗 阅读原文：https://x.com/xiaohu/status/2074736623284256881
+
+via AI HOT · https://aihot.virxact.com/items/cmrboci2105r3ihl1zmi6wgpf]]></description>
+      <content:encoded><![CDATA[<p>愈演愈烈了</p>
+<p>中国工信部发布关于防范Claude Code安全后门隐患的风险提示</p>
+<p>公告称：Claude Code2.1.91至2.1.196版本内置了监控机制，未经用户同意即可向远程服务器回传用户地域、身份标识等敏感信息</p>
+<p>建议相关单位和用户立即开展全面排查，对于安装上述受影响版本的开发终端，立即卸载 或 升级至已清除相关后门代码的最新安全版本</p>
+<p>加强核心业务网段内开发工具外联权限管控与流量监测，防止敏感数据违规外传。</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrboci2105r3ihl1zmi6wgpf">https://aihot.virxact.com/items/cmrboci2105r3ihl1zmi6wgpf</a></p>]]></content:encoded>
+      <category>行业动态</category>
+      <pubDate>Wed, 08 Jul 2026 06:05:32 GMT</pubDate>
+      <guid isPermaLink="false">cmrboci2105r3ihl1zmi6wgpf</guid>
+      <author>noreply@aihot.virxact.com (X：小互 (@xiaohu))</author>
+    </item>
+    <item>
+      <title><![CDATA[AI 审计代理在 Cloudflare CIRCL 中发现 7 个漏洞]]></title>
+      <link>https://aihot.virxact.com/items/cmrblfb8a050sihl1484pa3wo</link>
+      <description><![CDATA[zkSecurity 的 AI 审计代理 zkao 持续扫描 Cloudflare 的 CIRCL 密码学库，使用 Opus 4.6 + skills 和 GPT-5.3 + skills 等模型发现并确认了 7 个真实漏洞。其中包括阈值 RSA 中 float64 精度丢失（AI 自评 Critical）和属性基加密（CP-ABE）访问控制完全失效（Critical，由 zkao 自行发现）。所有漏洞已在上游修复，多数在 HackerOne 上获得确认和奖励。AI 生成的候选发现仍需人工验证，但 zkao 已能自动完成大部分验证工作。
+
+🔗 阅读原文：https://blog.zksecurity.xyz/posts/circl-bugs
+
+via AI HOT · https://aihot.virxact.com/items/cmrblfb8a050sihl1484pa3wo]]></description>
+      <category>技巧观点</category>
+      <pubDate>Wed, 08 Jul 2026 04:29:33 GMT</pubDate>
+      <guid isPermaLink="false">cmrblfb8a050sihl1484pa3wo</guid>
+      <author>noreply@aihot.virxact.com (Hacker News 热门（buzzing.cc 中文翻译）)</author>
+    </item>
+    <item>
+      <title><![CDATA[美国商务部批准OpenAI大规模发布GPT-5.6，Sol明日亮相]]></title>
+      <link>https://aihot.virxact.com/items/cmrbkf2e804qlihl1e8qe5q4a</link>
+      <description><![CDATA[美国商务部正式批准OpenAI大规模发布GPT-5.6。OpenAI宣布GPT-5.6 Sol将于本周四完成最后准备后，与Terra和Luna一同面向公众推出。此前因国家安全考量，美国政府要求分阶段发布，仅允许向经批准的有限实体开放。此次全面放行标志着临时管控结束。获批前，美国商务部下属AI标准与创新中心执行了测试，OpenAI技术团队驻扎华盛顿配合沟通。美国最新AI行政令即将出台，旨在为先进AI模型发布建立正式评估框架。
+
+🔗 阅读原文：https://www.ithome.com/0/973/922.htm
+
+via AI HOT · https://aihot.virxact.com/items/cmrbkf2e804qlihl1e8qe5q4a]]></description>
+      <category>行业动态</category>
+      <pubDate>Wed, 08 Jul 2026 03:30:52 GMT</pubDate>
+      <guid isPermaLink="false">cmrbkf2e804qlihl1e8qe5q4a</guid>
+      <author>noreply@aihot.virxact.com (IT之家（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[蚂蚁集团旗下Robbyant开源LingBot-Vision：1B参数边界中心视觉基础模型，用于密集空间感知]]></title>
+      <link>https://aihot.virxact.com/items/cmrbikwbz04b5ihl16qfp5ntw</link>
+      <description><![CDATA[蚂蚁集团旗下具身智能公司Robbyant开源LingBot-Vision，一套自监督视觉Transformer家族，专为密集空间感知设计。旗舰ViT-g/16参数约1.1B，采用掩膜边界建模训练，将边界作为原生预训练信号。在密集空间任务中，该1B模型匹配或超越参数规模高达7倍的大模型（如7B DINOv3）。模型以Apache-2.0许可证在Hugging Face开源，提供ViT-g、ViT-L（300M）、ViT-B（86M）、ViT-S四个规模。
+
+🔗 阅读原文：https://www.marktechpost.com/2026/07/07/ant-groups-robbyant-open-sources-lingbot-vision-a-1b-boundary-centric-vision-foundation-model-for-dense-spatial-perception
+
+via AI HOT · https://aihot.virxact.com/items/cmrbikwbz04b5ihl16qfp5ntw]]></description>
+      <category>AI 模型</category>
+      <pubDate>Wed, 08 Jul 2026 03:03:22 GMT</pubDate>
+      <guid isPermaLink="false">cmrbikwbz04b5ihl16qfp5ntw</guid>
+      <author>noreply@aihot.virxact.com (MarkTechPost（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Pulpie：用于清理网络的Pareto最优模型]]></title>
+      <link>https://aihot.virxact.com/items/cmrbez8y903b9ihl133b5wr18</link>
+      <description><![CDATA[Pulpie是一族Pareto最优模型，用于从HTML页面提取主要内容。其最小模型pulpie-orange-small（210M参数）在WebMainBench上取得0.862的ROUGE-5 F1分数，接近600M参数的Dripper（0.864），但成本仅1/20。在NVIDIA L4 GPU上，Pulpie处理速度13.7页/秒，Dripper仅0.68页/秒。清理10亿页HTML，Pulpie成本约$7，900，Dripper需$159，000。模型采用编码器架构，单次前向传播即可标记每个HTML块为内容或模板，已在HuggingFace开源。
+
+🔗 阅读原文：https://usefeyn.com/blog/pulpie-pareto-optimal-models-for-cleaning-the-web
+
+via AI HOT · https://aihot.virxact.com/items/cmrbez8y903b9ihl133b5wr18]]></description>
+      <category>AI 模型</category>
+      <pubDate>Wed, 08 Jul 2026 01:33:24 GMT</pubDate>
+      <guid isPermaLink="false">cmrbez8y903b9ihl133b5wr18</guid>
+      <author>noreply@aihot.virxact.com (Hacker News 热门（buzzing.cc 中文翻译）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Claude开发者分享两种多智能体模式：Advisor和Orchestrator]]></title>
+      <link>https://aihot.virxact.com/items/cmrbdqlcv02y4ihl11xbxx9xs</link>
+      <description><![CDATA[Claude开发者官方分享团队高频使用的两种多智能体模式。Advisor模式：Sonnet 5作为执行者，通过tool call调用Fable 5获取指导。SWE-bench Pro（482题）上，Sonnet 5单独75.5%/$0.75，加顾问达84%/$1.40，Fable 5单独91.5%/$2.25；组合方案约92%性能、63%成本。Orchestrator模式：Fable 5作为编排者规划并向多个Sonnet 5 worker扇出任务。BrowseComp上，全Sonnet 5 77.8%/$16.01，编排方案86.8%/$18.53，全Fable 5 90.8%/$40.56；编排方案约96%性能、46%成本。
+
+🔗 阅读原文：https://x.com/shao__meng/status/2074661249804366310
+
+via AI HOT · https://aihot.virxact.com/items/cmrbdqlcv02y4ihl11xbxx9xs]]></description>
+      <content:encoded><![CDATA[<p>Claude 开发者官方分享：团队内部高频使用这两种经典多智能体模式「Advisor」和「Orchestrator」来发挥 Fable 5 最高价值、同时把成本降到最低！</p>
+<p># 模式一：Advisor（顾问）模式 —— 自下而上的求助</p>
+<p>架构：Sonnet 5 作为执行者跑主循环，遇到需要高层判断时，通过 tool call 调用 Fable 5 获取建议，Fable 5 返回"指导意见"后继续执行。</p>
+<p>关键特征： · 方向：Executor → Advisor（执行者主动求助） · Fable 5 调用频率低，大约每个任务只调用一次，用于"纠偏/定方向" · 绝大多数 token 按 Sonnet 5 的低价计费</p>
+<p>实证数据（SWE-bench Pro，482 题）： · Sonnet 5 单独：~75.5%，~$0.75 · Sonnet 5 + Fable advisor：~84%，~$1.40 · Fable 5 单独：~91.5%，~$2.25 结论：组合方案拿到 Fable 5 单独约 92% 的分数，但只需约 63% 的价格。</p>
+<p># 模式二：Orchestrator（编排者）模式 —— 自上而下的委派</p>
+<p>架构：Fable 5 作为编排者做规划，然后把任务"扇出（fan out）"委托给多个 Sonnet 5 worker 执行，每个 worker 跑自己的执行循环。</p>
+<p>关键特征： · 方向：Orchestrator → Workers（编排者主动委派） · Fable 5 负责"规划"，token 消耗大的实际研究/执行交给 Sonnet 5 · 适合研究类、可并行的批量任务</p>
+<p>实证数据（BrowseComp 完整集）： · 全 Sonnet 5：77.8%，$16.01 · Fable 5 lead + Sonnet 5 workers：86.8%，$18.53 · 全 Fable 5：90.8%，$40.56 结论：编排方案拿到 Fable 5 单独约 96% 的性能，但只需约 46% 的价格；相比纯 Sonnet 5，准确率提升约 9 个百分点，成本仅增加约 $2.5。</p>
+<p># 两种模式的对比</p>
+<p>1. 控制流方向 Advisor 模式：执行者向上求助 Orchestrator 模式：编排者向下委派</p>
+<p>2. Fable 5 角色 Advisor 模式：被动提供指导 Orchestrator 模式：主动规划分配</p>
+<p>3. Fable 5 调用频率 Advisor 模式：低（约一次/任务） Orchestrator 模式：规划阶段集中使用</p>
+<p>4. 适合场景 Advisor 模式：单任务中需要高层纠偏 Orchestrator 模式：可拆分、可并行的研究/批处理</p>
+<p>5. 性价比口诀 Advisor 模式：92% 性能 / 63% 价格 Orchestrator 模式：96% 性能 / 46% 价格</p>
+<p>[引用 @ClaudeDevs]：A few patterns we frequently use with Fable 5:</p>
+<p>Use Fable 5 as an "advisor."</p>
+<p>An executor (Sonnet 5) calls Fable 5 for guidance.</p>
+<p>Most tokens are billed at the lower executor rate.</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrbdqlcv02y4ihl11xbxx9xs">https://aihot.virxact.com/items/cmrbdqlcv02y4ihl11xbxx9xs</a></p>]]></content:encoded>
+      <category>技巧观点</category>
+      <pubDate>Wed, 08 Jul 2026 01:06:01 GMT</pubDate>
+      <guid isPermaLink="false">cmrbdqlcv02y4ihl11xbxx9xs</guid>
+      <author>noreply@aihot.virxact.com (X：邵猛 (@shao__meng))</author>
+    </item>
+    <item>
+      <title><![CDATA[蚂蚁集团周俊AICon演讲：从Token数量到Token密度，万亿参数模型效率优先]]></title>
+      <link>https://aihot.virxact.com/items/cmrbdsefa02yjihl17gg7mhx3</link>
+      <description><![CDATA[蚂蚁集团副总裁周俊在AICon演讲指出，万亿参数模型每运行15分钟算力成本约等于一辆特斯拉，效率是智能体时代最需解决的问题。团队提出从"更多Token"转向"更高Token密度"策略，采用7份Lightning Attention加1份MLA的混合线性注意力架构，使256K长上下文成本从指数级降至线性级，算力更多用于思考。通过Kpop算法区分工具调用与自然语言Token，结合思维链剪枝、自蒸馏等，Token输出减少约4倍而能力不降。在LongBench、BFCL等基准上提升显著，千亿参数模型在Agent任务中超越部分更大模型；小模型flash吞吐达2.4倍，五轮对话成本下降10倍以上。
+
+🔗 阅读原文：https://mp.weixin.qq.com/s/dsIfi4C-T5Q4emmIh-7yzg
+
+via AI HOT · https://aihot.virxact.com/items/cmrbdsefa02yjihl17gg7mhx3]]></description>
+      <category>技巧观点</category>
+      <pubDate>Wed, 08 Jul 2026 01:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrbdsefa02yjihl17gg7mhx3</guid>
+      <author>noreply@aihot.virxact.com (公众号：蚂蚁百灵（Ling）)</author>
+    </item>
+    <item>
+      <title><![CDATA[《人生设计课》Prompt实测：用Claude设计人生的四个阶段]]></title>
+      <link>https://aihot.virxact.com/items/cmrbc048n02j2ihl1all0ymge</link>
+      <description><![CDATA[作者将斯坦福《人生设计课》理论体系制成Prompt，通过Claude逐步提问、追问和分析。Prompt融合设计思维、心流理论和积极心理学，分为看清现状、找到指南针、寻路、制定奥德赛计划四阶段，主线问题控制在6到9个。AI引导用户给健康、工作、娱乐、爱打分，区分重力问题与可设计的真问题，生成三个五年人生版本，最终输出8000至12000字的《个人人生设计蓝图》。作者实测效果超预期。
+
+🔗 阅读原文：https://mp.weixin.qq.com/s/VDlBdkspV0SQNFJYLxOogQ
+
+via AI HOT · https://aihot.virxact.com/items/cmrbc048n02j2ihl1all0ymge]]></description>
+      <category>技巧观点</category>
+      <pubDate>Wed, 08 Jul 2026 00:12:06 GMT</pubDate>
+      <guid isPermaLink="false">cmrbc048n02j2ihl1all0ymge</guid>
+      <author>noreply@aihot.virxact.com (公众号：数字生命卡兹克)</author>
+    </item>
+    <item>
+      <title><![CDATA[AI预检检查：智能体工作记忆架构]]></title>
+      <link>https://aihot.virxact.com/items/cmrcpxyar03a0ihx5hcxdrz78</link>
+      <description><![CDATA[一种为AI智能体设计的预检工作记忆架构：查询到来时，系统从磁盘上约90个索引化的技能库中检索最相关技能，仅加载到上下文窗口。本地开源模型Ornith 35B（350亿参数，通过Ollama在Apple Silicon上运行）执行任务，约80%常规任务由本地模型完成，困难任务路由至前沿模型。看门狗记录每次预检决策和技能调用，夜间通过异步推理处理全天轨迹，自动决定哪些技能需新增或固化（如日历排期转为确定性Rust代码），实现自我改进循环。昨天，看门狗首次未提出任何改进建议，系统或接近性能平台期。
+
+🔗 阅读原文：https://www.tomtunguz.com/the-ai-preflight-check
+
+via AI HOT · https://aihot.virxact.com/items/cmrcpxyar03a0ihx5hcxdrz78]]></description>
+      <category>技巧观点</category>
+      <pubDate>Wed, 08 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrcpxyar03a0ihx5hcxdrz78</guid>
+      <author>noreply@aihot.virxact.com (Tomer Tunguz 博客（VC 分析）)</author>
+    </item>
+    <item>
+      <title><![CDATA[推出 Grok 4.5]]></title>
+      <link>https://aihot.virxact.com/items/cmrcdtas00074ihx5zzerv512</link>
+      <description><![CDATA[Cursor 与 SpaceXAI 联合训练了混合专家模型 Grok 4.5，在数万亿 tokens 的 Cursor 用户交互数据上训练，并通过强化学习解决软件工程、数据科学、金融、法律等领域的困难问题。基础版定价 $2/M 输入 tokens、$6/M 输出 tokens，快速版 $4/M 输入 tokens、$18/M 输出 tokens。即日起在 Cursor 桌面、网页、iOS、CLI 及 SDK 中可用，个人和团队计划首周使用量翻倍。Grok 4.5 与 Composer 2.5 为不同权重类别，两者将继续支持。
+
+🔗 阅读原文：https://cursor.com/blog/grok-4-5
+
+via AI HOT · https://aihot.virxact.com/items/cmrcdtas00074ihx5zzerv512]]></description>
+      <category>AI 模型</category>
+      <pubDate>Wed, 08 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrcdtas00074ihx5zzerv512</guid>
+      <author>noreply@aihot.virxact.com (Cursor Blog)</author>
+    </item>
+    <item>
+      <title><![CDATA[OpenAI 发布 GPT-Live 新一代全双工语音模型]]></title>
+      <link>https://aihot.virxact.com/items/cmrcc072t01eqihqcf5kht18y</link>
+      <description><![CDATA[OpenAI 今日推出 GPT-Live，基于全双工架构实现同时听与说，支持自然打断与实时回馈。该模型每秒多次判断是否说话、倾听、打断或调用工具，并将搜索、推理等复杂任务委托给后台 GPT-5.5，保持对话流畅。即日起向全球 ChatGPT 用户提供 GPT-Live-1 和 GPT-Live-1 mini 两个版本。人类评估显示，在 5-10 分钟对话中，GPT-Live-1 系列在自然度、轮流、打断等方面显著优于 Advanced Voice Mode；在 GPQA、BrowseComp 和 τ3-Voice Telecom 基准测试中也表现更强。未来将开放 API。
+
+🔗 阅读原文：https://openai.com/index/introducing-gpt-live
+
+via AI HOT · https://aihot.virxact.com/items/cmrcc072t01eqihqcf5kht18y]]></description>
+      <category>AI 模型</category>
+      <pubDate>Wed, 08 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrcc072t01eqihqcf5kht18y</guid>
+      <author>noreply@aihot.virxact.com (OpenAI：官网动态（RSS · 排除企业/客户案例）)</author>
+    </item>
+    <item>
+      <title><![CDATA[原生速度的 vLLM transformers 建模后端]]></title>
+      <link>https://aihot.virxact.com/items/cmrcabmvj00ymihqce96ilbfi</link>
+      <description><![CDATA[Hugging Face 宣布 transformers vLLM 后端现与手写原生 vLLM 实现速度相当甚至更快。模型作者无需移植代码，即可自动利用 transformers 获得超快推理。测试使用 Qwen3-4B（单 GPU）、Qwen3-32B（张量并行）和 Qwen3-235B-A22B-FP8 MoE（数据+专家并行）三种配置，吞吐量均达到或超过原生。该后端通过 torch.fx 静态分析图、AST 重写代码实现动态层融合，支持张量/管道/专家并行及 torch.compile。用户仅需添加 `--model-impl transformers` 标志。目前不支持线性注意力模型但即将支持。
+
+🔗 阅读原文：https://huggingface.co/blog/native-speed-vllm-transformers-backend
+
+via AI HOT · https://aihot.virxact.com/items/cmrcabmvj00ymihqce96ilbfi]]></description>
+      <category>AI 产品</category>
+      <pubDate>Wed, 08 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrcabmvj00ymihqce96ilbfi</guid>
+      <author>noreply@aihot.virxact.com (Hugging Face：Blog（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Krea 2 身份保留功能上线]]></title>
+      <link>https://aihot.virxact.com/items/cmrb4j2zx00n4ihl14u6xv7kz</link>
+      <description><![CDATA[Krea 2 的身份保留功能已发布，配套模型和 ComfyUI 节点也已上线。🔥
+
+🔗 阅读原文：https://x.com/krea_ai/status/2074589965653303321
+
+via AI HOT · https://aihot.virxact.com/items/cmrb4j2zx00n4ihl14u6xv7kz]]></description>
+      <content:encoded><![CDATA[<p>Krea 2 的身份保持功能 🔥</p>
+<p>[引用 @SlipperyGem]：这才是我渴望的那种身份保持功能。</p>
+<p>我明天要出门旅行，所以没法测试了。我很好奇它在风格化角色上的效果如何…… https://huggingface.co/conradlocke/krea2-identity-edit</p>
+<p>https://github.com/lbouaraba/comfyui-krea2edit</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrb4j2zx00n4ihl14u6xv7kz">https://aihot.virxact.com/items/cmrb4j2zx00n4ihl14u6xv7kz</a></p>]]></content:encoded>
+      <category>技巧观点</category>
+      <pubDate>Tue, 07 Jul 2026 20:22:46 GMT</pubDate>
+      <guid isPermaLink="false">cmrb4j2zx00n4ihl14u6xv7kz</guid>
+      <author>noreply@aihot.virxact.com (X：Krea AI (@krea_ai))</author>
+    </item>
+    <item>
+      <title><![CDATA[Meta Superintelligence Labs 推出 Muse Image 和 Muse Video]]></title>
+      <link>https://aihot.virxact.com/items/cmrb2mxmc0072ihl1mx0aw1bz</link>
+      <description><![CDATA[Meta Superintelligence Labs 发布首个媒体生成模型 Muse Image 和 Muse Video。Muse Image 是目前最先进的图像生成模型，能精确遵循指令、精准编辑、多参考构图，并利用 Instagram 社交上下文。它还具备智能体工具使用能力并集成 Muse Spark。用户可通过 Meta AI 应用、网页、Instagram Stories 和 WhatsApp 试用，初始限于部分国家。Muse Video 基于相同预训练基础，实现高视觉保真度并原生支持音频。
+
+🔗 阅读原文：https://x.com/AIatMeta/status/2074577662840832382
+
+via AI HOT · https://aihot.virxact.com/items/cmrb2mxmc0072ihl1mx0aw1bz]]></description>
+      <content:encoded><![CDATA[<p>介绍Muse Image和Muse Video，这是Meta智能实验室（Meta Superintelligence Labs）开发的首批媒体生成模型。</p>
+<p>Muse Image是我们迄今为止最先进的图像生成模型。它能忠实遵循指令，进行精确编辑，从多个参考源合成内容，并利用Instagram获取社交语境。它还具备智能体工具使用能力，可与Muse Spark集成。</p>
+<p>你可以在Meta AI应用和网页、以及Instagram快拍和WhatsApp中使用Muse Image——先从少数国家开始，后续将扩展到更多地区。</p>
+<p>今天我们同时预览了Muse Video，它基于与Muse Image相同的预训练基础构建，支持原生音频，呈现卓越的视觉保真度。</p>
+<p>了解更多关于这两款模型的信息：https://go.meta.me/7f4427</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrb2mxmc0072ihl1mx0aw1bz">https://aihot.virxact.com/items/cmrb2mxmc0072ihl1mx0aw1bz</a></p>]]></content:encoded>
+      <category>AI 模型</category>
+      <pubDate>Tue, 07 Jul 2026 19:33:53 GMT</pubDate>
+      <guid isPermaLink="false">cmrb2mxmc0072ihl1mx0aw1bz</guid>
+      <author>noreply@aihot.virxact.com (X：AI at Meta (@AIatMeta))</author>
+    </item>
+    <item>
+      <title><![CDATA[微软为降成本在Copilot中用自研MAI模型替换OpenAI和Anthropic模型]]></title>
+      <link>https://aihot.virxact.com/items/cmrb0u6pv02qtihogovduu795</link>
+      <description><![CDATA[微软正用自研MAI模型替换Copilot产品中的OpenAI和Anthropic模型以降低支出。MAI模型已在Excel和Outlook中每周处理数万次请求，但占比仍小。Build大会上发布推理模型MAI-Thinking 1，声称编码媲美Sonnet 4.6和Opus 4.6，但基准测试大幅落后，仅与DeepSeek V3.2相当。AI负责人承认目标是削减并消除对Anthropic的支出。CEO暗示未来可能按用量计费，MAI为默认，第三方模型付费附加。微软称MAI使用干净商业许可数据，实际基于Common Crawl。
+
+🔗 阅读原文：https://the-decoder.com/copilot-goes-cheap-as-microsoft-phases-out-openai-and-anthropic-models-to-cut-costs
+
+via AI HOT · https://aihot.virxact.com/items/cmrb0u6pv02qtihogovduu795]]></description>
+      <category>行业动态</category>
+      <pubDate>Tue, 07 Jul 2026 18:35:58 GMT</pubDate>
+      <guid isPermaLink="false">cmrb0u6pv02qtihogovduu795</guid>
+      <author>noreply@aihot.virxact.com (The Decoder：AI News（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[YC CEO声称每日用AI部署3.7万行代码，开发者审查发现前端代码大量臃肿低效]]></title>
+      <link>https://aihot.virxact.com/items/cmrayv5ja0293ihog3rixaqua</link>
+      <description><![CDATA[Y Combinator CEO Garry Tan在X上宣称，他与AI编码代理每天在五个项目中部署37000行代码，并保持连续72天发布记录。波兰开发者Gregorein深入审查Tan网站前端代码，发现大量臃肿与低效问题：页面加载169次请求、总计6.42MB数据（对比Hacker News仅7次12KB）；包含28个测试文件、78个未使用的JavaScript控制器、八种格式Logo（含空文件）、未压缩的旧PNG等。Gregorein指出，AI虽能快速生成代码，但质量仍应优先于数量。
+
+🔗 阅读原文：https://www.fastcompany.com/91520702/y-combinator-garry-tan-agentic-ai-social-media
+
+via AI HOT · https://aihot.virxact.com/items/cmrayv5ja0293ihog3rixaqua]]></description>
+      <category>技巧观点</category>
+      <pubDate>Tue, 07 Jul 2026 17:52:12 GMT</pubDate>
+      <guid isPermaLink="false">cmrayv5ja0293ihog3rixaqua</guid>
+      <author>noreply@aihot.virxact.com (Hacker News 热门（buzzing.cc 中文翻译）)</author>
+    </item>
+    <item>
+      <title><![CDATA[NotebookLM短视频概览正式上线]]></title>
+      <link>https://aihot.virxact.com/items/cmray36fg021nihogfo205417</link>
+      <description><![CDATA[短视频概览功能已正式在移动端和网页端面向所有英语用户全面上线！
+
+一如既往，您的意见对我们至关重要。请在下方分享您最喜欢的作品，并告诉我们接下来需要添加哪些功能！❤️
+
+🔗 阅读原文：https://x.com/NotebookLM/status/2074551227594264799
+
+via AI HOT · https://aihot.virxact.com/items/cmray36fg021nihogfo205417]]></description>
+      <content:encoded><![CDATA[<p>Short Video Overviews are officially 💯 rolled out on mobile and web across all users in English!</p>
+<p>As always, your opinion means everything to us. Share your favorite creations below and tell us what features we need to add next! ❤️</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmray36fg021nihogfo205417">https://aihot.virxact.com/items/cmray36fg021nihogfo205417</a></p>]]></content:encoded>
+      <category>AI 产品</category>
+      <pubDate>Tue, 07 Jul 2026 17:48:50 GMT</pubDate>
+      <guid isPermaLink="false">cmray36fg021nihogfo205417</guid>
+      <author>noreply@aihot.virxact.com (X：NotebookLM (@NotebookLM))</author>
+    </item>
+    <item>
+      <title><![CDATA[Liquid AI 开源 Antidoom：基于最终 Token 偏好优化的推理模型死循环修复方法]]></title>
+      <link>https://aihot.virxact.com/items/cmraw21y401jhihog3tcrfsp4</link>
+      <description><![CDATA[Liquid AI 开源了 Antidoom，一种基于 Final Token Preference Optimization （FTPO） 的针对性修复方法，用于减少推理模型中的 doom loop（死循环）问题。该方法定位循环开始的第一个 token，训练模型选择连贯替代项，而不改变整体输出分布。在 LFM2.5-2.6B 上，硬数学和编程任务中的循环率从 10.2% 降至 1.4%；Qwen3.5-4B 上从 22.9% 降至 1%。整套流程可在数小时内完成，全部代码和数据集（LiquidAI/antidoom-mix-v1.0）已开源。
+
+🔗 阅读原文：https://www.marktechpost.com/2026/07/07/liquid-ai-antidoom-doom-loops-ftpo
+
+via AI HOT · https://aihot.virxact.com/items/cmraw21y401jhihog3tcrfsp4]]></description>
+      <category>技巧观点</category>
+      <pubDate>Tue, 07 Jul 2026 16:50:50 GMT</pubDate>
+      <guid isPermaLink="false">cmraw21y401jhihog3tcrfsp4</guid>
+      <author>noreply@aihot.virxact.com (MarkTechPost（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Rowboat：开源、本地优先的桌面AI助手]]></title>
+      <link>https://aihot.virxact.com/items/cmrb7dzge01d6ihl1bthomtam</link>
+      <description><![CDATA[Rowboat 是一个开源、本地优先的桌面 AI 助手，将邮件、会议、Slack 等数据索引为 Obsidian 风格的知识图谱，提供持久上下文记忆。内置邮件客户端、浏览器、会议记录器、代码模式（可调用 Claude Code 或 Codex 代理），并支持按事件或定时运行的背景代理。用户可通过 MCP 协议接入 Exa 搜索、GitHub 等外部工具。所有数据以纯 Markdown 格式本地存储，无供应商锁定，支持 Ollama/LM Studio 本地模型或使用 API 密钥的托管模型。
+
+🔗 阅读原文：https://github.com/rowboatlabs/rowboat
+
+via AI HOT · https://aihot.virxact.com/items/cmrb7dzge01d6ihl1bthomtam]]></description>
+      <category>AI 产品</category>
+      <pubDate>Tue, 07 Jul 2026 16:10:44 GMT</pubDate>
+      <guid isPermaLink="false">cmrb7dzge01d6ihl1bthomtam</guid>
+      <author>noreply@aihot.virxact.com (Hacker News：AI 热帖)</author>
+    </item>
+    <item>
+      <title><![CDATA[Seedream 5.0 Pro 发布：不止"生成"，更懂"设计"]]></title>
+      <link>https://aihot.virxact.com/items/cmrc3xicn01grihyf9z6t1b4b</link>
+      <description><![CDATA[字节 Seed 今日发布多模态图像创作模型 Seedream 5.0 Pro，在图文匹配、结构合理性、文字渲染与画面美感上全面升级。四大核心突破：复杂信息可视化，可生成高密度信息图；交互式精准编辑，支持点选、圈选、草图渲染、色彩与材质替换、图层分离及多图融合，实现像素级编辑；真实的影像与人像质感，还原光影、材质与皮肤肌理；原生多语种输入与生成，支持十余种语言及本地化视觉特征。已陆续在豆包、即梦、火山方舟等平台上线。
+
+🔗 阅读原文：https://seed.bytedance.com/zh/blog/%E4%B8%8D%E6%AD%A2-%E7%94%9F%E6%88%90-%E6%9B%B4%E6%87%82-%E8%AE%BE%E8%AE%A1-seedream-5-0-pro-%E5%8F%91%E5%B8%83
+
+via AI HOT · https://aihot.virxact.com/items/cmrc3xicn01grihyf9z6t1b4b]]></description>
+      <category>AI 模型</category>
+      <pubDate>Tue, 07 Jul 2026 16:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrc3xicn01grihyf9z6t1b4b</guid>
+      <author>noreply@aihot.virxact.com (字节 Seed：Research Feed（网页内嵌数据）)</author>
+    </item>
+    <item>
+      <title><![CDATA[中国拟限制外国访问最强AI模型]]></title>
+      <link>https://aihot.virxact.com/items/cmrasueu500qmihog3d8up11t</link>
+      <description><![CDATA[中国计划限制外国访问其最强AI模型，近期与阿里巴巴、字节跳动、Z.ai等企业会谈，拟将先进模型（含未发布）留在中国国内。商务部主导、国家发改委参与，表明此举属出口管制而非平台监管。目标涵盖闭源和开源模型，不仅限API访问，还包括可下载权重。同时讨论将模型泄漏视为国家安全犯罪，并限制外国资本投资中国AI初创。若实施，外国公司将失去低成本模型访问权。此前华盛顿已限制美国先进模型出口，此举可能进一步分裂全球AI市场。
+
+🔗 阅读原文：https://x.com/rohanpaul_ai/status/2074512389526237609
+
+via AI HOT · https://aihot.virxact.com/items/cmrasueu500qmihog3d8up11t]]></description>
+      <content:encoded><![CDATA[<p>🇨🇳这是个坏消息。现在，前沿的开源访问可能也将不再对所有人开放。</p>
+<p>中国正准备限制外国访问其最强大的 AI 模型，此举可能推高全球 AI 成本，并按照国籍分割模型市场。</p>
+<p>北京近期与阿里巴巴、字节跳动和 Z.ai 举行了会谈，讨论将包括尚未发布的先进中国模型留在中国境内。</p>
+<p>商务部主导了这些讨论，中国的国家规划机构也参与了，这标志着出口管制而非常规平台监管。</p>
+<p>目标包括闭源模型和开源权重系统，因此问题不仅涉及 API 访问，还涉及可下载的模型能力。</p>
+<p>中国官员还讨论了将专有 AI 的泄漏或盗窃视为国家安全罪行，而不仅仅是知识产权纠纷。</p>
+<p>还讨论了对外国资金投资中国 AI 初创企业的新限制，这将同时对资本、人才和模型访问实施更严格的控制。</p>
+<p>外国公司可能会失去对中国低成本模型的访问权限，而恰逢这些模型变得足够强大，足以用于严肃的生产工作。</p>
+<p>华盛顿已以安全为由限制了对美国先进模型的访问。</p>
+<p>中国现在担心 Mythos 可能发现软件漏洞并被用于损害中国利益，因此双方都将 AI 视为战略基础设施。</p>
+<p>北京还调查了迁往海外的中国 AI 初创企业，并推动 Meta 撤销一项 20 亿美元的 Manus 交易。</p>
+<p>一个可能的路径是分层控制：基础开源工具需要备案，更强大的系统面临审查，而前沿模型则留在中国国内。</p>
+<p>这将对开放 AI 访问构成重大挫折，因为模型的进步将不再主要通过产品质量和价格来传播。</p>
+<p>reuters .com/world/beijing-is-looking-curbing-overseas-access-chinas-top-ai-models-sources-say-2026-07-07/</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrasueu500qmihog3d8up11t">https://aihot.virxact.com/items/cmrasueu500qmihog3d8up11t</a></p>]]></content:encoded>
+      <category>行业动态</category>
+      <pubDate>Tue, 07 Jul 2026 15:14:30 GMT</pubDate>
+      <guid isPermaLink="false">cmrasueu500qmihog3d8up11t</guid>
+      <author>noreply@aihot.virxact.com (X：Rohan Paul (@rohanpaul_ai))</author>
+    </item>
+    <item>
+      <title><![CDATA[Elvis Saravia 通过 HITL 和 DialAgent 提升 agentic loops 可靠性]]></title>
+      <link>https://aihot.virxact.com/items/cmrasc88300h6ihog8mwnmob9</link>
+      <description><![CDATA[Elvis Saravia 介绍使用 human-in-the-loop（HITL）来提升 agentic loops 的可靠性。他所有 Claude 和 Codex agent 会话都通过 @DialAgent MCP 服务器，该服务器为 agent 提供专属号码，支持语音、SMS、iMessage 作为原生工具。当循环/自动化处理 PR 或新功能时，agent 会通过简短电话将决策升级给人类，尤其适合在路上或离开电脑时。用户可粘贴指令让 agent 拨打电话测试。DialAgent 提供 $5 免费额度：http://getdial.ai
+
+🔗 阅读原文：https://x.com/omarsar0/status/2074506169352180108
+
+via AI HOT · https://aihot.virxact.com/items/cmrasc88300h6ihog8mwnmob9]]></description>
+      <content:encoded><![CDATA[<p>循环工程很棒，直到出了问题。</p>
+<p>以下是我提升智能体循环可靠性的方法。</p>
+<p>我采用人在回路中（HITL）。它简单且极其有效，任何人都能搭建。</p>
+<p>我的配置如下：</p>
+<p>我录制了一段快速演示，展示它的运作方式。</p>
+<p>我最近提到，我现在更多地使用语音智能体来构建和与智能体沟通，我也会用它们来验证。</p>
+<p>我讨厌被束缚在电脑前或 Slack 频道里与我的智能体交流。</p>
+<p>以下是我为简化与智能体的沟通所做的改进。</p>
+<p>我所有的 Claude 和 Codex 智能体会话现在都使用 @DialAgent MCP 服务器。它提供了一系列工具，并为我的智能体配备了一个专属号码，使其能在同一界面下使用语音、短信和 iMessage 作为原生工具拨打电话。</p>
+<p>当我的循环/自动化系统处理 PR 和新功能时，智能体会通过简短的电话将决策升级给我。这对于我在路上或不在电脑前时极为有用。</p>
+<p>如果你想在 Claude Code 或 Codex 中尝试，请将以下内容粘贴到你的智能体中并立即开始：</p>
+<p>"给自己申请一个 Dial 电话号码，然后打给我。说声你好并确认配置正常，然后挂断。请参考 https://getdial.ai/skills.md"</p>
+<p>@NVoitenkov 和团队正在打造一些特别的东西。去看看吧。现在就给你的智能体一个电话号码：http://getdial.ai（5 美元免费额度）</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrasc88300h6ihog8mwnmob9">https://aihot.virxact.com/items/cmrasc88300h6ihog8mwnmob9</a></p>]]></content:encoded>
+      <category>技巧观点</category>
+      <pubDate>Tue, 07 Jul 2026 14:49:47 GMT</pubDate>
+      <guid isPermaLink="false">cmrasc88300h6ihog8mwnmob9</guid>
+      <author>noreply@aihot.virxact.com (X：Elvis Saravia (@omarsar0, DAIR.AI))</author>
+    </item>
+    <item>
+      <title><![CDATA[在 Claude Code 中选择 Claude 模型与努力级别]]></title>
+      <link>https://aihot.virxact.com/items/cmraqmpst004cihogf6nqkgvh</link>
+      <description><![CDATA[Claude Code 提供模型（model）和努力级别（effort）两种设置。模型选择决定能力范围，更大模型（如 Claude Fable 5）在基准上优于 Claude Sonnet。努力级别不单是思考时间，还控制读取文件数、验证步骤及多步任务的推进深度。较高努力下 Claude 会自行读取文件、运行测试并复核；较低努力则更倾向请求用户提供上下文。若 Claude 已掌握上下文但仍出错，应换更强大模型；若因跳读文件或未运行测试而出错，则应提高努力级别。
+
+🔗 阅读原文：https://claude.com/blog/claude-model-and-effort-level-in-claude-code
+
+via AI HOT · https://aihot.virxact.com/items/cmraqmpst004cihogf6nqkgvh]]></description>
+      <category>技巧观点</category>
+      <pubDate>Tue, 07 Jul 2026 14:21:59 GMT</pubDate>
+      <guid isPermaLink="false">cmraqmpst004cihogf6nqkgvh</guid>
+      <author>noreply@aihot.virxact.com (Claude：Blog（网页）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Ethan Mollick：开放权重模型供给难持续]]></title>
+      <link>https://aihot.virxact.com/items/cmraqliu1003aihogho9twifr</link>
+      <description><![CDATA[这是一个关键原因，我不期望前沿开放权重模型的流动会无限期持续，甚至不会持续更长时间。
+
+🔗 阅读原文：https://x.com/emollick/status/2074497401578996154
+
+via AI HOT · https://aihot.virxact.com/items/cmraqliu1003aihogho9twifr]]></description>
+      <content:encoded><![CDATA[<p>这是我预计前沿开放权重模型的发布不会无限期持续下去、甚至可能很快就要结束的一个关键原因。https://www.reuters.com/world/beijing-is-looking-curbing-overseas-access-chinas-top-ai-models-sources-say-2026-07-07/</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmraqliu1003aihogho9twifr">https://aihot.virxact.com/items/cmraqliu1003aihogho9twifr</a></p>]]></content:encoded>
+      <category>行业动态</category>
+      <pubDate>Tue, 07 Jul 2026 14:14:57 GMT</pubDate>
+      <guid isPermaLink="false">cmraqliu1003aihogho9twifr</guid>
+      <author>noreply@aihot.virxact.com (X：Ethan Mollick (@emollick))</author>
+    </item>
+    <item>
+      <title><![CDATA[智能免费，然后呢？--Data Systems for， of， and by Agents]]></title>
+      <link>https://aihot.virxact.com/items/cmrawne9601nfihogtkxwy0bs</link>
+      <description><![CDATA[AI推理成本急剧下降。GPT-4级能力从2023年初每百万token约30美元降至今天不到1美元，部分供应商已低于0.10美元。推理价格每年下降9至900倍，中位数约50倍。知识工作级智能即将近乎免费。这给数据系统带来三重变革：面向智能体的数据系统需支持智能体推测式探索--单个
+
+🔗 阅读原文：http://bair.berkeley.edu/blog/2026/07/07/intelligence-is-free-now-what
+
+via AI HOT · https://aihot.virxact.com/items/cmrawne9601nfihogtkxwy0bs]]></description>
+      <category>技巧观点</category>
+      <pubDate>Tue, 07 Jul 2026 09:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrawne9601nfihogtkxwy0bs</guid>
+      <author>noreply@aihot.virxact.com (BAIR：Berkeley AI Research Blog)</author>
+    </item>
+    <item>
+      <title><![CDATA[美国首批自主地面车辆在乌克兰参战]]></title>
+      <link>https://aihot.virxact.com/items/cmrafv8m40090ihuamebn107w</link>
+      <description><![CDATA[美国自动驾驶车辆公司 Forterra 宣布，过去九个月已向乌克兰战场部署超过 100 辆基于 Polaris ATV 的 Lancer 自主地面车辆。这些汽油动力车辆可携带 750 公斤货物，加装 Starlink 天线实现远程操控，已执行 1100 多次任务，行驶 2500 英里，运送 777，440 磅物资，完成 52 次伤员撤离。目前车辆主要采用远程操作，因自主系统尚无法实时识别并应对敌方威胁。Forterra 已融资超 5 亿美元，正将经典机器人方法与生成式 AI 结合以提升自主能力。美军专家认为地面自主技术已具实战价值。
+
+🔗 阅读原文：https://techcrunch.com/2026/07/07/the-first-american-autonomous-ground-vehicles-are-fighting-in-ukraine
+
+via AI HOT · https://aihot.virxact.com/items/cmrafv8m40090ihuamebn107w]]></description>
+      <category>行业动态</category>
+      <pubDate>Tue, 07 Jul 2026 09:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrafv8m40090ihuamebn107w</guid>
+      <author>noreply@aihot.virxact.com (TechCrunch：AI（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Gemini API Managed Agents 新增后台执行、远程 MCP 与自定义函数等能力]]></title>
+      <link>https://aihot.virxact.com/items/cmraw22r701jjihogh1k8hbu6</link>
+      <description><![CDATA[Google 为 Gemini API 的 Managed Agents 新增后台执行、远程 MCP 服务器集成、自定义函数调用与凭证刷新功能。后台执行通过传入 `background： true` 异步运行任务，立即返回 ID 供轮询状态或流式获取进度。Managed Agents 可直接连接远程 MCP 服务器，无需自定义代理中间件，并能与内置沙箱工具（如 Google 搜索、代码执行）混合使用。自定义函数调用支持本地执行业务逻辑，内置工具自动在服务端运行。凭证刷新通过传递现有环境 ID 和新网络配置完成，沙箱内文件系统、已安装包和仓库保持不变。这些更新旨在帮助开发者构建可靠的生产级 AI 智能体。
+
+🔗 阅读原文：https://blog.google/innovation-and-ai/technology/developers-tools/expanding-managed-agents-gemini-api
+
+via AI HOT · https://aihot.virxact.com/items/cmraw22r701jjihogh1k8hbu6]]></description>
+      <category>AI 产品</category>
+      <pubDate>Tue, 07 Jul 2026 08:54:00 GMT</pubDate>
+      <guid isPermaLink="false">cmraw22r701jjihogh1k8hbu6</guid>
+      <author>noreply@aihot.virxact.com (Google Blog：AI（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[在网络不稳定的地区，小型AI模型正逐渐普及]]></title>
+      <link>https://aihot.virxact.com/items/cmrab8cy800w3ihl38ohuxzih</link>
+      <description><![CDATA[2019年，Adebayo Alonge因服务器远在美国致RxScanner单次扫描超5分钟，工程师2小时内将AI模型缩小至可在Android手机本地运行，此后RxScanner能在无宽带、缺电地区验药。小AI模型参数通常至多几十亿，可在手机或Raspberry Pi上运行，功耗仅数瓦。类似案例包括印度腰果病害检测无人机、乌拉圭蚂蚁入侵识别、疟蚊检测及巴西基于Arduino的心电图设备。世界银行报告显示，全球最穷国家仅0.7%互联网用户用过ChatGPT，发达国家达四分之一；行长认为小AI是为缺乏算力与电力的地区提供生命救助服务的关键。
+
+🔗 阅读原文：https://spectrum.ieee.org/small-language-models-ai-pharmaceuticals
+
+via AI HOT · https://aihot.virxact.com/items/cmrab8cy800w3ihl38ohuxzih]]></description>
+      <category>技巧观点</category>
+      <pubDate>Tue, 07 Jul 2026 06:45:06 GMT</pubDate>
+      <guid isPermaLink="false">cmrab8cy800w3ihl38ohuxzih</guid>
+      <author>noreply@aihot.virxact.com (Hacker News 热门（buzzing.cc 中文翻译）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Grok Imagine 更新：支持 15 秒视频]]></title>
+      <link>https://aihot.virxact.com/items/cmraai9ic00q4ihl3ozf3ki9s</link>
+      <description><![CDATA[Grok Imagine 更新。请更新你的 Grok 应用！15 秒 Imagine 视频现已可用，质量令人难以置信。
+
+🔗 阅读原文：https://x.com/elonmusk/status/2074378653501128833
+
+via AI HOT · https://aihot.virxact.com/items/cmraai9ic00q4ihl3ozf3ki9s]]></description>
+      <category>AI 产品</category>
+      <pubDate>Tue, 07 Jul 2026 06:23:05 GMT</pubDate>
+      <guid isPermaLink="false">cmraai9ic00q4ihl3ozf3ki9s</guid>
+      <author>noreply@aihot.virxact.com (X：Elon Musk (@elonmusk, xAI))</author>
+    </item>
+    <item>
+      <title><![CDATA[MIRA：可玩多人世界模型，20 FPS实时生成"火箭联盟的梦"]]></title>
+      <link>https://aihot.virxact.com/items/cmra67abw003vihup3mg75wsc</link>
+      <description><![CDATA[MIRA是一个可玩、多人的世界模型，被形容为"火箭联盟的梦"。它基于10k小时公开机器人收集的数据训练，学习四玩家游戏动态，根据按键实时生成画面，帧率达20 FPS。模型由General Intuition与Kyutai Labs联合构建，Epic Games提供协作。Ethan Mollick称从最早的扩散DOOM玩过来，多人20 FPS效果出色。演示、技术报告及开源代码已公开，在ICML Booth 111现场展示。
+
+🔗 阅读原文：https://x.com/emollick/status/2074348274136346871
+
+via AI HOT · https://aihot.virxact.com/items/cmra67abw003vihup3mg75wsc]]></description>
+      <content:encoded><![CDATA[<p>自从第一个扩散模型DOOM问世以来，我一直在玩这些世界模型/游戏，而20 FPS的多人在线体验相当不错。“火箭联盟之梦”，确实如此。</p>
+<p>[引用 @gen_intuition]：推出MIRA。</p>
+<p>一个可玩的、多人的世界模型。</p>
+<p>火箭联盟之梦。</p>
+<p>使用公开可用的机器人收集的10k小时数据训练，MIRA学习了一个四人游戏的动态。该模型基于你和其它玩家按下的按键，以每秒20帧的速度实时运行。</p>
+<p>由General Intuition和@kyutai_labs构建，与Epic Games合作。未被用于开发Rocket League。</p>
+<p>▶️ 在 http://generalintuition.com/mira 试玩演示、阅读技术报告、探索开源代码。</p>
+<p>在ICML？来111号展位亲自尝试，并与团队一起深入探讨结果。</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmra67abw003vihup3mg75wsc">https://aihot.virxact.com/items/cmra67abw003vihup3mg75wsc</a></p>]]></content:encoded>
+      <category>AI 产品</category>
+      <pubDate>Tue, 07 Jul 2026 04:22:22 GMT</pubDate>
+      <guid isPermaLink="false">cmra67abw003vihup3mg75wsc</guid>
+      <author>noreply@aihot.virxact.com (X：Ethan Mollick (@emollick))</author>
+    </item>
+    <item>
+      <title><![CDATA[Nemotron-Labs-Diffusion：统一自回归、扩散与自我推测解码的三模式语言模型]]></title>
+      <link>https://aihot.virxact.com/items/cmrbg84yf03mcihl1reivcibq</link>
+      <description><![CDATA[Nemotron-Labs-Diffusion 是一种三模式语言模型，通过联合自回归（AR）和扩散损失训练，在单一架构中统一了 AR、扩散和自我推测解码。研究显示 AR 与扩散目标互补：扩散增强前瞻规划，AR 提供从左至右的语言先验。自我推测模式下，扩散充当草稿模型、AR 负责验证，其接受率和实际设备效率均优于多 token 预测（MTP）。在最优化采样器下，单次前向传播产出 token 数比自我推测最多高 76.5%。该系列包含 3B、8B、14B 参数的基础、指令和视觉语言模型，在准确率和速度上均超越现有开源 AR 和扩散 LM。例如 8B 模型单次前向解码 token 数是 Qwen3-8B 的 6 倍，在 GB200 GPU 上使用 SGLang 运行 SPEED-Bench 时吞吐量提升 4 倍。
+
+🔗 阅读原文：https://arxiv.org/abs/2607.05722
+
+via AI HOT · https://aihot.virxact.com/items/cmrbg84yf03mcihl1reivcibq]]></description>
+      <content:encoded><![CDATA[<p>我们介绍 Nemotron-Labs-Diffusion，一种三模式语言模型，它在单一架构内统一了自回归、扩散和自推测解码。通过联合自回归-扩散目标训练，Nemotron-Labs-Diffusion 可以在不同部署场景和并发水平下切换模式以维持高吞吐量。我们的研究表明：(1) 自回归和扩散目标是互补的：扩散改善了前向规划，而自回归提供了从左到右的语言先验。(2) 在自推测模式下，扩散负责草稿生成，自回归负责验证，在接受率和实际设备效率上均优于多 token 预测方法。(3) 光速分析进一步展示了扩散的长期潜力，在最优采样器下，每次前向传播产生的 token 数比自推测模式多出 76.5%。将规模扩展到 3B、8B 和 14B 参数后，我们的 Nemotron-Labs-Diffusion 系列（包括基础、指令和视觉-语言模型）在准确性和速度上持续超越最先进的开源自回归和扩散语言模型。例如，Nemotron-Labs-Diffusion-8B 每次前向传播解码的 token 数是 Qwen3-8B 的 6 倍，准确率相当，在 GB200 GPU 上使用 SGLang 运行 SPEED-Bench 时，吞吐量提升至 4 倍。</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrbg84yf03mcihl1reivcibq">https://aihot.virxact.com/items/cmrbg84yf03mcihl1reivcibq</a></p>]]></content:encoded>
+      <category>AI 模型</category>
+      <pubDate>Tue, 07 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrbg84yf03mcihl1reivcibq</guid>
+      <author>noreply@aihot.virxact.com (HuggingFace Daily Papers（社区热门论文）)</author>
+    </item>
+    <item>
+      <title><![CDATA[AlayaWorld：长程可玩视频世界生成]]></title>
+      <link>https://aihot.virxact.com/items/cmrbg84yf03mbihl1gfbbgeuz</link>
+      <description><![CDATA[AlayaWorld 是一个全栈开源框架，用于构建交互式生成世界。该框架支持开放式实时交互，用户可自由导航并执行战斗、施法、召唤怪物等多种动作。AlayaWorld 将数据准备、模型架构、训练、推理加速和部署统一在模块化可扩展的架构中，并发布了可复现流程、参考实现、评估工具和完整文档，为生成世界模型的未来研究与实时应用奠定基础。
+
+🔗 阅读原文：https://arxiv.org/abs/2607.06291
+
+via AI HOT · https://aihot.virxact.com/items/cmrbg84yf03mbihl1gfbbgeuz]]></description>
+      <content:encoded><![CDATA[<p>游戏世界传统上是通过劳动密集型生产流程构建的，这使得它们开发成本高昂、难以定制，并且在部署后修改代价巨大。近期视频世界模型的进展提供了一种截然不同的范式。这些模型不再需要显式地编写虚拟环境的每一个组件，而是基于当前世界状态和用户交互，自回归地合成未来观测，从而使得可游玩的游戏世界能够被在线生成。通过在游戏录屏和真实世界视频上进行训练，它们能够捕捉多样的视觉外观和物理动态，为游戏之外（包括具身智能）的交互应用开辟了新机遇。在本文中，我们提出 AlayaWorld——一个用于构建交互式生成世界的全栈开源框架。AlayaWorld 支持开放式的实时交互，允许用户自由导航并执行多种动作，比如战斗、施法和召唤怪物。该框架将完整的开发流程——从数据准备、模型架构、模型训练、推理加速到部署——统一在一个模块化且可扩展的架构中。除了该框架，我们还发布了可复现的流程、参考实现、评估工具以及全面的文档，为未来关于生成世界模型的研究和实时应用奠定了实践基础。</p>
+<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 <a href="https://aihot.virxact.com/items/cmrbg84yf03mbihl1gfbbgeuz">https://aihot.virxact.com/items/cmrbg84yf03mbihl1gfbbgeuz</a></p>]]></content:encoded>
+      <category>AI 产品</category>
+      <pubDate>Tue, 07 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrbg84yf03mbihl1gfbbgeuz</guid>
+      <author>noreply@aihot.virxact.com (HuggingFace Daily Papers（社区热门论文）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Hugging Face Storage 成为 SkyPilot 一级后端：零出站费跨云存储]]></title>
+      <link>https://aihot.virxact.com/items/cmrb18k7802uuihogxse92jx2</link>
+      <description><![CDATA[Hugging Face Storage 现为 SkyPilot 的一级后端。用户通过 `hf：//` URL 和现有 HFTOKEN 即可将 Hugging Face Bucket（读写）或模型/数据集/Space 仓库（只读）挂载到 SkyPilot 任务中，支持 MOUNT（FUSE 懒加载）或 COPY 模式。SkyPilot 可将任务调度到 20+ 云、Kubernetes、Slurm 及本地集群的任意可用 GPU 上。Hugging Face 不收取出站及 CDN 费用，故跨云读取数据无额外成本。存储价格 $12-18/TB/月，低于 AWS S3 加出站费。Bucket 基于 Xet，增量检查点和模型变体仅存储和传输改动部分。
+
+🔗 阅读原文：https://huggingface.co/blog/skypilot-hf-storage
+
+via AI HOT · https://aihot.virxact.com/items/cmrb18k7802uuihogxse92jx2]]></description>
+      <category>AI 产品</category>
+      <pubDate>Tue, 07 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrb18k7802uuihogxse92jx2</guid>
+      <author>noreply@aihot.virxact.com (Hugging Face：Blog（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[FDE爆发：AI公司12个月承诺97.5亿美元部署工程]]></title>
+      <link>https://aihot.virxact.com/items/cmraxmzfq01y0ihog3h7t344t</link>
+      <description><![CDATA[AI公司在12个月内合计承诺97.5亿美元用于建设前部署工程（FDE）团队。三种结构模型浮现：资产负债模型（微软、亚马逊从现有编制调配，Salesforce承诺1000个FDE岗位）；独立实体模型（OpenAI Deployment Company融资40亿美元，投后估值140亿；Anthropic从黑石等融资15亿美元）；合作伙伴生态系统模型（Google Cloud承诺7.5亿美元合作伙伴基金）。瓶颈从模型能力转向部署--GPT-4、Claude、Gemini已足够强大，但多数企业无法自行安装配置。FDE投资构成护城河：嵌入式工程师教育客户、获取专有工作流与数据反馈模型调优，切换成本为制度性而非技术性。
+
+🔗 阅读原文：https://www.tomtunguz.com/the-10b-fde-boom
+
+via AI HOT · https://aihot.virxact.com/items/cmraxmzfq01y0ihog3h7t344t]]></description>
+      <category>技巧观点</category>
+      <pubDate>Tue, 07 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmraxmzfq01y0ihog3h7t344t</guid>
+      <author>noreply@aihot.virxact.com (Tomer Tunguz 博客（VC 分析）)</author>
+    </item>
+    <item>
+      <title><![CDATA[在LLM中选择最佳图像输入细节级别]]></title>
+      <link>https://aihot.virxact.com/items/cmrauzt0c01b2ihogk1sosfm5</link>
+      <description><![CDATA[在5个模型上测试了1730道视觉推理题，发现将图像细节降至"low"会损失准确率，且在gpt-5.5上费用反而上升。真正可靠降低成本的手段是调节推理努力（reasoning effort）。
+
+🔗 阅读原文：https://openrouter.ai/blog/insights/image-detail-low-cost
+
+via AI HOT · https://aihot.virxact.com/items/cmrauzt0c01b2ihogk1sosfm5]]></description>
+      <category>技巧观点</category>
+      <pubDate>Tue, 07 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrauzt0c01b2ihogk1sosfm5</guid>
+      <author>noreply@aihot.virxact.com (OpenRouter：Announcements（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[苹果研究：单个神经元即可绕过大型语言模型的安全对齐]]></title>
+      <link>https://aihot.virxact.com/items/cmrasd6r300i2ihog8ifwrqs5</link>
+      <description><![CDATA[苹果研究人员发现，安全对齐由两类神经元调控：拒绝神经元控制有害知识是否表达，概念神经元编码有害知识本身。在七个模型（1.7B至70B参数）中，仅需抑制单个拒绝神经元即可绕过安全对齐，回答有害请求；或放大单个概念神经元，从无害提示诱导出有害内容。整个过程无需训练或提示工程。结果表明安全对齐由个别神经元因果控制。
+
+🔗 阅读原文：https://machinelearning.apple.com/research/single-neuron-safety-alignment
+
+via AI HOT · https://aihot.virxact.com/items/cmrasd6r300i2ihog8ifwrqs5]]></description>
+      <category>论文</category>
+      <pubDate>Tue, 07 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrasd6r300i2ihog8ifwrqs5</guid>
+      <author>noreply@aihot.virxact.com (Apple Machine Learning Research（RSS）)</author>
+    </item>
+    <item>
+      <title><![CDATA[Weblica：面向视觉网页智能体的可扩展可复现训练环境]]></title>
+      <link>https://aihot.virxact.com/items/cmrasd6r300i0ihog8xxwezye</link>
+      <description><![CDATA[苹果研究团队提出Weblica框架，通过HTTP级缓存保存网页稳定视觉状态并保留交互行为，结合大语言模型基于真实网站与核心导航技能合成环境，构建可复现、可扩展的训练环境。该框架将强化学习训练扩展到数千个多样化的环境和任务。最佳模型Weblica-8B在多个网页导航基准上超越同等规模的开源模型，推理步骤更少，测试时计算扩展性良好，性能与API模型相当。
+
+🔗 阅读原文：https://machinelearning.apple.com/research/weblica-visual-web-agents
+
+via AI HOT · https://aihot.virxact.com/items/cmrasd6r300i0ihog8xxwezye]]></description>
+      <category>论文</category>
+      <pubDate>Tue, 07 Jul 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">cmrasd6r300i0ihog8xxwezye</guid>
+      <author>noreply@aihot.virxact.com (Apple Machine Learning Research（RSS）)</author>
+    </item>
+  </channel>
+</rss>

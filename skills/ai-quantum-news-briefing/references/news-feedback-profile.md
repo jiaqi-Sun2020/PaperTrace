@@ -7,10 +7,11 @@ Use this reference when connecting AI + quantum daily briefings to `.agents/read
 Daily news should not automatically decide what the user knows. Update the profile only when:
 
 - the user explicitly marks a concept as `known`, `learning`, `unknown`, `mastered`, or `unrated`;
-- the user asks to record briefing keywords as exposure-only items, in which case use `unrated`;
+- the user asks to record briefing keywords as exposure-only daily/news items, in which case use `unrated`;
 - the user asks a follow-up question about a news concept.
 
 Do not mark a concept `unknown` merely because it appeared in a briefing.
+Daily/news exposure defaults to `unrated`; literature/paper reader exposure also remains `unrated` in reader-skill.
 
 ## Native News Feedback JSON
 
@@ -60,6 +61,12 @@ Question types may reuse reader feedback categories:
 - `other`
 
 ## Import Command
+
+When a briefing config already contains `concepts`, create full feedback automatically:
+
+```powershell
+python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\config_to_news_feedback.py --config <news_feedback_config.json> --output <news_feedback.json> --status unrated
+```
 
 ```powershell
 python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\import_news_feedback.py --feedback <news_feedback.json> --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json

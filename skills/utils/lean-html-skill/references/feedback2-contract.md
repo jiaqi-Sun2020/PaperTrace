@@ -53,7 +53,8 @@ Each item should preserve:
 
 ## Status Rules
 
-- Default form status may be `unknown`, because the second pass is usually opened when the user is asking a question.
+- Default form status is domain-aware: `known` for news/daily report feedback, `unrated` for reader/paper feedback.
+- Explicit user choices always override the domain default.
 - Export status must be exactly one of `mastered`, `known`, `learning`, `unknown`, or `unrated`.
 - `needs_explanation` should be true for `unknown`, `learning`, or any item with a user question.
 
@@ -62,4 +63,3 @@ Each item should preserve:
 - For `news_feedback2.json`, import with `skills/ai-quantum-news-briefing/scripts/import_news_feedback.py`.
 - For `reader_feedback2.json`, import with `skills/reader-learner/scripts/import_reader_feedback.py`.
 - Do not infer knowledge from a rendered report item alone; only saved marks are imported.
-
