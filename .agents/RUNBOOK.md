@@ -1,7 +1,48 @@
 # Runbook
 
 - Project root: `C:\Users\SSS\Desktop\PAPER`
-- Last reviewed: 2026-07-05
+- Last reviewed: 2026-07-13
+
+## Daily Briefing Encoding Gate
+
+Run daily briefing commands from `C:\Users\SSS\Desktop\PAPER`. The authoritative path is:
+
+```powershell
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py run --config <candidate_config.json> --date <YYYY-MM-DD> --design-system cosmic --background-mode light
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD> --strict
+```
+
+Before running, ensure the candidate config is UTF-8. Do not construct Chinese JSON through a default PowerShell/code-page pipeline. If normalization reports `encoding-corrupted` or `U+FFFD`, regenerate the config from the original source record; do not delete or globally replace `?`.
+
+The final verify must report visible HTML `?=0`, replacement-character `=0`, Chinese UI markers, concept/feedback identity equality, all default statuses `unrated`, light default/Cosmic option, and no feedback2 panel. A failed encoding check blocks finalize and therefore blocks story-index updates.
+
+## Build The Bilingual Project Demo
+
+Run from `C:\Users\SSS\Desktop\PAPER` after reading the root `AGENTS.md`, its canonical `.agents` documents, and `README.md`:
+
+```powershell
+python .\skills\utils\demo-skill\scripts\create_demo.py --output-dir .
+```
+
+The command writes `demo.html` and `demo-en.html` and refuses to overwrite either destination by default. Use `--force` only after reviewing the existing files. After adapting the three pipeline contracts in both languages, test `1440x1024` and `390x844`, language links, reduced motion, horizontal overflow, and console errors.
+
+Validate the reusable skill and script:
+
+```powershell
+python -m py_compile .\skills\utils\demo-skill\scripts\create_demo.py
+python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py .\skills\utils\demo-skill
+```
+
+Root HTML is ignored by `/*.html`. To publish only the reviewed pages, use the exact paths rather than changing the global ignore rule:
+
+```powershell
+& 'D:\software\Git\cmd\git.exe' add -f -- demo.html demo-en.html
+& 'D:\software\Git\cmd\git.exe' add -- skills/utils/demo-skill
+```
+
+Do not add `.design/`, screenshots, browser profiles, QA scratch logs, credentials, or unrelated working-tree changes.
 
 ## Generate Interactive HTML From A Reader Bundle
 
@@ -12,6 +53,14 @@ The reader bundle must already contain faithful `**中文:**` translations. `rea
 When the user requests a completed regenerated paper reader, translate directly in Codex and write the translated `**中文:**` blocks into `paper.md` and `source_map.json`. Do not first search for Ollama, OpenAI SDK, Argos Translate, DeepL, or other translation backends; those are optional aids, not prerequisites.
 
 Before strict HTML generation, check that figure/table entries in `source_map.json` have actual cards or semantic tables in `paper.md`, important equations are LaTeX display math, and `**注释:**` does not contain generic scaffolds such as `逻辑位置：本文主题是...` or `标注建议：如果这里有不懂...`.
+
+If a PDF extraction helper produced a draft bundle, first run the completion pass. This upgrades `paper.md`, `source_map.json`, `translation_notes.md`, formula blocks, and figure/table cards before the reader-wiki hard gate runs:
+
+```powershell
+python C:\Users\SSS\Desktop\PAPER\skills\nature-reader\scripts\complete_reader_bundle.py <reader-dir>
+```
+
+Do not use `--allow-draft-translation` for formal output. Completion must fix the bundle; validation remains the gate.
 
 Current compatibility entry point is still `reader-skill/scripts/markdown_reader_to_html.py`, but reusable HTML shell, feedback UI, browser-memory behavior, and copy/download controls should be implemented in or delegated to `skills/utils/lean-html-skill` rather than duplicated inside `reader-skill`.
 
@@ -94,6 +143,8 @@ python C:\Users\SSS\Desktop\PAPER\skills\read-feedback-skill\scripts\render_rese
 
 Use `skills/ai-quantum-news-briefing` for current AI/model/industry/regulation/academic/quantum news requests. State the exact date range, cite current sources, and save durable outputs under `news/<date-range>/` when producing files.
 
+The briefing pipeline is end-to-end: candidate collection and `news_feedback_config.json` are intermediate artifacts only. A completed daily or multi-day briefing must end with an interactive HTML reader, full default-`unrated` feedback JSON, a Markdown briefing, a delta config, and an updated `news/_index/story_index.jsonl`. Use `C:\Users\SSS\Desktop\PAPER\news\2026-07-07_to_2026-07-09` as the sample output directory structure.
+
 Use profile import only after the user explicitly marks briefing concepts or asks to record briefing keywords. Exposure-only keywords should be `unrated`.
 
 For recurring daily briefings, use the delta-first story index to avoid repeating yesterday's items and to keep prompt context small. First get the compact recent-story context:
@@ -105,10 +156,10 @@ python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\news_d
 After creating a source-grounded candidate `news_feedback_config.json`, rewrite it before rendering HTML:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\news_delta.py apply --config <candidate_news_feedback_config.json> --output <delta_news_feedback_config.json> --date <YYYY-MM-DD> --days 7 --continuing-mode one-line --update-index
+python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\news_delta.py apply --config <candidate_news_feedback_config.json> --output <delta_news_feedback_config.json> --date <YYYY-MM-DD> --days 7 --continuing-mode one-line
 ```
 
-Use `--continuing-mode skip` when the user asks for the shortest possible report. The delta output should use `今日新增`, `重大更新`, and `持续跟踪，一句话` sections; category remains an item-level tag for feedback/profile reports.
+Use `--continuing-mode skip` when the user asks for the shortest possible report. The delta output should use `今日新增`, `重大更新`, and `持续跟踪，一句话` sections; category remains an item-level tag for feedback/profile reports. Do not update the index at this stage: use `daily_pipeline.py run`, `verify`, and `finalize` so the index is committed only after all artifacts pass.
 
 Generate an interactive briefing HTML when the user wants click/freeform feedback:
 
@@ -158,40 +209,49 @@ Migrate an old profile to schema v2 with a timestamped backup:
 python C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\migrate_knowledge_profile_v2.py --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json
 ```
 
-## Initialize Profile From GPT Chat Sessions
+## Import Chat Sessions Into Profile
 
-Use this when the user has exported or copied ChatGPT/GPT conversations and wants them to contribute to the long-term learner/person profile. Prefer local `.txt`, `.md`, `.html`, or `.json` exports; do not rely on share URL fetching for reproducibility.
+Use this when the user has exported or copied ChatGPT/GPT/Claude/Deepseek conversations and wants them to contribute to the long-term learner/person profile. Prefer local `.txt`, `.md`, `.html`, or `.json` exports; do not rely on share URL fetching for reproducibility.
 
-Collect sources and bounded evidence events:
+Collect sources, bounded evidence events, and per-conversation summaries:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\utils\init-knowledge-profile\scripts\init_knowledge_profile.py collect --input <chat_export_or_folder> --output C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions
+python C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py collect --input <chat_export_or_folder> --output C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions
 ```
 
 Extract reviewable candidates:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\utils\init-knowledge-profile\scripts\init_knowledge_profile.py extract --events C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\events.jsonl --output C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_candidates.json
+python C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py extract --events C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\events.jsonl --output C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_candidates.json
 ```
 
 Propose a patch:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\utils\init-knowledge-profile\scripts\init_knowledge_profile.py propose --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json --candidates C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_candidates.json --output C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_patch.json
+python C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py propose --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json --candidates C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_candidates.json --output C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_patch.json
 ```
 
 Apply only after reviewing `profile_patch.json`:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\utils\init-knowledge-profile\scripts\init_knowledge_profile.py apply --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json --patch C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_patch.json --backup
+python C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py apply --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json --patch C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_patch.json --backup
 ```
 
-The skill writes concept-status candidates through the existing `reader-learner` profile importer and writes non-concept user traits under `person_profile`.
+The skill writes concept-status candidates through strict `reader-learner` validation and writes non-concept user traits under `person_profile`. Review `profile_patch.json` before applying. Use `conversation_summaries.json` to inspect each conversation's `at_a_glance`, topic tags, explicit preferences, open questions, and action-like requests.
 
 ## Validate Scripts
 
+## Daily Academic And Feedback Release Gate
+
+For `daily_pipeline.py`, keep `analysis_language=zh-CN` and `academic_delivery.required` enabled with `minimum_items=5`. The normalized delta config must contain a dedicated academic section with five distinct formal paper records, each with a primary article/DOI/preprint URL and individual evidence fingerprint, plus an `academic_search` HTTP-evidence ledger spanning PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv. Label any paper from the wider context window with its actual date; do not describe it as a current-window publication.
+
+Before `finalize`, run the strict config audit. It blocks English-only `facts`/`judgment`/`relevance`, encoding-corrupted Chinese (`U+FFFD` or corruption-pattern `?`), and insufficient academic delivery. On failure, rebuild the UTF-8 input from source records; never repair strings with global replacements or publish a visually rendered but semantically corrupted HTML file.
+
+The interactive briefing must initialize browser state from embedded `initial_feedback_items`. Before any click, `Download JSON` must export exactly the complete automatic concept set with `default_status: "unrated"`; after edits, it exports the same identities with user changes overlaid. Removing an automatic item restores the baseline; freeform annotations remain removable.
+
 ```powershell
 python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\reader-skill\scripts\markdown_reader_to_html.py
+python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\nature-reader\scripts\complete_reader_bundle.py
 python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\profile_v2.py
 python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\import_reader_feedback.py
 python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\update_learner_profile.py
@@ -201,7 +261,10 @@ python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\read-feedback-skill\scrip
 python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py
 python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\news_delta.py
 python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\import_news_feedback.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\utils\init-knowledge-profile\scripts\init_knowledge_profile.py
+python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py
+python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\audit_chat_knowledge_profile.py
+python C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\audit_chat_knowledge_profile.py
+python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\utils\demo-skill\scripts\create_demo.py
 python C:\Users\SSS\Desktop\PAPER\skills\reader-skill\tests\test_reader_e2e.py
 ```
 
@@ -212,8 +275,23 @@ python C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.p
 python C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py C:\Users\SSS\Desktop\PAPER\skills\reader-learner
 python C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py C:\Users\SSS\Desktop\PAPER\skills\read-feedback-skill
 python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing
-python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py C:\Users\SSS\Desktop\PAPER\skills\utils\init-knowledge-profile
+python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile
+python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py C:\Users\SSS\Desktop\PAPER\skills\utils\demo-skill
 ```
+
+## Sync And Validate The Persistent Visible Wiki
+
+Run these commands from `C:\Users\SSS\Desktop\PAPER`. The sync pipeline never mutates the learner profile. It creates the missing concise public projections for every stable profile concept and every profile source, then validates coverage.
+
+```powershell
+python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync --dry-run
+python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync
+python .\skills\reader-learner\scripts\lint_visible_wiki.py --profile .\.agents\reader-learner\knowledge_profile.json --wiki .\.agents\wiki --strict --require-profile-coverage
+python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py reader-feedback --feedback <reader_feedback.json>
+python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>
+```
+
+The reader/news commands first invoke the existing strict importer (which backs up the profile) and only sync the visible wiki after a successful import. Open `C:\Users\SSS\Desktop\PAPER\.agents\wiki` as its own Obsidian vault. Use `maps/Profile Coverage.md` to confirm the projection and `maps/Evidence Map.md` for claim-to-source navigation.
 
 ## Regenerate Project Agent Context
 

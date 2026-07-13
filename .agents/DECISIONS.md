@@ -1,7 +1,7 @@
 # Decisions
 
 - Project root: `C:\Users\SSS\Desktop\PAPER`
-- Last reviewed: 2026-07-05
+- Last reviewed: 2026-07-13
 
 ## Current Decisions
 
@@ -14,7 +14,9 @@
 | Reserve `reader_interactive.html` for completed translated readers. | active | User clarified that the target artifact is a translated paper with logic and knowledge-point guidance plus interactivity. Extraction-only bundles, placeholders, summaries, or reading scaffolds are incomplete intermediate states and must not produce HTML. |
 | Treat Codex direct translation as the default paper-reader translation backend. | active | User corrected that Codex should directly translate paper blocks instead of looking for other local models or packages. Missing external translation tooling is not a blocker for completing `paper.md` and `reader_interactive.html`. |
 | Treat figures, tables, formulas, and block-specific notes as required final-reader structure. | active | User identified that missing figure/table cards, non-LaTeX formula noise, and generic `逻辑位置` / `标注建议` scaffolds make a reader invalid even when text is translated. |
-| Add `init-knowledge-profile` for GPT conversation imports. | active | User wants many GPT conversation sessions to contribute to the long-term learner/person profile. The durable design is staged and reviewable: collect local exports, extract candidates, propose a patch, then apply with backup. |
+| Add `chat-knowledge-profile` for chat conversation imports. | active | User wants many chat conversation sessions to contribute to the long-term learner/person profile. The durable design is staged and reviewable: collect local exports, create `conversation_summaries.json`, extract candidates, propose a strict `reader-learner` handoff patch, then apply with backup. The design borrows ideas from ChatInsights and gpt-obsidian, but does not copy their code. |
+| Keep bilingual project demos in `skills/utils/demo-skill`. | active | The user requested the current Chinese/English three-pipeline PAPER demo as a reusable skill. The bundled templates remain editable visual references; verified README/AGENTS contracts own the facts, generation refuses accidental overwrite, and QA/design scratch artifacts stay out of normal publication. |
+| Maintain a separate curated `.agents/wiki/` knowledge layer. | active | The learner profile and generated legacy vault remain source/projection layers. `.agents/wiki/` holds stable, source-traceable concepts, entities, themes, questions, syntheses, claims, and source summaries without copying raw feedback, events, paths, or bundles. |
 | Keep post-reading explanation generation in `read-feedback-skill`. | active | Explanation reports read feedback/profile/source context but should not make `reader-skill` or `reader-learner` too broad. |
 | Generate both Markdown and HTML from `read-feedback-skill`. | active | The user wants post-reading explanations as an inspectable HTML artifact, borrowing the standalone-report pattern from `research-html-report`. |
 | Treat `feedback_research_context.md` as the bridge from feedback to real research deep dives. | active | The user found baseline feedback explanations too shallow; derivations and research logic must be authored from source-grounded context packs, not hardcoded canned explanations. |
