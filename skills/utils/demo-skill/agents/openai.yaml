@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Demo Builder"
+  short_description: "Build audited bilingual project pipeline demos"
+  default_prompt: "Use $demo-skill to build Chinese and English project demo pages from verified README and agent contracts."

@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="PAPER turns papers, AI/quantum briefings, and conversation history into one traceable research memory.">
+  <title>PAPER · A Research Desk That Remembers</title>
+  <script>window.MathJax={tex:{inlineMath:[["\\(","\\)"]],displayMath:[["\\[","\\]"]]},options:{skipHtmlTags:["script","noscript","style","textarea","pre","code"]}};</script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrollTrigger.min.js"></script>
+  <script defer src="https://unpkg.com/lenis@1.3.23/dist/lenis.min.js"></script>
+  <style>
+    :root {
+      --ink: #071117;
+      --ink-2: #0d181e;
+      --paper: #f0ede5;
+      --paper-2: #e5e1d7;
+      --muted: #8c9494;
+      --paper-muted: #5e625f;
+      --line-dark: rgba(238, 235, 226, .18);
+      --line-paper: rgba(7, 17, 23, .2);
+      --signal: #70b84c;
+      --signal-2: #a3d47d;
+      --rail: 118px;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      --sans: "Arial Narrow", "Roboto Condensed", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; background: var(--ink); }
+    html.lenis, html.lenis body { height: auto; }
+    .lenis.lenis-smooth { scroll-behavior: auto !important; }
+    .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+    .lenis.lenis-stopped { overflow: clip; }
+    body { margin: 0; background: var(--ink); color: var(--paper); font-family: var(--body); overflow-x: hidden; }
+    a { color: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    ::selection { color: var(--ink); background: var(--signal-2); }
+    .skip-link { position: fixed; left: 1rem; top: -5rem; z-index: 1000; background: var(--signal); color: var(--ink); padding: .75rem 1rem; font: 700 .8rem var(--mono); }
+    .skip-link:focus { top: 1rem; }
+
+    .rail {
+      position: fixed; inset: 0 auto 0 0; width: var(--rail); z-index: 50;
+      border-right: 1px solid var(--line-dark); background: rgba(7, 17, 23, .97);
+      display: flex; flex-direction: column; padding: 18px 14px 16px;
+    }
+    .brand { text-decoration: none; display: grid; gap: 10px; }
+    .brand-mark { width: 22px; height: 22px; border: 1px solid var(--signal); color: var(--signal); border-radius: 5px; display: grid; place-items: center; font: 700 11px var(--mono); }
+    .brand-name { font: 700 12px var(--mono); letter-spacing: .06em; }
+    .brand-note { color: #a4aaaa; font: 9px/1.5 var(--mono); text-transform: uppercase; }
+    .rail-label { margin-top: clamp(68px, 12vh, 128px); color: var(--signal); font: 9px var(--mono); letter-spacing: .08em; }
+    .rail-nav { position: relative; display: grid; gap: 22px; margin-top: 18px; padding-left: 15px; }
+    .rail-nav::before { content: ""; position: absolute; left: 3px; top: 5px; bottom: 5px; width: 1px; background: #405058; }
+    .rail-link { position: relative; color: #68747a; text-decoration: none; transition: color .25s ease; }
+    .rail-link::before { content: ""; position: absolute; left: -15px; top: 4px; width: 7px; height: 7px; background: var(--ink); border: 1px solid #68747a; border-radius: 50%; transition: .25s ease; }
+    .rail-link strong { display: block; font: 700 25px/1 var(--sans); letter-spacing: -.04em; }
+    .rail-link span { display: block; margin-top: 6px; font: 8px/1.35 var(--mono); text-transform: uppercase; }
+    .rail-link.active { color: var(--paper); }
+    .rail-link.active::before { background: var(--signal); border-color: var(--signal); box-shadow: 0 0 0 4px rgba(112,184,76,.12); }
+    .rail-link.active strong { color: var(--signal); }
+    .rail-bottom { margin-top: auto; border-top: 1px solid var(--line-dark); padding-top: 14px; font: 8px/1.55 var(--mono); color: #9aa2a2; }
+    .rail-bottom b { color: var(--signal); font-weight: 500; }
+
+    main { margin-left: var(--rail); }
+    .shell { width: min(1380px, 100%); margin: 0 auto; }
+    .hero { min-height: 100svh; background: var(--paper); color: var(--ink); padding: 32px clamp(28px, 5vw, 78px) 28px; display: grid; align-content: space-between; }
+    .hero-top, .hero-bottom { display: flex; justify-content: space-between; gap: 24px; align-items: center; font: 10px var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+    .hero-top { padding-bottom: 16px; border-bottom: 1px solid var(--line-paper); }
+    .hero-kicker { color: var(--paper-muted); }
+    .lang-switch { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 3px; }
+    .lang-switch:hover, .lang-switch:focus-visible { color: #367c26; }
+    .hero-copy { padding: 8vh 0 6vh; }
+    .hero-title { margin: 0; max-width: 1050px; font: 900 clamp(4rem, 10.8vw, 11.4rem)/.78 var(--sans); letter-spacing: -.072em; text-transform: uppercase; }
+    .hero-title { max-width: none; font-size: clamp(4rem, 7.8vw, 8rem); }
+    .hero-title .line > span { white-space: nowrap; }
+    .hero-title .line { display: block; overflow: hidden; padding-bottom: .08em; }
+    .hero-title .line > span { display: block; }
+    .hero-sub { margin: clamp(28px, 5vh, 54px) 0 0; max-width: 750px; font-size: clamp(1.15rem, 2.2vw, 2rem); line-height: 1.45; font-weight: 560; }
+    .hero-note { margin-top: 18px; max-width: 620px; color: var(--paper-muted); font-size: 1rem; line-height: 1.75; }
+    .hero-cta { margin-top: 30px; display: inline-flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; font: 700 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+    .hero-cta::after { content: "↓"; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--ink); border-radius: 50%; transition: transform .25s; }
+    .hero-cta:hover::after { transform: translateY(5px); }
+    .hero-bottom { border-top: 1px solid var(--line-paper); padding-top: 16px; }
+    .system-dots { display: flex; gap: 16px; flex-wrap: wrap; }
+    .system-dots span::before { content: ""; width: 6px; height: 6px; display: inline-block; margin-right: 7px; border-radius: 50%; background: var(--signal); }
+
+    .pipeline { position: relative; min-height: 100svh; padding: clamp(70px, 9vw, 130px) clamp(28px, 5vw, 78px) 0; overflow: clip; }
+    .pipeline.paper { background: var(--paper); color: var(--ink); }
+    .pipeline.dark { background: var(--ink); color: var(--paper); }
+    .pipeline-grid { display: grid; grid-template-columns: minmax(210px, 300px) minmax(0, 1fr); gap: clamp(42px, 7vw, 110px); }
+    .section-intro { align-self: start; position: sticky; top: 42px; padding-bottom: 54px; }
+    .section-number { color: var(--signal); font: 800 clamp(4rem, 7vw, 7rem)/.8 var(--sans); letter-spacing: -.07em; }
+    .eyebrow { margin-top: 26px; color: var(--signal); font: 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .pipe-title { margin: 12px 0 18px; font: 900 clamp(2.8rem, 5vw, 5.5rem)/.86 var(--sans); letter-spacing: -.055em; text-transform: uppercase; }
+    .pipe-desc { margin: 0; max-width: 310px; font-size: 1rem; line-height: 1.7; color: var(--paper-muted); }
+    .dark .pipe-desc { color: #aab1b0; }
+    .mini-flow { margin-top: 44px; padding-top: 14px; border-top: 1px solid currentColor; display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: start; gap: 9px; color: inherit; font: 9px/1.45 var(--mono); text-transform: uppercase; }
+    .mini-flow small { color: var(--signal); display: block; margin-bottom: 5px; font-size: 8px; }
+    .mini-flow i { font-style: normal; font-size: 18px; line-height: 1; opacity: .6; }
+    .visual { min-width: 0; align-self: start; }
+
+    .reader-stage { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(230px, .55fr); gap: 14px; align-items: stretch; }
+    .paper-page { min-height: 560px; border: 1px solid #c8c2b6; padding: clamp(26px, 4vw, 58px); background: #f7f4ec; box-shadow: 0 24px 70px rgba(25, 24, 19, .09); position: relative; }
+    .paper-page::before { content: "SOURCE PAGE 04 / 18"; position: absolute; right: 18px; top: 17px; color: #73746e; font: 8px var(--mono); }
+    .paper-meta { font: 9px var(--mono); color: #567043; text-transform: uppercase; letter-spacing: .05em; }
+    .paper-page h3 { margin: 25px 0 12px; max-width: 570px; font: 650 clamp(1.65rem, 3vw, 3.2rem)/1.05 Georgia, serif; letter-spacing: -.035em; }
+    .paper-authors { color: #5f625d; font: 12px Georgia, serif; }
+    .paper-rule { margin: 28px 0; height: 1px; background: #bbb7ae; }
+    .paper-page h4 { font: 700 13px Georgia, serif; }
+    .paper-page p { max-width: 68ch; font: 13px/1.75 Georgia, serif; color: #343733; }
+    .math-block { margin: 24px 0; padding: 17px 20px; border-left: 3px solid var(--signal); background: #e9e8df; overflow-x: auto; font-size: 1rem; }
+    mark { background: rgba(112,184,76,.26); color: inherit; padding: .08em .18em; }
+    .annotation { position: absolute; width: 170px; right: 28px; bottom: 36px; color: #477d32; font: italic 12px/1.45 Georgia, serif; transform: rotate(-2deg); }
+    .reader-notes { display: grid; grid-template-rows: 1fr auto; gap: 14px; }
+    .notes-panel, .tag-panel { background: var(--ink); color: var(--paper); border: 1px solid #25353c; padding: 22px; }
+    .panel-head { color: var(--signal); font: 10px var(--mono); text-transform: uppercase; letter-spacing: .07em; }
+    .note-list { margin: 20px 0 0; padding: 0; list-style: none; counter-reset: note; }
+    .note-list li { counter-increment: note; position: relative; padding: 0 0 14px 24px; color: #c0c5c3; font: 11px/1.55 var(--mono); }
+    .note-list li::before { content: counter(note, decimal-leading-zero); position: absolute; left: 0; color: #5c6f77; }
+    .tag-list { margin-top: 14px; color: #b9c0bd; font: 10px/1.8 var(--mono); }
+
+    .artifact-strip { margin-top: 58px; border-top: 1px solid currentColor; padding: 18px 0 22px; overflow: hidden; }
+    .artifact-label { color: var(--signal); font: 9px var(--mono); text-transform: uppercase; margin-bottom: 14px; }
+    .artifact-track { display: flex; align-items: stretch; gap: 8px; width: max-content; will-change: transform; }
+    .artifact { min-width: 178px; border: 1px solid currentColor; padding: 15px 16px; font: 10px var(--mono); display: grid; gap: 8px; background: color-mix(in srgb, currentColor 3%, transparent); }
+    .artifact b { color: var(--signal); font-size: 9px; font-weight: 500; }
+    .artifact-arrow { align-self: center; color: var(--signal); font: 18px var(--mono); padding: 0 4px; }
+
+    .briefing-stage { display: grid; grid-template-columns: .9fr 1.05fr 1.35fr; border: 1px solid var(--line-dark); min-height: 560px; }
+    .brief-col { padding: 24px; border-right: 1px solid var(--line-dark); }
+    .brief-col:last-child { border-right: 0; }
+    .signal-list { margin: 20px 0 0; padding: 0; list-style: none; }
+    .signal-list li { border-top: 1px solid var(--line-dark); padding: 16px 0 16px 16px; color: #aeb6b5; font: 10px/1.55 var(--mono); position: relative; }
+    .signal-list li::before { content: ""; position: absolute; left: 0; top: 20px; width: 6px; height: 6px; background: var(--signal); border-radius: 50%; }
+    .brief-copy { margin-top: 24px; color: #d5d7d2; font: 14px/1.75 var(--mono); }
+    .brief-copy strong { color: var(--paper); font-weight: 600; }
+    .brief-meta { margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--line-dark); color: #768287; font: 9px/1.7 var(--mono); }
+    .graph-wrap { display: grid; grid-template-rows: auto 1fr; min-height: 100%; }
+    canvas { display: block; width: 100%; height: 100%; min-height: 360px; }
+    .canvas-fallback { display: none; }
+
+    .chat-stage { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .chat-window, .ledger { border: 1px solid #c7c1b5; min-height: 550px; background: #f6f3eb; }
+    .window-head { display: flex; justify-content: space-between; gap: 18px; border-bottom: 1px solid #cbc5b9; padding: 15px 18px; color: #5d645d; font: 9px var(--mono); text-transform: uppercase; }
+    .messages { padding: 24px; display: grid; gap: 14px; }
+    .message { max-width: 88%; padding: 14px 16px; font: 12px/1.62 var(--mono); border: 1px solid #cfcbc1; }
+    .message.user { justify-self: end; background: #ebe7de; }
+    .message.system { justify-self: start; background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .message b { display: block; color: var(--signal); margin-bottom: 7px; font: 8px var(--mono); text-transform: uppercase; }
+    .ledger-list { padding: 18px; display: grid; gap: 8px; }
+    .ledger-item { border: 1px solid #d0cabf; padding: 15px; display: grid; grid-template-columns: 88px 1fr; gap: 14px; font: 10px/1.55 var(--mono); }
+    .ledger-item time { color: #4b8735; }
+    .review-gate { margin: 14px 18px 18px; border: 1px solid var(--signal); padding: 14px; color: #376d28; font: 10px/1.5 var(--mono); }
+
+    .memory { background: var(--ink); padding: clamp(84px, 10vw, 150px) clamp(28px, 5vw, 78px) 42px; position: relative; }
+    .converge { max-width: 720px; margin: 0 auto 54px; text-align: center; }
+    .converge .eyebrow { margin: 0; }
+    .converge h2 { margin: 18px 0 14px; font: 900 clamp(3rem, 7vw, 7.5rem)/.86 var(--sans); letter-spacing: -.06em; text-transform: uppercase; }
+    .converge p { color: #a7b0ae; line-height: 1.7; }
+    .memory-line { height: 82px; position: relative; max-width: 860px; margin: 0 auto; }
+    .memory-line::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--signal); transform: scaleX(.45); transform-origin: center; opacity: .7; }
+    .memory-line::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--signal); }
+    .memory-node { position: absolute; left: 50%; top: 0; width: 18px; height: 18px; transform: translate(-50%,-50%); border-radius: 50%; background: var(--signal); border: 5px solid var(--ink); box-shadow: 0 0 0 1px var(--signal), 0 0 28px rgba(112,184,76,.6); }
+    .memory-grid { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-dark); }
+    .memory-card { min-height: 470px; padding: clamp(28px, 4vw, 54px); display: grid; grid-template-rows: auto 1fr; }
+    .memory-card + .memory-card { border-left: 1px solid var(--line-dark); }
+    .memory-card h3 { margin: 0; font: 800 clamp(2.2rem, 4vw, 4.5rem)/.9 var(--sans); text-transform: uppercase; letter-spacing: -.045em; }
+    .memory-card p { color: #9eaaa7; line-height: 1.6; max-width: 50ch; }
+    .memory-viz { display: grid; grid-template-columns: .85fr 1.15fr; gap: 24px; align-items: center; }
+    .check-list { list-style: none; padding: 0; margin: 25px 0 0; display: grid; gap: 13px; color: #c0c8c4; font-size: 13px; }
+    .check-list li::before { content: "✓"; color: var(--signal); margin-right: 10px; font-weight: 800; }
+    .memory canvas { min-height: 260px; }
+    .footer { margin-top: 42px; border-top: 1px solid var(--line-dark); padding-top: 22px; display: flex; justify-content: space-between; gap: 28px; color: #8d9997; font: 9px/1.6 var(--mono); text-transform: uppercase; }
+    .status-box { border: 1px solid var(--line-dark); padding: 12px 16px; min-width: 240px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .status-box b { color: var(--signal); font: 500 20px var(--mono); }
+
+    .reveal { opacity: 0; transform: translateY(22px); }
+    .js-ready .reveal { opacity: 1; transform: none; }
+    :focus-visible { outline: 2px solid var(--signal); outline-offset: 4px; }
+    @media (max-width: 980px) {
+      :root { --rail: 0px; }
+      .rail { inset: 0 0 auto; width: 100%; height: 66px; flex-direction: row; align-items: center; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--line-dark); }
+      .brand { display: flex; align-items: center; gap: 10px; }
+      .brand-note, .rail-label, .rail-bottom { display: none; }
+      .rail-nav { margin: 0 0 0 auto; padding: 0; display: flex; gap: 8px; }
+      .rail-nav::before, .rail-link::before { display: none; }
+      .rail-link { padding: 8px; border: 1px solid transparent; }
+      .rail-link.active { border-color: var(--signal); }
+      .rail-link strong { font: 700 13px var(--mono); }
+      .rail-link span { display: none; }
+      main { margin: 66px 0 0; }
+      .hero { min-height: calc(100svh - 66px); }
+      .pipeline-grid { grid-template-columns: 1fr; gap: 28px; }
+      .section-intro { position: static; padding-bottom: 10px; display: grid; grid-template-columns: auto 1fr; column-gap: 22px; }
+      .section-number { grid-row: 1 / span 3; }
+      .eyebrow { margin-top: 0; }
+      .pipe-title { margin-top: 8px; }
+      .pipe-desc { max-width: 620px; }
+      .mini-flow { grid-column: 1 / -1; }
+      .reader-stage { grid-template-columns: 1fr; }
+      .reader-notes { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
+      .briefing-stage { grid-template-columns: 1fr 1fr; }
+      .brief-col:last-child { grid-column: 1 / -1; border-top: 1px solid var(--line-dark); }
+      .chat-stage { grid-template-columns: 1fr; }
+      .memory-grid { grid-template-columns: 1fr; }
+      .memory-card + .memory-card { border-left: 0; border-top: 1px solid var(--line-dark); }
+    }
+    @media (max-width: 620px) {
+      .brand-name { display: none; }
+      .hero, .pipeline, .memory { padding-left: 20px; padding-right: 20px; }
+      .hero-top { align-items: flex-start; }
+      .hero-top .hero-kicker { max-width: 170px; line-height: 1.5; }
+      .hero-title { font-size: clamp(3.65rem, 18vw, 6.2rem); }
+      .hero-title { font-size: clamp(2.65rem, 11.5vw, 4rem); line-height: .86; letter-spacing: -.055em; }
+      .hero-title .line > span { white-space: normal; }
+      .hero-bottom { align-items: flex-end; }
+      .system-dots { gap: 5px; display: grid; }
+      .section-intro { grid-template-columns: 1fr; }
+      .section-number { grid-row: auto; font-size: 4rem; }
+      .pipe-title { font-size: clamp(2.8rem, 15vw, 4.8rem); }
+      .mini-flow { overflow-x: auto; grid-template-columns: minmax(80px,1fr) auto minmax(80px,1fr) auto minmax(90px,1fr); }
+      .paper-page { min-height: auto; padding: 50px 22px 120px; }
+      .annotation { right: 18px; bottom: 30px; width: 145px; }
+      .reader-notes { grid-template-columns: 1fr; }
+      .briefing-stage { grid-template-columns: 1fr; }
+      .brief-col { border-right: 0; border-bottom: 1px solid var(--line-dark); }
+      .brief-col:last-child { grid-column: auto; border-bottom: 0; }
+      canvas { min-height: 300px; }
+      .chat-window, .ledger { min-height: auto; }
+      .ledger-item { grid-template-columns: 1fr; gap: 6px; }
+      .memory-viz { grid-template-columns: 1fr; }
+      .footer { flex-direction: column; }
+      .status-box { min-width: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+      .reveal { opacity: 1 !important; transform: none !important; }
+      .artifact-track { transform: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to main content</a>
+  <aside class="rail" aria-label="Pipeline navigation">
+    <a class="brand" href="#top" aria-label="Back to top">
+      <span class="brand-mark">P</span><span class="brand-name">PAPER</span>
+      <span class="brand-note">Local-first<br>Research knowledge<br>System</span>
+    </a>
+    <div class="rail-label">Pipelines</div>
+    <nav class="rail-nav">
+      <a class="rail-link active" href="#reader" data-section="reader"><strong>01</strong><span>Paper<br>Reader</span></a>
+      <a class="rail-link" href="#briefing" data-section="briefing"><strong>02</strong><span>AI + Quantum<br>Briefing</span></a>
+      <a class="rail-link" href="#chat" data-section="chat"><strong>03</strong><span>Chat<br>Profile</span></a>
+    </nav>
+    <div class="rail-bottom"><b>Shared layer</b><br>Learner profile<br>Visible wiki</div>
+  </aside>
+
+  <main id="content">
+    <header class="hero shell" id="top">
+      <div class="hero-top">
+        <span class="hero-kicker">PAPER / Local research knowledge system</span>
+        <a class="lang-switch" href="demo.html" lang="zh-CN" aria-label="切换到中文">中文 / ZH</a>
+      </div>
+      <div class="hero-copy">
+        <h1 class="hero-title" aria-label="A research desk that remembers">
+          <span class="line"><span>A research desk</span></span>
+          <span class="line"><span>that remembers.</span></span>
+        </h1>
+        <p class="hero-sub">From source to understanding, then from feedback to the next investigation.</p>
+        <p class="hero-note">Papers, AI/quantum news, and conversation history are not separate information islands. PAPER moves all three through traceable hard gates into one learner profile and visible wiki.</p>
+        <a class="hero-cta" href="#reader">Explore the three pipelines</a>
+      </div>
+      <div class="hero-bottom">
+        <span>Three pipelines. One memory.</span>
+        <span class="system-dots"><span>Local-first</span><span>Skills-driven</span><span>Feedback loop</span></span>
+      </div>
+    </header>
+
+    <section class="pipeline paper shell" id="reader" data-pipeline="1">
+      <div class="pipeline-grid">
+        <div class="section-intro">
+          <div class="section-number">01</div>
+          <div>
+            <div class="eyebrow reveal">Paper reader</div>
+            <h2 class="pipe-title reveal">Paper reader<br>pipeline</h2>
+            <p class="pipe-desc reveal">From a raw PDF to a bilingual, traceable, annotatable reader whose feedback can flow back into memory. Summaries and dirty extraction cannot cross the publication gate.</p>
+          </div>
+          <div class="mini-flow">
+            <span><small>Input</small>PDF / DOI</span><i>→</i>
+            <span><small>Hard gate</small>reader_wiki</span><i>→</i>
+            <span><small>Artifact</small>Interactive HTML</span>
+          </div>
+        </div>
+        <div class="visual reader-stage reveal">
+          <article class="paper-page" aria-label="Paper reader example">
+            <div class="paper-meta">Normalized reader · source anchored</div>
+            <h3>Correlation-efficient quantum dynamics on structured graphs</h3>
+            <div class="paper-authors">Research reader preview · bilingual source block</div>
+            <div class="paper-rule"></div>
+            <h4>Core mechanism</h4>
+            <p>The system preserves source anchors first, then adds faithful translation, formula guidance, and block-level notes. Every claim can be traced back to a page, figure, table, or algorithm step.</p>
+            <div class="math-block" aria-label="Quantum evolution formula">\[|\psi(t)\rangle = e^{-iHt}|\psi(0)\rangle\]</div>
+            <p><mark>Only after structural validation passes</mark> may `reader_wiki` hand normalized content to the formal `reader_interactive.html`.</p>
+            <div class="annotation">Understanding is not opening a page. It is a loop of source, explanation, feedback, and review.</div>
+          </article>
+          <div class="reader-notes">
+            <aside class="notes-panel">
+              <div class="panel-head">annotations.md</div>
+              <ol class="note-list">
+                <li>Original, translation, and notes stay separate.</li>
+                <li>LaTeX and MathJax render readable formulas.</li>
+                <li>Figures, tables, and algorithms are first-class.</li>
+                <li>Source anchors remain inspectable.</li>
+                <li>Feedback exports to JSON before safe import.</li>
+              </ol>
+            </aside>
+            <aside class="tag-panel">
+              <div class="panel-head">Hard gates</div>
+              <div class="tag-list">faithful_translation<br>structure_validation<br>adversarial_html_audit</div>
+            </aside>
+          </div>
+        </div>
+      </div>
+      <div class="artifact-strip">
+        <div class="artifact-label">Artifact strip</div>
+        <div class="artifact-track">
+          <span class="artifact"><b>SOURCE</b>paper.pdf</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>BUNDLE</b>paper.md</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>LEDGER</b>reader_wiki/</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>READER</b>reader_interactive.html</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>FEEDBACK</b>reader_feedback.json</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>MEMORY</b>knowledge_profile.json</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="pipeline dark shell" id="briefing" data-pipeline="2">
+      <div class="pipeline-grid">
+        <div class="section-intro">
+          <div class="section-number">02</div>
+          <div>
+            <div class="eyebrow reveal">AI + quantum briefing</div>
+            <h2 class="pipe-title reveal">Evidence briefing<br>pipeline</h2>
+            <p class="pipe-desc reveal">From candidate signals to verifiable analysis. Candidate feeds support discovery only; publication requires HTTPS evidence, an academic-source audit, and identity parity.</p>
+          </div>
+          <div class="mini-flow">
+            <span><small>Input</small>Signals</span><i>→</i>
+            <span><small>Hard gate</small>Verify</span><i>→</i>
+            <span><small>Artifact</small>Daily reader</span>
+          </div>
+        </div>
+        <div class="visual briefing-stage reveal">
+          <div class="brief-col">
+            <div class="panel-head">Signal desk</div>
+            <ul class="signal-list">
+              <li>AI HOT candidate pool: discovery, never final evidence.</li>
+              <li>Formal academic entry points: PRL / PRA / PRX / Nature / Science.</li>
+              <li>Conference and open sources: ICLR / CVPR / ICML / NeurIPS / ACL.</li>
+              <li>Quantum sources: Quantum Journal and labeled arXiv preprints.</li>
+              <li>Every paper record carries its own evidence fingerprint.</li>
+            </ul>
+          </div>
+          <div class="brief-col">
+            <div class="panel-head">Evidence brief</div>
+            <div class="brief-copy"><strong>Today's research question</strong><br><br>How can quantum graph algorithms preserve nonlocal correlations while lowering the representational cost of time evolution?<br><br>The system separates facts, judgment, and relevance. Exposure-only concepts remain <strong>unrated</strong>.</div>
+            <div class="brief-meta">WINDOW 2026-07-10 → 2026-07-13<br>ANALYSIS zh-CN<br>ACADEMIC DELIVERY ≥ 5 ITEMS</div>
+          </div>
+          <div class="brief-col graph-wrap">
+            <div class="panel-head">Concept map · interactive</div>
+            <canvas id="briefGraph" width="760" height="620" aria-label="Briefing concept graph">Relationships among quantum graphs, spectral gaps, locality, evolution time, and evidence.</canvas>
+          </div>
+        </div>
+      </div>
+      <div class="artifact-strip">
+        <div class="artifact-label">Release boundary · run → verify → finalize → verify</div>
+        <div class="artifact-track">
+          <span class="artifact"><b>CANDIDATES</b>candidate_pool.json</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>EVIDENCE</b>academic_search</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>STAGING</b>daily_pipeline run</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>VERIFY</b>contract + UTF-8</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>PUBLISH</b>briefing_reader.html</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>FEEDBACK</b>news_feedback.json</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="pipeline paper shell" id="chat" data-pipeline="3">
+      <div class="pipeline-grid">
+        <div class="section-intro">
+          <div class="section-number">03</div>
+          <div>
+            <div class="eyebrow reveal">Chat → profile</div>
+            <h2 class="pipe-title reveal">Conversation import<br>pipeline</h2>
+            <p class="pipe-desc reveal">Turn local ChatGPT, Claude, and DeepSeek exports into reviewable candidates—without silently writing chat content into long-term memory.</p>
+          </div>
+          <div class="mini-flow">
+            <span><small>Input</small>Local exports</span><i>→</i>
+            <span><small>Hard gate</small>Human review</span><i>→</i>
+            <span><small>Artifact</small>Profile patch</span>
+          </div>
+        </div>
+        <div class="visual chat-stage reveal">
+          <div class="chat-window">
+            <div class="window-head"><span>conversation evidence</span><span>bounded</span></div>
+            <div class="messages">
+              <div class="message user"><b>Explicit preference</b>When explaining formulas, lead with physical intuition and follow with a rigorous derivation.</div>
+              <div class="message system"><b>Extract</b>Preference candidate recorded; assistant exposure is not evidence of user mastery.</div>
+              <div class="message user"><b>Open question</b>Why does locality limit the speed of quantum information propagation?</div>
+              <div class="message system"><b>Propose</b>A reviewable patch is ready. Concept states stay provisional and the question keeps its source anchor.</div>
+            </div>
+          </div>
+          <div class="ledger">
+            <div class="window-head"><span>review queue</span><span>no silent write</span></div>
+            <div class="ledger-list">
+              <div class="ledger-item"><time>COLLECT</time><span>sources.jsonl · events.jsonl · conversation_summaries.json</span></div>
+              <div class="ledger-item"><time>EXTRACT</time><span>Extract bounded, explicit evidence and preserve every source_anchor.</span></div>
+              <div class="ledger-item"><time>PROPOSE</time><span>Generate profile_candidates.json and profile_patch.json.</span></div>
+              <div class="ledger-item"><time>REVIEW</time><span>A human checks concept states, preferences, open questions, and evidence scope.</span></div>
+              <div class="ledger-item"><time>APPLY</time><span>Write with a backup; concept states still pass strict reader-learner validation.</span></div>
+            </div>
+            <div class="review-gate">HARD GATE — Only a reviewed patch may proceed to `apply --backup`.</div>
+          </div>
+        </div>
+      </div>
+      <div class="artifact-strip">
+        <div class="artifact-label">Reviewable import</div>
+        <div class="artifact-track">
+          <span class="artifact"><b>LOCAL</b>chat_export.json</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>COLLECT</b>events.jsonl</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>EXTRACT</b>profile_candidates.json</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>PROPOSE</b>profile_patch.json</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>REVIEW</b>human approval</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>APPLY</b>backup + validate</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="memory shell" id="memory">
+      <div class="converge reveal">
+        <div class="eyebrow">Shared memory layer</div>
+        <h2>Three entries.<br>One memory.</h2>
+        <p>Reading feedback, briefing annotations, and conversation evidence share one profile. Stable concepts and sources are then projected into a persistent, browsable, traceable Obsidian wiki.</p>
+      </div>
+      <div class="memory-line"><span class="memory-node" aria-hidden="true"></span></div>
+      <div class="memory-grid reveal">
+        <article class="memory-card">
+          <div><div class="panel-head">01 / Private learning state</div><h3>Learner profile</h3><p>Stable concepts, raw events, source records, and review queues stay distinct. Exposure never implies mastery.</p></div>
+          <div class="memory-viz">
+            <ul class="check-list"><li>concepts</li><li>events</li><li>sources</li><li>review_queue</li></ul>
+            <canvas id="profileChart" width="520" height="360" aria-label="Learner profile radar">Profile coverage across concepts, evidence, methods, connections, and review.</canvas>
+          </div>
+        </article>
+        <article class="memory-card">
+          <div><div class="panel-head">02 / Human-facing knowledge</div><h3>Visible wiki</h3><p>The public layer contains curated concepts, themes, claims, source summaries, and maps. Raw feedback and personal events stay in the source layer.</p></div>
+          <div class="memory-viz">
+            <ul class="check-list"><li>Bidirectional links</li><li>Traceable sources</li><li>No inflated knowledge states</li><li>Auditable profile coverage</li></ul>
+            <canvas id="wikiGraph" width="520" height="360" aria-label="Visible knowledge graph">Bidirectional links among concepts, themes, sources, and claims.</canvas>
+          </div>
+        </article>
+      </div>
+      <footer class="footer">
+        <div>Local research. Compounding knowledge.<br>Built from README + .agents contracts.</div>
+        <div class="status-box"><span>System status<br>Privacy by design</span><b>ONLINE</b></div>
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    document.documentElement.classList.add('js-ready');
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function fitCanvas(canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.max(320, Math.round(rect.width * dpr));
+      canvas.height = Math.max(260, Math.round(rect.height * dpr));
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return {ctx, w: rect.width, h: rect.height};
+    }
+
+    function drawNetwork(canvas, labels, seed = 1) {
+      if (!canvas) return;
+      const {ctx, w, h} = fitCanvas(canvas);
+      ctx.clearRect(0,0,w,h);
+      let s = seed;
+      const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+      const nodes = labels.map((label, i) => ({label, x: w * (.14 + rnd() * .72), y: h * (.14 + rnd() * .72), r: i < 2 ? 7 : 4}));
+      ctx.strokeStyle = 'rgba(205,216,210,.28)'; ctx.lineWidth = 1;
+      nodes.forEach((a, i) => nodes.forEach((b, j) => { if (j <= i) return; const d = Math.hypot(a.x-b.x,a.y-b.y); if (d < Math.min(w,h)*.36 || (i+j)%7===0) { ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }}));
+      nodes.forEach((n, i) => {
+        ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2); ctx.fillStyle = i === 0 || i === 3 ? '#70b84c' : '#e4dfd4'; ctx.fill();
+        if (i === 0 || i === 3) { ctx.beginPath(); ctx.arc(n.x,n.y,n.r+7,0,Math.PI*2); ctx.strokeStyle='rgba(112,184,76,.45)'; ctx.stroke(); }
+        ctx.fillStyle = '#bac4c0'; ctx.font = '10px SFMono-Regular, Consolas, monospace'; ctx.textAlign='center'; ctx.fillText(n.label,n.x,Math.max(12,n.y-13));
+      });
+    }
+
+    function drawRadar(canvas) {
+      if (!canvas) return; const {ctx,w,h}=fitCanvas(canvas); ctx.clearRect(0,0,w,h);
+      const labels=['Concepts','Evidence','Methods','Links','Review'], values=[.78,.62,.7,.88,.55], cx=w/2, cy=h/2+10, r=Math.min(w,h)*.32, count=labels.length;
+      for(let ring=1;ring<=4;ring++){ctx.beginPath();for(let i=0;i<count;i++){const a=-Math.PI/2+i*Math.PI*2/count,rr=r*ring/4;const x=cx+Math.cos(a)*rr,y=cy+Math.sin(a)*rr;i?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.closePath();ctx.strokeStyle='rgba(205,216,210,.18)';ctx.stroke()}
+      ctx.beginPath(); values.forEach((v,i)=>{const a=-Math.PI/2+i*Math.PI*2/count,x=cx+Math.cos(a)*r*v,y=cy+Math.sin(a)*r*v;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.closePath();ctx.fillStyle='rgba(112,184,76,.18)';ctx.fill();ctx.strokeStyle='#70b84c';ctx.lineWidth=2;ctx.stroke();
+      labels.forEach((label,i)=>{const a=-Math.PI/2+i*Math.PI*2/count;ctx.fillStyle='#bac4c0';ctx.font='10px SFMono-Regular, Consolas, monospace';ctx.textAlign='center';ctx.fillText(label,cx+Math.cos(a)*(r+28),cy+Math.sin(a)*(r+24)+4)});
+    }
+
+    function renderCanvases(){
+      drawNetwork(document.querySelector('#briefGraph'), ['Quantum graph','Spectral gap','Locality','Evolution','Hamiltonian','Evidence','Paper','Algorithm','Links'], 7);
+      drawRadar(document.querySelector('#profileChart'));
+      drawNetwork(document.querySelector('#wikiGraph'), ['Concept','Theme','Source','Claim','Question','Synthesis','Entity','Evidence','Map','Review'], 17);
+    }
+    addEventListener('load', renderCanvases, {once:true});
+    let resizeTimer; addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(renderCanvases,120)});
+
+    const links = [...document.querySelectorAll('.rail-link')];
+    const sections = [...document.querySelectorAll('[data-pipeline]')];
+    const observer = new IntersectionObserver(entries => entries.forEach(entry => { if(entry.isIntersecting){ links.forEach(a=>a.classList.toggle('active',a.dataset.section===entry.target.id)); }}), {rootMargin:'-35% 0px -55%',threshold:0});
+    sections.forEach(section=>observer.observe(section));
+
+    addEventListener('load', () => {
+      if (!reduceMotion && window.gsap && window.ScrollTrigger) {
+        gsap.registerPlugin(ScrollTrigger);
+        if (window.Lenis) {
+          const lenis = new Lenis({smoothWheel:true, anchors:true});
+          lenis.on('scroll', ScrollTrigger.update);
+          gsap.ticker.add(time => lenis.raf(time * 1000));
+          gsap.ticker.lagSmoothing(0);
+        }
+        gsap.from('.hero-title .line > span', {yPercent:110, duration:1.05, ease:'power4.out', stagger:.12});
+        gsap.from(['.hero-sub','.hero-note','.hero-cta'], {autoAlpha:0,y:22,duration:.75,stagger:.1,delay:.35,ease:'power2.out'});
+        document.querySelectorAll('.reveal').forEach(el => gsap.from(el,{autoAlpha:0,y:32,duration:.8,ease:'power2.out',scrollTrigger:{trigger:el,start:'top 88%',toggleActions:'play none none reverse'}}));
+        document.querySelectorAll('.artifact-track').forEach(track => {
+          const strip=track.closest('.artifact-strip');
+          gsap.fromTo(track,{x:0},{x:()=>Math.min(0,innerWidth-track.scrollWidth-70),ease:'none',scrollTrigger:{trigger:strip,start:'top bottom',end:'bottom top',scrub:1,invalidateOnRefresh:true}});
+        });
+        gsap.from('.memory-node',{scale:0,scrollTrigger:{trigger:'.memory-line',start:'top 75%',toggleActions:'play none none reverse'},duration:.6,ease:'back.out(2)'});
+      } else {
+        document.querySelectorAll('.reveal').forEach(el=>{el.style.opacity=1;el.style.transform='none'});
+      }
+    });
+  </script>
+</body>
+</html>
