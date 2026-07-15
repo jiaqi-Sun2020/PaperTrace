@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import html
 import json
 import mimetypes
+import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -21,8 +23,17 @@ if LEAN_HTML_SCRIPTS.exists():
     sys.path.insert(0, str(LEAN_HTML_SCRIPTS))
 try:
     from reader_html_contract import validate_generated_reader_html
-except Exception:  # pragma: no cover - local compatibility fallback
-    validate_generated_reader_html = None
+except Exception as exc:  # pragma: no cover - formal builds must not silently fork the contract
+    raise RuntimeError(f"lean-html-skill reader_html_contract is required for formal reader builds: {exc}") from exc
+try:
+    from reader_theme import (
+        reader_theme_boot_script,
+        reader_theme_control,
+        reader_theme_css,
+        reader_theme_script,
+    )
+except Exception as exc:  # pragma: no cover - formal builds must use the shared shell/theme
+    raise RuntimeError(f"lean-html-skill reader_theme is required for formal reader builds: {exc}") from exc
 
 
 ANCHOR_RE = re.compile(r'<a\s+id=["\']([^"\']+)["\']\s*>\s*</a>', re.I)
@@ -33,8 +44,10 @@ MATH_SPAN_RE = re.compile(
     r'(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$|(?<!\\)\$(?!\s)(?:\\.|[^$]){1,800}?(?<!\\)\$)'
 )
 DISPLAY_MATH_BLOCK_RE = re.compile(r'^\s*(\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$)\s*$')
+DISPLAY_MATH_ANY_RE = re.compile(r'(\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$)')
 ALGORITHM_RE = re.compile(r'\bAlgorithm\s+\d+\b', re.I)
 ALGORITHM_LINE_RE = re.compile(r'^\s*(\d+)\s*:\s*(.*)$')
+REFERENCE_LIST_LABEL = "Reference list (original only)"
 DEFAULT_MATHJAX_URL = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 KNOWN_STATUSES = {"known", "mastered"}
 ANNOTATED_STATUSES = {"unknown", "learning", "unrated"}
@@ -299,23 +312,9 @@ def markdown_inline(text: str, base_dir: Path, embed_assets: bool, warnings: lis
 
     text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', stash_link, text)
 
-    def auto_math(segment: str) -> str:
-        if not segment:
-            return segment
-        patterns = [
-            r'(?<![\w$])O\([A-Za-z0-9_\\{}\^\+\-\s·]+\)',
-            r'(?<![\w$])e\^\{[^}]+\}',
-            r'(?<![\w$])\\mathbb\{[A-Za-z]\}(?:\^\{[^}]+\})?',
-            r'(?<![\w$])(?:[A-Za-z][A-Za-z0-9]*|\\[A-Za-z]+)(?:_\{[^}]+\}|_[A-Za-z0-9]+|\^\{[^}]+\}|\^[A-Za-z0-9])+(?:\s*\[[^\]]+\])?',
-        ]
-        for pattern in patterns:
-            segment = re.sub(pattern, lambda m: f"${m.group(0)}$", segment)
-        return segment
-
-    split = MATH_SPAN_RE.split(text)
-    for idx in range(0, len(split), 2):
-        split[idx] = auto_math(split[idx])
-    text = "".join(split)
+    # Formal math components must come only from explicit, compiler-audited
+    # LaTeX delimiters. Guessing math from underscores or superscripts can
+    # create a formula chip on only one language side and break alignment.
 
     def stash_math(match: re.Match[str]) -> str:
         protected_math.append(f'<span class="math-inline">{html.escape(match.group(0))}</span>')
@@ -375,6 +374,15 @@ def markdown_blocks(text: str, base_dir: Path, embed_assets: bool, warnings: lis
             rendered.append(part)
         elif is_math_display_block(part):
             rendered.append(render_math_display(part))
+        elif DISPLAY_MATH_ANY_RE.search(part):
+            for chunk in DISPLAY_MATH_ANY_RE.split(part):
+                chunk = chunk.strip()
+                if not chunk:
+                    continue
+                if is_math_display_block(chunk):
+                    rendered.append(render_math_display(chunk))
+                else:
+                    rendered.append(f"<p>{markdown_inline(chunk, base_dir, embed_assets, warnings).replace(chr(10), '<br>')}</p>")
         else:
             rendered.append(f"<p>{markdown_inline(part, base_dir, embed_assets, warnings).replace(chr(10), '<br>')}</p>")
     return "\n".join(rendered)
@@ -422,6 +430,59 @@ def load_profile(profile_path: Path | None) -> dict | None:
     if not profile_path or not profile_path.exists():
         return None
     return json.loads(profile_path.read_text(encoding="utf-8"))
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def atomic_write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    json.loads(tmp_path.read_text(encoding="utf-8"))
+    tmp_path.replace(path)
+
+
+def write_artifact_manifest(base_dir: Path, output_path: Path, status: str, issues: list[str] | None = None) -> None:
+    wiki = base_dir / "reader_wiki"
+    manifest: dict[str, object] = {
+        "version": 1,
+        "generated_by": "skills/reader-skill/scripts/markdown_reader_to_html.py",
+        "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).replace(microsecond=0).isoformat(),
+        "formal_status": status,
+        "issues": issues or [],
+        "artifacts": {},
+    }
+    artifacts = manifest["artifacts"]
+    assert isinstance(artifacts, dict)
+    for label, path in (
+        ("source_map", base_dir / "source_map.json"),
+        ("completion_ledger", wiki / "completion_ledger.json"),
+        ("original_normalization_ledger", wiki / "original_normalization_ledger.json"),
+        ("concept_candidates", wiki / "concept_candidates.json"),
+        ("reader_manifest", wiki / "reader_manifest.json"),
+        ("structure_validation_report", wiki / "structure_validation_report.json"),
+        ("normalized_reader", wiki / "normalized_reader.md"),
+        ("html", output_path),
+    ):
+        if path.exists():
+            artifacts[label] = {
+                "path": path.relative_to(base_dir).as_posix(),
+                "sha256": sha256_file(path),
+            }
+    atomic_write_json(wiki / "formal_artifact_manifest.json", manifest)
 
 
 def extract_glossary(base_dir: Path) -> list[dict]:
@@ -620,17 +681,28 @@ def annotate_html_text(html_text: str, concepts: list[dict]) -> str:
 
 def build_knowledge_panel(profile: dict | None, glossary: list[dict], concepts: list[dict], profile_path: Path | None) -> str:
     rows = []
+    status_counts = {status: 0 for status in ("unknown", "learning", "known", "mastered", "unrated")}
+    unmatched_count = 0
     lookup = profile_lookup(profile or {})
     for item in glossary:
-        _matched_term, info = lookup.get(normalize_key(item["term"]), (item["term"], {"status": item.get("status", "unrated")}))
         term = item["term"]
-        status = str(info.get("status") or item.get("status") or "unrated").lower()
+        matched = lookup.get(normalize_key(term))
+        if matched:
+            _matched_term, info = matched
+            status = str(info.get("status") or "unrated").lower()
+            status_counts[status if status in status_counts else "unknown"] += 1
+            status_label = {"unknown": "需讲解", "learning": "学习中", "known": "已了解", "mastered": "已掌握"}.get(status, "待确认")
+        else:
+            info = {}
+            status = "unrated"
+            status_label = "尚未纳入个人档案"
+            unmatched_count += 1
         translation = usable_translation(info.get("translation"), item.get("translation", ""))
         explanation = info.get("ai_explanation") or item.get("note", "")
         rows.append(
             "<tr>"
             f"<td>{html.escape(term)}</td>"
-            f"<td><span class=\"status {html.escape(status, quote=True)}\">{html.escape(status)}</span></td>"
+            f"<td><span class=\"status {html.escape(status, quote=True)}\">{html.escape(status_label)}</span></td>"
             f"<td>{html.escape(str(translation))}</td>"
             f"<td>{html.escape(str(item.get('concept_type', 'term')))}</td>"
             f"<td>{html.escape(str(explanation))}</td>"
@@ -638,15 +710,20 @@ def build_knowledge_panel(profile: dict | None, glossary: list[dict], concepts: 
         )
     if not rows:
         rows.append('<tr><td colspan="5">No glossary concepts detected for this reader.</td></tr>')
-    profile_label = str(profile_path) if profile_path else "profile loaded"
+    if profile_path and ".agents" in profile_path.parts:
+        profile_label = Path(*profile_path.parts[profile_path.parts.index(".agents"):]).as_posix()
+    else:
+        profile_label = profile_path.name if profile_path else "profile loaded"
+    summary = " · ".join([f"学习中：{status_counts['learning']}", f"已了解：{status_counts['known']}", f"已掌握：{status_counts['mastered']}", f"需讲解：{status_counts['unknown']}", f"尚未纳入个人档案：{unmatched_count}"])
     return f'''
 <section class="knowledge-panel" id="personal-knowledge-boundary">
-  <h2>Paper Concept Ledger / Personal Knowledge Boundary</h2>
-  <p>This panel is generated from reader_wiki/concept_ledger.json. Profile statuses are merged when available; all core paper concepts remain visible, including known/mastered terms.</p>
-  <p class="profile-path">Profile: {html.escape(profile_label)}</p>
+  <h2>本文概念账本与个人知识边界</h2>
+  <p>本文概念账本来自 <code>reader_wiki/concept_ledger.json</code>。只有与个人知识档案精确匹配的概念才显示学习状态；其余概念仅表示“尚未纳入个人档案”，不代表你不理解。</p>
+  <p class="knowledge-summary">{html.escape(summary)}</p>
+  <p class="profile-path">个人知识档案：{html.escape(profile_label)}</p>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Concept</th><th>Status</th><th>Chinese / alias</th><th>Type</th><th>Explanation note</th></tr></thead>
+      <thead><tr><th>概念</th><th>个人状态</th><th>中文名称</th><th>类型</th><th>在本文中的作用</th></tr></thead>
       <tbody>{''.join(rows)}</tbody>
     </table>
   </div>
@@ -656,10 +733,21 @@ def build_knowledge_panel(profile: dict | None, glossary: list[dict], concepts: 
 def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled: bool) -> str:
     if not enabled:
         return ""
+    wiki = base_dir / "reader_wiki"
+    provenance = {}
+    for label, path in (
+        ("source_map", base_dir / "source_map.json"),
+        ("completion_ledger", wiki / "completion_ledger.json"),
+        ("reader_manifest", wiki / "reader_manifest.json"),
+        ("structure_validation_report", wiki / "structure_validation_report.json"),
+    ):
+        if path.exists():
+            provenance[label] = {"path": str(path), "sha256": sha256_file(path)}
     metadata = {
         "reader_feedback_version": 2,
         "paper_title": title,
         "reader_path": str(base_dir),
+        "bundle_provenance": provenance,
         "feedback_capabilities": ["concept_status", "freeform_annotation", "source_excerpt"],
         "concept_count": len(concepts),
         "items": []
@@ -1250,9 +1338,10 @@ def extract_label_block(text: str, label: str, next_labels: tuple[str, ...]) -> 
         match = re.search(rf'(?ms)^\*\*{re.escape(next_label)}:\*\*\s*', text[content_start:])
         if match:
             next_positions.append(content_start + match.start())
-    heading = re.search(r'(?m)^\s*#{1,6}\s+', text[content_start:])
-    if heading:
-        next_positions.append(content_start + heading.start())
+    # Explicit labels and anchors delimit canonical fields. A heading inside a
+    # field is content, never permission to close a language panel early.
+    # Formal compilation rejects field-local headings, but this containment
+    # rule also keeps diagnostic inputs from producing escaped DOM content.
     anchor = re.search(r'(?m)^<a\s+id=["\'][^"\']+["\']\s*>\s*</a>\s*$', text[content_start:])
     if anchor:
         next_positions.append(content_start + anchor.start())
@@ -1304,6 +1393,20 @@ def render_bilingual_segment(anchor: str | None, segment: str, base_dir: Path, e
     <article class="lang-panel translation"><h3>中文</h3>{markdown_blocks(chinese, base_dir, embed_assets, warnings)}</article>
     {notes_html}
   </div>
+</section>'''.strip()
+
+
+def render_reference_segment(anchor: str | None, segment: str, base_dir: Path, embed_assets: bool, warnings: list[str]) -> str | None:
+    """Render bibliography evidence as one original-only panel, never as a translation pair."""
+    source, rest = extract_label_block(segment, "Source", (REFERENCE_LIST_LABEL, "Original"))
+    references, _ = extract_label_block(rest, REFERENCE_LIST_LABEL, ())
+    if not source or not references:
+        return None
+    block_id = anchor or (source.split()[-1] if source else "reference")
+    return f'''
+<section class="reference-block" id="{html.escape(block_id, quote=True)}">
+  <div class="block-source"><span>Source</span> {markdown_inline(source, base_dir, embed_assets, warnings)}</div>
+  <article class="reference-panel"><h3>References · Original</h3>{markdown_blocks(references, base_dir, embed_assets, warnings)}</article>
 </section>'''.strip()
 
 
@@ -1373,6 +1476,11 @@ def render_document(markdown: str, base_dir: Path, embed_assets: bool, warnings:
         algorithm = render_algorithm_card(anchor, segment, base_dir, embed_assets, warnings)
         if algorithm:
             html_parts.append(algorithm)
+            continue
+
+        reference = render_reference_segment(anchor, segment, base_dir, embed_assets, warnings)
+        if reference:
+            html_parts.append(reference)
             continue
 
         bilingual = render_bilingual_segment(anchor, segment, base_dir, embed_assets, warnings)
@@ -1498,18 +1606,17 @@ def render_tokens(tokens: list[Token], base_dir: Path, embed_assets: bool, warni
 
 
 def css() -> str:
-    return """
+    return reader_theme_css() + """
 :root {
-  color-scheme: light;
-  --bg: #f5f7fb;
-  --paper: #ffffff;
-  --ink: #172033;
-  --muted: #657085;
-  --line: #dbe2ee;
-  --accent: #1f6feb;
-  --accent-soft: #e8f1ff;
-  --cn: #0f766e;
-  --warn: #9a3412;
+  --bg: var(--reader-bg);
+  --paper: var(--reader-card-bg);
+  --ink: var(--reader-text);
+  --muted: var(--reader-muted);
+  --line: var(--reader-border);
+  --accent: var(--reader-link);
+  --accent-soft: var(--reader-accent-soft);
+  --cn: var(--reader-cn);
+  --warn: var(--reader-warn);
 }
 * { box-sizing: border-box; }
 body {
@@ -1528,7 +1635,7 @@ a:hover { text-decoration: underline; }
 }
 .site-header h1 { margin: 0 0 10px; font-size: clamp(1.6rem, 3vw, 2.6rem); line-height: 1.15; letter-spacing: 0; }
 .meta-row { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: .95rem; }
-.badge { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 10px; }
+.badge { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 4px 10px; }
 .layout {
   display: grid;
   grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
@@ -1553,7 +1660,7 @@ a:hover { text-decoration: underline; }
 .toc .level-3 { padding-left: 12px; }
 .toc .level-4 { padding-left: 24px; }
 main { min-width: 0; }
-.section, .prose, .md-table, .bilingual-block, .figure-card, .label-card, .algorithm-card {
+.section, .prose, .md-table, .bilingual-block, .reference-block, .figure-card, .label-card, .algorithm-card {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1583,7 +1690,7 @@ main { min-width: 0; }
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
-  background: #fbfcff;
+  background: var(--reader-panel-bg);
   min-width: 0;
 }
 .lang-panel h3 {
@@ -1594,17 +1701,19 @@ main { min-width: 0; }
 }
 .translation h3 { color: var(--cn); }
 .reader-notes {
-  background: #fffdf7;
-  border-color: #ead7a4;
+  background: var(--reader-note-bg);
+  border-color: var(--reader-note-border);
 }
-.reader-notes h3 { color: #8a5a00; }
+.reader-notes h3 { color: var(--reader-warn); }
 .reader-notes ul, .reader-notes ol { margin-top: 8px; padding-left: 20px; }
 .reader-notes li { margin: 0 0 6px; }
 .lang-panel p, .label-card p, .prose p { margin: 0 0 10px; }
 .lang-panel p:last-child, .label-card p:last-child, .prose p:last-child { margin-bottom: 0; }
+.reference-panel { padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.reference-panel h3 { margin: 0 0 10px; font-size: .92rem; letter-spacing: .03em; color: var(--muted); }
 .math-display {
   overflow-x: auto;
-  background: #fff;
+  background: var(--reader-math-bg);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
@@ -1620,11 +1729,20 @@ main { min-width: 0; }
 .figure-card img {
   display: block;
   max-width: 100%;
+  width: auto;
   height: auto;
+  object-fit: contain;
   margin: 8px auto 14px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--reader-math-bg);
+}
+.figure-card {
+  overflow: visible;
+}
+.figure-card .table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
 }
 .algorithm-card h3 {
   margin: 0 0 10px;
@@ -1656,9 +1774,10 @@ main { min-width: 0; }
   color: var(--muted);
 }
 .algorithm-note {
-  border: 1px solid #ead7a4;
+  border: 1px solid var(--reader-note-border);
   border-radius: 8px;
-  background: #fffdf7;
+  background: var(--reader-note-bg);
+  color: var(--ink);
   padding: 14px;
 }
 .label-card strong {
@@ -1668,8 +1787,9 @@ main { min-width: 0; }
 }
 .reading-note strong, .中文图注 strong { color: var(--cn); }
 .knowledge-panel {
-  background: #fffdf7;
-  border: 1px solid #ead7a4;
+  background: var(--reader-note-bg);
+  color: var(--ink);
+  border: 1px solid var(--reader-note-border);
   border-radius: 8px;
   margin: 0 0 16px;
   padding: 18px;
@@ -1683,11 +1803,11 @@ main { min-width: 0; }
   border: 1px solid var(--line);
   font-size: .85rem;
 }
-.status.unknown, .knowledge-gap.unknown { background: #fff1f2; border-color: #fecdd3; }
-.status.learning, .knowledge-gap.learning { background: #fff7ed; border-color: #fed7aa; }
-.status.unrated, .knowledge-gap.unrated { background: #eef2ff; border-color: #c7d2fe; }
+.status.unknown, .knowledge-gap.unknown { background: var(--reader-status-unknown-bg); border-color: var(--reader-status-unknown-border); }
+.status.learning, .knowledge-gap.learning { background: var(--reader-status-learning-bg); border-color: var(--reader-status-learning-border); }
+.status.unrated, .knowledge-gap.unrated { background: var(--reader-status-unrated-bg); border-color: var(--reader-status-unrated-border); }
 .knowledge-gap {
-  color: inherit;
+  color: var(--reader-highlight-text);
   border-radius: 4px;
   padding: 0 2px;
   border-bottom: 2px solid currentColor;
@@ -1698,8 +1818,9 @@ main { min-width: 0; }
   outline-offset: 2px;
 }
 .saved-free-annotation {
-  background: #dcfce7;
-  border-bottom: 2px solid #16a34a;
+  background: var(--reader-status-saved-bg);
+  color: var(--reader-status-saved-text);
+  border-bottom: 2px solid var(--reader-status-saved-border);
   border-radius: 4px;
   padding: 0 2px;
 }
@@ -1710,16 +1831,16 @@ main { min-width: 0; }
   margin: 0 0 10px;
 }
 .saved-feedback-badge {
-  border: 1px solid #86efac;
+  border: 1px solid var(--reader-status-saved-border);
   border-radius: 999px;
-  background: #f0fdf4;
-  color: #166534;
+  background: var(--reader-status-saved-bg);
+  color: var(--reader-status-saved-text);
   padding: 3px 8px;
   font-size: .82rem;
   cursor: pointer;
 }
 .saved-feedback-badge:hover {
-  border-color: #16a34a;
+  border-color: var(--reader-status-saved-border);
 }
 .feedback-dock {
   position: fixed;
@@ -1744,7 +1865,7 @@ main { min-width: 0; }
   border: 1px solid var(--accent);
   border-radius: 8px;
   background: var(--accent);
-  color: #fff;
+  color: var(--reader-primary-text);
   padding: 9px 12px;
   box-shadow: 0 12px 28px rgba(31, 111, 235, .2);
   cursor: pointer;
@@ -1769,7 +1890,7 @@ main { min-width: 0; }
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--reader-panel-bg);
   color: var(--ink);
   padding: 7px 8px;
   font: inherit;
@@ -1783,14 +1904,14 @@ main { min-width: 0; }
 .status-buttons button, .feedback-actions button {
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--reader-panel-bg);
   color: var(--ink);
   padding: 7px 8px;
   cursor: pointer;
 }
 .status-buttons button.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--reader-primary-text);
   border-color: var(--accent);
 }
 .feedback-dock textarea {
@@ -1798,6 +1919,8 @@ main { min-width: 0; }
   min-height: 72px;
   resize: vertical;
   border: 1px solid var(--line);
+  background: var(--reader-panel-bg);
+  color: var(--ink);
   border-radius: 6px;
   padding: 8px;
   font: inherit;
@@ -1810,7 +1933,7 @@ main { min-width: 0; }
 }
 .feedback-actions .primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--reader-primary-text);
   border-color: var(--accent);
 }
 .feedback-summary {
@@ -1858,7 +1981,7 @@ main { min-width: 0; }
   border-radius: 6px;
   padding: 6px;
   margin-top: 6px;
-  background: #fbfcff;
+  background: var(--reader-panel-bg);
 }
 .feedback-row-label {
   border: 0;
@@ -1877,10 +2000,10 @@ main { min-width: 0; }
   white-space: nowrap;
 }
 .feedback-row-delete {
-  border: 1px solid #fecdd3;
+  border: 1px solid var(--reader-danger-border);
   border-radius: 6px;
-  background: #fff1f2;
-  color: #9f1239;
+  background: var(--reader-danger-bg);
+  color: var(--reader-danger-text);
   padding: 4px 6px;
   cursor: pointer;
 }
@@ -1888,6 +2011,13 @@ main { min-width: 0; }
 table { width: 100%; border-collapse: collapse; font-size: .95rem; }
 th, td { border-bottom: 1px solid var(--line); padding: 9px 10px; text-align: left; vertical-align: top; letter-spacing: 0; }
 th { background: var(--accent-soft); font-weight: 700; }
+code {
+  background: var(--reader-code-bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 3px;
+}
 .footer {
   max-width: 1480px;
   margin: 0 auto 28px;
@@ -1903,7 +2033,7 @@ th { background: var(--accent-soft); font-weight: 700; }
 }
 @media print {
   body { background: #fff; }
-  .site-header, .section, .prose, .md-table, .bilingual-block, .figure-card, .label-card, .algorithm-card { border-color: #c8ced8; box-shadow: none; }
+  .site-header, .section, .prose, .md-table, .bilingual-block, .reference-block, .figure-card, .label-card, .algorithm-card { border-color: #c8ced8; box-shadow: none; }
   .layout { display: block; max-width: none; padding: 0; }
   .toc { position: static; max-height: none; break-after: page; }
   .bilingual-block, .figure-card, .md-table { break-inside: avoid; }
@@ -1954,9 +2084,12 @@ def build_html(
     math_renderer: str = "mathjax",
     mathjax_url: str = DEFAULT_MATHJAX_URL,
 ) -> str:
+    toc_rows = list(toc[:80])
+    if knowledge_panel:
+        toc_rows.insert(0, (2, "personal-knowledge-boundary", "Paper Concept Ledger / Personal Knowledge Boundary"))
     toc_links = "\n".join(
         f'<a class="level-{level}" href="#{html.escape(anchor, quote=True)}">{html.escape(text)}</a>'
-        for level, anchor, text in toc[:80]
+        for level, anchor, text in toc_rows
     )
     companion_links = []
     for name in ("source_map.json", "translation_notes.md"):
@@ -1973,6 +2106,7 @@ def build_html(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{html.escape(title)}</title>
+  {reader_theme_boot_script()}
   <style>{css()}</style>
   {math_support(math_renderer, mathjax_url)}
 </head>
@@ -1984,6 +2118,7 @@ def build_html(
       <span class="badge">{html.escape(source_type)}</span>
       {f'<span class="badge">{html.escape(author_text)}</span>' if author_text else ''}
       {companions}
+      {reader_theme_control()}
     </div>
   </header>
   <div class="layout">
@@ -1999,6 +2134,7 @@ def build_html(
     </main>
   </div>
   {feedback_ui}
+  {reader_theme_script()}
   <footer class="footer">Generated from a nature-reader Markdown bundle. Source anchors are preserved for traceability.</footer>
 </body>
 </html>
@@ -2006,8 +2142,7 @@ def build_html(
 
 
 def validate_generated_html(html_text: str, concepts: list[dict], math_renderer: str) -> list[str]:
-    if validate_generated_reader_html is not None:
-        return validate_generated_reader_html(html_text, concepts, math_renderer)
+    return validate_generated_reader_html(html_text, concepts, math_renderer)
     issues: list[str] = []
     if math_renderer == "mathjax" and 'id="MathJax-script"' not in html_text:
         issues.append("MathJax script is missing")
@@ -2068,6 +2203,22 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     md_path, base_dir = read_input(input_path)
     markdown = md_path.read_text(encoding="utf-8")
     warnings: list[str] = []
+    output_path = Path(args.output).expanduser().resolve() if args.output else base_dir / "reader_interactive.html"
+
+    forbidden_flags: list[str] = []
+    if args.allow_draft_translation:
+        forbidden_flags.append("--allow-draft-translation")
+    if args.no_feedback_ui:
+        forbidden_flags.append("--no-feedback-ui")
+    if args.no_knowledge_annotations:
+        forbidden_flags.append("--no-knowledge-annotations")
+    if args.math_renderer == "none":
+        forbidden_flags.append("--math-renderer none")
+    if forbidden_flags:
+        issues = ["formal reader_interactive.html builds reject downgrade flags: " + ", ".join(forbidden_flags)]
+        write_artifact_manifest(base_dir, output_path, "stale_or_failed", issues)
+        print(issues[0], file=sys.stderr)
+        return 2
 
     agent_dir = find_agent_dir(base_dir, args.agent_dir)
     profile_path = Path(args.profile).expanduser().resolve() if args.profile else None
@@ -2077,10 +2228,11 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     try:
         compile_result = compile_reader_wiki(
             base_dir,
-            strict=not args.allow_draft_translation,
+            strict=True,
             profile_path=profile_path if profile_path and profile_path.exists() else None,
         )
     except ValueError as exc:
+        write_artifact_manifest(base_dir, output_path, "stale_or_failed", [str(exc)])
         print(f"reader-wiki validation failed:\n{exc}", file=sys.stderr)
         return 2
     normalized_reader = Path(compile_result.get("wiki_dir", base_dir / "reader_wiki")) / "normalized_reader.md"
@@ -2088,9 +2240,10 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         markdown = normalized_reader.read_text(encoding="utf-8")
 
     try:
-        draft_translation_issues = validate_translation_contract(markdown, args.allow_draft_translation)
-        structure_issues = [] if args.allow_draft_translation else validate_reader_structure(markdown, base_dir)
+        draft_translation_issues = validate_translation_contract(markdown, False)
+        structure_issues = validate_reader_structure(markdown, base_dir)
     except ValueError as exc:
+        write_artifact_manifest(base_dir, output_path, "stale_or_failed", [str(exc)])
         print(str(exc), file=sys.stderr)
         return 2
     warnings.extend(draft_translation_issues)
@@ -2102,16 +2255,14 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
 
     profile = load_profile(profile_path)
 
-    concepts = [] if args.no_knowledge_annotations or not profile else concepts_for_annotation(profile, glossary)
+    concepts = concepts_for_annotation(profile or {}, glossary)
     body_html, toc = render_document(markdown, base_dir, not args.no_embed_assets, warnings)
     body_html = annotate_html_text(body_html, concepts)
-    knowledge_panel = build_knowledge_panel(profile, glossary, concepts, profile_path)
-    feedback_ui = build_feedback_ui(title, base_dir, concepts, not args.no_feedback_ui)
-    output_path = Path(args.output).expanduser().resolve() if args.output else base_dir / "reader_interactive.html"
+    knowledge_panel = build_knowledge_panel(profile or {}, glossary, concepts, profile_path)
+    feedback_ui = build_feedback_ui(title, base_dir, concepts, True)
     output_name = output_path.name.lower()
-    if output_name != "reader_interactive.html" and not (
-        args.allow_draft_translation and "draft" in output_name
-    ):
+    if output_name != "reader_interactive.html":
+        write_artifact_manifest(base_dir, output_path, "stale_or_failed", ["Final reader output must be named reader_interactive.html"])
         print(
             "Final reader output must be named reader_interactive.html. "
             "Complete translation and structure first instead of creating draft/preview HTML.",
@@ -2130,15 +2281,17 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         args.math_renderer,
         args.mathjax_url,
     )
-    html_issues = [] if args.allow_draft_translation else validate_generated_html(html_output, concepts, args.math_renderer)
+    html_issues = validate_generated_html(html_output, concepts, args.math_renderer)
     if html_issues:
+        write_artifact_manifest(base_dir, output_path, "stale_or_failed", html_issues[:50])
         print(
             "Generated HTML contract failed. reader_interactive.html was not written.\n"
             + "\n".join(f"- {issue}" for issue in html_issues[:20]),
             file=sys.stderr,
         )
         return 2
-    output_path.write_text(html_output, encoding="utf-8")
+    atomic_write_text(output_path, html_output)
+    write_artifact_manifest(base_dir, output_path, "html_contract_pass_pending_adversarial_audit", [])
 
     original_count = markdown.count("**Original:**")
     chinese_count = markdown.count("**中文:**")
@@ -2156,7 +2309,7 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
             print(f"- ... {len(warnings) - warning_limit} more warnings")
     if profile_path and profile:
         print(f"Learner profile: {profile_path}")
-        print(f"Knowledge annotations: {len(concepts)}")
+    print(f"Knowledge annotations: {len(concepts)}")
     return 0
 
 

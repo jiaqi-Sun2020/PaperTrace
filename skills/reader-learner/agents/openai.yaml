@@ -1,4 +1,4 @@
 interface:
   display_name: "Reader Learner"
-  short_description: "Update knowledge points and Obsidian vaults"
-  default_prompt: "Use $reader-learner to update my literature-reading knowledge points from reader feedback and generate the Obsidian knowledge vault."
+  short_description: "Maintain learner profiles and visible knowledge wikis"
+  default_prompt: "Use $reader-learner to safely import my feedback, update the learner profile, and synchronize all stable profile records into the visible Obsidian wiki."

@@ -46,6 +46,7 @@ Tier 3 media / commentary:
 4. Add top-level `academic_search` to the briefing config. This is mandatory when the config contains academic or quantum items. It must list the checked venues and compact topic-level results.
 5. For each arXiv-only item, add `venue_sweep_note` to the config. Keep it short, e.g. `Checked APS PRL/PRA/PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal; no venue page found in window; treated as preprint.`
 6. Mark arXiv-only items as `preprint` and avoid overclaiming peer-reviewed status.
+7. A venue ledger row is not checked merely because it contains a search URL or `checked_no_hit`. It must contain official HTTPS HTTP evidence with `query_url`, `retrieved_at`, `status_code`, `final_url`, `result_count`, `response_hash`, and an auditable excerpt. Network errors remain `pending` and block strict finalization.
 7. Use the adversarial audit before finalizing; missing or incomplete `academic_search` is a failure.
 
 ## Academic Evidence Contract
@@ -73,7 +74,7 @@ Top-level config must also include:
         "term": "quantum walk graph neural network",
         "checked_venues": ["aps-prl", "aps-pra", "aps-prx", "nature", "science", "openreview-iclr", "cvf-cvpr", "pmlr-icml", "neurips", "acl", "quantum-journal", "arxiv"],
         "primary_hits": [],
-        "status": "checked_no_primary_hit"
+        "status": "evidenced"
       }
     ]
   }

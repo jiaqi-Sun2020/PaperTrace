@@ -1,0 +1,101 @@
+{
+  "projectName": "PaperTrace",
+  "compositionId": "PaperTrace",
+  "fps": 30,
+  "durationInFrames": 2374,
+  "durationSeconds": 79.133,
+  "source": "voiceover.md and numbered WAV basenames in video/",
+  "tracks": [
+    {
+      "id": "hook",
+      "order": 0,
+      "sourceFilename": "0论文越看越多，新闻越刷越多，聊天记录也越来越长。但真正的问题是：信息都看过，却很难记住，也很难串起来。所以，我把自己研究方法提炼成skill做成了一套 pipeline。.wav",
+      "publicFile": "audio/track-0.wav",
+      "captionText": "论文越看越多，新闻越刷越多，聊天记录也越来越长。但真正的问题是：信息都看过，却很难记住，也很难串起来。所以，我把自己研究方法提炼成skill做成了一套 pipeline。",
+      "durationSeconds": 15.276687,
+      "startFrame": 0,
+      "durationFrames": 459,
+      "endFrame": 459,
+      "startMs": 0,
+      "endMs": 15300
+    },
+    {
+      "id": "reveal",
+      "order": 1,
+      "sourceFilename": "1它叫 PaperTrace。它会把论文、新闻和对话放进pipeline中，帮我整理来源、核对信息，也记住我已经理解了什么、还没掌握什么。.wav",
+      "publicFile": "audio/track-1.wav",
+      "captionText": "它叫 PaperTrace。它会把论文、新闻和对话放进pipeline中，帮我整理来源、核对信息，也记住我已经理解了什么、还没掌握什么。",
+      "durationSeconds": 9.826688,
+      "startFrame": 459,
+      "durationFrames": 295,
+      "endFrame": 754,
+      "startMs": 15300,
+      "endMs": 25133
+    },
+    {
+      "id": "paper",
+      "order": 2,
+      "sourceFilename": "2你把一篇 PDF 放进去，它会自动整理成双语阅读页面。每一段重点、每一个公式、每一张图，都能随时找到原文出处。.wav",
+      "publicFile": "audio/track-2.wav",
+      "captionText": "你把一篇 PDF 放进去，它会自动整理成双语阅读页面。每一段重点、每一个公式、每一张图，都能随时找到原文出处。",
+      "durationSeconds": 9.186687,
+      "startFrame": 754,
+      "durationFrames": 276,
+      "endFrame": 1030,
+      "startMs": 25133,
+      "endMs": 34333
+    },
+    {
+      "id": "bridge",
+      "order": 3,
+      "sourceFilename": "3通过维护个人知识库，帮你顺着一条线继续读下去，而不是看完一篇就散了。除了论文，它也会同步核实最新资讯。.wav",
+      "publicFile": "audio/track-3.wav",
+      "captionText": "通过维护个人知识库，帮你顺着一条线继续读下去，而不是看完一篇就散了。除了论文，它也会同步核实最新资讯。",
+      "durationSeconds": 9.976688,
+      "startFrame": 1030,
+      "durationFrames": 300,
+      "endFrame": 1330,
+      "startMs": 34333,
+      "endMs": 44333
+    },
+    {
+      "id": "news",
+      "order": 4,
+      "sourceFilename": "4比如 Anthropic 的动态、IBM Quantum 的进展，以及 arXiv 上的新论文。搜索结果只负责提供线索，最终结论必须由官方来源和原始论文来证明。.wav",
+      "publicFile": "audio/track-4.wav",
+      "captionText": "比如 Anthropic 的动态、IBM Quantum 的进展，以及 arXiv 上的新论文。搜索结果只负责提供线索，最终结论必须由官方来源和原始论文来证明。",
+      "durationSeconds": 11.796688,
+      "startFrame": 1330,
+      "durationFrames": 354,
+      "endFrame": 1684,
+      "startMs": 44333,
+      "endMs": 56133
+    },
+    {
+      "id": "memory",
+      "order": 5,
+      "sourceFilename": "5更重要的是，PaperTrace 不会把“你看过”当成“你学会了”。只有当你明确表示理解、纠正或确认后，它才会更新你的学习记录。论文、新闻、对话，三种信息入口，最后都进入同一套记忆。.wav",
+      "publicFile": "audio/track-5.wav",
+      "captionText": "更重要的是，PaperTrace 不会把“你看过”当成“你学会了”。只有当你明确表示理解、纠正或确认后，它才会更新你的学习记录。论文、新闻、对话，三种信息入口，最后都进入同一套记忆。",
+      "durationSeconds": 15.256687,
+      "startFrame": 1684,
+      "durationFrames": 458,
+      "endFrame": 2142,
+      "startMs": 56133,
+      "endMs": 71400
+    },
+    {
+      "id": "outro",
+      "order": 6,
+      "sourceFilename": "6让你今天看到的内容，不会明天又从头开始。PaperTrace，让每一次阅读，都成为下一次研究的起点。.wav",
+      "publicFile": "audio/track-6.wav",
+      "captionText": "让你今天看到的内容，不会明天又从头开始。PaperTrace，让每一次阅读，都成为下一次研究的起点。",
+      "durationSeconds": 7.706688,
+      "startFrame": 2142,
+      "durationFrames": 232,
+      "endFrame": 2374,
+      "startMs": 71400,
+      "endMs": 79133
+    }
+  ]
+}

@@ -2,6 +2,8 @@
 
 The PDF has an extractable text layer. Load the `pdf` skill first for extraction guidance.
 
+`scripts/extract_pdf_bundle.py` creates immutable source evidence and automatically materializes a UTF-8 working `paper.md` with explicit completion markers. For a legacy raw bundle missing that file, run `scripts/materialize_reader_markdown.py <reader-dir>` once. On Windows, write Chinese reader text through a UTF-8-safe path and run `scripts/audit_reader_text.py <paper.md>` before the completion pass.
+
 - Extract the text layer directly; do not OCR text that is already selectable.
 - Process the whole document, not just the first pages. Build the source map (step 2) across every page.
 - Watch for multi-column layouts: recover natural reading order rather than top-to-bottom raw stream order.

@@ -1,13 +1,54 @@
-# PAPER
+# PaperTrace
 
-PAPER 是一个本地论文阅读、AI + 量子资讯日报、个人知识画像迭代工作区。核心目标不是“生成摘要”，而是形成一条可追溯、可标注、可导入长期画像的阅读流水线：
+<p align="center">
+  <strong>把论文、资讯与真实学习证据连接成一条可审计的个人研究工作流。</strong>
+</p>
 
-1. 从论文或新闻生成 source-grounded 阅读材料。
-2. 生成可交互 HTML。
-3. 在 HTML 中标注会、不会、哪里卡住，或直接编辑默认反馈。
-4. 下载反馈 JSON。
-5. 通过 `reader-learner` 更新 `.agents/reader-learner/knowledge_profile.json`。
-6. 通过反馈生成解释报告、研究推导和后续复习材料。
+<p align="center">
+  <a href="#pipelines">四条流水线</a> ·
+  <a href="#paper-reader">论文 Reader</a> ·
+  <a href="#daily-briefing">AI × Quantum 日报</a> ·
+  <a href="#validation">验证</a> ·
+  <a href="#safety">安全边界</a>
+</p>
+
+<p align="center">
+  <img alt="Local first" src="https://img.shields.io/badge/Local--first-Research%20workspace-1f6feb?style=flat-square">
+  <img alt="Source grounded" src="https://img.shields.io/badge/Source--grounded-Traceable-238636?style=flat-square">
+  <img alt="Interactive HTML" src="https://img.shields.io/badge/Output-Interactive%20HTML-8250df?style=flat-square">
+  <img alt="Feedback safe" src="https://img.shields.io/badge/Feedback-Profile--safe-dc6d1f?style=flat-square">
+</p>
+
+PaperTrace 是一个本地论文阅读、AI + 量子资讯日报与个人知识画像迭代工作区。它不把“生成摘要”当作终点，而是把来源证据、可交互阅读、显式反馈、长期画像和可验证教学连接为一条闭环。
+
+> **核心原则：** 读过不等于掌握；曝光不等于已知；没有源证据、严格验证与真实学习表现，就不写入长期画像。
+
+| 你想完成什么 | 从哪里开始 | 最终交付 |
+|---|---|---|
+| 把一篇论文变成可读、可标注的中文交互页面 | [论文 Reader](#paper-reader) | 经过对抗审计的 `reader_interactive.html` |
+| 追踪 AI 与量子领域的当日重要变化 | [日报流水线](#daily-briefing) | HTML 日报、反馈 JSON、manifest 与索引 |
+| 将本地聊天记录转成可审核的画像候选 | [知识画像](#knowledge-profile) | 经人工审核、带备份的 profile patch |
+| 用已有证据选择下一次短课与复习 | [Adaptive Teach](#adaptive-teach) | 单主题课程与受控 feedback handoff |
+
+<a id="pipelines"></a>
+
+## 四条核心流水线
+
+| 流水线 | 它解决的问题 | 完成边界 |
+|---|---|---|
+| **Paper Reader HTML** | 从 PDF/source paper 生成中英对照、公式可读、可反馈的正式 reader。 | 对抗审计通过的 `reader_interactive.html`；bundle 和 ledger 只是中间层。 |
+| **AI + Quantum Daily Briefing Release** | 将当前信号转成有来源、可反馈的 AI + 量子日报。 | `run → verify → finalize → verify` 后的 HTML、feedback、manifest 与 index。 |
+| **Local Chat-to-Profile Import** | 从本地聊天导出中提炼可复核的学习/研究候选。 | 人工审核后执行 `apply --backup`；候选和未应用 patch 都不是终态。 |
+| **Adaptive Teaching Decision & Evidence Loop** | 以明确弱项、证据缺口和到期复习选择下一主题。 | 真实表现生成的 teaching feedback 经验证后安全导入；课程生成或浏览不等于掌握。 |
+
+Reader/news feedback import 与 Visible Wiki 是共享下游工作流。Adaptive teaching 是 Pipeline 4，但仍只能显式调用，且没有真实表现时不得进入画像回写阶段。
+
+## 设计取向
+
+- **Local-first：** 论文、反馈与画像保持在本地工作区；发布时只提交可复现的公开代码与文档。
+- **Evidence-first：** 每项关键结论都必须可回溯到论文、来源页面或明确的用户反馈。
+- **Human-in-the-loop：** 候选、曝光和自动抽取不能直接等同于知识状态。
+- **Deliverable-first：** Reader、日报、导入和教学各有明确终态，草稿与中间产物不冒充交付。
 
 ## Recent Updates
 
@@ -18,12 +59,12 @@ PAPER 是一个本地论文阅读、AI + 量子资讯日报、个人知识画像
 - `lean-html-skill` 新增 Cosmic Sci-Fi Product Design System Layer：保留原功能和信息架构，只控制视觉风格；默认白色背景，可通过页面控件切换 Cosmic 深空背景。
 - `reader-learner` 增加知识库重建、审计和安全测试，用来避免把噪声、乱码或未评级曝光误写成已掌握知识。
 - `chat-knowledge-profile` 替代旧 `init-knowledge-profile`：借鉴 ChatInsights 和 gpt-obsidian 的聊天归档/概念跟踪/Obsidian 导航/增量导入思路，把本地 ChatGPT/GPT/Claude/Deepseek 会话提炼为可审核候选、会话摘要和严格 `reader-learner` feedback handoff。
-- 新增 `demo-skill`：把 README/AGENTS 契约提炼为三条 pipeline 的中英文项目展示页，并复用本次 GSAP + ScrollTrigger 双语模板与无覆盖生成脚本。
+- `demo-skill`：把 README/AGENTS 契约提炼为四条 pipeline 的中英文项目展示页，并复用 GSAP + ScrollTrigger 双语模板与无覆盖生成脚本。
 
 ## Directory Layout
 
 ```text
-C:\Users\SSS\Desktop\PAPER
+D:\AI\PaperTrace
 |-- 2024/                         # 按年份归档的论文
 |-- 2025/
 |-- 2026/
@@ -33,7 +74,7 @@ C:\Users\SSS\Desktop\PAPER
 |   |-- nature-reader/
 |   |-- reader-skill/
 |   |-- reader-learner/
-|   |-- read-feedback-skill/
+|   |-- adaptive-teach/
 |   |-- ai-quantum-news-briefing/
 |   `-- utils/
 |       |-- chat-knowledge-profile/
@@ -44,13 +85,33 @@ C:\Users\SSS\Desktop\PAPER
 `-- README.md
 ```
 
+<a id="adaptive-teach"></a>
+
+## Adaptive Teach
+
+`skills/adaptive-teach` is the explicit-invocation teaching decision layer. It analyzes the sole schema-v2 profile source of truth, identifies explicit weakness versus evidence gaps versus due reviews, selects one small next target, and writes private Mission/session/lesson artifacts under `.agents/adaptive-teach/` (ignored by Git). It does not own profile schema, normalization, atomic mutation, reader generation, news collection, Visible Wiki projection, or the shared HTML shell.
+
+`reader-learner` retains schema-v2 concepts/events/sources/review queue, strict validation, backup, atomic writes, imports, and wiki projection. The legacy `update_learner_profile.py review` command is a read-only compatibility delegate to adaptive-teach; teaching ranking and review pedagogy have one implementation.
+
+Run from `D:\AI\PaperTrace`:
+
+```powershell
+python .\skills\adaptive-teach\scripts\adaptive_teach.py analyze
+python .\skills\adaptive-teach\scripts\adaptive_teach.py next
+python .\skills\adaptive-teach\scripts\adaptive_teach.py lesson --output-dir .\.tmp\adaptive-lesson
+python .\skills\adaptive-teach\scripts\adaptive_teach.py validate-feedback --feedback <teaching_feedback.json>
+python .\skills\adaptive-teach\scripts\adaptive_teach.py import-feedback --feedback <teaching_feedback.json>
+```
+
+Generating/viewing a lesson never changes the profile or queue. Only actual performance becomes a validated teaching handoff, imported through `feedback_visible_wiki_pipeline.py teaching-feedback`; that path performs backup, atomic update, and optional Visible Wiki sync.
+
 ## Persistent Visible Wiki
 
 `.agents/wiki/` is a curated Obsidian vault for stable concepts, entities, themes, questions, syntheses, claims, source summaries, and knowledge-boundary maps. It is separate from the disposable profile projection at `.agents/reader-learner/obsidian-vault`.
 
 The full stable learner profile is projected here: each normalized stable concept has one public concept page, and each profile source has one concise source-summary page. Raw PDFs, reader bundles, feedback/events, pipeline data, and the schema-v2 learner profile remain in their existing source-layer locations. Freeform annotations and opaque candidate IDs stay retained but hidden until they are normalized and reviewed.
 
-Run from `C:\Users\SSS\Desktop\PAPER`:
+Run from `D:\AI\PaperTrace`:
 
 ```powershell
 python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync --dry-run
@@ -60,7 +121,7 @@ python .\skills\reader-learner\scripts\lint_visible_wiki.py --profile .\.agents\
 
 For one-step reader or news feedback ingestion, use `feedback_visible_wiki_pipeline.py reader-feedback --feedback <reader_feedback.json>` or `feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>`. Both preserve the existing importer validation and profile backup before projecting the wiki.
 
-Open `C:\Users\SSS\Desktop\PAPER\.agents\wiki` as the Obsidian vault. Start at `Home.md`, then use `maps/Profile Coverage.md` to verify complete profile projection. The default Graph View is restricted to rated knowledge concepts, entities, themes, questions, syntheses, and claims; source summaries and `unrated` contacts remain available through maps without becoming default graph hubs.
+Open `D:\AI\PaperTrace\.agents\wiki` as the Obsidian vault. Start at `Home.md`, then use `maps/Profile Coverage.md` to verify complete profile projection. The default Graph View is restricted to rated knowledge concepts, entities, themes, questions, syntheses, and claims; source summaries and `unrated` contacts remain available through maps without becoming default graph hubs.
 
 ## Skill Boundaries
 
@@ -68,20 +129,71 @@ Open `C:\Users\SSS\Desktop\PAPER\.agents\wiki` as the Obsidian vault. Start at `
 |---|---|---|
 | `skills/nature-reader` | 从 PDF/HTML/DOI/arXiv/文本生成 `paper.md`、`source_map.json`、`translation_notes.md` 和 `assets/`。 | 不更新长期画像，不把摘要冒充翻译。 |
 | `skills/reader-skill` | 把 reader bundle 转成正式 `reader_interactive.html`，负责双语块、source anchors、概念标注、公式和图表结构。 | 不写 `.agents`，不直接修改画像。 |
-| `skills/reader-learner` | 导入 reader/news feedback，维护 `.agents/reader-learner/knowledge_profile.json`，导出 Obsidian vault，审计知识库。 | 不生成论文 HTML，不写解释报告。 |
-| `skills/read-feedback-skill` | 基于 feedback、profile、source map 生成解释报告、context pack、研究推导和 HTML。 | 不修改 profile。 |
+| `skills/reader-learner` | 导入 reader/news feedback，维护 `.agents/reader-learner/knowledge_profile.json`，导出 Obsidian vault，审计知识库。 | 不生成论文 HTML，不生成教学课程。 |
+| `skills/adaptive-teach` | 读取唯一 learner profile，区分薄弱/证据不足/到期复习，选择单一下一主题，生成诊断、短课、复习策略和 teaching-feedback handoff。 | 不维护 profile schema、normalization、atomic write、PDF/news、Visible Wiki 或通用 HTML shell。 |
 | `skills/ai-quantum-news-briefing` | 生成 source-grounded AI + 量子日报/多日报告，接入 AI HOT 候选池，生成日报反馈 HTML/JSON，导入新闻反馈。 | 不因为新闻“出现过”就自动判定用户已经掌握。 |
 | `skills/utils/lean-html-skill` | 共享 HTML shell、反馈面板、copy/download 导出控件、Cosmic Sci-Fi 视觉层和背景切换控件。 | 不做领域解释，不写 profile，不改变业务数据结构。 |
 | `skills/utils/chat-knowledge-profile` | 从本地 ChatGPT/GPT/Claude/Deepseek 导出记录提炼会话摘要、概念状态候选、学习/研究/工作流偏好，并生成严格 `reader-learner` handoff。 | 不抓取分享 URL，不把助手曝光当作掌握证据，不绕过补丁审核直接覆盖 profile。 |
-| `skills/utils/demo-skill` | 从经过核验的 README/AGENTS/source contract 生成结构等价的中文、英文三-pipeline 项目 demo，并负责模板物化与发布前审核。 | 不臆造 pipeline，不改业务数据，不把截图、浏览器 profile 或 QA 临时文件作为默认发布物。 |
+| `skills/utils/demo-skill` | 从经过核验的 README/AGENTS/source contract 生成结构等价的中文、英文四-pipeline 项目 demo，并负责模板物化与发布前审核。 | 不臆造 pipeline，不改业务数据，不把截图、浏览器 profile 或 QA 临时文件作为默认发布物。 |
+
+<a id="paper-reader"></a>
 
 ## Paper Reader Pipeline
 
-目标：从原始 PDF 生成正式 `reader_interactive.html`，并把 HTML 中导出的反馈安全导入长期知识画像。正式 reader 不是摘要页，也不是 draft preview；它必须经过 `reader_wiki` 规范化层和 hard gate。
+目标：从原始 PDF 生成并正式审计 `reader_interactive.html`。这份 HTML 是 Pipeline 1 的终态；HTML 反馈导入长期画像是可选的下游 handoff，不是 PDF-to-HTML 完成条件。正式 reader 不是摘要页、draft preview 或 reader bundle；它必须经过 `reader_wiki` 规范化层和 hard gate。
 
-### 1. PDF -> reader bundle
+### 1. PDF -> internal reader evidence (not deliverable)
 
-`nature-reader` 负责把 PDF 变成 source-grounded reader bundle。当前这一步主要由 Codex 按 skill contract 执行：读取 PDF/source pages，生成或修复同名 `*_reader/` 目录，并写出：
+The selectable-PDF bootstrap now writes immutable source evidence and automatically materializes a UTF-8 working `paper.md` with stable anchors and explicit completion markers. For an older raw bundle that contains `source_map.json` but lacks `paper.md`, run from `D:\AI\PaperTrace`:
+
+```powershell
+python .\skills\nature-reader\scripts\materialize_reader_markdown.py "<reader-dir>"
+python .\skills\nature-reader\scripts\audit_reader_text.py "<reader-dir>\paper.md"
+```
+
+The materializer never overwrites an existing `paper.md` by default. Its markers must be replaced with faithful Chinese and block-specific notes before completion; the text audit and completion gate reject encoding corruption and incomplete markers.
+
+### Formal Reader v3 (resumable and directory-selected)
+
+`paper.md` and legacy `completion_ledger.json` are no longer formal source of
+truth. The formal reader state is one atomic JSON record per source block,
+formula, figure, table, algorithm, and reference under
+`reader_wiki/completion_blocks/`, with a hash-bound
+`completion_run_state.json`. The derived `canonical_reader.md` is the only
+input that may be compiled into formal HTML.
+
+Run from `D:\AI\PaperTrace`:
+
+```powershell
+python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "C:\Users\SSS\Desktop\PAPER\2026\7" --reader-root "D:\AI\PaperTrace\2026\7" --resume
+```
+
+The specified directory is the complete input set. The command sorts only its
+immediate PDFs and emits their exact paths and SHA-256 values in its JSON
+standard output. It creates no batch-history or root-level state file. It validates any
+formal-pass prefix and activates only the first incomplete paper; every later
+paper remains `queued` and untouched. While any record or preflight check is
+pending/invalid, it writes only `reader_progress.html` with an `INCOMPLETE / NOT
+FORMAL` banner for that active paper. It must not write or report
+`reader_interactive.html` as formal.
+
+Every checkpoint embeds `agent_continuation_contract` in the same JSON standard
+output. The default command exits successfully with `status: action_required` for expected
+current-session model work; `--strict-exit` is available for CI callers that
+need exit code 1 on incompleteness. An agent must continue while the contract
+says `final_response_allowed: false`, directly complete the named
+`active_paper`, and rerun its exact `next_command` without asking the user for
+another message. Only `status: complete` makes the complete batch reportable.
+A legacy HTML artifact is explicitly marked stale until a full v3 completion,
+render, and adversarial audit pass.
+
+Audit the batch response boundary from `D:\AI\PaperTrace` with:
+
+```powershell
+python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "C:\Users\SSS\Desktop\PAPER\2026\7" --reader-root "D:\AI\PaperTrace\2026\7" --resume | python .\skills\reader-skill\tests\adversarial_batch_audit.py -
+```
+
+`nature-reader` 负责把 PDF 变成内部 source-grounded evidence/bundle。当前会话的主大模型按 skill contract 直接完成中文、块级注释与 LaTeX 重建；相关脚本只负责抽取、校验、编译与渲染。该阶段生成或修复同名 `*_reader/` 工作目录，并写出：
 
 ```text
 <reader-dir>\paper.md
@@ -101,18 +213,22 @@ Open `C:\Users\SSS\Desktop\PAPER\.agents\wiki` as the Obsidian vault. Start at `
 如果 reader bundle 来自 draft extraction helper，先运行 completion pass：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
+cd D:\AI\PaperTrace
 python .\skills\nature-reader\scripts\complete_reader_bundle.py "<reader-dir>"
 ```
 
-该脚本是 bundle 修复/补全步骤，不是 validation bypass。它应清理占位符、补全翻译、规范公式、补齐图表/算法卡片，然后让后续 `reader_wiki_compile.py` 决定是否允许生成正式 HTML。
+该脚本是内部 bundle 的严格验证与 ledger 写入步骤，不是 validation bypass、pipeline 终态或用户交付物，也不会自行清理占位符、补全翻译、规范公式或补齐图表/算法卡片。这些内容必须由当前会话主大模型直接完成后，再由该脚本验证；随后继续运行 `reader_wiki_compile.py`、HTML converter 与 publishing adversarial audit。
+
+### Folder-level end-to-end trigger
+
+当用户请求“阅读当前项目下的 readme 和 .agents，根据 PAPER 的 pipeline 将 `<PDF-folder>` 下的 PDF 生成对应的可交互 HTML，一篇一篇来”时，该请求本身授权完整处理整个文件夹。当前会话主模型必须按稳定顺序完成一篇的翻译、图表/公式重建、正式 HTML 生成与对抗性审计，再自动开始下一篇；“一篇一篇来”不是只做第一篇 bundle/草稿后等待确认。只有当源文件不可读、已有完成产物的覆盖意图不明确，或无法从 PDF 证据修复的严格验证失败时，才可暂停并报告具体阻断点。
 
 ### 2. reader bundle -> reader_wiki
 
 显式编译规范化中间层：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
+cd D:\AI\PaperTrace
 python .\skills\reader-skill\scripts\reader_wiki_compile.py "<reader-dir>" --profile ".\.agents\reader-learner\knowledge_profile.json"
 ```
 
@@ -137,7 +253,7 @@ python .\skills\reader-skill\scripts\reader_wiki_compile.py "<reader-dir>" --pro
 生成正式 reader HTML：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
+cd D:\AI\PaperTrace
 python .\skills\reader-skill\scripts\markdown_reader_to_html.py "<reader-dir>" --output "<reader-dir>\reader_interactive.html" --profile ".\.agents\reader-learner\knowledge_profile.json"
 ```
 
@@ -157,7 +273,7 @@ python .\skills\reader-skill\scripts\markdown_reader_to_html.py "<reader-dir>" -
 生成后必须跑对抗性 HTML 审核：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
+cd D:\AI\PaperTrace
 python .\skills\reader-skill\tests\adversarial_html_audit.py "<reader-dir>"
 ```
 
@@ -181,14 +297,14 @@ HTML 只负责收集和导出 feedback；它不直接写 `.agents/reader-learner
 导入反馈到长期知识画像：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
+cd D:\AI\PaperTrace
 python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py reader-feedback --feedback "<reader_feedback.json>"
 ```
 
 The pipeline first validates and imports feedback with a profile backup, then synchronizes the persistent visible wiki:
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
+cd D:\AI\PaperTrace
 python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync --dry-run
 python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync
 ```
@@ -200,16 +316,18 @@ python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync
 对单篇 reader 的最小回归链路：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
+cd D:\AI\PaperTrace
 python .\skills\nature-reader\scripts\complete_reader_bundle.py "<reader-dir>"
 python .\skills\reader-skill\scripts\reader_wiki_compile.py "<reader-dir>" --profile ".\.agents\reader-learner\knowledge_profile.json"
 python .\skills\reader-skill\scripts\markdown_reader_to_html.py "<reader-dir>"
 python .\skills\reader-skill\tests\adversarial_html_audit.py "<reader-dir>"
 ```
 
+<a id="daily-briefing"></a>
+
 ## News Briefing Pipeline
 
-**End-to-end target:** the daily briefing pipeline is not complete at candidate collection, Markdown, or config generation. The final reader-facing artifact must be an interactive HTML reader plus its full default-`unrated` feedback JSON. Use `C:\Users\SSS\Desktop\PAPER\news\2026-07-07_to_2026-07-09` as the canonical multi-day sample structure: Markdown briefing, HTML reader, feedback config, `news_feedback.json`, academic search ledger, and manifest live together in the same output directory.
+**End-to-end target:** the daily briefing pipeline is not complete at candidate collection, Markdown, or config generation. The final reader-facing artifact must be an interactive HTML reader plus its full default-`unrated` feedback JSON. Use `D:\AI\PaperTrace\news\2026-07-07_to_2026-07-09` as the canonical multi-day sample structure: Markdown briefing, HTML reader, feedback config, `news_feedback.json`, academic search ledger, and manifest live together in the same output directory.
 
 For a daily run, the expected final files are:
 
@@ -225,7 +343,7 @@ news\_index\story_index.jsonl
 日报发布入口是 `daily_pipeline.py`。`run` 只写 staging，`verify` 只验证，只有 `finalize` 在验证成功后才会发布产物并原子 upsert `story_index.jsonl`：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
+cd D:\AI\PaperTrace
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py run --config <candidate_news_feedback_config.json> --output-dir <news\YYYY-MM-DD> --index .\news\_index\story_index.jsonl
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD\.staging\RUN_ID>
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID>
@@ -239,43 +357,43 @@ python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-
 拉取 AI HOT 每日精编候选池：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <YYYY-MM-DD> --output C:\Users\SSS\Desktop\PAPER\news\<YYYY-MM-DD>\aihot_candidates_<YYYY-MM-DD>.json
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <YYYY-MM-DD> --output D:\AI\PaperTrace\news\<YYYY-MM-DD>\aihot_candidates_<YYYY-MM-DD>.json
 ```
 
 RSS fallback：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source feed --take 50 --date <YYYY-MM-DD> --output C:\Users\SSS\Desktop\PAPER\news\<YYYY-MM-DD>\aihot_candidates_<YYYY-MM-DD>_feed.json
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source feed --take 50 --date <YYYY-MM-DD> --output D:\AI\PaperTrace\news\<YYYY-MM-DD>\aihot_candidates_<YYYY-MM-DD>_feed.json
 ```
 
 生成学术源检索台账：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\academic_venue_sweep.py --term "quantum walk graph neural network" --date-range <YYYY-MM-DD..YYYY-MM-DD> --format markdown --output <academic_venue_sweep.md>
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\academic_venue_sweep.py --term "quantum walk graph neural network" --date-range <YYYY-MM-DD..YYYY-MM-DD> --format markdown --output <academic_venue_sweep.md>
 ```
 
 从日报配置生成 HTML，并自动写出全量 `news_feedback.json`：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py --config <news_feedback_config.json> --output <briefing_reader.html> --feedback-output <news_feedback.json> --default-status unrated
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py --config <news_feedback_config.json> --output <briefing_reader.html> --feedback-output <news_feedback.json> --default-status unrated
 ```
 
 只生成 JSON，不生成 HTML：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\config_to_news_feedback.py --config <news_feedback_config.json> --output <news_feedback.json> --status unrated
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\config_to_news_feedback.py --config <news_feedback_config.json> --output <news_feedback.json> --status unrated
 ```
 
 导入新闻反馈到画像：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>
 ```
 
 关键规则：
@@ -292,31 +410,31 @@ python C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\feedback_visible
 添加反馈面板：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py attach-feedback --html <report.html> --feedback <reader_or_news_feedback.json> --output <report_interactive.html>
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\utils\lean-html-skill\scripts\lean_html.py attach-feedback --html <report.html> --feedback <reader_or_news_feedback.json> --output <report_interactive.html>
 ```
 
 只应用 Cosmic 视觉层，并保持白色背景为默认：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py apply-design --html <report.html> --design-system cosmic --background-mode light
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\utils\lean-html-skill\scripts\lean_html.py apply-design --html <report.html> --design-system cosmic --background-mode light
 ```
 
 审核视觉层：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py audit-design --html <report.html>
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\utils\lean-html-skill\scripts\lean_html.py audit-design --html <report.html>
 ```
 
 Design System Layer 只负责色彩、字体、组件风格、布局语言、轻量动效和视觉氛围；不改变页面功能、数据结构、用户需求解析、页面结构生成或代码输出流程。
 
 ## Bilingual Project Demo
 
-`demo-skill` 保存了本次 PAPER 三-pipeline 项目展示页的中文、英文成品模板。它要求先读取仓库 `AGENTS.md`、其指向的 canonical `.agents` 文档和根 `README.md`，再核验 pipeline 名称、阶段、handoff、输出和 hard gate；模板只提供表现层，不能替代项目事实。
+`demo-skill` 保存了本次 PaperTrace 四-pipeline 项目展示页的中文、英文成品模板。它要求先读取仓库 `AGENTS.md`、其指向的 canonical `.agents` 文档和根 `README.md`，再核验 pipeline 名称、阶段、handoff、输出和 hard gate；模板只提供表现层，不能替代项目事实。
 
-从 `C:\Users\SSS\Desktop\PAPER` 运行：
+从 `D:\AI\PaperTrace` 运行：
 
 ```powershell
 python .\skills\utils\demo-skill\scripts\create_demo.py --output-dir .
@@ -326,6 +444,8 @@ python .\skills\utils\demo-skill\scripts\create_demo.py --output-dir .
 
 发布时只提交两份目标 HTML 与 `skills/utils/demo-skill/` 的必要文件。根目录 `/*.html` 被 `.gitignore` 默认忽略，因此确认范围后需要对 `demo.html` 和 `demo-en.html` 使用精确的 `git add -f --`；不要提交 `.design/`、截图、浏览器 profile、QA 临时日志或其他脏工作区改动。
 
+<a id="knowledge-profile"></a>
+
 ## Knowledge Profile
 
 `knowledge_profile.json` 是长期学习数据，只能通过导入/更新脚本修改。不要手动编辑该文件来绕过校验。
@@ -333,60 +453,68 @@ python .\skills\utils\demo-skill\scripts\create_demo.py --output-dir .
 导入 reader feedback：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py reader-feedback --feedback <reader_feedback.json>
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py reader-feedback --feedback <reader_feedback.json>
 ```
+
+### Local Chat-to-Profile Import Pipeline
 
 从本地 GPT/ChatGPT/Claude/Deepseek 导出记录生成画像补丁：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py collect --input <chat_export_or_folder> --output C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions
-python C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py extract --events C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\events.jsonl --output C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_candidates.json
-python C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py propose --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json --candidates C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_candidates.json --output C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_patch.json
-python C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py apply --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json --patch C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions\profile_patch.json --backup
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py collect --input <chat_export_or_folder> --output D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions
+python D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py extract --events D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions\events.jsonl --output D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions\profile_candidates.json
+python D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py propose --profile D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json --candidates D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions\profile_candidates.json --output D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions\profile_patch.json
+python D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py apply --profile D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json --patch D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions\profile_patch.json --backup
 ```
 
 该流程会额外生成 `conversation_summaries.json`，用于快速查看每个会话的 `at_a_glance`、topic tags、显式偏好、开放问题和动作型请求。正式写入画像前应先人工检查 `profile_patch.json`；概念状态候选会通过 `reader-learner` 严格 schema 导入。
+
+<a id="validation"></a>
 
 ## Validation
 
 常用静态校验：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\reader-skill\scripts\markdown_reader_to_html.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\nature-reader\scripts\complete_reader_bundle.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\profile_v2.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\import_reader_feedback.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\read-feedback-skill\scripts\build_feedback_explanation_report.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\read-feedback-skill\scripts\render_research_deep_dive_html.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\import_news_feedback.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\academic_venue_sweep.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\config_to_news_feedback.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\audit_chat_knowledge_profile.py
-python C:\Users\SSS\Desktop\PAPER\skills\utils\chat-knowledge-profile\scripts\audit_chat_knowledge_profile.py
-python -m py_compile C:\Users\SSS\Desktop\PAPER\skills\utils\demo-skill\scripts\create_demo.py
-python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py C:\Users\SSS\Desktop\PAPER\skills\utils\demo-skill
+cd D:\AI\PaperTrace
+python -m py_compile D:\AI\PaperTrace\skills\reader-skill\scripts\markdown_reader_to_html.py
+python -m py_compile D:\AI\PaperTrace\skills\nature-reader\scripts\complete_reader_bundle.py
+python -m py_compile D:\AI\PaperTrace\skills\reader-learner\scripts\profile_v2.py
+python -m py_compile D:\AI\PaperTrace\skills\reader-learner\scripts\import_reader_feedback.py
+python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py
+python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\import_news_feedback.py
+python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py
+python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\academic_venue_sweep.py
+python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\config_to_news_feedback.py
+python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py
+python -m py_compile D:\AI\PaperTrace\skills\utils\lean-html-skill\scripts\lean_html.py
+python -m py_compile D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py
+python -m py_compile D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\audit_chat_knowledge_profile.py
+python D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\audit_chat_knowledge_profile.py
+python -m py_compile D:\AI\PaperTrace\skills\utils\demo-skill\scripts\create_demo.py
+python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py D:\AI\PaperTrace\skills\utils\demo-skill
 ```
 
 Reader end-to-end 测试：
 
 ```powershell
-cd C:\Users\SSS\Desktop\PAPER
-python C:\Users\SSS\Desktop\PAPER\skills\reader-skill\tests\test_reader_e2e.py
+cd D:\AI\PaperTrace
+python D:\AI\PaperTrace\skills\reader-skill\tests\test_reader_e2e.py
 ```
+
+<a id="safety"></a>
 
 ## Safety Rules
 
 ### Daily Briefing UTF-8 Gate
 
 Daily briefing configs and published Markdown/JSON/HTML must use UTF-8. The normalizer rejects `U+FFFD` and high-density literal `?` in human-readable fields; do not build Chinese JSON through a default PowerShell code-page here-string, and do not “repair” lost text by deleting question marks. Regenerate from the original source record instead. Corrupt historical story-index summaries are omitted during delta compaction and must never leak into new HTML. `daily_pipeline.py verify --strict` audits visible HTML text before the story index can be updated.
+
+## GitHub 发布与隐私边界
+
+GitHub 发布只包含可复现的代码、公开文档、测试与有意维护的示例资产；不得上传个人学习画像、教学会话、可见 Wiki 投影、论文语料与 reader bundle、浏览器/IDE 状态、Cookie/会话、密钥、机器配置或本地生成的音视频。发布前必须执行 `git status --short` 与暂存区审查，使用显式路径暂存，绝不以 `git add -A` 把混合工作区整体提交。`.gitignore` 是防误提交的第二道防线，不能替代提交前检查；已经被 Git 跟踪的敏感文件必须先停止跟踪并确认其历史处置方案。
 
 - 除个人画像的明确读取、导入、同步任务外，不要打开、打印、复制、总结、上传或修改疑似密钥、密码、令牌或凭据文件。
 - 不要手动编辑 `knowledge_profile.json` 绕过 `reader-learner`。
@@ -406,7 +534,6 @@ Daily briefing configs and published Markdown/JSON/HTML must use UTF-8. The norm
 - [ar9av/obsidian-wiki](https://github.com/ar9av/obsidian-wiki)：用于借鉴 wiki 式知识组织、MOC、知识点页面和图谱表达方式。
 - [Eden-Eldith/ChatInsights](https://github.com/Eden-Eldith/ChatInsights)：用于借鉴多平台聊天导出解析、概念跟踪、Obsidian-ready 会话组织和训练对抽取思路；本项目仅吸收架构原则，不复用其 GPL 代码。
 - [ygivenx/gpt-obsidian](https://github.com/ygivenx/gpt-obsidian)：用于借鉴增量导入、每会话笔记、topic tags/backlinks、月度索引和导入报告思路，并适配为 `chat-knowledge-profile` 的可审核画像候选流程。
-- `D:\AI\skill\S_paper_skills\util_skills\research-html-report`：作为 HTML 研究报告视觉与结构参考，影响 `read-feedback-skill` 的报告布局、公式渲染、证据矩阵和打印友好样式。
 - `D:\AI\skill\S_paper_skills\util_skills\project-agent-generator-skill`：用于生成和维护 `.agents` 项目上下文，帮助后续 Codex 会话快速理解项目边界、命令、数据位置和安全规则。
 
 上述来源提供的是架构、交互、候选池和设计参考；本仓库中的个人画像、反馈导入、论文 reader 生成、日报学术检索策略和知识边界迭代逻辑均按本地需求重新组织实现。

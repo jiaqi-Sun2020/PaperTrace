@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaperTrace completion block v3",
+  "type": "object",
+  "required": [
+    "schema_version", "stable_id", "record_kind", "block_type", "source_anchor",
+    "source_page", "source_evidence_hash", "source_pdf_sha256", "original", "zh",
+    "notes", "object_metadata", "status", "validation_errors", "updated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 3},
+    "stable_id": {"type": "string", "minLength": 3},
+    "record_kind": {"enum": ["block", "formula", "figure", "table", "algorithm", "reference"]},
+    "block_type": {"type": "string", "minLength": 1},
+    "source_anchor": {"type": "string", "minLength": 1},
+    "source_page": {"type": "integer", "minimum": 1},
+    "source_evidence_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "source_pdf_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "original": {"type": "string"},
+    "zh": {"type": "string"},
+    "notes": {"type": "string"},
+    "object_metadata": {"type": "object"},
+    "status": {"enum": ["pending", "pass", "invalid"]},
+    "validation_errors": {"type": "array", "items": {"type": "string"}},
+    "updated_at": {"type": "string", "minLength": 20}
+  },
+  "additionalProperties": true
+}

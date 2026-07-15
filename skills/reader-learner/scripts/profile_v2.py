@@ -20,7 +20,7 @@ STATUS_ORDER = {"unrated": 0, "unknown": 1, "learning": 2, "known": 3, "mastered
 REVIEW_STATUSES = {"unknown", "learning"}
 CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 HTML_TAG_RE = re.compile(r"<[^>]+>")
-MOJIBAKE_RE = re.compile(r"(Ã|Â|ä¸|æ|å|ðŸ|锟|鈭|脳|涓|绫|鍥|鐭|噴)")
+MOJIBAKE_RE = re.compile(r"(Ã|Â|ä¸|æ|å|ðŸ|脙|脗|锟|閿|閳|鑴|娑|缁|鈭|脳|涓|绫|鍥|鐭|噴)")
 SOURCE_INDEX_RE = re.compile(r"\b(p\.?\s*\d+|source\s+page|source\s+index|source:\s*p\.)\b", re.I)
 SECTION_HEADING_RE = re.compile(r"^(abstract|introduction|related work|method|methods|experiment|experiments|results|conclusion|references|acknowledg(e)?ments|appendix|keywords)\b", re.I)
 SENTENCE_PUNCT_RE = re.compile(r"[。！？；：!?;:]")
@@ -476,6 +476,13 @@ def record_feedback_item(profile: dict[str, Any], feedback: dict[str, Any], item
     source = build_source(feedback, item)
     source_id = ensure_source(profile, source)
     concept_id, label, aliases, translation = choose_concept(item)
+    # A narrow importer may supply an already validated stable profile ID.
+    # Reader/news feedback still derives IDs from normalized labels as before.
+    canonical_concept_id = normalize_safe_text(item.get("canonical_concept_id"), "canonical_concept_id", 160)
+    if canonical_concept_id:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,159}", canonical_concept_id):
+            raise ValueError("canonical_concept_id must be a stable lowercase ID")
+        concept_id = canonical_concept_id
     concepts = profile.setdefault("concepts", {})
     concept = concepts.setdefault(concept_id, default_concept(concept_id, label))
     concept["label"] = concept.get("label") or label
@@ -541,7 +548,8 @@ def record_feedback_item(profile: dict[str, Any], feedback: dict[str, Any], item
         "source_anchor": normalize_safe_text(item.get("source_anchor"), "source_anchor", 160),
         "concept_type": normalize_safe_text(item.get("concept_type"), "concept_type", 80),
         "alias_zh": normalize_safe_text(item.get("alias_zh"), "alias_zh", 160),
-        "concept_id_from_reader": normalize_safe_text(item.get("concept_id"), "concept_id", 160),
+            "concept_id_from_reader": normalize_safe_text(item.get("concept_id"), "concept_id", 160),
+            "canonical_concept_id": canonical_concept_id,
         "source_title": normalize_safe_text(item.get("source_title"), "source_title", 500),
         "source_url": normalize_safe_text(item.get("source_url"), "source_url", 1000),
         "category": normalize_safe_text(item.get("category"), "category", 200),
@@ -740,8 +748,35 @@ def validate_feedback_payload(feedback: dict[str, Any]) -> None:
     items = feedback.get("items")
     if not isinstance(items, list):
         raise ValueError("feedback.items must be a list")
-    normalize_safe_text(feedback.get("paper_title") or feedback.get("briefing_title") or "Untitled source", "feedback.paper_title", 500)
-    normalize_safe_text(feedback.get("reader_path") or feedback.get("briefing_path") or "", "feedback.reader_path", 1000)
+    source_kind = normalize_safe_text(feedback.get("source_kind"), "feedback.source_kind", 120)
+    is_reader_feedback = (
+        ("reader_feedback_version" in feedback or "reader_path" in feedback)
+        and source_kind != "news_briefing"
+    )
+    if is_reader_feedback:
+        version = feedback.get("reader_feedback_version")
+        if version != 2:
+            raise ValueError("reader feedback must declare reader_feedback_version=2; migrate old feedback explicitly")
+        paper_title = normalize_safe_text(feedback.get("paper_title"), "feedback.paper_title", 500)
+        reader_path = normalize_safe_text(feedback.get("reader_path"), "feedback.reader_path", 1000)
+        if not paper_title:
+            raise ValueError("reader feedback paper_title is required")
+        if not reader_path:
+            raise ValueError("reader feedback reader_path is required")
+        provenance = feedback.get("bundle_provenance")
+        if not isinstance(provenance, dict):
+            raise ValueError("reader feedback bundle_provenance is required")
+        for key in ("source_map", "completion_ledger", "reader_manifest", "structure_validation_report"):
+            entry = provenance.get(key)
+            if not isinstance(entry, dict):
+                raise ValueError(f"reader feedback bundle_provenance.{key} is required")
+            normalize_safe_text(entry.get("path"), f"bundle_provenance.{key}.path", 1000)
+            digest = normalize_safe_text(entry.get("sha256"), f"bundle_provenance.{key}.sha256", 80)
+            if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise ValueError(f"bundle_provenance.{key}.sha256 must be a SHA-256 hex digest")
+    else:
+        normalize_safe_text(feedback.get("paper_title") or feedback.get("briefing_title") or "Untitled source", "feedback.paper_title", 500)
+        normalize_safe_text(feedback.get("reader_path") or feedback.get("briefing_path") or "", "feedback.reader_path", 1000)
     for idx, item in enumerate(items):
         if not isinstance(item, dict):
             raise ValueError(f"feedback.items[{idx}] must be an object")
@@ -775,6 +810,7 @@ def validate_feedback_payload(feedback: dict[str, Any]) -> None:
             "translation_context",
             "block_id",
             "bilingual_block_id",
+            "canonical_concept_id",
         ):
             if optional in item:
                 normalize_safe_text(item.get(optional), f"feedback.items[{idx}].{optional}", 2200)

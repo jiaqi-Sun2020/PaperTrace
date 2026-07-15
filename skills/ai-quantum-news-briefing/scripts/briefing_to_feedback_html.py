@@ -17,6 +17,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from briefing_contract import normalize_briefing_config
 from config_to_news_feedback import export_feedback, write_json
 
 
@@ -53,6 +54,9 @@ def js_json(data: Any) -> str:
 
 
 def normalize_config(config: dict[str, Any], config_path: Path) -> dict[str, Any]:
+    return normalize_briefing_config(config, config_path, require_source_url=True)
+
+    # Kept below only as historical context for old generated readers.
     title = clean_text(config.get("briefing_title") or config.get("title") or "AI + Quantum News Briefing")
     date_range = clean_text(config.get("date_range") or config.get("date") or "")
     sections = config.get("sections") or []
@@ -149,6 +153,17 @@ def render_item(item: dict[str, Any]) -> str:
 
 
 def render_html(config: dict[str, Any]) -> str:
+    # The canonical briefing contract intentionally stores items under sections.
+    # The browser needs a flat lookup table for feedback chips, so derive it here
+    # instead of assuming a legacy top-level ``items`` field exists.
+    config = dict(config)
+    config["items"] = [
+        item
+        for section in config.get("sections", [])
+        if isinstance(section, dict)
+        for item in section.get("items", [])
+        if isinstance(item, dict)
+    ]
     sections_html = []
     for section in config["sections"]:
         items_html = "\n".join(render_item(item) for item in section["items"])
@@ -536,22 +551,30 @@ def render_html(config: dict[str, Any]) -> str:
     const CONFIG = JSON.parse(document.getElementById('briefing-data').textContent);
     const DEFAULT_STATUS = CONFIG.default_status || 'unrated';
     const INITIAL_FEEDBACK = Array.isArray(CONFIG.initial_feedback_items) ? CONFIG.initial_feedback_items : [];
-    const itemMap = new Map(CONFIG.items.map(item => [item.id, item]));
-    const storageKey = 'news-feedback::' + CONFIG.briefing_title + '::' + CONFIG.date_range;
+    const BRIEFING_ITEMS = Array.isArray(CONFIG.items)
+      ? CONFIG.items
+      : (Array.isArray(CONFIG.sections) ? CONFIG.sections.flatMap(section => section.items || []) : []);
+    const itemMap = new Map(BRIEFING_ITEMS.map(item => [item.id, item]));
+    const storageKey = 'news-feedback::' + (CONFIG.config_fingerprint || 'legacy')
+      + '::' + CONFIG.briefing_title + '::' + CONFIG.date_range;
     let saved = [];
     let active = null;
+    const INITIAL_BY_ID = new Map(INITIAL_FEEDBACK.map(entry => [entry.feedback_id, entry]));
 
     function mergeInitialFeedback(stored, initial) {{
-      const byId = new Map();
-      const order = [];
-      function add(entry, replace) {{
-        if (!entry || !entry.feedback_id) return;
+        const byId = new Map();
+        const order = [];
+        const initialIds = new Set(initial.map(entry => entry && entry.feedback_id).filter(Boolean));
+        function add(entry, replace) {{
+          if (!entry || !entry.feedback_id) return;
         if (!byId.has(entry.feedback_id)) order.push(entry.feedback_id);
         if (replace || !byId.has(entry.feedback_id)) byId.set(entry.feedback_id, entry);
       }}
       initial.forEach(entry => add(entry, false));
-      stored.forEach(entry => add(entry, true));
-      return order.map(id => byId.get(id)).filter(Boolean);
+        stored.forEach(entry => {{
+          if (initialIds.has(entry && entry.feedback_id) || entry.annotation_kind === 'news_freeform') add(entry, true);
+        }});
+        return order.map(id => byId.get(id)).filter(Boolean);
     }}
 
     try {{
@@ -618,8 +641,10 @@ def render_html(config: dict[str, Any]) -> str:
         return null;
       }}
       const base = active || {{}};
+      const initial = INITIAL_BY_ID.get(base.feedback_id);
       const status = statusSelect.value || DEFAULT_STATUS;
       return {{
+        ...(initial || {{}}),
         feedback_id: base.feedback_id || makeFeedbackId(concept, base.block_id),
         concept,
         status,
@@ -629,7 +654,7 @@ def render_html(config: dict[str, Any]) -> str:
         explanation_style: styleSelect.value,
         needs_explanation: Boolean(questionInput.value.trim() || status === 'unknown' || status === 'learning'),
         block_id: base.block_id || '',
-        annotation_kind: base.annotation_kind || 'news_concept',
+        annotation_kind: (initial && initial.annotation_kind) || base.annotation_kind || 'news_concept',
         source_excerpt: contextInput.value.trim(),
         selected_text: base.selected_text || concept,
         selected_language: base.selected_language || 'news',
@@ -661,7 +686,12 @@ def render_html(config: dict[str, Any]) -> str:
     function deleteCurrent() {{
       const concept = conceptInput.value.trim();
       const id = active ? active.feedback_id : makeFeedbackId(concept, '');
-      saved = saved.filter(entry => entry.feedback_id !== id);
+      const initial = INITIAL_BY_ID.get(id);
+      if (initial) {{
+        saved = saved.map(entry => entry.feedback_id === id ? initial : entry);
+      }} else {{
+        saved = saved.filter(entry => entry.feedback_id !== id);
+      }}
       active = null;
       persist();
     }}
@@ -726,7 +756,9 @@ def render_html(config: dict[str, Any]) -> str:
           contextInput.value = entry.source_excerpt || '';
         }});
         buttons[1].addEventListener('click', () => {{
-          saved.splice(index, 1);
+          const initial = INITIAL_BY_ID.get(entry.feedback_id);
+          if (initial) saved[index] = initial;
+          else saved.splice(index, 1);
           persist();
         }});
         wrap.appendChild(div);
@@ -796,16 +828,19 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--output", help="Output HTML path. Defaults beside config.")
     parser.add_argument("--feedback-output", help="Auto-write full-concept news_feedback.json. Defaults beside HTML.")
     parser.add_argument("--default-status", default="unrated", choices=["mastered", "known", "learning", "unknown", "unrated"], help="Default status for auto-exported concepts.")
+    parser.add_argument("--allow-nonneutral-status", action="store_true", help="Explicitly allow a non-unrated export; never use this for passive daily exposure.")
     parser.add_argument("--no-auto-feedback", action="store_true", help="Do not write the full-concept news_feedback.json sidecar.")
     return parser.parse_args(list(argv))
 
 
 def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     args = parse_args(argv)
+    if args.default_status != "unrated" and not args.allow_nonneutral_status:
+        raise SystemExit("Non-unrated defaults require --allow-nonneutral-status; daily exposure must remain unrated.")
     config_path = Path(args.config).expanduser().resolve()
     raw_config = load_json(config_path)
     config = normalize_config(raw_config, config_path)
-    feedback = export_feedback(raw_config, config_path, args.default_status, "concept-source")
+    feedback = export_feedback(config, config_path, args.default_status, "none")
     config["default_status"] = feedback["default_status"]
     config["initial_feedback_items"] = feedback["items"]
     output_path = Path(args.output).expanduser().resolve() if args.output else config_path.with_suffix(".html")

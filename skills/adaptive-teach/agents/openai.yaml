@@ -1,0 +1,7 @@
+interface:
+  display_name: "Adaptive Teach"
+  short_description: "依据个人知识画像安排诊断、短课与复习循环"
+  default_prompt: "Use $adaptive-teach to identify my next learning target and create one short lesson."
+
+policy:
+  allow_implicit_invocation: false

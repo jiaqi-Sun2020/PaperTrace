@@ -1,19 +1,27 @@
 # Project Context
 
-- Project root: `C:\Users\SSS\Desktop\PAPER`
-- Last reviewed: 2026-07-13
+- Project root: `D:\AI\PaperTrace`
+- Last reviewed: 2026-07-14
 
 ## Summary
 
-`PAPER` is a local academic-paper workspace. It stores PDF/HTML literature by year, topic, and reading state, and it includes a local Codex skill chain for full-paper Chinese-English reading:
+`PaperTrace` is a local academic-paper workspace with four distinct primary pipelines:
 
-1. `nature-reader` creates source-grounded bilingual Markdown reader bundles from papers. The `**中文:**` field must be faithful translation, not paraphrase, summary, or reading scaffold, and `**注释:**` should carry logic, knowledge-point, formula, figure, and reading guidance.
-2. `reader-skill` converts completed bundles into `reader_interactive.html` and rejects draft/paraphrase Chinese columns by default. Incomplete bundles must be fixed before HTML generation.
+1. **Paper Reader HTML:** source paper -> internal reader evidence/bundle -> normalized `reader_wiki` -> audited `reader_interactive.html`. The audited HTML is the terminal artifact; the bundle is not.
+2. **AI + Quantum Daily Briefing Release:** current evidence -> candidate/venue ledgers -> normalized daily config/staging -> `run -> verify -> finalize -> verify` -> published briefing HTML plus the required feedback/manifest/index release set.
+3. **Local Chat-to-Profile Import:** local conversation exports -> collect -> extract -> propose -> human review -> `apply --backup` through `reader-learner`.
+4. **Adaptive Teaching Decision & Evidence Loop:** explicit request -> validate profile/Mission -> analyze -> choose one stable concept and mode -> diagnose/lesson -> actual performance -> validated teaching feedback -> backed-up atomic import through `reader-learner`.
+
+Reader/news feedback imports and Visible Wiki projection are shared downstream workflows. Pipeline 4 remains explicit-invocation only; generating or viewing a lesson is not learner evidence, and its profile-return phase cannot proceed without actual performance.
+
+The implementation skill chain is:
+
+1. `nature-reader` creates the internal source-grounded bilingual evidence/bundle stage from papers. Its `extract_pdf_bundle.py` bootstrap writes immutable source evidence and automatically materializes a UTF-8 working `paper.md` with stable anchors and explicit completion markers. Legacy raw bundles can be repaired with `materialize_reader_markdown.py` without mutating `source_map.json`. The `**中文:**` field must ultimately contain faithful translation, not placeholders, paraphrase, summary, or reading scaffold, and `**注释:**` should carry block-specific logic, knowledge-point, formula, figure, and reading guidance. `audit_reader_text.py` and the completion pass reject replacement characters, controls, mojibake, and question-mark corruption. This stage is not the Pipeline 1 deliverable.
+2. `reader-skill` converts completed internal bundles into the terminal `reader_interactive.html` and rejects draft/paraphrase Chinese columns by default. Incomplete bundles must be fixed before HTML generation, and HTML is not complete until the publishing adversarial audit passes.
 3. `reader-learner` imports user feedback from HTML or natural language, updates `.agents/reader-learner/knowledge_profile.json`, and projects every stable profile record into the persistent `.agents/wiki/` Obsidian vault.
-4. `read-feedback-skill` generates source-grounded context packs, baseline Markdown/HTML explanations, and final research deep-dive reports from exported feedback, the updated learner profile, and the reader bundle source map.
-5. `ai-quantum-news-briefing` creates source-grounded AI/quantum daily or multi-day briefings, can render them as lightweight feedback HTML, and can import explicit news-reading feedback into the same learner profile.
-6. `chat-knowledge-profile` imports local ChatGPT/GPT/Claude/Deepseek conversation exports through a staged `collect -> extract -> propose -> apply` workflow. It writes bounded evidence events, `conversation_summaries.json`, profile candidates, and strict `reader-learner` handoff patches so prior conversations can initialize or extend the learner/person profile without unreviewed mutation.
-7. `demo-skill` turns verified README/AGENTS contracts into structurally equivalent Chinese and English project pages centered on three pipelines. The bundled PAPER pages use static semantic HTML with GSAP + ScrollTrigger/Lenis progressive enhancement and reduced-motion fallback.
+4. `ai-quantum-news-briefing` creates source-grounded AI/quantum daily or multi-day briefings, can render them as lightweight feedback HTML, and can import explicit news-reading feedback into the same learner profile.
+5. `chat-knowledge-profile` imports local ChatGPT/GPT/Claude/Deepseek conversation exports through a staged `collect -> extract -> propose -> apply` workflow. It writes bounded evidence events, `conversation_summaries.json`, profile candidates, and strict `reader-learner` handoff patches so prior conversations can initialize or extend the learner/person profile without unreviewed mutation.
+6. `demo-skill` turns verified README/AGENTS contracts into structurally equivalent Chinese and English project pages centered on four pipelines. The bundled PaperTrace pages use static semantic HTML with GSAP + ScrollTrigger/Lenis progressive enhancement and reduced-motion fallback.
 
 The current learner profile exists and contains concepts from the paper `Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm`. It uses learner schema v2, which separates stable concept profiles from raw feedback events, source metadata, and the review queue.
 
@@ -31,7 +39,6 @@ The current learner profile exists and contains concepts from the paper `Many-Bo
 - `skills/nature-reader/SKILL.md`
 - `skills/reader-skill/SKILL.md`
 - `skills/reader-learner/SKILL.md`
-- `skills/read-feedback-skill/SKILL.md`
 - `skills/ai-quantum-news-briefing/SKILL.md`
 - `skills/utils/chat-knowledge-profile/SKILL.md`
 - `skills/utils/chat-knowledge-profile/scripts/init_knowledge_profile.py`
@@ -42,31 +49,25 @@ The current learner profile exists and contains concepts from the paper `Many-Bo
 - `.agents/reader-learner/knowledge_profile.json`
 - `2026/7/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm_reader/paper.md`
 - `2026/7/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm_reader/reader_interactive.html`
-- `2026/7/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm_reader/feedback_explanations.md`
-- `2026/7/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm_reader/feedback_explanations.html`
-- `2026/7/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm_reader/feedback_research_context.md`
-- `2026/7/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm_reader/feedback_research_deep_dive.md`
-- `2026/7/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm_reader/feedback_research_deep_dive.html`
 
 ## Main User Workflow
 
 1. Start with a PDF.
-2. Use `nature-reader` to generate `paper.md`, `source_map.json`, `translation_notes.md`, and `assets/`.
-3. Complete faithful Chinese translations and useful logic/knowledge notes directly as Codex; extraction-only placeholders do not complete the pipeline, and missing external translation tools are not blockers.
+2. Run the PDF bootstrap to generate immutable raw evidence plus a working `paper.md`. If processing a legacy raw bundle where only `source_map.json` exists, run `materialize_reader_markdown.py <reader-dir>` once; preserve an existing `paper.md` unless replacement is explicitly intended.
+3. Have the active primary model in the current user-facing session directly replace every `[translation-required]` and `[block-note-required]` marker with faithful Chinese and useful block-specific notes, and directly reconstruct LaTeX. Use a UTF-8-safe write path, then run `audit_reader_text.py`; if it reports corruption, rebuild the affected working file from source evidence before proceeding. Missing external translation tools are not blockers.
 4. Reconstruct figures/tables as cards or semantic tables, reconstruct key formulas as LaTeX, and replace generic notes with block-specific reading guidance.
-5. Use `reader-skill` to generate `reader_interactive.html` only after faithful translation and structural validation pass. If the bundle is incomplete, finish translation/structure first.
+5. Run `complete_reader_bundle.py` as an internal ledger gate, then use `reader-skill` to generate `reader_interactive.html` after completion and structural validation. Run the publishing adversarial audit. Only the audited HTML completes Pipeline 1.
 6. Read the HTML, click highlighted concepts or use free annotation, and click `Save mark` for each feedback item. Saved annotations appear as badges near the source block and in a deletable list inside the feedback panel.
 7. At the end of the reading session, manually export all saved feedback with `Download feedback JSON` or `Copy feedback for Codex`.
 8. Use `feedback_visible_wiki_pipeline.py reader-feedback --feedback <reader_feedback.json>` to import the JSON into `.agents/reader-learner/knowledge_profile.json` and synchronize the persistent visible wiki.
-9. Use `read-feedback-skill` to generate a context pack and baseline explanations; for derivation/research tasks, author `feedback_research_deep_dive.md/html` from the context pack rather than stopping at the baseline report.
-10. Regenerate HTML so future readings highlight concepts based on the updated profile.
+9. Regenerate HTML so future readings highlight concepts based on the updated profile.
 
 ## AI + Quantum News Workflow
 
 1. Use `skills/ai-quantum-news-briefing` for current AI/model/industry/regulation/academic/quantum news requests.
 2. Browse and cite current sources; state the exact date range for "today", "near three days", or other relative windows.
 3. Save durable briefing artifacts under `news/<date-range>/` when producing files.
-4. If the user wants interaction, create `news_feedback_config.json` and render feedback HTML with `briefing_to_feedback_html.py`.
+4. Treat `news_feedback_config.json`, Markdown, and staging output as internal. Publish through `daily_pipeline.py run -> verify -> finalize -> verify`; Pipeline 2 completes only with the verified briefing HTML and required release set.
 5. The user clicks concept chips or freeform annotations, clicks `Save mark`, then exports with `Download JSON` or `Copy for Codex`.
 6. Import exported `news_feedback.json` with `skills/reader-learner/scripts/feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>`; it retains the news normalizer and strict profile import before synchronizing the visible wiki.
 
@@ -80,7 +81,7 @@ The current learner profile exists and contains concepts from the paper `Many-Bo
 
 ## Bilingual Project Demo Workflow
 
-1. Read the root `AGENTS.md`, each canonical `.agents` document it requires, the root `README.md`, and the source files that own the three selected pipelines.
+1. Read the root `AGENTS.md`, each canonical `.agents` document it requires, the root `README.md`, and the source files that own the four selected pipelines.
 2. From the project root, run `python .\skills\utils\demo-skill\scripts\create_demo.py --output-dir .`; use `--force` only after explicitly approving replacement.
 3. Reconcile both pages with the verified pipeline stages, handoffs, outputs, and hard gates. Keep the Chinese and English information architecture equivalent.
 4. Test desktop `1440x1024`, mobile `390x844`, language switching, reduced motion, horizontal overflow, and console output.

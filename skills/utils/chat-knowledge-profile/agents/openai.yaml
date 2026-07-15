@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chat Knowledge Profile"
+  short_description: "Mine chat exports into reviewable learner-profile feedback"
+  default_prompt: "Use $chat-knowledge-profile to summarize my exported GPT conversations, extract reviewable profile signals, and prepare reader-learner feedback."

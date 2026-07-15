@@ -1,12 +1,12 @@
 # Architecture
 
-- Project root: `C:\Users\SSS\Desktop\PAPER`
-- Last reviewed: 2026-07-13
+- Project root: `D:\AI\PaperTrace`
+- Last reviewed: 2026-07-14
 
 ## Top-Level Structure
 
 ```text
-PAPER/
+PaperTrace/
 |-- 2024/
 |-- 2025/
 |-- 2026/
@@ -39,7 +39,7 @@ skills/
 |-- nature-reader/
 |-- reader-skill/
 |-- reader-learner/
-|-- read-feedback-skill/
+|-- adaptive-teach/
 |-- ai-quantum-news-briefing/
 `-- utils/
     |-- chat-knowledge-profile/
@@ -47,20 +47,29 @@ skills/
     `-- lean-html-skill/
 ```
 
-- `nature-reader`: source-paper to bilingual Markdown bundle with faithful `中文` translations plus logic, knowledge-point, formula, figure, and reading guidance in `注释`. Codex performs the translation pass directly by default; external translation tools are optional aids, not prerequisites.
+## Four Primary Pipeline Boundaries
+
+- **Pipeline 1 — Paper Reader HTML:** `nature-reader` builds internal evidence; `reader-skill` emits the terminal audited `reader_interactive.html`. The `*_reader/` workspace, Markdown, and `reader_wiki/` are not terminal artifacts.
+- **Pipeline 2 — AI + Quantum Daily Briefing Release:** `ai-quantum-news-briefing` owns discovery, evidence, staging, verification, publication, feedback parity, manifest, and story-index commit. Candidate/config/Markdown alone are not terminal artifacts.
+- **Pipeline 3 — Local Chat-to-Profile Import:** `chat-knowledge-profile` owns collect/extract/propose; a human review plus strict backed-up apply through `reader-learner` is the terminal mutation gate. It has no paper/news HTML deliverable.
+- **Pipeline 4 — Adaptive Teaching Decision & Evidence Loop:** `adaptive-teach` owns profile-backed analysis, one-topic selection, diagnostics, and private lesson/session artifacts. A lesson request ends at the validated session; only actual performance may enter `teaching_feedback.json`, and only delegated `reader-learner` import may mutate profile/review state.
+
+Visible Wiki sync consumes outputs around these boundaries but does not replace or merge the four primary pipelines.
+
+- `nature-reader`: source-paper to internal bilingual evidence/bundle with faithful `中文` translations plus logic, knowledge-point, formula, figure, and reading guidance in `注释`. The active current-session primary model directly authors Chinese, notes, and LaTeX; external/secondary translation backends are not content authors.
 - `reader-skill`: reader-specific Markdown parsing, translation validation, source anchors, bilingual body semantics, and learner-profile annotation metadata. It may keep compatibility HTML wrappers, but reusable HTML shell, feedback UI, and export controls should move to `lean-html-skill`. `reader_interactive.html` is only for completed translated readers; incomplete bundles must be fixed before HTML generation.
 - `reader-learner`: learner profile import/update commands plus `feedback_visible_wiki_pipeline.py`, which invokes the strict reader/news importer and then projects all stable profile concepts and concise source summaries into `.agents/wiki/`.
-- `read-feedback-skill`: post-reading context packs, baseline Markdown/HTML explanations, and research deep-dive reports from feedback JSON, learner profile, and source map.
+- `adaptive-teach`: explicit-invocation teaching decision layer for profile-backed weakness analysis, evidence-gap diagnosis, next-topic selection, short lessons, transparent review policy, session records, and strict teaching-feedback handoffs.
 - `ai-quantum-news-briefing`: source-grounded AI/quantum briefings, lightweight briefing-reader HTML, concept/freeform news feedback export, and explicit news-feedback bridge into the learner profile.
 - `utils/lean-html-skill`: shared standalone HTML shell, reusable HTML components, feedback UI, browser-memory/localStorage behavior, and feedback2 export layer for domain skills, including future reader HTML output work.
 - `utils/chat-knowledge-profile`: reviewable chat-session import layer for initializing or extending `knowledge_profile.json` from exported ChatGPT/GPT/Claude/Deepseek conversations through sources, bounded evidence events, `conversation_summaries.json`, candidates, strict `reader-learner` handoffs, and patches.
-- `utils/demo-skill`: source-traceable bilingual project-demo layer. It stores the current PAPER Chinese/English three-pipeline HTML templates and a deterministic no-overwrite materializer; copied pages must be reconciled with the target repository's README/AGENTS contracts before publication.
-- News report visualization: `read-feedback-skill` owns the layered news knowledge map; `ai-quantum-news-briefing` supplies category/source/status fields, `reader-learner` supplies profile status, and `lean-html-skill` only appends feedback2 controls.
+- `utils/demo-skill`: source-traceable bilingual project-demo layer. It stores the current PaperTrace Chinese/English four-pipeline HTML templates and a deterministic no-overwrite materializer; copied pages must be reconciled with the target repository's README/AGENTS contracts before publication.
 
 ## Agent Data
 
 - `.agents/*.md`: project documentation for future AI agents.
 - `.agents/reader-learner/knowledge_profile.json`: long-term learner profile. Schema v2 splits stable `concepts`, raw `events`, deduplicated `sources`, and `review_queue`.
+- `.agents/adaptive-teach/`: Git-ignored private workspace holding Mission, settings, sessions, lessons, diagnostics, and regenerated derived reports; it is never a learner-state source of truth.
 - `.agents/wiki/`: persistent human-facing Obsidian knowledge layer. It projects every stable profile concept and each profile source as curated concepts/source summaries plus maps; it must not become a storage location for raw source or learner-event records.
 - `.agents/reader-learner/obsidian-vault/`: generated profile projection retained for compatibility and audit work. It is not the persistent curated vault.
 
@@ -82,11 +91,6 @@ skills/
 |   |-- structure_validation_report.json
 |   `-- normalized_reader.md
 |-- reader_interactive.html
-|-- feedback_explanations.md
-|-- feedback_explanations.html
-|-- feedback_research_context.md
-|-- feedback_research_deep_dive.md
-|-- feedback_research_deep_dive.html
 |-- assets/
 |   |-- fig*.png
 |   |-- table*.png
@@ -98,7 +102,7 @@ skills/
 - `nature-reader` produces `paper.md` and source-grounded assets; do not make it responsible for learner profile mutation or HTML feedback UI.
 - `reader-skill` reads learner profile and prepares reader-specific annotation metadata; do not make it write `.agents`, translate paper text, or grow reusable HTML/feedback UI that belongs in `lean-html-skill`. It must not turn extraction-only drafts or placeholder translations into `reader_interactive.html`.
 - `reader-learner` writes `.agents/reader-learner/knowledge_profile.json`; keep this as the single owner of learner profile mutation.
-- `read-feedback-skill` reads feedback/profile/source context and writes report artifacts in the reader directory; do not make it mutate `.agents`.
+- `adaptive-teach` reads the profile and owns teaching decisions only. It must keep explicit weakness, insufficient evidence, and due review distinct; it sends actual learner evidence through the `reader-learner` teaching-feedback importer rather than writing the profile.
 - `ai-quantum-news-briefing` may normalize explicit news feedback, but it delegates profile mutation to `reader-learner`.
 - `lean-html-skill` owns reusable HTML shell/post-processing, shared feedback UI, browser-memory/localStorage behavior, and feedback2 export controls; domain skills should call it instead of embedding new shared HTML UI logic.
 - `chat-knowledge-profile` owns chat conversation import staging. It generates strict concept-status handoff feedback for `reader-learner`, including `source_anchor`, `concept_type`, and bounded evidence; it should not silently overwrite the learner/person profile without a reviewable patch and backup.

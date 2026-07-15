@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="PAPER：把论文、AI/量子资讯与历史对话汇入同一套可追溯研究记忆。">
-  <title>PAPER · 会记忆的研究桌</title>
+  <meta name="description" content="PaperTrace：让论文、AI/量子资讯与历史对话汇入唯一学习画像，并收束为可反馈的 adaptive-teach 教学闭环。">
+  <title>PaperTrace · 四条可审计研究与教学流水线</title>
   <script>window.MathJax={tex:{inlineMath:[["\\(","\\)"]],displayMath:[["\\[","\\]"]]},options:{skipHtmlTags:["script","noscript","style","textarea","pre","code"]}};</script>
   <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
@@ -163,6 +163,8 @@
     .memory-grid { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-dark); }
     .memory-card { min-height: 470px; padding: clamp(28px, 4vw, 54px); display: grid; grid-template-rows: auto 1fr; }
     .memory-card + .memory-card { border-left: 1px solid var(--line-dark); }
+    .memory-card:nth-child(n+3) { border-top: 1px solid var(--line-dark); }
+    .memory-card:nth-child(odd) { border-left: 0; }
     .memory-card h3 { margin: 0; font: 800 clamp(2.2rem, 4vw, 4.5rem)/.9 var(--sans); text-transform: uppercase; letter-spacing: -.045em; }
     .memory-card p { color: #9eaaa7; line-height: 1.6; max-width: 50ch; }
     .memory-viz { display: grid; grid-template-columns: .85fr 1.15fr; gap: 24px; align-items: center; }
@@ -241,7 +243,7 @@
   <a class="skip-link" href="#content">跳到主要内容</a>
   <aside class="rail" aria-label="流水线导航">
     <a class="brand" href="#top" aria-label="返回顶部">
-      <span class="brand-mark">P</span><span class="brand-name">PAPER</span>
+      <span class="brand-mark">P</span><span class="brand-name">PaperTrace</span>
       <span class="brand-note">Local-first<br>Research knowledge<br>System</span>
     </a>
     <div class="rail-label">Pipelines</div>
@@ -249,14 +251,15 @@
       <a class="rail-link active" href="#reader" data-section="reader"><strong>01</strong><span>Paper<br>Reader</span></a>
       <a class="rail-link" href="#briefing" data-section="briefing"><strong>02</strong><span>AI + Quantum<br>Briefing</span></a>
       <a class="rail-link" href="#chat" data-section="chat"><strong>03</strong><span>Chat<br>Profile</span></a>
+      <a class="rail-link" href="#teaching" data-section="teaching"><strong>04</strong><span>Adaptive<br>Teach</span></a>
     </nav>
-    <div class="rail-bottom"><b>Shared layer</b><br>Learner profile<br>Visible wiki</div>
+    <div class="rail-bottom"><b>Shared loop</b><br>Learner profile<br>Adaptive teach<br>Teaching feedback</div>
   </aside>
 
   <main id="content">
     <header class="hero shell" id="top">
       <div class="hero-top">
-        <span class="hero-kicker">PAPER / 本地研究知识系统</span>
+        <span class="hero-kicker">PaperTrace / 本地研究知识系统</span>
         <a class="lang-switch" href="demo-en.html" lang="en" aria-label="Switch to English">EN / English</a>
       </div>
       <div class="hero-copy">
@@ -265,11 +268,11 @@
           <span class="line"><span>研究桌。</span></span>
         </h1>
         <p class="hero-sub">从来源到理解，再从反馈回到下一次研究。</p>
-        <p class="hero-note">论文、AI / 量子资讯与历史对话不是三座信息孤岛。PAPER 让它们通过可追溯的 hard gate 汇入同一套 learner profile 与 visible wiki。</p>
-        <a class="hero-cta" href="#reader">开始浏览三条流水线</a>
+        <p class="hero-note">论文阅读、AI / 量子日报、历史对话导入与教学决策是四条边界明确的 pipeline。前三条产生经审查的 HTML、发布集或 profile patch；第四条仅在用户明确调用后，从真实薄弱点、证据缺口与到期复习中选择下一步。</p>
+        <a class="hero-cta" href="#reader">开始浏览四条流水线</a>
       </div>
       <div class="hero-bottom">
-        <span>Three pipelines. One memory.</span>
+        <span>Four pipelines. One auditable learning system.</span>
         <span class="system-dots"><span>Local-first</span><span>Skills-driven</span><span>Feedback loop</span></span>
       </div>
     </header>
@@ -292,8 +295,8 @@
         <div class="visual reader-stage reveal">
           <article class="paper-page" aria-label="论文阅读器示例">
             <div class="paper-meta">Normalized reader · source anchored</div>
-            <h3>Correlation-efficient quantum dynamics on structured graphs</h3>
-            <div class="paper-authors">Research reader preview · bilingual source block</div>
+            <h3>reader_interactive.html</h3>
+            <div class="paper-authors">Formal paper reader · bilingual source block</div>
             <div class="paper-rule"></div>
             <h4>核心机制 / Core mechanism</h4>
             <p>系统先保留原文锚点，再补全忠实中文翻译、公式读法与块级注释。每个结论都能回到页码、图表或算法步骤。</p>
@@ -327,6 +330,7 @@
           <span class="artifact"><b>LEDGER</b>reader_wiki/</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>READER</b>reader_interactive.html</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>FEEDBACK</b>reader_feedback.json</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>IMPORT</b>reader-learner</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>MEMORY</b>knowledge_profile.json</span>
         </div>
       </div>
@@ -360,12 +364,12 @@
           </div>
           <div class="brief-col">
             <div class="panel-head">Evidence brief</div>
-            <div class="brief-copy"><strong>今日研究问题</strong><br><br>量子图算法如何在保持非局域关联的同时，压低时间演化中的表示成本？<br><br>系统将事实、判断与相关性分开书写；曝光型概念默认保持 <strong>unrated</strong>。</div>
-            <div class="brief-meta">WINDOW 2026-07-10 → 2026-07-13<br>ANALYSIS zh-CN<br>ACADEMIC DELIVERY ≥ 5 ITEMS</div>
+            <div class="brief-copy"><strong>正式交付边界</strong><br><br>日报不是候选池、Markdown 或 config 的任一中间产物。只有交互 HTML、全量默认 <strong>unrated</strong> 的 feedback JSON、manifest 与 story index 状态通过最终验证，才算发布完成。</div>
+            <div class="brief-meta">RUN → VERIFY → FINALIZE → VERIFY<br>ANALYSIS zh-CN<br>ACADEMIC DELIVERY ≥ 5 ITEMS</div>
           </div>
           <div class="brief-col graph-wrap">
             <div class="panel-head">Concept map · interactive</div>
-            <canvas id="briefGraph" width="760" height="620" aria-label="资讯概念关系图">量子图、谱隙、局域性、演化时间与证据来源之间的关系。</canvas>
+            <canvas id="briefGraph" width="760" height="620" aria-label="资讯证据关系图">候选源、正式来源、事实、判断、相关性、日期与反馈之间的关系。</canvas>
           </div>
         </div>
       </div>
@@ -377,7 +381,9 @@
           <span class="artifact"><b>STAGING</b>daily_pipeline run</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>VERIFY</b>contract + UTF-8</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>PUBLISH</b>briefing_reader.html</span><span class="artifact-arrow">→</span>
-          <span class="artifact"><b>FEEDBACK</b>news_feedback.json</span>
+          <span class="artifact"><b>FEEDBACK</b>news_feedback.json</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>IMPORT</b>reader-learner</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>MEMORY</b>knowledge_profile.json</span>
         </div>
       </div>
     </section>
@@ -401,10 +407,10 @@
           <div class="chat-window">
             <div class="window-head"><span>conversation evidence</span><span>bounded</span></div>
             <div class="messages">
-              <div class="message user"><b>Explicit preference</b>解释公式时，我希望先给物理直觉，再给严格推导。</div>
-              <div class="message system"><b>Extract</b>候选偏好已记录；不会把助手输出当成用户掌握证据。</div>
-              <div class="message user"><b>Open question</b>局域性为什么会限制量子信息传播速度？</div>
-              <div class="message system"><b>Propose</b>生成 reviewable patch：概念状态保持候选，问题保留来源锚点。</div>
+              <div class="message user"><b>Bounded event</b>本地会话只提取显式偏好、开放问题与带 source_anchor 的有限证据。</div>
+              <div class="message system"><b>Evidence boundary</b>助手输出、页面曝光与话题出现都不能证明用户已经掌握。</div>
+              <div class="message user"><b>Candidate</b>概念状态、学习偏好和问题先进入可审查候选层。</div>
+              <div class="message system"><b>Propose</b>生成 reviewable patch；未经人工审核，不静默写入长期画像。</div>
             </div>
           </div>
           <div class="ledger">
@@ -428,37 +434,56 @@
           <span class="artifact"><b>EXTRACT</b>profile_candidates.json</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>PROPOSE</b>profile_patch.json</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>REVIEW</b>human approval</span><span class="artifact-arrow">→</span>
-          <span class="artifact"><b>APPLY</b>backup + validate</span>
+          <span class="artifact"><b>APPLY</b>backup + validate</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>MEMORY</b>knowledge_profile.json</span>
         </div>
       </div>
     </section>
 
-    <section class="memory shell" id="memory">
+    <section class="pipeline memory shell" id="teaching" data-pipeline="4">
       <div class="converge reveal">
-        <div class="eyebrow">Shared memory layer</div>
-        <h2>三条入口，<br>一套记忆。</h2>
-        <p>阅读反馈、资讯标注和对话证据最后共享同一个 profile；稳定概念与来源再被投影到持久、可浏览、可追溯的 Obsidian wiki。</p>
+        <div class="eyebrow">04 / Explicit invocation / adaptive-teach</div>
+        <h2>教学决策，<br>以真实表现闭环。</h2>
+        <p>阅读反馈、资讯标注和对话证据先进入 reader-learner 拥有的唯一 profile。用户明确调用 adaptive-teach 后，系统才会选择一个稳定概念和一种教学模式；只有学习者实际作答、应用或自检，才能沿安全导入链路形成新证据。</p>
       </div>
       <div class="memory-line"><span class="memory-node" aria-hidden="true"></span></div>
       <div class="memory-grid reveal">
         <article class="memory-card">
-          <div><div class="panel-head">01 / Private learning state</div><h3>Learner profile</h3><p>严格区分稳定概念、原始事件、来源索引与复习队列；“看见过”永远不等于“已经掌握”。</p></div>
+          <div><div class="panel-head">01 / Single source of truth</div><h3>Learner profile</h3><p>reader-learner 严格区分稳定概念、原始事件、来源索引与复习队列；“看见过”永远不等于“已经掌握”。</p></div>
           <div class="memory-viz">
             <ul class="check-list"><li>concepts</li><li>events</li><li>sources</li><li>review_queue</li></ul>
             <canvas id="profileChart" width="520" height="360" aria-label="学习画像雷达图">画像覆盖：概念、证据、方法、关联与复习。</canvas>
           </div>
         </article>
         <article class="memory-card">
-          <div><div class="panel-head">02 / Human-facing knowledge</div><h3>Visible wiki</h3><p>公开层只保留策展后的概念、主题、论断、来源摘要和关系图；原始反馈与个人事件继续留在来源层。</p></div>
+          <div><div class="panel-head">02 / Teaching decision layer</div><h3>Adaptive teach</h3><p>显式调用后，区分薄弱、证据不足、到期复习和前置阻塞；通过稳定优先级与 reason codes，只选择一个主题和一种模式。</p></div>
           <div class="memory-viz">
-            <ul class="check-list"><li>双向链接</li><li>来源可追溯</li><li>知识状态不夸大</li><li>Profile Coverage 可审计</li></ul>
-            <canvas id="wikiGraph" width="520" height="360" aria-label="可见知识图谱">概念、主题、来源与论断的双向关系图。</canvas>
+            <ul class="check-list"><li>diagnose / teach / review</li><li>prerequisite / transfer</li><li>单一稳定 concept ID</li><li>透明候选与未确定性</li></ul>
+            <canvas id="teachGraph" width="520" height="360" aria-label="自适应教学决策图">薄弱、证据不足、到期复习、前置阻塞与教学模式之间的决策关系。</canvas>
+          </div>
+        </article>
+        <article class="memory-card">
+          <div><div class="panel-head">03 / 10–20 minute session</div><h3>Short lesson</h3><p>一课只处理一个主要概念：先回忆，再给最小理论、应用、自检与迁移或反例；生成页面本身不是学习证据。</p></div>
+          <div class="memory-viz">
+            <ul class="check-list"><li>recall before explanation</li><li>application + self-check</li><li>transfer / counterexample</li><li>HTML feedback starts unrated</li></ul>
+            <div class="ledger-list" aria-label="短课教学循环">
+              <div class="ledger-item"><time>SELECT</time><span>一个稳定概念与一种教学模式。</span></div>
+              <div class="ledger-item"><time>LESSON</time><span>生成可审计 Markdown 与交互 HTML。</span></div>
+              <div class="ledger-item"><time>PERFORM</time><span>只有实际回答、应用或自检才形成证据。</span></div>
+            </div>
+          </div>
+        </article>
+        <article class="memory-card">
+          <div><div class="panel-head">04 / Validated return path</div><h3>Teaching feedback</h3><p>实际表现生成 `teaching_feedback.json`，经 reader-learner 验证、备份与原子写入后，才更新 profile、review queue，并按需同步 Visible Wiki。</p></div>
+          <div class="memory-viz">
+            <ul class="check-list"><li>actual performance only</li><li>validate before mutation</li><li>backup + atomic write</li><li>Visible Wiki projection</li></ul>
+            <canvas id="wikiGraph" width="520" height="360" aria-label="教学反馈回流图">实际表现、验证、画像、复习队列与可见知识层之间的关系。</canvas>
           </div>
         </article>
       </div>
       <footer class="footer">
         <div>Local research. Compounding knowledge.<br>Built from README + .agents contracts.</div>
-        <div class="status-box"><span>System status<br>Privacy by design</span><b>ONLINE</b></div>
+        <div class="status-box"><span>Teaching loop<br>Feedback validated</span><b>READY</b></div>
       </footer>
     </section>
   </main>
@@ -502,9 +527,10 @@
     }
 
     function renderCanvases(){
-      drawNetwork(document.querySelector('#briefGraph'), ['量子图','谱隙','局域性','演化时间','Hamiltonian','证据','论文','算法','关联'], 7);
+      drawNetwork(document.querySelector('#briefGraph'), ['候选源','正式来源','事实','判断','相关性','学术检索','preprint','日期','反馈'], 7);
       drawRadar(document.querySelector('#profileChart'));
-      drawNetwork(document.querySelector('#wikiGraph'), ['概念','主题','来源','论断','问题','综合','实体','证据','地图','复习'], 17);
+      drawNetwork(document.querySelector('#teachGraph'), ['薄弱','证据不足','到期复习','前置阻塞','diagnose','teach','review','transfer'], 13);
+      drawNetwork(document.querySelector('#wikiGraph'), ['实际表现','验证','备份','画像','复习队列','原子写入','Visible Wiki','来源'], 17);
     }
     addEventListener('load', renderCanvases, {once:true});
     let resizeTimer; addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(renderCanvases,120)});

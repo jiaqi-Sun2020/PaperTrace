@@ -1,0 +1,5 @@
+node_modules/
+.remotion/
+*.log
+!public/cases/news/
+!public/cases/news/briefing-reader.png

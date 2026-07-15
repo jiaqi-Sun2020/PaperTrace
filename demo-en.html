@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="PAPER turns papers, AI/quantum briefings, and conversation history into one traceable research memory.">
-  <title>PAPER · A Research Desk That Remembers</title>
+  <meta name="description" content="PaperTrace moves papers, AI/quantum intelligence, and conversation evidence into one learner profile and a feedback-ready adaptive-teach loop.">
+  <title>PaperTrace · Four Auditable Research and Teaching Pipelines</title>
   <script>window.MathJax={tex:{inlineMath:[["\\(","\\)"]],displayMath:[["\\[","\\]"]]},options:{skipHtmlTags:["script","noscript","style","textarea","pre","code"]}};</script>
   <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
@@ -165,6 +165,8 @@
     .memory-grid { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-dark); }
     .memory-card { min-height: 470px; padding: clamp(28px, 4vw, 54px); display: grid; grid-template-rows: auto 1fr; }
     .memory-card + .memory-card { border-left: 1px solid var(--line-dark); }
+    .memory-card:nth-child(n+3) { border-top: 1px solid var(--line-dark); }
+    .memory-card:nth-child(odd) { border-left: 0; }
     .memory-card h3 { margin: 0; font: 800 clamp(2.2rem, 4vw, 4.5rem)/.9 var(--sans); text-transform: uppercase; letter-spacing: -.045em; }
     .memory-card p { color: #9eaaa7; line-height: 1.6; max-width: 50ch; }
     .memory-viz { display: grid; grid-template-columns: .85fr 1.15fr; gap: 24px; align-items: center; }
@@ -245,7 +247,7 @@
   <a class="skip-link" href="#content">Skip to main content</a>
   <aside class="rail" aria-label="Pipeline navigation">
     <a class="brand" href="#top" aria-label="Back to top">
-      <span class="brand-mark">P</span><span class="brand-name">PAPER</span>
+      <span class="brand-mark">P</span><span class="brand-name">PaperTrace</span>
       <span class="brand-note">Local-first<br>Research knowledge<br>System</span>
     </a>
     <div class="rail-label">Pipelines</div>
@@ -253,14 +255,15 @@
       <a class="rail-link active" href="#reader" data-section="reader"><strong>01</strong><span>Paper<br>Reader</span></a>
       <a class="rail-link" href="#briefing" data-section="briefing"><strong>02</strong><span>AI + Quantum<br>Briefing</span></a>
       <a class="rail-link" href="#chat" data-section="chat"><strong>03</strong><span>Chat<br>Profile</span></a>
+      <a class="rail-link" href="#teaching" data-section="teaching"><strong>04</strong><span>Adaptive<br>Teach</span></a>
     </nav>
-    <div class="rail-bottom"><b>Shared layer</b><br>Learner profile<br>Visible wiki</div>
+    <div class="rail-bottom"><b>Shared loop</b><br>Learner profile<br>Adaptive teach<br>Teaching feedback</div>
   </aside>
 
   <main id="content">
     <header class="hero shell" id="top">
       <div class="hero-top">
-        <span class="hero-kicker">PAPER / Local research knowledge system</span>
+        <span class="hero-kicker">PaperTrace / Local research knowledge system</span>
         <a class="lang-switch" href="demo.html" lang="zh-CN" aria-label="切换到中文">中文 / ZH</a>
       </div>
       <div class="hero-copy">
@@ -269,11 +272,11 @@
           <span class="line"><span>that remembers.</span></span>
         </h1>
         <p class="hero-sub">From source to understanding, then from feedback to the next investigation.</p>
-        <p class="hero-note">Papers, AI/quantum news, and conversation history are not separate information islands. PAPER moves all three through traceable hard gates into one learner profile and visible wiki.</p>
-        <a class="hero-cta" href="#reader">Explore the three pipelines</a>
+        <p class="hero-note">Paper reading, AI/quantum briefings, conversation import, and teaching decisions are four pipelines with explicit boundaries. The first three produce audited HTML, a release set, or a reviewable profile patch; the fourth acts only after explicit invocation and selects from real weakness, evidence gaps, or due reviews.</p>
+        <a class="hero-cta" href="#reader">Explore the four pipelines</a>
       </div>
       <div class="hero-bottom">
-        <span>Three pipelines. One memory.</span>
+        <span>Four pipelines. One auditable learning system.</span>
         <span class="system-dots"><span>Local-first</span><span>Skills-driven</span><span>Feedback loop</span></span>
       </div>
     </header>
@@ -296,8 +299,8 @@
         <div class="visual reader-stage reveal">
           <article class="paper-page" aria-label="Paper reader example">
             <div class="paper-meta">Normalized reader · source anchored</div>
-            <h3>Correlation-efficient quantum dynamics on structured graphs</h3>
-            <div class="paper-authors">Research reader preview · bilingual source block</div>
+            <h3>reader_interactive.html</h3>
+            <div class="paper-authors">Formal paper reader · bilingual source block</div>
             <div class="paper-rule"></div>
             <h4>Core mechanism</h4>
             <p>The system preserves source anchors first, then adds faithful translation, formula guidance, and block-level notes. Every claim can be traced back to a page, figure, table, or algorithm step.</p>
@@ -331,6 +334,7 @@
           <span class="artifact"><b>LEDGER</b>reader_wiki/</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>READER</b>reader_interactive.html</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>FEEDBACK</b>reader_feedback.json</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>IMPORT</b>reader-learner</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>MEMORY</b>knowledge_profile.json</span>
         </div>
       </div>
@@ -364,12 +368,12 @@
           </div>
           <div class="brief-col">
             <div class="panel-head">Evidence brief</div>
-            <div class="brief-copy"><strong>Today's research question</strong><br><br>How can quantum graph algorithms preserve nonlocal correlations while lowering the representational cost of time evolution?<br><br>The system separates facts, judgment, and relevance. Exposure-only concepts remain <strong>unrated</strong>.</div>
-            <div class="brief-meta">WINDOW 2026-07-10 → 2026-07-13<br>ANALYSIS zh-CN<br>ACADEMIC DELIVERY ≥ 5 ITEMS</div>
+            <div class="brief-copy"><strong>Formal delivery boundary</strong><br><br>A briefing is not complete at the candidate pool, Markdown, or config stage. Publication requires a verified interactive HTML reader, a complete default-<strong>unrated</strong> feedback JSON, manifest integrity, and committed story-index state.</div>
+            <div class="brief-meta">RUN → VERIFY → FINALIZE → VERIFY<br>ANALYSIS zh-CN<br>ACADEMIC DELIVERY ≥ 5 ITEMS</div>
           </div>
           <div class="brief-col graph-wrap">
             <div class="panel-head">Concept map · interactive</div>
-            <canvas id="briefGraph" width="760" height="620" aria-label="Briefing concept graph">Relationships among quantum graphs, spectral gaps, locality, evolution time, and evidence.</canvas>
+            <canvas id="briefGraph" width="760" height="620" aria-label="Briefing evidence graph">Relationships among candidate sources, official sources, facts, judgment, relevance, dates, and feedback.</canvas>
           </div>
         </div>
       </div>
@@ -381,7 +385,9 @@
           <span class="artifact"><b>STAGING</b>daily_pipeline run</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>VERIFY</b>contract + UTF-8</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>PUBLISH</b>briefing_reader.html</span><span class="artifact-arrow">→</span>
-          <span class="artifact"><b>FEEDBACK</b>news_feedback.json</span>
+          <span class="artifact"><b>FEEDBACK</b>news_feedback.json</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>IMPORT</b>reader-learner</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>MEMORY</b>knowledge_profile.json</span>
         </div>
       </div>
     </section>
@@ -405,10 +411,10 @@
           <div class="chat-window">
             <div class="window-head"><span>conversation evidence</span><span>bounded</span></div>
             <div class="messages">
-              <div class="message user"><b>Explicit preference</b>When explaining formulas, lead with physical intuition and follow with a rigorous derivation.</div>
-              <div class="message system"><b>Extract</b>Preference candidate recorded; assistant exposure is not evidence of user mastery.</div>
-              <div class="message user"><b>Open question</b>Why does locality limit the speed of quantum information propagation?</div>
-              <div class="message system"><b>Propose</b>A reviewable patch is ready. Concept states stay provisional and the question keeps its source anchor.</div>
+              <div class="message user"><b>Bounded event</b>Local sessions yield only explicit preferences, open questions, and bounded evidence with a source_anchor.</div>
+              <div class="message system"><b>Evidence boundary</b>Assistant output, page exposure, and topic mentions never prove learner mastery.</div>
+              <div class="message user"><b>Candidate</b>Concept states, learning preferences, and questions first enter a reviewable candidate layer.</div>
+              <div class="message system"><b>Propose</b>A reviewable patch is generated; nothing silently enters long-term memory before human review.</div>
             </div>
           </div>
           <div class="ledger">
@@ -432,37 +438,56 @@
           <span class="artifact"><b>EXTRACT</b>profile_candidates.json</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>PROPOSE</b>profile_patch.json</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>REVIEW</b>human approval</span><span class="artifact-arrow">→</span>
-          <span class="artifact"><b>APPLY</b>backup + validate</span>
+          <span class="artifact"><b>APPLY</b>backup + validate</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>MEMORY</b>knowledge_profile.json</span>
         </div>
       </div>
     </section>
 
-    <section class="memory shell" id="memory">
+    <section class="pipeline memory shell" id="teaching" data-pipeline="4">
       <div class="converge reveal">
-        <div class="eyebrow">Shared memory layer</div>
-        <h2>Three entries.<br>One memory.</h2>
-        <p>Reading feedback, briefing annotations, and conversation evidence share one profile. Stable concepts and sources are then projected into a persistent, browsable, traceable Obsidian wiki.</p>
+        <div class="eyebrow">04 / Explicit invocation / adaptive-teach</div>
+        <h2>Teaching decisions.<br>Closed by real performance.</h2>
+        <p>Reader feedback, briefing annotations, and conversation evidence first enter the single profile owned by reader-learner. After explicit user invocation, adaptive-teach selects one stable concept and one teaching mode. Only actual learner answers, applications, or self-checks may return as evidence through the safe import path.</p>
       </div>
       <div class="memory-line"><span class="memory-node" aria-hidden="true"></span></div>
       <div class="memory-grid reveal">
         <article class="memory-card">
-          <div><div class="panel-head">01 / Private learning state</div><h3>Learner profile</h3><p>Stable concepts, raw events, source records, and review queues stay distinct. Exposure never implies mastery.</p></div>
+          <div><div class="panel-head">01 / Single source of truth</div><h3>Learner profile</h3><p>reader-learner keeps stable concepts, raw events, source records, and review queues distinct. Exposure never implies mastery.</p></div>
           <div class="memory-viz">
             <ul class="check-list"><li>concepts</li><li>events</li><li>sources</li><li>review_queue</li></ul>
             <canvas id="profileChart" width="520" height="360" aria-label="Learner profile radar">Profile coverage across concepts, evidence, methods, connections, and review.</canvas>
           </div>
         </article>
         <article class="memory-card">
-          <div><div class="panel-head">02 / Human-facing knowledge</div><h3>Visible wiki</h3><p>The public layer contains curated concepts, themes, claims, source summaries, and maps. Raw feedback and personal events stay in the source layer.</p></div>
+          <div><div class="panel-head">02 / Teaching decision layer</div><h3>Adaptive teach</h3><p>Once explicitly invoked, it separates weakness, insufficient evidence, due review, and prerequisite blockers. Stable priority and reason codes select exactly one topic and one mode.</p></div>
           <div class="memory-viz">
-            <ul class="check-list"><li>Bidirectional links</li><li>Traceable sources</li><li>No inflated knowledge states</li><li>Auditable profile coverage</li></ul>
-            <canvas id="wikiGraph" width="520" height="360" aria-label="Visible knowledge graph">Bidirectional links among concepts, themes, sources, and claims.</canvas>
+            <ul class="check-list"><li>diagnose / teach / review</li><li>prerequisite / transfer</li><li>one stable concept ID</li><li>transparent alternatives and uncertainty</li></ul>
+            <canvas id="teachGraph" width="520" height="360" aria-label="Adaptive teaching decision graph">Decision links among weakness, insufficient evidence, due review, prerequisite blockers, and teaching modes.</canvas>
+          </div>
+        </article>
+        <article class="memory-card">
+          <div><div class="panel-head">03 / 10–20 minute session</div><h3>Short lesson</h3><p>One lesson handles one primary concept: recall first, minimum theory, an application, immediate self-check, and transfer or counterexample. Generating the page is not learning evidence.</p></div>
+          <div class="memory-viz">
+            <ul class="check-list"><li>recall before explanation</li><li>application + self-check</li><li>transfer / counterexample</li><li>HTML feedback starts unrated</li></ul>
+            <div class="ledger-list" aria-label="Short teaching cycle">
+              <div class="ledger-item"><time>SELECT</time><span>One stable concept and one teaching mode.</span></div>
+              <div class="ledger-item"><time>LESSON</time><span>Produce auditable Markdown and interactive HTML.</span></div>
+              <div class="ledger-item"><time>PERFORM</time><span>Only actual answers, applications, or checks create evidence.</span></div>
+            </div>
+          </div>
+        </article>
+        <article class="memory-card">
+          <div><div class="panel-head">04 / Validated return path</div><h3>Teaching feedback</h3><p>Actual performance becomes `teaching_feedback.json`. Only reader-learner validation, backup, and atomic write may update the profile and review queue, followed by optional Visible Wiki projection.</p></div>
+          <div class="memory-viz">
+            <ul class="check-list"><li>actual performance only</li><li>validate before mutation</li><li>backup + atomic write</li><li>Visible Wiki projection</li></ul>
+            <canvas id="wikiGraph" width="520" height="360" aria-label="Teaching feedback return graph">Relationships among actual performance, validation, profile state, review queue, and the visible knowledge layer.</canvas>
           </div>
         </article>
       </div>
       <footer class="footer">
         <div>Local research. Compounding knowledge.<br>Built from README + .agents contracts.</div>
-        <div class="status-box"><span>System status<br>Privacy by design</span><b>ONLINE</b></div>
+        <div class="status-box"><span>Teaching loop<br>Feedback validated</span><b>READY</b></div>
       </footer>
     </section>
   </main>
@@ -506,9 +531,10 @@
     }
 
     function renderCanvases(){
-      drawNetwork(document.querySelector('#briefGraph'), ['Quantum graph','Spectral gap','Locality','Evolution','Hamiltonian','Evidence','Paper','Algorithm','Links'], 7);
+      drawNetwork(document.querySelector('#briefGraph'), ['Candidates','Official source','Facts','Judgment','Relevance','Venue sweep','Preprint','Date','Feedback'], 7);
       drawRadar(document.querySelector('#profileChart'));
-      drawNetwork(document.querySelector('#wikiGraph'), ['Concept','Theme','Source','Claim','Question','Synthesis','Entity','Evidence','Map','Review'], 17);
+      drawNetwork(document.querySelector('#teachGraph'), ['Weakness','Evidence gap','Due review','Prerequisite','Diagnose','Teach','Review','Transfer'], 13);
+      drawNetwork(document.querySelector('#wikiGraph'), ['Performance','Validation','Backup','Profile','Review queue','Atomic write','Visible Wiki','Source'], 17);
     }
     addEventListener('load', renderCanvases, {once:true});
     let resizeTimer; addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(renderCanvases,120)});

@@ -45,7 +45,7 @@ Use CSS variables.
 
 Default pages should use a white/light background for readability. Provide a visible background control so the user can switch to the Cosmic deep-space background. The deep-space mode should keep glowing accents and transparent glass panels, but it is an option, not the default.
 
-When applying the layer to an existing HTML page, override both Cosmic tokens and legacy page tokens. Many PAPER HTML pages use variables such as `--bg`, `--panel`, `--ink`, `--muted`, `--line`, `--accent`, and `--shadow`; the Cosmic layer must redefine these so existing components cannot keep white panels or low-contrast text.
+When applying the layer to an existing HTML page, override both Cosmic tokens and legacy page tokens. Many PaperTrace HTML pages use variables such as `--bg`, `--panel`, `--ink`, `--muted`, `--line`, `--accent`, and `--shadow`; the Cosmic layer must redefine these so existing components cannot keep white panels or low-contrast text.
 
 Use one coordinated accent family per page:
 

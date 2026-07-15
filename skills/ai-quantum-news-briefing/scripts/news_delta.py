@@ -11,12 +11,21 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
+import time
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlsplit, urlunsplit
+
+from briefing_contract import canonical_url as contract_canonical_url
+from briefing_contract import is_lossless_text
+from briefing_contract import normalize_briefing_config
+from briefing_contract import story_id_for_item as contract_story_id_for_item
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -26,6 +35,18 @@ if hasattr(sys.stderr, "reconfigure"):
 
 
 VALID_NOVELTY = {"new", "material_update", "continuing", "duplicate"}
+ACADEMIC_SOURCE_DOMAINS = {
+    "arxiv.org",
+    "journals.aps.org",
+    "nature.com",
+    "science.org",
+    "openreview.net",
+    "openaccess.thecvf.com",
+    "proceedings.mlr.press",
+    "neurips.cc",
+    "aclanthology.org",
+    "quantum-journal.org",
+}
 
 
 def clean_text(value: Any, limit: int = 4000) -> str:
@@ -42,7 +63,21 @@ def load_json(path: Path) -> dict[str, Any]:
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, path)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
 
 
 def project_root_from(path: Path) -> Path:
@@ -81,14 +116,24 @@ def infer_date(config: dict[str, Any], fallback_path: Path | None = None, explic
 
 
 def canonical_url(value: Any) -> str:
-    url = clean_text(value, 1200)
-    if not url:
-        return ""
-    parsed = urlsplit(url)
-    if not parsed.scheme or not parsed.netloc:
-        return url.rstrip("/")
-    path = re.sub(r"/+", "/", parsed.path).rstrip("/")
-    return urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(), path, "", ""))
+    return contract_canonical_url(value)
+
+
+def is_academic_delivery_item(item: dict[str, Any]) -> bool:
+    """Return whether an item is backed by a formal academic venue/preprint."""
+    try:
+        domain = urlsplit(canonical_url(item.get("source_url"))).netloc.lower()
+        if domain.startswith("www."):
+            domain = domain[4:]
+    except ValueError:
+        return False
+    return any(domain == known or domain.endswith("." + known) for known in ACADEMIC_SOURCE_DOMAINS)
+
+
+def is_social_news_item(item: dict[str, Any]) -> bool:
+    """Keep explicitly designated social-news items in their own final section."""
+    section_title = clean_text(item.get("section_title"), 160).lower()
+    return "社会" in section_title or "social" in section_title
 
 
 def slug_ascii(value: str, fallback_prefix: str = "story") -> str:
@@ -102,6 +147,9 @@ def slug_ascii(value: str, fallback_prefix: str = "story") -> str:
 
 
 def story_id_for_item(item: dict[str, Any]) -> str:
+    return contract_story_id_for_item(item)
+
+    # Legacy derivation retained below for source compatibility only.
     explicit = clean_text(item.get("story_id"), 160)
     if explicit:
         return slug_ascii(explicit)
@@ -188,13 +236,48 @@ def load_index(path: Path) -> list[dict[str, Any]]:
     return records
 
 
-def append_index(path: Path, records: list[dict[str, Any]]) -> None:
+@contextmanager
+def index_lock(path: Path, timeout: float = 10.0):
+    lock_path = path.with_name(path.name + ".lock")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            break
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"timed out waiting for story index lock: {lock_path}")
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def upsert_index(path: Path, records: list[dict[str, Any]]) -> int:
     if not records:
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+        return 0
+    with index_lock(path):
+        existing = load_index(path)
+        by_key: dict[tuple[str, str], dict[str, Any]] = {}
+        order: list[tuple[str, str]] = []
+        for record in existing + records:
+            key = (clean_text(record.get("story_id"), 240), clean_text(record.get("last_seen") or record.get("date"), 40))
+            if key not in by_key:
+                order.append(key)
+            by_key[key] = record
+        payload = "".join(json.dumps(by_key[key], ensure_ascii=False, separators=(",", ":")) + "\n" for key in order)
+        atomic_write_text(path, payload)
+        return len(records)
+
+
+def append_index(path: Path, records: list[dict[str, Any]]) -> None:
+    """Compatibility alias; writes are now idempotent atomic upserts."""
+    upsert_index(path, records)
 
 
 def recent_records(records: list[dict[str, Any]], today: date, days: int) -> list[dict[str, Any]]:
@@ -227,10 +310,23 @@ def explicit_novelty(item: dict[str, Any]) -> str:
     return ""
 
 
+def has_verified_update(item: dict[str, Any], prior: dict[str, Any] | None) -> bool:
+    new_facts = clean_text(item.get("new_facts") or item.get("update_summary"), 2000)
+    fingerprint = clean_text(item.get("evidence_fingerprint") or item.get("source_fingerprint"), 200)
+    previous_fingerprint = clean_text((prior or {}).get("evidence_fingerprint") or (prior or {}).get("source_fingerprint"), 200)
+    return bool(new_facts and fingerprint and fingerprint != previous_fingerprint)
+
+
 def classify_item(item: dict[str, Any], recent: list[dict[str, Any]]) -> tuple[str, dict[str, Any] | None]:
     explicit = explicit_novelty(item)
     prior = prior_for(item, recent)
-    if explicit:
+    if prior:
+        if explicit == "duplicate":
+            return "duplicate", prior
+        if explicit in {"new", "material_update"}:
+            return ("material_update" if has_verified_update(item, prior) else "continuing"), prior
+        return "continuing", prior
+    if explicit in {"material_update", "continuing", "duplicate"}:
         return explicit, prior
     if prior:
         return "continuing", prior
@@ -238,10 +334,13 @@ def classify_item(item: dict[str, Any], recent: list[dict[str, Any]]) -> tuple[s
 
 
 def compact_continuing_item(item: dict[str, Any], prior: dict[str, Any] | None, item_id: str) -> dict[str, Any]:
-    previous = clean_text(prior.get("summary") if prior else "", 220)
+    prior_summary = prior.get("summary") if prior else ""
+    previous = clean_text(prior_summary, 220) if is_lossless_text(prior_summary) else ""
     facts = "无新增事实；保留为观察项。"
     if previous:
         facts += f" 上次记录：{previous}"
+    elif prior_summary:
+        facts += " 上次记录摘要因历史编码损坏而省略。"
     concepts = item.get("concepts")
     return {
         "id": item_id,
@@ -256,6 +355,9 @@ def compact_continuing_item(item: dict[str, Any], prior: dict[str, Any] | None, 
         "source_title": clean_text(item.get("source_title") or item.get("title"), 300),
         "source_url": canonical_url(item.get("source_url")),
         "source_excerpt": clean_text(item.get("source_excerpt") or item_summary(item), 500),
+        "evidence_fingerprint": clean_text(item.get("evidence_fingerprint") or item.get("source_fingerprint"), 200),
+        "published_at": clean_text(item.get("published_at") or item.get("publishedAt"), 100),
+        "venue_sweep_note": clean_text(item.get("venue_sweep_note"), 1000),
         "concepts": concepts if isinstance(concepts, list) else [],
         "delta_note": f"Seen before on {clean_text(prior.get('last_seen') if prior else '')}; compressed to one line.",
     }
@@ -294,6 +396,9 @@ def index_record_for(item: dict[str, Any], config: dict[str, Any], seen_date: da
         "briefing_path": clean_text(config.get("briefing_path"), 1000),
         "date_range": clean_text(config.get("date_range") or config.get("date"), 300),
         "concepts": [clean_text(c, 120) for c in concepts[:8]] if isinstance(concepts, list) else [],
+        "evidence_fingerprint": clean_text(item.get("evidence_fingerprint") or item.get("source_fingerprint"), 200),
+        "published_at": clean_text(item.get("published_at") or item.get("publishedAt"), 100),
+        "first_seen": clean_text(item.get("first_seen") or seen_date.isoformat(), 40),
     }
 
 
@@ -304,8 +409,10 @@ def transform_config(
     lookback_days: int,
     continuing_mode: str,
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+    config = normalize_briefing_config(config, require_source_url=True)
     recent = recent_records(index_records, today, lookback_days)
-    groups: dict[str, list[dict[str, Any]]] = {"new": [], "material_update": [], "continuing": []}
+    groups: dict[str, list[dict[str, Any]]] = {"new": [], "material_update": [], "continuing": [], "social": []}
+    academic_items: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     index_updates: list[dict[str, Any]] = []
     counters = {"new": 0, "material_update": 0, "continuing": 0, "duplicate": 0}
@@ -334,17 +441,35 @@ def transform_config(
                     }
                 )
                 continue
-            item_id = f"C{len(groups['continuing']) + 1:03d}"
-            groups["continuing"].append(compact_continuing_item(raw_item, prior, item_id))
+            item_id = f"C{counters['continuing']:03d}"
+            delta_item = compact_continuing_item(raw_item, prior, item_id)
+            if is_academic_delivery_item(raw_item):
+                academic_items.append(delta_item)
+            elif is_social_news_item(raw_item):
+                groups["social"].append(delta_item)
+            else:
+                groups["continuing"].append(delta_item)
             index_updates.append(index_record_for(raw_item, config, today, "continuing"))
             continue
         counters[novelty] += 1
-        item_id = ("N" if novelty == "new" else "U") + f"{len(groups[novelty]) + 1:03d}"
+        if is_social_news_item(raw_item):
+            item_id = f"S{len(groups['social']) + 1:03d}"
+        else:
+            item_id = ("N" if novelty == "new" else "U") + f"{len(groups[novelty]) + 1:03d}"
         delta_item = full_delta_item(raw_item, novelty, prior, item_id)
-        groups[novelty].append(delta_item)
+        if is_academic_delivery_item(raw_item):
+            academic_items.append(delta_item)
+        elif is_social_news_item(raw_item):
+            groups["social"].append(delta_item)
+        else:
+            groups[novelty].append(delta_item)
         index_updates.append(index_record_for(delta_item, config, today, novelty))
 
     sections: list[dict[str, Any]] = []
+    if academic_items:
+        sections.append({"title": "Academic research and venue evidence", "items": academic_items})
+    if groups["social"]:
+        sections.append({"title": "社会新闻", "items": groups["social"]})
     if groups["new"]:
         sections.append({"title": "今日新增", "items": groups["new"]})
     if groups["material_update"]:
@@ -456,10 +581,10 @@ def cmd_context(args: argparse.Namespace) -> int:
 def cmd_index_config(args: argparse.Namespace) -> int:
     config_path = Path(args.config).expanduser().resolve()
     index_path = Path(args.index).expanduser().resolve() if args.index else default_index_path(config_path)
-    config = load_json(config_path)
+    config = normalize_briefing_config(load_json(config_path), config_path, require_source_url=True)
     seen_date = infer_date(config, config_path, args.date)
     records = [index_record_for(item, config, seen_date, args.status) for item in iter_items(config)]
-    append_index(index_path, records)
+    raise SystemExit("Direct index-config writes are disabled; use daily_pipeline.py finalize after verification.")
     print(f"Indexed {len(records)} items into {index_path}")
     return 0
 
@@ -468,7 +593,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
     config_path = Path(args.config).expanduser().resolve()
     output_path = Path(args.output).expanduser().resolve() if args.output else config_path.with_name(config_path.stem + "_delta.json")
     index_path = Path(args.index).expanduser().resolve() if args.index else default_index_path(config_path)
-    config = load_json(config_path)
+    config = normalize_briefing_config(load_json(config_path), config_path, require_source_url=True)
     today = infer_date(config, config_path, args.date)
     transformed, manifest, index_updates = transform_config(
         config=config,
@@ -485,7 +610,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
         markdown_path.parent.mkdir(parents=True, exist_ok=True)
         markdown_path.write_text(render_markdown(transformed), encoding="utf-8")
     if args.update_index:
-        append_index(index_path, index_updates)
+        print("Index update deferred: daily_pipeline.py finalize owns the verified index commit.")
     print(f"Wrote delta config: {output_path}")
     print(f"Wrote manifest: {manifest_path}")
     if args.markdown_output:
@@ -493,7 +618,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
     print(
         "Counts: "
         + ", ".join(f"{key}={value}" for key, value in manifest["counts"].items())
-        + f"; indexed={len(index_updates) if args.update_index else 0}"
+        + "; indexed=0"
     )
     return 0
 
@@ -530,7 +655,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
         default="one-line",
         help="How to handle recently seen stories without material updates.",
     )
-    apply.add_argument("--update-index", action="store_true", help="Append emitted items to the story index.")
+    apply.add_argument("--update-index", action="store_true", help="Deprecated compatibility flag; index commit is deferred to daily_pipeline finalize.")
     apply.set_defaults(func=cmd_apply)
 
     return parser.parse_args(list(argv))

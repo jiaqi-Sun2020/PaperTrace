@@ -1,0 +1,29 @@
+{
+  "name": "papertrace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "remotion studio",
+    "typecheck": "tsc --noEmit",
+    "capture": "tsx scripts/capture-local-html.ts",
+    "compositions": "remotion compositions",
+    "build:voiceover": "node scripts/build-voiceover-data.mjs",
+    "render": "remotion render PaperTrace out/papertrace.mp4 --codec=h264 --pixel-format=yuv420p"
+  },
+  "dependencies": {
+    "@remotion/captions": "4.0.489",
+    "@remotion/cli": "4.0.489",
+    "@remotion/media": "4.0.489",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "remotion": "4.0.489"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "playwright-core": "1.57.0",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  }
+}

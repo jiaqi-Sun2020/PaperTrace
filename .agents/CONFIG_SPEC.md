@@ -1,7 +1,20 @@
 # Config Spec
 
-- Project root: `C:\Users\SSS\Desktop\PAPER`
-- Last reviewed: 2026-07-05
+- Project root: `D:\AI\PaperTrace`
+- Last reviewed: 2026-07-14
+
+## Primary Pipeline Selection
+
+The project exposes four distinct primary pipelines with different terminal contracts:
+
+| Pipeline | Terminal contract |
+|---|---|
+| Paper Reader HTML | audited `<reader-dir>/reader_interactive.html`; bundle/ledger success is intermediate |
+| AI + Quantum Daily Briefing Release | final strict verify of published briefing HTML plus full feedback/Markdown/config/manifest/story-index release set |
+| Local Chat-to-Profile Import | human-reviewed `profile_patch.json` applied with backup through strict `reader-learner` validation |
+| Adaptive Teaching Decision & Evidence Loop | a validated one-topic lesson completes a lesson request; full evidence return additionally requires actual performance, validated `teaching_feedback.json`, and delegated backed-up atomic import |
+
+Do not reuse one pipeline's terminal status for another. In particular, `complete_reader_bundle.py` cannot certify HTML delivery, `briefing_to_feedback_html.py` alone cannot certify daily publication, chat candidate extraction cannot certify profile mutation, and lesson generation cannot certify mastery or teaching-feedback import.
 
 ## Config Surfaces
 
@@ -12,7 +25,7 @@ There is no central package config such as `pyproject.toml`, `package.json`, or 
 Default profile:
 
 ```text
-C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json
+D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json
 ```
 
 Owned by:
@@ -28,7 +41,7 @@ Important fields:
 - `events`: raw feedback and annotation history. Store selected Chinese/English text, original context, translated context, user questions, and legacy notes here.
 - `sources`: deduplicated source index for papers, reader bundles, and news briefings.
 - `review_queue`: learning schedule for high-frequency or recent `unknown` / `learning` items.
-- `person_profile`: optional long-term non-concept user profile surface populated from reviewed GPT conversation imports, such as learning preferences, research interests, workflow preferences, project rules, and writing style.
+- `person_profile`: optional long-term non-concept user profile surface populated from reviewed chat conversation imports, such as learning preferences, research interests, workflow preferences, project rules, and writing style.
 - `status`: one of `mastered`, `known`, `learning`, `unknown`, `unrated`.
 - `facet_status`: finer-grained status by issue type, such as `definition`, `paper_usage`, `math_derivation`, `terminology`, `physical_intuition`, or `visualization`.
 - `learning_needs`: compact list of what kind of help the user needs for a concept.
@@ -37,33 +50,46 @@ Important fields:
 
 Do not use full selected text, long Chinese sentences, or paragraph excerpts as concept keys. Put those strings in `events`.
 
-## GPT Conversation Import CLI
+## Adaptive Teaching Workspace
+
+Private workspace:
+
+```text
+D:\AI\PaperTrace\.agents\adaptive-teach
+```
+
+Owned by `skills/adaptive-teach/`, with `TEACHING-MISSION.md`, `teaching-settings.json`, session artifacts, and only regenerated `derived/` reports. It may contain Mission relevance, explicit prerequisite maps, lesson duration, language, and review preferences; it must not duplicate profile concepts, statuses, events, sources, or `review_queue`.
+
+`teaching_feedback.json` is a handoff, not learner memory. It requires a stable existing concept ID, existing profile source refs, actual evidence with prompt-use information, a status proposal, a transparent proposed review schedule, and `provenance: adaptive-teach`. `reader-learner` validates it and owns the backup/atomic write.
+
+## Chat Conversation Import CLI
 
 Script:
 
 ```text
-skills/utils/init-knowledge-profile/scripts/init_knowledge_profile.py
+skills/utils/chat-knowledge-profile/scripts/init_knowledge_profile.py
 ```
 
 Intermediate import directory:
 
 ```text
-C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\imports\chat_sessions
+D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions
 ```
 
 Important commands:
 
 | Command | Meaning |
 |---|---|
-| `collect --input <file-or-folder> --output <dir>` | Read local `.txt`, `.md`, `.html`, or `.json` GPT conversation exports and write `sources.jsonl`, `events.jsonl`, and `manifest.json`. URLs are not fetched. |
+| `collect --input <file-or-folder> --output <dir>` | Read local `.txt`, `.md`, `.html`, or `.json` chat conversation exports and write `sources.jsonl`, `events.jsonl`, `conversation_summaries.json`, and `manifest.json`. URLs are not fetched; share pages must be saved locally first. |
 | `extract --events <events.jsonl> --output <profile_candidates.json>` | Extract reviewable candidate concept statuses, learning preferences, research interests, workflow preferences, project rules, and writing style signals. |
 | `propose --profile <knowledge_profile.json> --candidates <profile_candidates.json> --output <profile_patch.json>` | Build a reviewable patch and reader-feedback handoff for concept-status candidates. |
-| `apply --profile <knowledge_profile.json> --patch <profile_patch.json> --backup` | Apply a reviewed patch with a timestamped backup. Concept candidates go through `reader-learner`; non-concept candidates go under `person_profile`. |
+| `apply --profile <knowledge_profile.json> --patch <profile_patch.json> --backup` | Apply a reviewed patch with a timestamped backup. Concept candidates go through strict `reader-learner` handoff validation; non-concept candidates go under `person_profile`. |
 
 Generated files:
 
 - `sources.jsonl`: one source conversation/file per line.
 - `events.jsonl`: bounded evidence events with role, source, turn index, and text hash.
+- `conversation_summaries.json`: per-conversation `at_a_glance`, topic tags, explicit preferences, open questions, action-like requests, and model metadata for review/navigation.
 - `profile_candidates.json`: extracted but unapplied candidates.
 - `profile_patch.json`: reviewable operations and concept-status handoff.
 
@@ -92,7 +118,7 @@ Important options:
 
 The formal converter has no draft-bypass option. If `paper.md` still contains placeholders, summary translations, missing figure/table cards, noisy formulas, or generic notes, fix the bundle before generating HTML.
 
-Direct translation is the default route for completing a final reader. A missing local model backend, translation package, or API SDK is not a valid blocker; translate and update `paper.md` / `source_map.json` directly before running strict HTML generation.
+The active primary model in the current user-facing session must directly author Chinese translation, block-specific notes, and LaTeX reconstruction. A missing local model backend, translation package, or API SDK is not a valid blocker, and those tools must not be substituted as the formal content author.
 
 Strict final generation should fail when source-map figure/table entries have no figure/table card, equation blocks lack LaTeX display math, or notes contain generic scaffolding. Fix those structural defects before generating `reader_interactive.html`.
 
@@ -101,7 +127,7 @@ Strict final generation should also fail when source algorithms are summarized i
 Post-generation audit:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\reader-skill\tests\adversarial_html_audit.py <reader-dir>
+python D:\AI\PaperTrace\skills\reader-skill\tests\adversarial_html_audit.py <reader-dir>
 ```
 
 This command is part of the formal reader pipeline for completed `reader_interactive.html` outputs.
@@ -130,43 +156,9 @@ Status values:
 Useful commands:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\migrate_knowledge_profile_v2.py --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json
-python C:\Users\SSS\Desktop\PAPER\skills\reader-learner\scripts\update_learner_profile.py --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json review
+python D:\AI\PaperTrace\skills\reader-learner\scripts\migrate_knowledge_profile_v2.py --profile D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json
+python D:\AI\PaperTrace\skills\reader-learner\scripts\update_learner_profile.py --profile D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json review
 ```
-
-## Read-Feedback CLI
-
-Script:
-
-```text
-skills/read-feedback-skill/scripts/build_feedback_explanation_report.py
-skills/read-feedback-skill/scripts/render_research_deep_dive_html.py
-```
-
-Important options:
-
-| Option | Meaning |
-|---|---|
-| `--feedback <path>` | Feedback JSON exported from reader HTML. |
-| `--profile <path>` | Explicit learner profile; defaults to nearest `.agents/reader-learner/knowledge_profile.json`. |
-| `--reader-dir <path>` | Explicit reader bundle directory. |
-| `--source-map <path>` | Explicit source map; defaults to `<reader-dir>/source_map.json`. |
-| `--output <path>` | Output Markdown report; defaults to `<reader-dir>/feedback_explanations.md`. |
-| `--html-output <path>` | Output HTML report; defaults to the Markdown output path with `.html` suffix. |
-| `--no-html` | Write Markdown only. |
-| `--context-output <path>` | Output research context-pack Markdown path; defaults to `<reader-dir>/feedback_research_context.md`. |
-| `--no-context` | Do not write the research context pack. |
-| `--mathjax-url <path-or-url>` | MathJax script for HTML formula rendering; use `none` to disable. |
-
-The report generator reads profile data but does not mutate `.agents`.
-
-Deep-dive HTML renderer:
-
-| Option | Meaning |
-|---|---|
-| `--input <path>` | Authored `feedback_research_deep_dive.md`. |
-| `--output <path>` | Output HTML; defaults to the input path with `.html` suffix. |
-| `--mathjax-url <path-or-url>` | MathJax script for formula rendering; use `none` to disable. |
 
 ## AI + Quantum News Feedback CLI
 
@@ -185,7 +177,8 @@ Important options:
 | `briefing_to_feedback_html.py --config <path>` | Read a source-grounded briefing feedback config. |
 | `briefing_to_feedback_html.py --output <path>` | Write interactive HTML with click/freeform feedback export. |
 | `news_delta.py context --index <path> --date <YYYY-MM-DD> --days 7` | Print compact recent-story context for the next daily briefing prompt. |
-| `news_delta.py apply --config <candidate.json> --output <delta.json> --update-index` | Rewrite a candidate config into delta-first sections and optionally append emitted stories to `news/_index/story_index.jsonl`. |
+| `news_delta.py apply --config <candidate.json> --output <delta.json>` | Rewrite a candidate config into delta-first sections without mutating the story index. |
+| `daily_pipeline.py run/verify/finalize` | Stage, verify including UTF-8/visible-text integrity, publish the Markdown/interactive HTML/full feedback bundle, and atomically upsert the story index only after final verification. |
 | `--feedback <path>` | Native `news_feedback.json` file. |
 | `--profile <path>` | Explicit learner profile path. |
 | `--reader-learner-importer <path>` | Override the delegated `reader-learner` importer. |
@@ -242,15 +235,52 @@ Important fields:
 - `items[].delta_note`: short reason for expanding or compressing this story.
 - `items[].user_question`: user's exact question when available.
 
+## News Briefing Encoding And Text Integrity
+
+News briefing configs are UTF-8 data contracts. Human-readable fields must survive a UTF-8 round trip without replacement. Producers must use UTF-8-aware file I/O (`utf-8-sig` input compatibility, UTF-8 output, `ensure_ascii=False`) and must not send Chinese source text through a legacy PowerShell/code-page here-string.
+
+The shared normalizer blocks `U+FFFD` and high-density literal `?` in titles, facts, judgments, relevance, source excerpts, section titles, and concepts. URL query delimiters are not human-text corruption. If the check fails, regenerate from the original candidate/source; never strip `?` or rewrite a damaged string heuristically.
+
+`story_index.jsonl` is historical input, not trusted prose. Delta compaction must omit a corrupt prior summary and mark the omission rather than copying mojibake into current Markdown/HTML. Final `daily_pipeline.py verify --strict` audits visible HTML text as well as the config.
+
+## Academic Delivery Contract
+
+Daily configs accept:
+
+```json
+"analysis_language": "zh-CN",
+"academic_delivery": {"required": true, "minimum_items": 5, "context_days": 7}
+```
+
+`analysis_language` defaults to `zh-CN` for daily pipeline runs. In that mode every item needs Chinese `facts`, `judgment`, and `relevance`; titles and technical proper nouns may retain their source language.
+
+`daily_pipeline.py run` supplies the academic default when absent. A required delivery must render a dedicated academic-research section containing at least `minimum_items` distinct paper-level records from arXiv or an approved formal venue, with a primary article/DOI/preprint URL, an individual evidence fingerprint, and `academic_search` passing the HTTP-evidence audit. A venue landing page, search result, duplicate story, or company/platform update does not count as a paper. To suppress the requirement for a genuinely empty window, set `{"required": false, "no_signal_reason": "..."}`. If context-days sources are used, retain their actual date and mark them as wider academic context.
+
+## News HTML Feedback Contract
+
+The canonical briefing is section-based. HTML derives its flat runtime item map from `sections`, embeds the complete automatic feedback set, and initializes every automatic concept as `unrated`. `Download JSON` must work before individual saves and export the exact initial identity set plus edits. Deleting an automatic item restores it; only freeform annotations are removable.
+
 ## News Story Index
 
 Default index:
 
 ```text
-C:\Users\SSS\Desktop\PAPER\news\_index\story_index.jsonl
+D:\AI\PaperTrace\news\_index\story_index.jsonl
 ```
 
 Each JSONL record is intentionally small: `story_id`, `last_seen`, `status`, one-line `summary`, `source_url`, `category`, concepts, and briefing path/date. This file is for recurring-news deduplication only; it is not learner memory and should not store user understanding status.
+
+## Visible Wiki Contract
+
+The persistent human-facing vault is `D:\AI\PaperTrace\.agents\wiki`. Its public pages use stable IDs, `visibility: public-wiki`, and one of `concept`, `entity`, `theme`, `question`, `synthesis`, `claim`, or `source` as `type`.
+
+- `source_refs` lists public `source.*` page IDs for visible evidence navigation.
+- `profile_source_refs` lists internal learner-profile `src-*` IDs only for source-summary projection.
+- `knowledge_status` is allowed only on concept pages and must exactly match the profile's explicit status.
+- Public pages must not contain absolute drive paths, raw feedback/event payloads, or unresolved `freeform-annotation-*` / `concept-*` profile candidates.
+- Public relation types are `prerequisite`, `supports`, `contradicts`, `extends`, `example-of`, `evidence-for`, and `about`.
+
+`skills/reader-learner/scripts/compile_visible_wiki.py` is read-only with respect to the profile. It updates only page-managed projection blocks, generated navigation/maps, and `.agents/wiki/_internal/projection_manifest.json`.
 
 ## Environment Variables
 

@@ -1,6 +1,6 @@
 ---
 name: reader-learner
-description: Manage the user's personal literature-reading and technical-news knowledge profile under `.agents/reader-learner/knowledge_profile.json`, and optionally export it as a knowledge-point-centered Obsidian vault under `.agents/reader-learner/obsidian-vault` with dashboards, MOCs, Bases, Canvas maps, graph coloring, taxonomy, compact evidence signals, and graph export. Use when Codex needs to import reader HTML feedback, AI/quantum news briefing feedback, update known/learning/unknown/mastered concept statuses, interpret natural-language feedback, maintain reading-session history, sync the learner profile to Obsidian, or generate source-grounded explanations for unclear concepts after using reader-skill, nature-reader, or ai-quantum-news-briefing.
+description: Manage the user's personal literature-reading and technical-news knowledge profile under `.agents/reader-learner/knowledge_profile.json`, export its disposable learner-profile view, and maintain a separate curated visible Obsidian wiki under `.agents/wiki/` with stable concepts, entities, themes, questions, claims, source summaries, and knowledge-boundary maps. Use when Codex needs to import reader HTML feedback, AI/quantum news briefing feedback, update known/learning/unknown/mastered concept statuses, interpret natural-language feedback, maintain reading-session history, sync the learner profile, compile/lint the visible wiki, or generate source-grounded explanations after using reader-skill, nature-reader, or ai-quantum-news-briefing.
 ---
 
 # Reader Learner
@@ -13,7 +13,7 @@ Use this skill after a reader HTML session, after the user marks concepts as kno
 
 The JSON profile remains the source of truth. Obsidian export is a generated visualization/review layer and may be overwritten on the next sync. The Obsidian vault should organize knowledge points first; raw feedback events are evidence history, not the main browsing surface.
 
-HTML knowledge-map presentation belongs to report skills. For news feedback, keep profile statuses and source/category evidence precise so `read-feedback-skill` can render the layered news knowledge map; do not store presentation layout decisions in `knowledge_profile.json`.
+HTML presentation belongs to the pipeline-specific HTML owners. For news feedback, keep profile statuses and source/category evidence precise; do not store presentation layout decisions in `knowledge_profile.json`.
 
 The llm-wiki boundary is:
 
@@ -30,10 +30,16 @@ Default profile:
 <project-root>/.agents/reader-learner/knowledge_profile.json
 ```
 
-Default Obsidian vault:
+Legacy generated Obsidian export:
 
 ```text
 <project-root>/.agents/reader-learner/obsidian-vault
+```
+
+Default human-facing Obsidian vault:
+
+```text
+<project-root>/.agents/wiki
 ```
 
 Default local Obsidian app path for open scripts:
@@ -101,6 +107,8 @@ Accept two feedback forms:
 
 For news briefings, do not infer knowledge from exposure alone. Use `unrated` for exposure-only concepts and use `unknown`, `learning`, `known`, or `mastered` only from explicit user feedback.
 
+3. Validated teaching feedback produced by `adaptive-teach`. This is a narrow handoff containing an existing stable concept ID, actual learner performance, prompt use, provenance, and an already-calculated review proposal. This skill validates, normalizes, backs up, atomically persists, and optionally projects it; it does not rank topics or generate teaching plans.
+
 3. Natural-language feedback from the user:
 
 ```text
@@ -160,6 +168,12 @@ List review queue:
 
 ```bash
 python <skill-dir>/scripts/update_learner_profile.py --profile <profile> review
+```
+
+Import a validated adaptive teaching handoff and sync visible Wiki:
+
+```bash
+python <skill-dir>/scripts/feedback_visible_wiki_pipeline.py teaching-feedback --feedback <teaching_feedback.json>
 ```
 
 Export the current profile to Obsidian without importing new feedback:
@@ -257,6 +271,31 @@ If the vault is not visible in Obsidian's vault list, open it once with the scri
 - Do not manually edit generated Obsidian notes as the long-term memory source. If the user's knowledge boundary changes, update/import into `knowledge_profile.json`, then regenerate the vault.
 - The generated `log.md` must use parseable llm-wiki headings such as `## [timestamp] export | Obsidian vault`.
 - Run `audit_knowledge_base.py --fail-on-warning` after profile cleanup or vault export before reporting the knowledge base as healthy.
+
+## Persistent Visible Wiki
+
+Use `<project-root>/.agents/wiki/` as the human-facing Obsidian vault. It is separate from the disposable profile export at `.agents/reader-learner/obsidian-vault`.
+
+- Read `references/visible-wiki-schema.md` before adding or revising a public wiki page.
+- Keep public pages limited to stable concepts, entities, themes, normalized questions, syntheses, claims, and concise source summaries.
+- Keep raw feedback, events, source excerpts, reader bundles, source paths, pipeline logs, and scheduling internals outside the visible wiki.
+- Never project `freeform-annotation-*` or unresolved `concept-*` records into `.agents/wiki/concepts/`.
+- Do not infer `known` or `mastered` from exposure. The projection copies only explicit profile status.
+- Preserve curated explanatory text. `compile_visible_wiki.py` may replace only its `PROFILE PROJECTION` block and generated Home/index/map pages.
+- Use `feedback_visible_wiki_pipeline.py sync` to create missing concise public pages for every stable profile concept and every profile source. It does not create a page from raw event text.
+- Use `maps/Profile Coverage.md` plus `--require-profile-coverage` to verify that all stable profile records are visible while raw annotations, events, and scheduling remain in the source layer.
+
+Run from the project root:
+
+```powershell
+python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync --dry-run
+python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync
+python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py reader-feedback --feedback <reader_feedback.json>
+python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>
+python .\skills\reader-learner\scripts\lint_visible_wiki.py --profile .\.agents\reader-learner\knowledge_profile.json --wiki .\.agents\wiki --strict --require-profile-coverage
+```
+
+The first command is a dry-run. The pipeline never mutates the profile during `sync`; feedback commands first use the strict profile importer with its backup behavior and only project the visible wiki after a successful import. Use `--no-bootstrap` only for a deliberately partial curation pass.
 
 ## Explanation Rules
 

@@ -9,7 +9,9 @@ shape, then delegates profile mutation to skills/reader-learner.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -97,6 +99,14 @@ def source_excerpt(item: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def handoff_concept_id(concept: str) -> str:
+    """Provide the strict handoff field without pretending news has reader-bundle IDs."""
+    slug = re.sub(r"[^a-z0-9]+", "-", concept.casefold()).strip("-")
+    if re.search(r"[a-z]", slug):
+        return slug[:120]
+    return "news-" + hashlib.sha1(concept.encode("utf-8")).hexdigest()[:12]
+
+
 def normalize_item(item: dict[str, Any], index: int, source_label: str, date_range: str) -> dict[str, Any]:
     concept = clean_text(item.get("concept") or item.get("term") or item.get("topic"), 600)
     if not concept:
@@ -110,9 +120,14 @@ def normalize_item(item: dict[str, Any], index: int, source_label: str, date_ran
     question = clean_text(item.get("user_question") or item.get("question"), 1600)
     status = valid_status(item.get("status"))
     needs_explanation = bool(item.get("needs_explanation") or question or status in {"unknown", "learning"})
+    annotation_kind = clean_text(item.get("annotation_kind") or "concept", 120)
+    if annotation_kind == "news_concept":
+        annotation_kind = "concept"
     return {
         "feedback_id": feedback_id,
         "concept": concept,
+        "concept_id": handoff_concept_id(concept),
+        "concept_type": clean_text(item.get("concept_type") or "term", 80),
         "status": status,
         "note": clean_text(item.get("note"), 1600),
         "user_question": question,
@@ -120,7 +135,8 @@ def normalize_item(item: dict[str, Any], index: int, source_label: str, date_ran
         "explanation_style": clean_text(item.get("explanation_style"), 200),
         "needs_explanation": needs_explanation,
         "block_id": block_id,
-        "annotation_kind": clean_text(item.get("annotation_kind") or "news_concept", 120),
+        "source_anchor": f"news-{index:03d}",
+        "annotation_kind": annotation_kind,
         "source_excerpt": excerpt,
         "selected_text": clean_text(item.get("selected_text") or concept, 1600),
         "selected_language": clean_text(item.get("selected_language") or "news", 80),

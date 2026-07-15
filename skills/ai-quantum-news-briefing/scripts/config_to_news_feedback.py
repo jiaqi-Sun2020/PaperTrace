@@ -6,10 +6,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+
+from briefing_contract import clean_text, feedback_id, normalize_briefing_config
 
 
 VALID_STATUSES = {"mastered", "known", "learning", "unknown", "unrated"}
@@ -26,10 +30,6 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def clean_text(value: Any, limit: int = 4000) -> str:
-    return " ".join(str(value or "").split()).strip()[:limit]
-
-
 def load_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8-sig") as handle:
         data = json.load(handle)
@@ -40,7 +40,16 @@ def load_json(path: Path) -> dict[str, Any]:
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=2)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, path)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
 
 
 def status_or_default(value: str) -> str:
@@ -65,20 +74,7 @@ def iter_config_items(config: dict[str, Any]) -> Iterable[tuple[str, dict[str, A
 
 
 def concept_list(item: dict[str, Any]) -> list[str]:
-    concepts = item.get("concepts") or []
-    if isinstance(concepts, str):
-        concepts = [concepts]
-    if not isinstance(concepts, list):
-        return []
-    cleaned: list[str] = []
-    seen: set[str] = set()
-    for concept in concepts:
-        text = clean_text(concept, 600)
-        key = text.casefold()
-        if text and key not in seen:
-            cleaned.append(text)
-            seen.add(key)
-    return cleaned
+    return list(item.get("concepts") or [])
 
 
 def source_excerpt(section_title: str, item: dict[str, Any]) -> str:
@@ -116,8 +112,9 @@ def dedupe_key(mode: str, concept: str, item: dict[str, Any], section_title: str
 
 
 def export_feedback(config: dict[str, Any], config_path: Path, status: str, dedupe: str) -> dict[str, Any]:
-    title = clean_text(config.get("briefing_title") or config.get("title") or "AI + Quantum News Briefing", 500)
-    date_range = clean_text(config.get("date_range") or config.get("date"), 200)
+    config = normalize_briefing_config(config, config_path, require_source_url=True)
+    title = clean_text(config.get("briefing_title") or "AI + Quantum News Briefing", 500)
+    date_range = clean_text(config.get("date_range"), 200)
     briefing_path = clean_text(config.get("briefing_path") or str(config_path), 1000)
     profile_path = clean_text(config.get("profile_path"), 1000)
     items: list[dict[str, Any]] = []
@@ -135,10 +132,10 @@ def export_feedback(config: dict[str, Any], config_path: Path, status: str, dedu
             if key in seen:
                 continue
             seen.add(key)
-            feedback_id = f"news::{concept}::{item_id or source_url or date_range or title}"
+            item_key = item_id or source_url or date_range or title
             items.append(
                 {
-                    "feedback_id": feedback_id,
+                    "feedback_id": feedback_id(item_key, concept),
                     "concept": concept,
                     "status": default_status,
                     "category": category,
@@ -156,6 +153,7 @@ def export_feedback(config: dict[str, Any], config_path: Path, status: str, dedu
                     "needs_explanation": False,
                     "action": "news_feedback",
                     "source_kind": "news_briefing",
+                    "concept_identity": f"{item_key}::{concept.casefold()}",
                 }
             )
 
@@ -177,12 +175,15 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--config", required=True, help="Path to news_feedback_config.json.")
     parser.add_argument("--output", help="Output news_feedback.json. Defaults beside config.")
     parser.add_argument("--status", default=DEFAULT_STATUS, choices=sorted(VALID_STATUSES), help="Default status for exported concepts.")
-    parser.add_argument("--dedupe", default="concept-source", choices=["concept", "concept-source", "none"], help="How to deduplicate exported concepts.")
+    parser.add_argument("--dedupe", default="none", choices=["concept", "concept-source", "none"], help="How to deduplicate exported concepts. Use none for interactive HTML parity.")
+    parser.add_argument("--allow-nonneutral-status", action="store_true", help="Explicitly allow a non-unrated export.")
     return parser.parse_args(list(argv))
 
 
 def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     args = parse_args(argv)
+    if args.status != DEFAULT_STATUS and not args.allow_nonneutral_status:
+        raise SystemExit("Non-unrated defaults require --allow-nonneutral-status; daily exposure must remain unrated.")
     config_path = Path(args.config).expanduser().resolve()
     output_path = (
         Path(args.output).expanduser().resolve()

@@ -1,0 +1,85 @@
+{
+  "paper": {
+    "title": "Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm",
+    "authors": ["Michael Rose", "David A. Mazziotti"],
+    "date": "2025-11-17",
+    "date_note": "arXiv v1 date; the manuscript states Submitted October 27, 2025",
+    "venue": "arXiv preprint",
+    "doi_or_arxiv": "arXiv:2511.13871v1 [quant-ph]",
+    "preprint": true,
+    "source_pdf": "2026/7/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm_reader/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm.pdf",
+    "reader_html": "2026/7/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm_reader/reader_interactive.html",
+    "validation_report": "2026/7/Many-Body Time Evolution from a Correlation-Efficient Quantum Algorithm_reader/reader_wiki/structure_validation_report.json",
+    "validation_status": "pass",
+    "validation_warnings": 11,
+    "reader_artifact": "reader_interactive.html",
+    "selected_formula_or_figure": "Eq. (10): |χ(t+ε)⟩ = e^{-iĤε}|ψ(t)⟩; Fig. 3: circuit-depth comparison between CETE and sequential evolution",
+    "source_page": "Eq. (10): p.2; Fig. 3: p.3",
+    "display_summary_zh": "CETE 将每个时间步重写为一次相关化问题；图 3 比较 CETE 与序列演化的线路深度。"
+  },
+  "news_briefing": {
+    "date_range": "2026-07-11 to 2026-07-13",
+    "academic_context_note": "Academic section uses a seven-day context window and does not claim every academic item was published inside the three-day briefing window.",
+    "briefing_markdown": "news/2026-07-11_to_2026-07-13/daily_briefing_2026-07-13.md",
+    "briefing_html": "news/2026-07-11_to_2026-07-13/briefing_reader_2026-07-13.html",
+    "feedback_artifact": "news/2026-07-11_to_2026-07-13/news_feedback_2026-07-13.json",
+    "manifest": "news/2026-07-11_to_2026-07-13/daily_pipeline_manifest_2026-07-13.json",
+    "verification_status": "complete; index_commit.committed=true",
+    "items": [
+      {
+        "id": "P002",
+        "title_zh": "Claude Code v2.1.207 扩展 Auto mode 并修复工作流可靠性问题",
+        "title_original": "Anthropic Claude Code GitHub Release v2.1.207",
+        "date": "2026-07-11",
+        "source": "Anthropic GitHub Release",
+        "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.207",
+        "category": "AI 开发工具",
+        "preprint": false,
+        "evidence_level": "官方发行说明",
+        "facts": "Anthropic 于 2026-07-11 发布 Claude Code v2.1.207；更新扩展 Auto mode，并修复流式输出、同意流程、worktree、Windows 凭据和插件 shell 注入相关问题。",
+        "judgment": "这是面向运行可靠性的版本级变化；已有非交互或 Windows 工作流应先做回归验证。",
+        "relevance": "日报自动化应把同意状态、持续输出、worktree 状态和凭据超时纳入升级后的冒烟测试。",
+        "artifact": "daily_briefing_2026-07-13.md / P002"
+      },
+      {
+        "id": "P003",
+        "title_zh": "IBM Quantum Q2 更新提供误差缓解工作流上下文",
+        "title_original": "IBM Quantum - What is new Q2 2026",
+        "date": "2026-07-08",
+        "source": "IBM Quantum",
+        "url": "https://www.ibm.com/quantum/blog/whats-new-q2-2026",
+        "category": "量子计算平台",
+        "preprint": false,
+        "evidence_level": "官方平台更新",
+        "facts": "IBM Quantum 的 Q2 2026 更新介绍定向执行，以及由 SLC、PEC、TREX 和后选择组成的模块化误差缓解工作流。",
+        "judgment": "这是官方平台工作流信息，而非经过同行评审的性能结论。",
+        "relevance": "设计量子实验时，可把编译、误差处理、执行和读出分开记录，形成可复审的实验台账。",
+        "artifact": "daily_briefing_2026-07-13.md / P003"
+      },
+      {
+        "id": "A001",
+        "title_zh": "PRX Quantum：利用良好 qLDPC 码加速容错量子计算",
+        "title_original": "PRX Quantum - Accelerating Fault-Tolerant Quantum Computation with Good qLDPC Codes",
+        "date": "2026-07-08",
+        "source": "PRX Quantum",
+        "url": "https://journals.aps.org/prxquantum/abstract/10.1103/3fj5-gn1h",
+        "category": "学术量子研究",
+        "preprint": false,
+        "evidence_level": "同行评审 PRX Quantum 论文",
+        "facts": "PRX Quantum 于 2026-07-08 发表同行评审论文，研究良好 qLDPC 码上的容错方案，并讨论并行 code surgery 与局部可测试态制备的资源开销。",
+        "judgment": "这是形式化的理论与方案证据，不是硬件演示；阅读其渐近优势时必须同时检查解码器、体系结构和资源态假设。",
+        "relevance": "评估纠错执行路线时，应把算法层传播结论与硬件层实际开销分开比较。",
+        "artifact": "daily_briefing_2026-07-13.md / A001"
+      }
+    ]
+  },
+  "connection": {
+    "mode": "shared-memory-only",
+    "statement_zh": "未发现所选论文与三条新闻之间的直接引用或因果关系；视频只展示它们分别进入同一套记忆系统。"
+  },
+  "privacy": {
+    "profile_content_used": false,
+    "private_feedback_used": false,
+    "allowed_structure_fields": ["concepts", "events", "sources", "review_queue"]
+  }
+}

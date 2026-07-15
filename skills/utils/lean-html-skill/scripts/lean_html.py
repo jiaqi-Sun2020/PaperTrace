@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Shared HTML post-processing utilities for PAPER skills."""
+"""Shared HTML post-processing utilities for PaperTrace skills."""
 
 from __future__ import annotations
 
@@ -675,6 +675,8 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
       <button class="lean-html-btn" type="button" id="lean-html-save">Save mark</button>
       <button class="lean-html-btn" type="button" id="lean-html-clear">Clear</button>
     </div>
+    <label for="lean-html-export-fallback">Copy fallback (always populated)</label>
+    <textarea id="lean-html-export-fallback" readonly aria-label="Feedback JSON fallback"></textarea>
     <p id="lean-html-active-source">No active report item.</p>
   </div>
   <div class="lean-html-saved">
@@ -700,6 +702,7 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
   const noteEl = document.getElementById('lean-html-note');
   const activeSourceEl = document.getElementById('lean-html-active-source');
   const savedList = document.getElementById('lean-html-saved-list');
+  const exportFallbackEl = document.getElementById('lean-html-export-fallback');
   function shortText(text, limit) {{
     text = String(text || '').trim();
     return text.length > limit ? text.slice(0, limit - 1) + '...' : text;
@@ -851,6 +854,7 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
   }}
   function download() {{
     const data = JSON.stringify(exportPayload(), null, 2);
+    exportFallbackEl.value = data;
     const blob = new Blob([data], {{type: 'application/json;charset=utf-8'}});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -863,7 +867,8 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
   }}
   async function copy() {{
     const data = JSON.stringify(exportPayload(), null, 2);
-    await navigator.clipboard.writeText(data);
+    exportFallbackEl.value = data;
+    try {{ await navigator.clipboard.writeText(data); }} catch (error) {{ exportFallbackEl.focus(); exportFallbackEl.select(); }}
     alert('已复制 feedback2 JSON，可直接粘给 Codex。');
   }}
   document.getElementById('lean-html-annotate-selection').addEventListener('click', () => {{
@@ -893,6 +898,7 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
   loadMarks();
   statusEl.value = DEFAULT_STATUS;
   renderMarks();
+  exportFallbackEl.value = JSON.stringify(exportPayload(), null, 2);
 }})();
 </script>
 {MARKER_END}

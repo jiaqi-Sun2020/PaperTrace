@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -93,15 +94,15 @@ def cmd_mark(args: argparse.Namespace) -> int:
 
 def cmd_review(args: argparse.Namespace) -> int:
     profile_path = profile_path_from_args(args)
-    profile = ensure_v2(load_json(profile_path))
-    queue = sorted(profile.get("review_queue", []), key=lambda item: (-int(item.get("priority") or 0), item.get("due_at") or ""))
-    print(f"Profile: {profile_path}")
-    print(f"Review items: {len(queue)}")
-    for item in queue[: args.limit]:
-        print(f"- P{item.get('priority', 0)} {item.get('concept_id')}: {item.get('status')} / {item.get('facet')} / due {item.get('due_at')}")
-        if item.get("reason"):
-            print(f"  reason: {item.get('reason')}")
-    return 0
+    # Compatibility shim: teaching ordering belongs to adaptive-teach.  This
+    # command remains read-only for existing scripts and never mutates profile data.
+    adaptive = Path(__file__).resolve().parents[2] / "adaptive-teach" / "scripts" / "adaptive_teach.py"
+    if not adaptive.exists():
+        raise FileNotFoundError("adaptive-teach is required for review ordering; install skills/adaptive-teach")
+    return subprocess.run(
+        [sys.executable, str(adaptive), "review", "--profile", str(profile_path), "--limit", str(args.limit)],
+        check=False,
+    ).returncode
 
 
 def cmd_obsidian(args: argparse.Namespace) -> int:

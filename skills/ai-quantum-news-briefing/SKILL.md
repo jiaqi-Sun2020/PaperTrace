@@ -7,6 +7,14 @@ description: Create concise, source-grounded AI and quantum technology briefings
 
 Use this skill to produce the user's recurring Chinese news briefings on AI, frontier models, agentic AI, industry/regulation, academic trends, and quantum physics/quantum computing.
 
+## Pipeline Identity and Terminal Gate
+
+This skill owns **Primary Pipeline 2: AI + Quantum Daily Briefing Release**. It is distinct from Pipeline 1 paper PDF-to-HTML, Pipeline 3 local chat-to-profile import, and Pipeline 4 adaptive teaching decisions/evidence return.
+
+For a daily or multi-day briefing request, candidate pools, venue ledgers, Markdown, and `news_feedback_config.json` are internal artifacts. The pipeline completes only after `daily_pipeline.py run -> verify -> finalize -> verify` succeeds and the published directory contains the interactive briefing HTML, full default-`unrated` `news_feedback.json`, Markdown briefing, normalized delta config, release manifest, and atomically updated story index. The primary reader-facing artifact is the briefing HTML; do not report candidate/config generation as completion.
+
+Optional news-feedback import is a downstream learner-profile handoff. It does not replace or weaken the daily publication gate.
+
 ## Core Workflow
 
 1. Determine the time window.
@@ -22,23 +30,23 @@ Use this skill to produce the user's recurring Chinese news briefings on AI, fro
    - For broad AI candidate discovery, read `references/integration-aihot.md` and fetch the latest AI HOT selected pool:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <YYYY-MM-DD> --output C:\Users\SSS\Desktop\PAPER\news\<YYYY-MM-DD>\aihot_candidates_<YYYY-MM-DD>.json
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <YYYY-MM-DD> --output D:\AI\PaperTrace\news\<YYYY-MM-DD>\aihot_candidates_<YYYY-MM-DD>.json
 ```
 
    - Treat AI HOT as a candidate source. Verify important final claims against original URLs, official blogs, publisher pages, paper pages, or reliable media.
    - For academic items, do not start and stop at arXiv. Generate a compact venue sweep when the topic is research-frontier material:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\academic_venue_sweep.py --term "<topic keywords>" --date-range "<YYYY-MM-DD..YYYY-MM-DD>" --format json --output C:\Users\SSS\Desktop\PAPER\news\<YYYY-MM-DD>\academic_search.json
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\academic_venue_sweep.py --term "<topic keywords>" --date-range "<YYYY-MM-DD..YYYY-MM-DD>" --format json --fetch --output D:\AI\PaperTrace\news\<YYYY-MM-DD>\academic_search.json
 ```
 
-   - Copy the resulting ledger into top-level `academic_search` in the final briefing config. If searches were actually completed and non-arXiv venues had no primary hit, use `--mark-checked-no-hit` or manually record `checked_venues`, `primary_hits`, and `status`.
+   - Copy the resulting ledger into top-level `academic_search` in the final briefing config. A venue is checked only when the ledger contains auditable official HTTP evidence; generated search URLs or a manually asserted `checked_no_hit` are not evidence.
 
 3. For recurring daily briefings, make the report delta-first.
    - Before drafting, read only the compact recent story context, not whole previous Markdown reports:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\news_delta.py context --index C:\Users\SSS\Desktop\PAPER\news\_index\story_index.jsonl --date <YYYY-MM-DD> --days 7
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\news_delta.py context --index D:\AI\PaperTrace\news\_index\story_index.jsonl --date <YYYY-MM-DD> --days 7
 ```
 
    - Treat the daily value as new information per reading cost.
@@ -61,6 +69,30 @@ python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\news_d
    - Personalized research observation for QWTA / CTQW / Quantum Walk GNN / AI for Quantum
    - One-sentence summary
 
+### Mandatory Academic Delivery
+
+`daily_pipeline.py run` defaults to `academic_delivery.required=true` with `minimum_items=5`. Include five distinct paper-level records in a dedicated `Academic research and venue evidence` section. The section must include at least one formal primary academic source from an approved venue or publisher (for example PRL/PRA/PRX/PRX Quantum, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, or Quantum Journal). arXiv is required in the search coverage and may supply timely preprint context, but an all-arXiv academic delivery is invalid.
+
+Search PRL, PRA, PRX/PRX Quantum, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv; the `academic_search` evidence ledger must cover each venue with auditable official HTTPS evidence. A company quantum blog, venue landing page, search page, or a venue check without an individual formal paper record does not satisfy the required non-arXiv item.
+
+If neither the requested window nor clearly labeled recent academic context has a defensible formal academic item, use an explicit opt-out with a concrete `no_signal_reason`; do not silently omit the academic section or invent a publication.
+
+Count five distinct, paper-level records with a primary article/DOI/preprint URL and a source-specific evidence fingerprint. At least one record must have a non-arXiv primary URL and a formal `evidence_level` such as `peer-reviewed venue` or `conference proceedings`. A journal landing page, one search result, a company platform update, or five paraphrases of one paper never satisfies the five-paper delivery. If the requested window has only new arXiv papers, widen the academic context window to find a defensible recent formal paper, label it as `near 7-day academic context`, and retain its actual publication date; never present it as same-day publication.
+
+### Mandatory Social News Delivery
+
+Every daily briefing must also contain a separate `Social news` / `社会新闻` section with at least one verified, non-academic source-backed item. This is a second required page section, not a subsection of academic research and not an optional add-on. Suitable coverage includes policy and regulation, public-sector deployment, labor and education, social impact, infrastructure, industry, funding, or market developments. A paper, preprint, venue ledger, company research blog, or an empty “no signal” placeholder cannot satisfy this section.
+
+Build the social-news candidate pool from AI HOT; reliable news media (for example Reuters, AP, FT, WSJ, Bloomberg, and relevant local outlets); official X and Instagram accounts of leading AI companies; and official posts by their named executives. Prioritize original company, government, regulator, or publisher pages for final evidence. X/Instagram may surface candidates and may be the primary source only for an attributable announcement from the verified official organization or executive account; label it as an official social post and never turn reposts, rumors, or engagement metrics into facts.
+
+Before curation, persist a `social_candidate_pool` object in the source config. It must record all four required source classes (`ai_hot`, `reputable_media`, `official_company_social`, `executive_social`), the collection timestamp, and the saved AI HOT candidate artifact when available. This records the breadth of discovery; it does not require a final item from every class. Every promoted social item must retain `source_title`, a direct `source_url`, `published_at`, `evidence_level`, and an `evidence_fingerprint`. The config audit treats a missing class, timestamp, dedicated section, or source-backed final item as a blocking delivery failure.
+
+The final delta config must retain both required sections: the academic research section and the social-news section. Delta compaction may shorten continuing social stories to one line, but must not remove the final social-news section or reduce it below one independently source-grounded item.
+
+### Chinese Analysis Contract
+
+For daily and multi-day briefings, set `analysis_language` to `zh-CN` unless the user explicitly requests another language. Every published item must contain Chinese prose in `facts`, `judgment`, and `relevance`; retain paper titles, source titles, model names, DOI, arXiv IDs, and other proper nouns in their precise original form where translation would lose meaning. Treat missing or English-only analysis fields as a configuration-audit failure, not a presentation preference.
+
 5. Distinguish fact from interpretation.
    - Use "事实:" for source-supported events when useful.
    - Use "判断:" or "对你的启发:" for analysis.
@@ -73,6 +105,21 @@ python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\news_d
 
 ## HTML Feedback Workflow
 
+## Encoding And Text Integrity Contract
+
+Unicode correctness is a data contract, not a browser styling option. Candidate config, delta config, Markdown, feedback JSON, and HTML must be read as UTF-8 (`utf-8-sig` input compatibility) and written as UTF-8 with `ensure_ascii=False`. A file being technically UTF-8 cannot repair text that was already replaced by literal `?` characters upstream.
+
+Before normalization or rendering:
+
+- Generate multilingual config from a UTF-8 file or a UTF-8-aware Python process. Do not pipe Chinese source text through a default PowerShell/code-page here-string.
+- Treat `?` as ordinary data only when it is a real question mark or URL query delimiter. High-density `?` in human-readable fields and `U+FFFD` are blocking corruption signals.
+- Never repair corrupted text by deleting or globally replacing `?`; regenerate the fact from the candidate/source record.
+- Treat historical `story_index` summaries as untrusted input. A corrupt prior summary may be omitted from a continuing item, but must never be copied into new Markdown/HTML.
+
+If the encoding audit fails, stop before staging/finalizing. Recreate the affected input from a UTF-8 file, rerun the config audit, and only then regenerate Markdown, HTML, and feedback JSON. Do not use a visually plausible HTML page as evidence that the source data survived intact.
+
+The shared normalizer enforces this contract before `daily_pipeline.py run`. Final `verify` additionally checks visible HTML text, UTF-8 metadata, Chinese UI markers, and replacement-character absence. A report with encoding validation failure is not publishable.
+
 Use this when the user wants to read a briefing like a lightweight reader page and collect feedback before updating `.agents`. For shared HTML shell behavior or second-pass report feedback, use `skills/utils/lean-html-skill`; keep this skill focused on news sourcing, briefing structure, and news-feedback normalization.
 
 Read `references/news-html-feedback.md` before changing the HTML config or feedback export format.
@@ -82,7 +129,7 @@ Workflow:
 2. Generate the interactive HTML. The page embeds every extracted concept as a saved feedback item with default `unrated`, and also writes the same full-concept `news_feedback.json` beside the HTML:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py --config <news_feedback_config.json> --output <briefing_reader.html> --default-status unrated
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py --config <news_feedback_config.json> --output <briefing_reader.html> --default-status unrated
 ```
 
 3. In the HTML, click concept chips or select arbitrary text only for corrections, explicit ratings, or extra questions.
@@ -93,9 +140,11 @@ python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\briefi
 
 The HTML page is a collection layer only. It must not write `.agents` directly.
 
+Reader encoding acceptance requires `<meta charset="utf-8">`, a successful UTF-8 round trip, no `U+FFFD` or corruption-pattern question marks in visible text, and Chinese UI markers such as `事实`, `判断`, and `来源`. The concept-chip and feedback identity sets must remain equal.
+
 If a generated explanation/report HTML needs another feedback round after import, call `lean-html-skill` to attach `news_feedback2.json` export controls instead of duplicating the feedback panel here.
 
-Downstream `read-feedback-skill` reports use `category`, `status`, `source_title`, `source_url`, and `source_excerpt` to render the layered news knowledge map. Preserve those fields in `news_feedback.json` and normalized reader-feedback handoffs.
+Preserve `category`, `status`, `source_title`, `source_url`, and `source_excerpt` in `news_feedback.json` and normalized reader-feedback handoffs for source-grounded profile evidence and future pipeline-owned views.
 
 ## Learner Profile Update Workflow
 
@@ -116,10 +165,18 @@ Workflow:
 2. Run:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\import_news_feedback.py --feedback <news_feedback.json> --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\import_news_feedback.py --feedback <news_feedback.json> --profile D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json
 ```
 
 3. Report how many concepts were imported and where the normalized `*_reader_feedback.json` handoff file was written.
+
+For the normal user-facing path, import and synchronize the persistent visible Wiki in one command:
+
+```powershell
+python D:\AI\PaperTrace\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>
+```
+
+This preserves the news normalizer and strict profile-import backup, then projects all stable profile records into `.agents/wiki/`.
 
 ## Company Report Tracking
 
@@ -147,9 +204,9 @@ Always include a quantum section when the user previously asked for AI + quantum
 
 Read `references/academic-source-policy.md` before academic-frontier searches. Do not rely only on arXiv when the topic plausibly appears in APS PRL/PRA/PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum journal, or other primary venue pages.
 
-For academic or quantum configs, include top-level `academic_search`. The adversarial audit fails if this ledger is missing or does not cover PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv. If the user says "ICLA", treat it as ICLR unless context proves otherwise.
+For academic or quantum configs, include top-level `academic_search`. The adversarial audit fails if this ledger is missing, lacks real HTTP evidence, or does not cover PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv. If the user says "ICLA", treat it as ICLR unless context proves otherwise.
 
-For arXiv-only academic items, set `evidence_level` to `arXiv preprint` and add `venue_sweep_note` explaining which primary venues were checked. Prefer PRL/PRA/PRX/PRX Quantum, Nature Portfolio, Science/AAAS, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, and Quantum Journal URLs whenever available.
+For each arXiv academic item, set `evidence_level` to `arXiv preprint` and add `venue_sweep_note` explaining which primary venues were checked. Such items may supplement the academic section, but cannot make the entire daily academic delivery arXiv-only. Prefer PRL/PRA/PRX/PRX Quantum, Nature Portfolio, Science/AAAS, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, and Quantum Journal URLs whenever available.
 
 Prioritize:
 - quantum computing hardware
@@ -203,10 +260,13 @@ Before finalizing:
 - Separate company self-promotion from independently verified results.
 - Ensure quantum items are not old papers unless the user asked for background.
 - Ensure academic configs include top-level `academic_search`; if missing or incomplete, run `scripts/academic_venue_sweep.py`, search primary venues, and record the compact ledger before finalizing.
-- Ensure arXiv-only academic items include `venue_sweep_note`; arXiv-only claims must remain labeled as preprints.
+- When academic delivery is required, verify the final delta config contains its dedicated academic section, the configured number of formal venue/arXiv items, and at least one individual non-arXiv formal paper record. A complete venue-search ledger does not excuse an all-arXiv delivery.
+- Verify the final delta config also contains a distinct `社会新闻` / `Social news` section with at least one verified non-academic item; do not let academic backfill or delta compaction erase this second required section.
+- Default daily `facts`, `judgment`, and `relevance` to Chinese analysis. Preserve source titles, paper titles, model names, acronyms, and other proper nouns when translation would reduce precision.
+- Ensure arXiv items include `venue_sweep_note` and remain labeled as preprints. Do not finalize a daily briefing whose academic delivery is all arXiv, even if every preprint is correctly labeled.
 - Include a short "给你的科研观察" section.
 - Run the adversarial config audit before rendering final HTML:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py --config <news_feedback_config.json>
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py --config <news_feedback_config.json>
 ```

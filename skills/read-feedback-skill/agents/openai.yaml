@@ -1,4 +1,0 @@
-interface:
-  display_name: "Read Feedback"
-  short_description: "Deep research analysis from feedback"
-  default_prompt: "Use $read-feedback-skill to generate a source-grounded research deep dive with derivations and HTML from reader feedback."

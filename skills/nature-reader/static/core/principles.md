@@ -2,7 +2,9 @@
 
 Use this skill to turn a research paper into a complete Markdown reading artifact. The default output is a source-grounded Chinese-English paper reader, not a summary.
 
-## Required Output
+## Required Internal State and Final Output
+
+Treat the Markdown bundle as internal evidence, not the PDF-to-HTML deliverable. When the request asks for interactive HTML, continue until `reader_interactive.html` exists and the publishing adversarial audit passes; only that audited HTML is the final user-facing artifact.
 
 - Keep extractable prose, paragraph structure, section flow, equations, units, citation markers, and hedging.
 - Show original text and faithful Chinese translation together at block level.
@@ -10,12 +12,13 @@ Use this skill to turn a research paper into a complete Markdown reading artifac
 - Keep captions attached to figures/tables with English caption text and faithful Chinese caption translation.
 - Preserve stable page and block anchors for traceability.
 - Write `paper.md`, `source_map.json`, `translation_notes.md`, and `assets/` by default.
+- Use those files to generate and formally audit `reader_interactive.html`; do not stop or report success at the bundle stage.
 
 ## Translation Rule
 
 Translate faithfully at paragraph/block level. The `**中文:**` field must be a translation of the matching `**Original:**` field.
 
-Codex must translate directly by default. Do not search for or require local translation models, SDKs, packages, or services before translating unless the user explicitly requests that tool. Missing external translators are optional-tool limitations, not blockers for a normal paper-reader task.
+The current-session primary model must directly author every block-level Chinese translation, block-specific note, and LaTeX reconstruction. Do not delegate those semantic fields to an offline translator, external API, local model, secondary model, or script. Tools may extract evidence, validate, compile, and render, but are not content authors. This is product-neutral and does not depend on a particular agent brand.
 
 Do not put any of the following in `**中文:**`:
 
@@ -33,6 +36,21 @@ Put interpretive material in `**注释:**` instead. If no faithful translation e
 Do not leave generic note scaffolds in final output. A note must say what this specific block does in the paper. Phrases like `这一块用于定位原文、公式、图表或实验论证` or generic feedback instructions are draft scaffolding and must be removed before final HTML.
 
 Figures, tables, and formulas are first-class reading objects. Final output must include tight figure/table crops or semantic tables with translated captions, and formulas must be reconstructed as LaTeX display math rather than raw PDF extraction noise.
+
+Formula rendering is bilingual evidence, not decoration. Within one source
+block, Original and Chinese must expose the same ordered LaTeX components with
+the same inline/display presentation. Keep headings outside the language
+fields so both panels retain the same block boundary.
+
+Formula rendering is bilingual evidence, not decoration. Within one source
+block, Original and Chinese must expose the same ordered LaTeX components with
+the same inline/display presentation. Keep headings outside the language
+fields so both panels retain the same block boundary.
+
+Formula rendering is bilingual evidence, not decoration. Within one source
+block, Original and Chinese must expose the same ordered LaTeX components with
+the same inline/display presentation. Keep headings outside the language
+fields so both panels retain the same block boundary.
 
 ## Block Shape
 

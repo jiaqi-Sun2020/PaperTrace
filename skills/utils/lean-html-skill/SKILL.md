@@ -1,6 +1,6 @@
 ---
 name: lean-html-skill
-description: Render or post-process shared standalone HTML layers for PAPER skills, including compact report shells, reusable embedded CSS/JS, Cosmic Sci-Fi Product Design System styling, and manual feedback export panels that produce reader_feedback2.json or news_feedback2.json. Use when reader-skill, read-feedback-skill, ai-quantum-news-briefing, or another PAPER skill needs HTML output, interactive concept/freeform annotation, copy/download feedback JSON, professional futuristic web styling, or wants to avoid duplicating HTML/feedback UI logic inside domain-specific skills.
+description: Render or post-process shared standalone HTML layers for PaperTrace skills, including compact report shells, reusable embedded CSS/JS, Cosmic Sci-Fi Product Design System styling, and manual feedback export panels that produce reader_feedback2.json or news_feedback2.json. Use when reader-skill, ai-quantum-news-briefing, adaptive-teach, or another PaperTrace skill needs HTML output, interactive concept/freeform annotation, copy/download feedback JSON, professional futuristic web styling, or wants to avoid duplicating HTML/feedback UI logic inside domain-specific skills.
 ---
 
 # Lean HTML Skill
@@ -9,7 +9,7 @@ description: Render or post-process shared standalone HTML layers for PAPER skil
 
 Keep HTML rendering concerns out of domain skills. Paper/news skills should prepare structured data and source-grounded content; this utility owns shared standalone HTML behavior, especially manual feedback export.
 
-Use this skill when a PAPER skill needs:
+Use this skill when a PaperTrace skill needs:
 
 - a standalone HTML artifact with embedded CSS/JS;
 - a shared reader/report HTML shell for domain-specific body content;
@@ -62,37 +62,37 @@ Design layer rules:
 Attach a feedback2 panel to an existing report HTML:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py attach-feedback --html <report.html> --feedback <reader_or_news_feedback.json>
+python D:\AI\PaperTrace\skills\utils\lean-html-skill\scripts\lean_html.py attach-feedback --html <report.html> --feedback <reader_or_news_feedback.json>
 ```
 
 Write to a separate file:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py attach-feedback --html <report.html> --feedback <feedback.json> --output <report_interactive.html>
+python D:\AI\PaperTrace\skills\utils\lean-html-skill\scripts\lean_html.py attach-feedback --html <report.html> --feedback <feedback.json> --output <report_interactive.html>
 ```
 
 Use the legacy visual layer only when needed:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py attach-feedback --html <report.html> --feedback <feedback.json> --design-system classic
+python D:\AI\PaperTrace\skills\utils\lean-html-skill\scripts\lean_html.py attach-feedback --html <report.html> --feedback <feedback.json> --design-system classic
 ```
 
 Apply only the Cosmic visual layer without adding a feedback2 panel:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py apply-design --html <report.html> --design-system cosmic
+python D:\AI\PaperTrace\skills\utils\lean-html-skill\scripts\lean_html.py apply-design --html <report.html> --design-system cosmic
 ```
 
 Default to the white background and keep Cosmic as a user-selectable option:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py apply-design --html <report.html> --design-system cosmic --background-mode light
+python D:\AI\PaperTrace\skills\utils\lean-html-skill\scripts\lean_html.py apply-design --html <report.html> --design-system cosmic --background-mode light
 ```
 
 Audit the applied visual layer:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\utils\lean-html-skill\scripts\lean_html.py audit-design --html <report.html>
+python D:\AI\PaperTrace\skills\utils\lean-html-skill\scripts\lean_html.py audit-design --html <report.html>
 ```
 
 The script detects news feedback and exports `news_feedback2.json`; otherwise it exports `reader_feedback2.json`.
@@ -103,7 +103,7 @@ All feedback controls default new marks to `unrated` unless the source feedback 
 Domain skills should follow this split:
 
 1. Build structured content: concepts, sections, source titles/URLs, excerpts, profile status, explanation cards.
-2. Render or provide the domain-specific body. For example, `reader-skill` owns bilingual source blocks, and `read-feedback-skill` owns the layered news knowledge map.
+2. Render or provide the domain-specific body. For example, `reader-skill` owns bilingual source blocks, `ai-quantum-news-briefing` owns daily briefing content, and `adaptive-teach` owns lesson content.
 3. Use this utility for reusable standalone HTML shell behavior and shared annotation/export controls.
 4. Tell the user the HTML only collects feedback; profile updates still require `reader-learner` or `ai-quantum-news-briefing/scripts/import_news_feedback.py`.
 

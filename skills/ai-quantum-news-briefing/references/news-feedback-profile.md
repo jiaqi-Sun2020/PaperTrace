@@ -22,7 +22,7 @@ Create a JSON file shaped like:
   "news_feedback_version": 1,
   "briefing_title": "AI + Quantum News Briefing - 2026-07-04",
   "date_range": "2026-07-04",
-  "briefing_path": "C:\\Users\\SSS\\Desktop\\PAPER\\news\\2026-07-04.md",
+  "briefing_path": "C:\\Users\\SSS\\Desktop\\PaperTrace\\news\\2026-07-04.md",
   "items": [
     {
       "concept": "quantum error correction",
@@ -65,17 +65,25 @@ Question types may reuse reader feedback categories:
 When a briefing config already contains `concepts`, create full feedback automatically:
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\config_to_news_feedback.py --config <news_feedback_config.json> --output <news_feedback.json> --status unrated
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\config_to_news_feedback.py --config <news_feedback_config.json> --output <news_feedback.json> --status unrated
 ```
 
 ```powershell
-python C:\Users\SSS\Desktop\PAPER\skills\ai-quantum-news-briefing\scripts\import_news_feedback.py --feedback <news_feedback.json> --profile C:\Users\SSS\Desktop\PAPER\.agents\reader-learner\knowledge_profile.json
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\import_news_feedback.py --feedback <news_feedback.json> --profile D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json
 ```
 
 The script writes a normalized `*_reader_feedback.json` file next to the news feedback and delegates the actual profile mutation to:
 
 ```text
 skills/reader-learner/scripts/import_reader_feedback.py
+```
+
+The normalized handoff supplies strict `concept_id`, `concept_type`, and `source_anchor` fields while keeping `source_kind: news_briefing`. News feedback is not a paper reader bundle, so it must not fabricate reader-bundle provenance.
+
+For the profile-plus-visible-Wiki path, run from `D:\AI\PaperTrace`:
+
+```powershell
+python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>
 ```
 
 Use `--no-import` when you only want to inspect the normalized handoff JSON.

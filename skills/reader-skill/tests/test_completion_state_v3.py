@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+"""Regression tests for formal-reader-v3 resumable completion state."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[3]
+SCRIPTS = ROOT / "skills" / "reader-skill" / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+NATURE_SCRIPTS = ROOT / "skills" / "nature-reader" / "scripts"
+if str(NATURE_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(NATURE_SCRIPTS))
+
+from completion_state import (  # noqa: E402
+    atomic_write_json,
+    canonical_path,
+    compile_canonical_markdown,
+    ensure_object_inventory,
+    formal_status_path,
+    load_all_records,
+    mark_stale,
+    reader_is_formal_ready,
+    record_path,
+    render_progress_html,
+    seed_records,
+    sha256_file,
+    update_run_state,
+    write_record,
+)
+from reader_wiki_compile import compile_reader_wiki  # noqa: E402
+from markdown_reader_to_html import markdown_inline  # noqa: E402
+from preflight_reader_bundle import build_preflight_manifest, write_json as write_preflight_json  # noqa: E402
+
+
+PIXEL = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=")
+CONVERTER = ROOT / "skills" / "reader-skill" / "scripts" / "markdown_reader_to_html.py"
+AUDIT = ROOT / "skills" / "reader-skill" / "tests" / "adversarial_html_audit.py"
+
+
+def write_json(path: Path, value: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def source_map() -> dict:
+    return {
+        "version": 2,
+        "paper": {
+            "title": "V3 Fixture Paper",
+            "authors": "PaperTrace",
+            "source_type": "fixture",
+            "page_count": 1,
+            "source_pdf_sha256": "a" * 64,
+        },
+        "blocks": [
+            {"id": "S001", "page": 1, "type": "paragraph", "original_text": "A grounded statement about a quantum circuit."},
+            {"id": "E001", "page": 1, "type": "equation_or_formula", "original_text": "The amplitude is \\[x^2+y^2\\]."},
+            {"id": "A001", "page": 1, "type": "algorithm", "original_text": "1: Input circuit\n2: Output result"},
+            {"id": "R001", "page": 1, "type": "reference", "original_text": "[1] Grounded Reference, 2026."},
+        ],
+        "pages": [],
+        "figures": [{"id": "F001", "page": 1, "caption_original": "Figure 1. Fixture object.", "source_page_image": "assets/source_pages/page-01.png"}],
+        "tables": [{"id": "T001", "page": 1, "caption_original": "Table 1. Fixture data."}],
+        "algorithms": [{"id": "A001", "page": 1, "source_block_id": "", "original_text": "1: Input\\n2: Output"}],
+    }
+
+
+def complete_records(reader: Path) -> None:
+    assets = reader / "assets"
+    assets.mkdir(parents=True, exist_ok=True)
+    figure_asset = assets / "figure-f001.png"
+    figure_asset.write_bytes(PIXEL)
+    seed_records(reader)
+    for record in load_all_records(reader):
+        kind = record["record_kind"]
+        if kind == "block":
+            if record["source_anchor"] == "S001":
+                record.update({"original": "A grounded statement about a quantum circuit.", "zh": "一条关于量子电路的可追溯陈述。", "notes": "用于验证逐块状态。"})
+            elif record["source_anchor"] == "E001":
+                record.update({"original": "The amplitude is \\[x^2+y^2\\].", "zh": "振幅为 \\[x^2+y^2\\]。", "notes": "双语两侧保留同一可验证 LaTeX。"})
+            else:
+                record.update({"original": "1: Input circuit\n2: Output result", "zh": "1：输入量子电路\n2：输出结果", "notes": "算法源块与对象卡分别登记。"})
+            record["status"] = "pass"
+        elif kind == "formula":
+            record.update({"original": "\\[x^2+y^2\\]", "zh": "", "notes": "由对应原文块保留。", "status": "pass"})
+        elif kind == "reference":
+            record.update({"original": "[1] Grounded Reference, 2026.", "zh": "", "notes": "原文参考文献，不翻译。", "status": "pass"})
+        elif kind == "figure":
+            record.update({
+                "notes": "对象级裁剪资产。", "status": "pass",
+                "object_metadata": {**record["object_metadata"], "asset_path": "assets/figure-f001.png", "asset_sha256": sha256_file(figure_asset), "bbox": [0, 0, 1, 1], "original_caption": "Figure 1. Fixture object.", "zh_caption": "图 1：测试对象。"},
+            })
+        elif kind == "table":
+            record.update({
+                "notes": "语义表。", "status": "pass",
+                "object_metadata": {**record["object_metadata"], "representation": "semantic_table", "markdown_table": "| Metric | Value |\n| --- | --- |\n| Fidelity | 1.0 |", "original_caption": "Table 1. Fixture data.", "zh_caption": "表 1：测试数据。"},
+            })
+        elif kind == "algorithm":
+            record.update({
+                "notes": "逐行算法。", "status": "pass",
+                "object_metadata": {**record["object_metadata"], "original_steps": ["Input circuit", "Output result"], "zh_steps": ["输入量子电路", "输出结果"]},
+            })
+        write_record(reader, record)
+
+
+def complete_inventory(reader: Path) -> None:
+    inventory_path = ensure_object_inventory(reader)
+    inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+    for row in inventory["objects"]:
+        if row["id"] == "F001":
+            row.update({"asset_path": "assets/figure-f001.png", "bbox": [0, 0, 1, 1], "representation": "tight_crop", "status": "complete"})
+        elif row["id"] == "T001":
+            row.update({"representation": "semantic_table", "status": "complete"})
+        elif row["id"] == "A001":
+            row.update({"representation": "structured_steps", "status": "complete"})
+    write_json(inventory_path, inventory)
+
+
+def make_reader(base: Path) -> Path:
+    reader = base / "reader"
+    reader.mkdir()
+    write_json(reader / "source_map.json", source_map())
+    complete_records(reader)
+    complete_inventory(reader)
+    compile_canonical_markdown(reader, materialize_paper=True)
+    preflight, issues = build_preflight_manifest(reader)
+    if issues:
+        raise AssertionError(f"fixture preflight unexpectedly failed: {issues}")
+    write_preflight_json(reader / "reader_wiki" / "preflight_manifest.json", preflight)
+    state = update_run_state(reader)
+    if state["status"] != "pass":
+        raise AssertionError(f"fixture state is not pass: {state}")
+    return reader
+
+
+def run(command: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(command, cwd=ROOT, text=True, encoding="utf-8", errors="replace", capture_output=True)
+
+
+def main() -> int:
+    with tempfile.TemporaryDirectory(prefix="completion_v3_", dir=ROOT) as temporary:
+        reader = make_reader(Path(temporary))
+
+        # Resume must retain same-source completed records byte-for-byte except
+        # no record is rewritten by seeding.
+        block_path = record_path(reader, "block:S001")
+        before = block_path.read_bytes()
+        seed_records(reader)
+        if block_path.read_bytes() != before:
+            raise AssertionError("same-source pass record was overwritten on resume")
+
+        progress = render_progress_html(reader)
+        progress_text = progress.read_text(encoding="utf-8")
+        if progress.name != "reader_progress.html" or "INCOMPLETE / NOT FORMAL" not in progress_text:
+            raise AssertionError("progress artifact is not clearly non-formal")
+        if any(token in progress_text for token in ("downloadFeedback", "readerFeedbackSeed", "knowledge_profile")):
+            raise AssertionError("progress artifact exposes formal interaction/profile contracts")
+
+        mark_stale(reader, ["test legacy HTML invalidation"])
+        if json.loads(formal_status_path(reader).read_text(encoding="utf-8"))["status"] != "stale":
+            raise AssertionError("stale status was not persisted")
+        if not reader_is_formal_ready(reader)[0]:
+            raise AssertionError("stale old HTML incorrectly blocks a newly complete v3 state")
+
+        compile_reader_wiki(reader, strict=True)
+        converted = run([sys.executable, str(CONVERTER), str(reader)])
+        if converted.returncode:
+            raise AssertionError(f"converter failed\n{converted.stdout}\n{converted.stderr}")
+        audited = run([sys.executable, str(AUDIT), str(reader)])
+        if audited.returncode:
+            raise AssertionError(f"audit failed\n{audited.stdout}\n{audited.stderr}")
+        if not (reader / "reader_wiki" / "formal_artifact_manifest.json").is_file():
+            raise AssertionError("formal artifact manifest was not written after audit")
+
+        # A formula component on only one language side must invalidate the
+        # normalized reader before HTML generation.
+        formula_block_path = record_path(reader, "block:E001")
+        formula_block = json.loads(formula_block_path.read_text(encoding="utf-8"))
+        formula_block["zh"] = "振幅表达式包含平方和。"
+        write_json(formula_block_path, formula_block)
+        compile_canonical_markdown(reader, materialize_paper=True)
+        try:
+            compile_reader_wiki(reader, strict=True)
+        except ValueError as exc:
+            if "formula components are not one-to-one aligned" not in str(exc):
+                raise AssertionError(f"wrong asymmetric-formula failure: {exc}")
+        else:
+            raise AssertionError("reader-wiki accepted an Original-only formula component")
+        formula_block["zh"] = "振幅为 \\[x^2+y^2\\]。"
+        write_json(formula_block_path, formula_block)
+        compile_canonical_markdown(reader, materialize_paper=True)
+
+        heading_block = json.loads(block_path.read_text(encoding="utf-8"))
+        original_heading_zh = heading_block["zh"]
+        heading_block["zh"] = "# 错误的字段内标题\n\n" + original_heading_zh
+        write_json(block_path, heading_block)
+        compile_canonical_markdown(reader, materialize_paper=True)
+        try:
+            compile_reader_wiki(reader, strict=True)
+        except ValueError as exc:
+            if "Markdown heading inside a bilingual field" not in str(exc):
+                raise AssertionError(f"wrong field-heading failure: {exc}")
+        else:
+            raise AssertionError("reader-wiki accepted a field-local Markdown heading")
+        heading_block["zh"] = original_heading_zh
+        write_json(block_path, heading_block)
+        compile_canonical_markdown(reader, materialize_paper=True)
+
+        rendered_plain_variable = markdown_inline("plain token_i text", reader, True, [])
+        if 'class="math-inline"' in rendered_plain_variable:
+            raise AssertionError("renderer auto-promoted plain underscore text into one-sided math")
+
+        # Atomic write validates before replacing the old valid record.
+        bad = json.loads(block_path.read_text(encoding="utf-8"))
+        bad.pop("source_evidence_hash")
+        try:
+            atomic_write_json(block_path, bad, validator=lambda value: (_ for _ in ()).throw(ValueError("bad schema")))
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("atomic schema validation accepted malformed record")
+        if json.loads(block_path.read_text(encoding="utf-8"))["status"] != "pass":
+            raise AssertionError("failed atomic write replaced a valid completion record")
+
+        # Immutable source changes invalidate only the affected record; a
+        # subsequent run must not silently reuse its former pass status.
+        changed_map = json.loads((reader / "source_map.json").read_text(encoding="utf-8"))
+        changed_map["blocks"][0]["original_text"] = "A changed immutable source statement."
+        write_json(reader / "source_map.json", changed_map)
+        seed_records(reader)
+        changed = json.loads(block_path.read_text(encoding="utf-8"))
+        if changed["status"] != "invalid" or not changed["validation_errors"]:
+            raise AssertionError("source-evidence change did not invalidate stale completion record")
+
+    print("completion-state v3 regression tests passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

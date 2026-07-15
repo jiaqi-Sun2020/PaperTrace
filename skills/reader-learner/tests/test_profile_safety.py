@@ -25,11 +25,21 @@ from profile_v2 import (  # noqa: E402
 from audit_knowledge_base import audit_profile, normalize_profile  # noqa: E402
 
 
+def provenance() -> dict:
+    return {
+        "source_map": {"path": r"C:\reader\source_map.json", "sha256": "a" * 64},
+        "completion_ledger": {"path": r"C:\reader\reader_wiki\completion_ledger.json", "sha256": "b" * 64},
+        "reader_manifest": {"path": r"C:\reader\reader_wiki\reader_manifest.json", "sha256": "c" * 64},
+        "structure_validation_report": {"path": r"C:\reader\reader_wiki\structure_validation_report.json", "sha256": "d" * 64},
+    }
+
+
 def valid_feedback() -> dict:
     return {
         "reader_feedback_version": 2,
         "paper_title": "Clean Reader",
         "reader_path": r"C:\reader",
+        "bundle_provenance": provenance(),
         "items": [
             {
                 "feedback_id": "concept::Hamiltonian::S001",
@@ -98,6 +108,10 @@ def main() -> int:
         if "哈密顿量" not in concept.get("aliases_zh", []):
             raise AssertionError("aliases_zh was not maintained")
 
+        missing_provenance = valid_feedback()
+        del missing_provenance["bundle_provenance"]
+        expect_value_error(lambda: import_feedback(empty_profile_v2(), missing_provenance), "bundle_provenance")
+
         bad_status = valid_feedback()
         bad_status["items"][0]["status"] = "maybe"
         expect_value_error(lambda: import_feedback(empty_profile_v2(), bad_status), "status is invalid")
@@ -111,7 +125,7 @@ def main() -> int:
         expect_value_error(lambda: import_feedback(empty_profile_v2(), missing_metadata), "concept_type is required")
 
         mojibake = valid_feedback()
-        mojibake["items"][0]["concept"] = "Ã quantum"
+        mojibake["items"][0]["concept"] = "脙 quantum"
         expect_value_error(lambda: import_feedback(empty_profile_v2(), mojibake), "mojibake")
 
         control = valid_feedback()
@@ -158,7 +172,7 @@ def main() -> int:
         if dirty_profile["concepts"]["hamiltonian"]["event_ids"]:
             raise AssertionError("broken event reference was not pruned")
 
-    print("reader-learner safety passed: UTF-8, normalization, schema validation, and fail-fast imports.")
+    print("reader-learner safety passed: UTF-8, normalization, provenance, schema validation, and fail-fast imports.")
     return 0
 
 
