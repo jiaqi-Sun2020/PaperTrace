@@ -9,6 +9,7 @@ can never prove a current formal reader.
 
 from __future__ import annotations
 
+import html
 import json
 import re
 import sys
@@ -146,6 +147,7 @@ def write_formal_manifest(reader_dir: Path, status: str, issues: list[str], summ
         ("object_inventory", wiki / "object_inventory.json"),
         ("preflight_manifest", wiki / "preflight_manifest.json"),
         ("reader_manifest", wiki / "reader_manifest.json"),
+        ("paper_summary", wiki / "paper_summary.json"),
         ("structure_validation_report", wiki / "structure_validation_report.json"),
         ("html", reader_dir / "reader_interactive.html"),
     ):
@@ -155,7 +157,7 @@ def write_formal_manifest(reader_dir: Path, status: str, issues: list[str], summ
         "version": 3,
         "pipeline_version": PIPELINE_VERSION,
         "formal_status": status,
-        "audit_version": 3,
+        "audit_version": 4,
         "audited_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "summary": summary,
         "issues": issues,
@@ -192,6 +194,13 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
     canonical = canonical_path(reader_dir).read_text(encoding="utf-8")
     html_text = (reader_dir / "reader_interactive.html").read_text(encoding="utf-8")
     source_hash = sha256_file(reader_dir / "source_map.json")
+    paper_meta = source_map.get("paper") or {}
+    is_fixture = "fixture" in json.dumps(paper_meta, ensure_ascii=False).lower()
+    full_paper = not is_fixture and (
+        int(paper_meta.get("page_count") or 0) >= 4
+        or paper_meta.get("source_type") == "pdf"
+        or str(paper_meta.get("source_path") or "").lower().endswith(".pdf")
+    )
 
     if run_state.get("pipeline_version") != PIPELINE_VERSION or run_state.get("status") != "pass":
         fail("v3 completion_run_state.json is not a pass for this pipeline version", issues)
@@ -218,6 +227,15 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         fail("reader_manifest source map hash is stale", issues)
     if source_of_truth.get("canonical_reader_sha256") != sha256_file(canonical_path(reader_dir)):
         fail("reader_manifest canonical reader hash is stale", issues)
+    summary_path = wiki / "paper_summary.json"
+    if full_paper:
+        if not summary_path.is_file():
+            fail("full formal reader lacks reader_wiki/paper_summary.json", issues)
+        else:
+            if source_of_truth.get("paper_summary") != "reader_wiki/paper_summary.json":
+                fail("reader_manifest source of truth omits paper_summary.json", issues)
+            if source_of_truth.get("paper_summary_sha256") != sha256_file(summary_path):
+                fail("reader_manifest paper summary hash is stale", issues)
 
     expected = {record["stable_id"]: record for record in expected_records(source_map)}
     try:
@@ -299,10 +317,21 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         if item.get("concept_id")
     }
     bilingual_sections = re.findall(
-        r'<section class="bilingual-block[^>]*" id="([^"]+)">([\s\S]*?)</section>',
+        r'<section class="bilingual-block[^>]*" id="([^"]+)"[^>]*>([\s\S]*?)</section>',
         html_text,
         re.I,
     )
+    expected_bilingual_count = sum(
+        1
+        for record in records.values()
+        if record.get("record_kind") == "block"
+        and re.fullmatch(r"(?:S|E)\d+", str(record.get("source_anchor") or ""))
+    )
+    if len(bilingual_sections) != expected_bilingual_count:
+        fail(
+            f"rendered bilingual block count is {len(bilingual_sections)}; expected {expected_bilingual_count}",
+            issues,
+        )
     original_concept_marks = 0
     chinese_concept_marks = 0
     concept_aligned_blocks = 0
@@ -344,7 +373,7 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
                 )
     if algorithms and len(re.findall(r'class="alg-line-no"', html_text)) < sum(len(row["object_metadata"].get("original_steps") or []) for row in algorithms):
         fail("algorithm card line count is smaller than completion records", issues)
-    if re.search(r'<figure\s+class="figure-card"[\s\S]*?assets/source_pages/', html_text, re.I):
+    if re.search(r'<figure\s+class="figure-card"[\s\S]*?assets/source_pages/[\s\S]*?</figure>', html_text, re.I):
         fail("HTML figure card directly uses a full source-page image", issues)
     figure_css = css_block(html_text, ".figure-card img")
     if re.search(r"object-fit\s*:\s*cover|height\s*:\s*(?!\s*auto\b)[^;]+", figure_css, re.I):
@@ -353,8 +382,6 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
     for token in ("function closePanel()", "downloadFeedback", "copyFeedback", "readerFeedbackSeed", 'id="readerThemeSelect"', "paper.reader.theme"):
         if token not in html_text:
             fail(f"formal interaction contract is missing: {token}", issues)
-    is_fixture = "fixture" in json.dumps(source_map.get("paper") or {}, ensure_ascii=False).lower()
-    full_paper = not is_fixture and (int((source_map.get("paper") or {}).get("page_count") or 0) >= 4 or (source_map.get("paper") or {}).get("source_type") == "pdf")
     marks = re.findall(r'<mark\s+class="knowledge-gap\b[^>]*>', html_text)
     if full_paper and (len(concepts.get("concepts") or []) < 30 or not marks):
         fail("full formal reader lacks grounded concepts or rendered knowledge marks", issues)
@@ -393,6 +420,124 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         ):
             if re.search(rf">\s*{re.escape(enum_token)}\s*<", knowledge_panel):
                 fail(f"knowledge panel exposes internal concept type enum: {enum_token}", issues)
+
+    manifest_summary = manifest.get("paper_summary") if isinstance(manifest.get("paper_summary"), dict) else {}
+    summary_items = 0
+    if full_paper:
+        for token in (
+            'class="paper-summary" id="paper-summary"',
+            "Paper Summary / 论文总结",
+            "What the Paper Does / 做了什么",
+            "How It Works / 怎么做的",
+            "Why It Matters / 有什么意义",
+            "Evidence, Scope, and Limitations / 证据、范围与局限",
+        ):
+            if token not in html_text:
+                fail(f"formal reader summary is missing required rendered section: {token}", issues)
+        valid_source_anchors = {record.get("source_anchor") for record in records.values() if record.get("source_anchor")}
+        entries = []
+        if isinstance(manifest_summary.get("overview"), dict):
+            entries.append(manifest_summary["overview"])
+        for key in ("what_it_does", "how_it_works", "why_it_matters", "evidence_and_limitations"):
+            entries.extend(item for item in (manifest_summary.get(key) or []) if isinstance(item, dict))
+        summary_items = len(entries)
+        for index, entry in enumerate(entries, start=1):
+            rendered_text = html.escape(str(entry.get("text") or "").strip())
+            if not rendered_text or rendered_text not in html_text:
+                fail(f"paper summary entry {index} is absent from rendered HTML", issues)
+            for anchor in entry.get("source_anchors") or []:
+                anchor_text = str(anchor)
+                if anchor_text not in valid_source_anchors:
+                    fail(f"paper summary entry {index} cites unknown completion anchor {anchor_text!r}", issues)
+                if f'href="#{html.escape(anchor_text, quote=True)}"' not in html_text:
+                    fail(f"paper summary entry {index} lacks rendered source link for {anchor_text}", issues)
+
+    source_pages = source_map.get("pages") if isinstance(source_map.get("pages"), list) else []
+    rendered_source_pages = []
+    source_data_match = re.search(
+        r'<script id="readerSourcePages" type="application/json">([\s\S]*?)</script>',
+        html_text,
+        re.I,
+    )
+    if source_data_match:
+        try:
+            rendered_source_pages = json.loads(source_data_match.group(1).replace("<\\/", "</"))
+        except json.JSONDecodeError:
+            fail("readerSourcePages contains invalid JSON", issues)
+    if full_paper:
+        if not source_pages or len(rendered_source_pages) != len(source_pages):
+            fail("source-page viewer does not expose every immutable PDF page", issues)
+        expected_page_map: dict[int, str] = {}
+        for row in source_pages:
+            try:
+                page = int(row.get("page"))
+            except (AttributeError, TypeError, ValueError):
+                fail("source_map.pages contains an invalid page row", issues)
+                continue
+            relative = str(row.get("source_page_image") or "").replace("\\", "/")
+            if not re.fullmatch(r"assets/source_pages/[A-Za-z0-9._-]+\.(?:png|jpe?g|webp)", relative, re.I):
+                fail(f"source page {page} uses unsafe/noncanonical path {relative!r}", issues)
+                continue
+            asset = reader_dir / relative
+            if not asset.is_file() or sha256_file(asset) != str(row.get("sha256") or ""):
+                fail(f"source page {page} asset is missing or hash-mismatched", issues)
+            expected_page_map[page] = relative
+        actual_page_map = {
+            int(row.get("page")): str(row.get("src") or "")
+            for row in rendered_source_pages
+            if isinstance(row, dict) and str(row.get("page") or "").isdigit()
+        }
+        if actual_page_map != expected_page_map:
+            fail("rendered source-page map differs from immutable source_map.pages", issues)
+        for token in (
+            'id="sourcePageViewer"',
+            'id="sourcePageImage"',
+            'id="sourcePagePrevious"',
+            'id="sourcePageNext"',
+            'id="toggleSourcePages"',
+            'aria-controls="sourcePageViewer"',
+        ):
+            if token not in html_text:
+                fail(f"source-page viewer contract is missing: {token}", issues)
+        for record in records.values():
+            if record.get("record_kind") != "block":
+                continue
+            anchor = re.escape(str(record.get("source_anchor") or ""))
+            page = int(record.get("source_page") or 0)
+            if not re.search(
+                rf'<section class="bilingual-block[^"]*" id="{anchor}" data-source-page="{page}">',
+                html_text,
+                re.I,
+            ):
+                fail(f"{record.get('source_anchor')}: rendered block lacks source-page synchronization metadata", issues)
+
+    for token in (
+        'id="toggleOriginal"',
+        'aria-controls="readerDocument"',
+        "original-collapsed",
+        "Hide Original",
+        "Show Original",
+        "paper.reader.view.",
+    ):
+        if token not in html_text:
+            fail(f"reader collapse-control contract is missing: {token}", issues)
+    for control_id in (("toggleOriginal", "toggleSourcePages") if full_paper else ("toggleOriginal",)):
+        if not re.search(rf'id="{control_id}"[^>]*aria-pressed="false"[^>]*aria-expanded="true"', html_text):
+            fail(f"{control_id} lacks initial ARIA toggle state", issues)
+    if full_paper and not re.search(
+        r'<aside class="reader-sidebar"[\s\S]*?id="sourcePageViewer"[\s\S]*?<nav class="toc"',
+        html_text,
+        re.I,
+    ):
+        fail("source-page viewer is not positioned in the left sidebar above Contents", issues)
+    if full_paper and "body.source-pages-collapsed .source-page-viewer { display: none; }" not in html_text:
+        fail("source-page collapse CSS can hide more than the page viewer or is missing", issues)
+    if not re.search(
+        r"@media print[\s\S]*?body\.original-collapsed[\s\S]*?display:\s*block\s*!important[\s\S]*?</style>",
+        html_text,
+        re.I,
+    ):
+        fail("print CSS does not force collapsed Original panels visible", issues)
     dark = validate_dark_theme_readability(html_text, issues)
     math_inline = [unescape(match) for match in re.findall(r'<span class="math-inline">([\s\S]*?)</span>', html_text)]
     if any(re.fullmatch(r"\$[A-Za-z]{3,}\$", value) for value in math_inline):
@@ -410,6 +555,8 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         "original_concept_marks": original_concept_marks,
         "chinese_concept_marks": chinese_concept_marks,
         "concept_aligned_blocks": concept_aligned_blocks,
+        "paper_summary_items": summary_items,
+        "source_pages": len(rendered_source_pages),
         "math_display": len(re.findall(r'class="math-display"', html_text)),
         "dark_min_contrast": min(dark.values()) if dark else "missing",
     }

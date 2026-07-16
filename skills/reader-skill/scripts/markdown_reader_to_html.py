@@ -811,6 +811,72 @@ def build_knowledge_panel(profile: dict | None, glossary: list[dict], concepts: 
 </section>'''.strip()
 
 
+def load_compiled_paper_summary(base_dir: Path) -> dict:
+    manifest_path = base_dir / "reader_wiki" / "reader_manifest.json"
+    if not manifest_path.exists():
+        return {}
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    summary = manifest.get("paper_summary")
+    return summary if isinstance(summary, dict) else {}
+
+
+def summary_source_links(anchors: object) -> str:
+    if not isinstance(anchors, list):
+        return ""
+    links = []
+    for anchor in anchors:
+        value = str(anchor).strip()
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,63}", value):
+            continue
+        escaped = html.escape(value)
+        links.append(f'<a class="summary-source" href="#{html.escape(value, quote=True)}">{escaped}</a>')
+    return f'<span class="summary-sources" aria-label="Source anchors">{" ".join(links)}</span>' if links else ""
+
+
+def build_paper_summary_panel(summary: dict) -> str:
+    if not summary:
+        return ""
+    overview = summary.get("overview") if isinstance(summary.get("overview"), dict) else {}
+    sections = (
+        ("what_it_does", "What the Paper Does / 做了什么", "ul"),
+        ("how_it_works", "How It Works / 怎么做的", "ol"),
+        ("why_it_matters", "Why It Matters / 有什么意义", "ul"),
+        ("evidence_and_limitations", "Evidence, Scope, and Limitations / 证据、范围与局限", "ul"),
+    )
+    rendered_sections = []
+    for key, heading, list_tag in sections:
+        items = summary.get(key) if isinstance(summary.get(key), list) else []
+        rendered_items = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            text_value = str(item.get("text") or "").strip()
+            if not text_value:
+                continue
+            rendered_items.append(
+                f'<li><span class="summary-text">{html.escape(text_value)}</span>'
+                f'{summary_source_links(item.get("source_anchors"))}</li>'
+            )
+        if rendered_items:
+            rendered_sections.append(
+                f'<section class="paper-summary-section"><h3>{html.escape(heading)}</h3>'
+                f'<{list_tag}>{"".join(rendered_items)}</{list_tag}></section>'
+            )
+    overview_text = html.escape(str(overview.get("text") or "").strip())
+    return f'''
+<section class="paper-summary" id="paper-summary">
+  <h2>Paper Summary / 论文总结</h2>
+  <div class="paper-summary-overview">
+    <p>{overview_text}</p>
+    {summary_source_links(overview.get("source_anchors"))}
+  </div>
+  {''.join(rendered_sections)}
+</section>'''.strip()
+
+
 def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled: bool) -> str:
     if not enabled:
         return ""
@@ -1437,6 +1503,184 @@ def clean_reader_field(text: object) -> str:
     return value.strip()
 
 
+def source_page_number(source_text: object) -> int | None:
+    match = re.search(r"\bp\.\s*(\d+)\b", str(source_text or ""), re.I)
+    if not match:
+        return None
+    page = int(match.group(1))
+    return page if page > 0 else None
+
+
+def source_page_attribute(source_text: object) -> str:
+    page = source_page_number(source_text)
+    return f' data-source-page="{page}"' if page else ""
+
+
+def collect_source_page_manifest(base_dir: Path) -> list[dict]:
+    source_map = load_source_map(base_dir)
+    pages: list[dict] = []
+    for row in source_map.get("pages") or []:
+        if not isinstance(row, dict):
+            continue
+        try:
+            page = int(row.get("page"))
+        except (TypeError, ValueError):
+            continue
+        relative = str(row.get("source_page_image") or "").replace("\\", "/")
+        if page < 1 or not re.fullmatch(r"assets/source_pages/[A-Za-z0-9._-]+\.(?:png|jpe?g|webp)", relative, re.I):
+            continue
+        asset = (base_dir / relative).resolve()
+        source_root = (base_dir / "assets" / "source_pages").resolve()
+        try:
+            asset.relative_to(source_root)
+        except ValueError:
+            continue
+        if not asset.is_file():
+            continue
+        pages.append({"page": page, "src": relative, "sha256": str(row.get("sha256") or "")})
+    pages.sort(key=lambda item: item["page"])
+    return pages
+
+
+def build_source_page_viewer(source_pages: list[dict]) -> str:
+    if not source_pages:
+        return ""
+    first = source_pages[0]
+    return f'''
+<section class="source-page-viewer" id="sourcePageViewer" aria-label="Original paper page viewer">
+  <div class="source-page-viewer-head">
+    <h2>Original Paper</h2>
+    <span id="sourcePageCounter">Page {first['page']} / {len(source_pages)}</span>
+  </div>
+  <a id="sourcePageOpen" class="source-page-open" href="{html.escape(first['src'], quote=True)}" target="_blank" rel="noopener" title="Open current source page at full size">
+    <img id="sourcePageImage" src="{html.escape(first['src'], quote=True)}" alt="Original paper page {first['page']}" loading="eager">
+  </a>
+  <div class="source-page-actions" aria-label="Source page navigation">
+    <button type="button" id="sourcePagePrevious">Previous</button>
+    <button type="button" id="sourcePageNext">Next</button>
+  </div>
+</section>'''.strip()
+
+
+def build_reader_view_controls(has_source_pages: bool) -> str:
+    source_button = (
+        '<button type="button" id="toggleSourcePages" aria-pressed="false" aria-expanded="true" '
+        'aria-controls="sourcePageViewer">Hide Source Pages</button>'
+        if has_source_pages else ""
+    )
+    return f'''
+<div class="reader-view-controls" role="group" aria-label="Reader view controls">
+  <button type="button" id="toggleOriginal" aria-pressed="false" aria-expanded="true" aria-controls="readerDocument">Hide Original</button>
+  {source_button}
+</div>'''.strip()
+
+
+def reader_view_script(title: str, source_pages: list[dict]) -> str:
+    page_json = json.dumps(source_pages, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    storage_suffix = hashlib.sha1(title.encode("utf-8", errors="replace")).hexdigest()[:16]
+    return f'''
+<script id="readerSourcePages" type="application/json">{page_json}</script>
+<script>
+(() => {{
+  const originalButton = document.getElementById('toggleOriginal');
+  const sourceButton = document.getElementById('toggleSourcePages');
+  const sourceViewer = document.getElementById('sourcePageViewer');
+  const sourceImage = document.getElementById('sourcePageImage');
+  const sourceOpen = document.getElementById('sourcePageOpen');
+  const sourceCounter = document.getElementById('sourcePageCounter');
+  const previousButton = document.getElementById('sourcePagePrevious');
+  const nextButton = document.getElementById('sourcePageNext');
+  const sourceData = document.getElementById('readerSourcePages');
+  const pages = sourceData ? JSON.parse(sourceData.textContent || '[]') : [];
+  const pageByNumber = new Map(pages.map((item, index) => [Number(item.page), {{...item, index}}]));
+  const storageKey = 'paper.reader.view.{storage_suffix}';
+  let state = {{ originalCollapsed: false, sourcePagesCollapsed: false, currentPage: pages.length ? Number(pages[0].page) : null }};
+
+  try {{
+    const stored = JSON.parse(localStorage.getItem(storageKey) || 'null');
+    if (stored && typeof stored === 'object') state = {{...state, ...stored}};
+    else if (window.matchMedia('(max-width: 860px)').matches) state.sourcePagesCollapsed = true;
+  }} catch (_error) {{
+    if (window.matchMedia('(max-width: 860px)').matches) state.sourcePagesCollapsed = true;
+  }}
+
+  function persist() {{
+    try {{ localStorage.setItem(storageKey, JSON.stringify(state)); }} catch (_error) {{}}
+  }}
+
+  function updatePage(pageNumber, shouldPersist = true) {{
+    const page = pageByNumber.get(Number(pageNumber));
+    if (!page || !sourceImage || !sourceOpen || !sourceCounter) return;
+    state.currentPage = Number(page.page);
+    sourceImage.src = page.src;
+    sourceImage.alt = `Original paper page ${{page.page}}`;
+    sourceOpen.href = page.src;
+    sourceCounter.textContent = `Page ${{page.page}} / ${{pages.length}}`;
+    if (previousButton) previousButton.disabled = page.index <= 0;
+    if (nextButton) nextButton.disabled = page.index >= pages.length - 1;
+    if (shouldPersist) persist();
+  }}
+
+  function applyState() {{
+    document.body.classList.toggle('original-collapsed', Boolean(state.originalCollapsed));
+    document.body.classList.toggle('source-pages-collapsed', Boolean(state.sourcePagesCollapsed));
+    if (originalButton) {{
+      originalButton.setAttribute('aria-pressed', String(Boolean(state.originalCollapsed)));
+      originalButton.setAttribute('aria-expanded', String(!state.originalCollapsed));
+      originalButton.textContent = state.originalCollapsed ? 'Show Original' : 'Hide Original';
+    }}
+    if (sourceButton) {{
+      sourceButton.setAttribute('aria-pressed', String(Boolean(state.sourcePagesCollapsed)));
+      sourceButton.setAttribute('aria-expanded', String(!state.sourcePagesCollapsed));
+      sourceButton.textContent = state.sourcePagesCollapsed ? 'Show Source Pages' : 'Hide Source Pages';
+    }}
+    if (sourceViewer) sourceViewer.setAttribute('aria-hidden', String(Boolean(state.sourcePagesCollapsed)));
+    updatePage(state.currentPage, false);
+  }}
+
+  originalButton?.addEventListener('click', () => {{
+    state.originalCollapsed = !state.originalCollapsed;
+    applyState();
+    persist();
+  }});
+  sourceButton?.addEventListener('click', () => {{
+    state.sourcePagesCollapsed = !state.sourcePagesCollapsed;
+    applyState();
+    persist();
+  }});
+  previousButton?.addEventListener('click', () => {{
+    const current = pageByNumber.get(Number(state.currentPage));
+    if (current && current.index > 0) updatePage(pages[current.index - 1].page);
+  }});
+  nextButton?.addEventListener('click', () => {{
+    const current = pageByNumber.get(Number(state.currentPage));
+    if (current && current.index < pages.length - 1) updatePage(pages[current.index + 1].page);
+  }});
+
+  document.addEventListener('click', event => {{
+    const sourceBlock = event.target instanceof Element ? event.target.closest('[data-source-page]') : null;
+    if (sourceBlock) updatePage(sourceBlock.dataset.sourcePage);
+  }});
+
+  const sourceBlocks = [...document.querySelectorAll('[data-source-page]')];
+  if ('IntersectionObserver' in window && sourceBlocks.length) {{
+    const visible = new Map();
+    const observer = new IntersectionObserver(entries => {{
+      entries.forEach(entry => {{
+        if (entry.isIntersecting) visible.set(entry.target, entry.intersectionRatio);
+        else visible.delete(entry.target);
+      }});
+      const current = [...visible.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (current) updatePage(current[0].dataset.sourcePage, false);
+    }}, {{ rootMargin: '-15% 0px -55% 0px', threshold: [0.05, 0.25, 0.5, 0.75] }});
+    sourceBlocks.forEach(block => observer.observe(block));
+  }}
+
+  applyState();
+}})();
+</script>'''.strip()
+
+
 def parse_bilingual_segment(segment: str) -> tuple[str, str, str, str] | None:
     source, rest = extract_label_block(segment, "Source", ("Original",))
     original, rest = extract_label_block(rest, "Original", ("中文", "注释", "Notes"))
@@ -1467,7 +1711,7 @@ def render_bilingual_segment(anchor: str | None, segment: str, base_dir: Path, e
     {markdown_blocks(notes, base_dir, embed_assets, warnings)}
     </article>'''
     return f'''
-<section class="{section_class}" id="{html.escape(block_id, quote=True)}">
+<section class="{section_class}" id="{html.escape(block_id, quote=True)}"{source_page_attribute(source)}>
   <div class="block-source"><span>Source</span> {markdown_inline(source, base_dir, embed_assets, warnings)}</div>
   <div class="pair-grid">
     <article class="lang-panel original"><h3>Original</h3>{markdown_blocks(original, base_dir, embed_assets, warnings)}</article>
@@ -1485,7 +1729,7 @@ def render_reference_segment(anchor: str | None, segment: str, base_dir: Path, e
         return None
     block_id = anchor or (source.split()[-1] if source else "reference")
     return f'''
-<section class="reference-block" id="{html.escape(block_id, quote=True)}">
+<section class="reference-block" id="{html.escape(block_id, quote=True)}"{source_page_attribute(source)}>
   <div class="block-source"><span>Source</span> {markdown_inline(source, base_dir, embed_assets, warnings)}</div>
   <article class="reference-panel"><h3>References · Original</h3>{markdown_blocks(references, base_dir, embed_assets, warnings)}</article>
 </section>'''.strip()
@@ -1535,7 +1779,7 @@ def render_algorithm_card(anchor: str | None, segment: str, base_dir: Path, embe
     meta = " · ".join(item for item in (parsed.get("placed"), parsed.get("source")) if item)
     note_html = f'<aside class="algorithm-note">{markdown_blocks(parsed["note"], base_dir, embed_assets, warnings)}</aside>' if parsed.get("note") else ""
     return f'''
-<section class="algorithm-card" id="{html.escape(block_id, quote=True)}">
+<section class="algorithm-card" id="{html.escape(block_id, quote=True)}"{source_page_attribute(parsed.get('source') or parsed.get('placed'))}>
   <h3>{markdown_inline(parsed["title"], base_dir, embed_assets, warnings)}</h3>
   {f'<div class="block-source"><span>Source</span> {markdown_inline(meta, base_dir, embed_assets, warnings)}</div>' if meta else ''}
   <div class="pair-grid">
@@ -1573,7 +1817,10 @@ def render_document(markdown: str, base_dir: Path, embed_assets: bool, warnings:
         is_figure_or_table = bool(anchor and re.match(r'^[FT]\d+', anchor)) or bool(IMAGE_RE.search(segment))
         if is_figure_or_table:
             block_id = anchor or f"figure-{len(html_parts) + 1}"
-            html_parts.append(f'<figure class="figure-card" id="{html.escape(block_id, quote=True)}">{markdown_blocks(segment, base_dir, embed_assets, warnings)}</figure>')
+            html_parts.append(
+                f'<figure class="figure-card" id="{html.escape(block_id, quote=True)}"'
+                f'{source_page_attribute(segment)}>{markdown_blocks(segment, base_dir, embed_assets, warnings)}</figure>'
+            )
             continue
 
         body, local_toc = render_tokens(split_tokens(segment), base_dir, embed_assets, warnings)
@@ -1719,27 +1966,78 @@ a:hover { text-decoration: underline; }
 .badge { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 4px 10px; }
 .layout {
   display: grid;
-  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 24px;
-  max-width: 1480px;
+  max-width: 1760px;
   margin: 0 auto;
   padding: 24px;
 }
-.toc {
+.reader-sidebar {
   position: sticky;
   top: 16px;
   align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: calc(100vh - 32px);
+  min-width: 0;
+}
+.toc {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
-  max-height: calc(100vh - 32px);
+  flex: 1 1 auto;
+  min-height: 120px;
   overflow: auto;
 }
 .toc h2 { margin: 0 0 10px; font-size: 1rem; }
 .toc a { display: block; padding: 6px 0; color: var(--ink); font-size: .92rem; }
 .toc .level-3 { padding-left: 12px; }
 .toc .level-4 { padding-left: 24px; }
+.reader-view-controls { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.reader-view-controls button, .source-page-actions button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--reader-panel-bg);
+  color: var(--ink);
+  padding: 6px 9px;
+  font: inherit;
+  cursor: pointer;
+}
+.reader-view-controls button:hover, .source-page-actions button:hover { border-color: var(--accent); }
+.reader-view-controls button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.source-page-viewer {
+  flex: 0 1 auto;
+  min-height: 0;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+.source-page-viewer-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.source-page-viewer-head h2 { margin: 0; font-size: 1rem; letter-spacing: 0; }
+.source-page-viewer-head span { color: var(--muted); font-size: .82rem; white-space: nowrap; }
+.source-page-open {
+  display: block;
+  max-height: min(52vh, 660px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--reader-math-bg);
+}
+.source-page-open img { display: block; width: 100%; height: auto; margin: 0; }
+.source-page-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.source-page-actions button:disabled { opacity: .45; cursor: not-allowed; }
+body.source-pages-collapsed .source-page-viewer { display: none; }
+body.source-pages-collapsed .layout { grid-template-columns: minmax(190px, 260px) minmax(0, 1fr); max-width: 1600px; }
+body.original-collapsed .bilingual-block .lang-panel.original,
+body.original-collapsed .algorithm-card .lang-panel.original { display: none; }
+body.original-collapsed .bilingual-block .pair-grid,
+body.original-collapsed .algorithm-card .pair-grid { grid-template-columns: minmax(0, 1fr); }
+body.original-collapsed .bilingual-block.has-notes .pair-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, .85fr);
+}
 main { min-width: 0; }
 .section, .prose, .md-table, .bilingual-block, .reference-block, .figure-card, .label-card, .algorithm-card {
   background: var(--paper);
@@ -1876,6 +2174,36 @@ main { min-width: 0; }
   padding: 18px;
 }
 .knowledge-panel h2 { margin: 0 0 8px; letter-spacing: 0; }
+.paper-summary {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 0 0 16px;
+  padding: 20px;
+}
+.paper-summary h2 { margin: 0 0 12px; letter-spacing: 0; }
+.paper-summary-overview {
+  border-left: 4px solid var(--accent);
+  background: var(--reader-note-bg);
+  border-radius: 0 8px 8px 0;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.paper-summary-overview p { margin: 0 0 10px; }
+.paper-summary-section { margin-top: 18px; }
+.paper-summary-section h3 { margin: 0 0 8px; font-size: 1.05rem; letter-spacing: 0; }
+.paper-summary-section ul, .paper-summary-section ol { margin: 0; padding-left: 24px; }
+.paper-summary-section li { margin: 0 0 10px; }
+.summary-sources { display: inline-flex; flex-wrap: wrap; gap: 5px; margin-left: 8px; vertical-align: middle; }
+.summary-source {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  padding: 1px 7px;
+  font-size: .78rem;
+  line-height: 1.5;
+}
 .profile-path { color: var(--muted); font-size: .9rem; }
 .status {
   display: inline-block;
@@ -2108,15 +2436,27 @@ code {
 }
 @media (max-width: 860px) {
   .layout { display: block; padding: 14px; }
-  .toc { position: static; margin-bottom: 14px; max-height: none; }
+  .reader-sidebar { position: static; display: block; max-height: none; margin-bottom: 14px; }
+  .source-page-viewer { margin-bottom: 14px; }
+  .source-page-open { max-height: 60vh; }
+  .toc { max-height: none; }
   .pair-grid, .bilingual-block.has-notes .pair-grid { grid-template-columns: 1fr; }
+  body.original-collapsed .bilingual-block.has-notes .pair-grid { grid-template-columns: 1fr; }
   .site-header { padding: 22px 14px; }
+  .reader-view-controls { width: 100%; margin-left: 0; }
 }
 @media print {
   body { background: #fff; }
   .site-header, .section, .prose, .md-table, .bilingual-block, .reference-block, .figure-card, .label-card, .algorithm-card { border-color: #c8ced8; box-shadow: none; }
   .layout { display: block; max-width: none; padding: 0; }
-  .toc { position: static; max-height: none; break-after: page; }
+  .reader-sidebar { position: static; display: block; max-height: none; }
+  .toc { max-height: none; break-after: page; }
+  .source-page-viewer, .reader-view-controls { display: none !important; }
+  body.original-collapsed .bilingual-block .lang-panel.original,
+  body.original-collapsed .algorithm-card .lang-panel.original { display: block !important; }
+  body.original-collapsed .pair-grid,
+  body.original-collapsed .algorithm-card .pair-grid { grid-template-columns: 1fr 1fr !important; }
+  body.original-collapsed .bilingual-block.has-notes .pair-grid { grid-template-columns: 1.05fr .95fr minmax(260px, .85fr) !important; }
   .bilingual-block, .figure-card, .md-table { break-inside: avoid; }
   .feedback-dock, .feedback-opener { display: none !important; }
   a { color: inherit; text-decoration: none; }
@@ -2159,15 +2499,20 @@ def build_html(
     toc: list[tuple[int, str, str]],
     meta: dict,
     base_dir: Path,
+    source_pages: list[dict] | None = None,
+    summary_panel: str = "",
     knowledge_panel: str = "",
     profile_path: Path | None = None,
     feedback_ui: str = "",
     math_renderer: str = "mathjax",
     mathjax_url: str = DEFAULT_MATHJAX_URL,
 ) -> str:
+    source_pages = source_pages or []
     toc_rows = list(toc[:80])
     if knowledge_panel:
         toc_rows.insert(0, (2, "personal-knowledge-boundary", "Paper Concept Ledger / Personal Knowledge Boundary"))
+    if summary_panel:
+        toc_rows.insert(0, (2, "paper-summary", "Paper Summary / 论文总结"))
     toc_links = "\n".join(
         f'<a class="level-{level}" href="#{html.escape(anchor, quote=True)}">{html.escape(text)}</a>'
         for level, anchor, text in toc_rows
@@ -2181,6 +2526,8 @@ def build_html(
     companions = "\n".join(companion_links)
     author_text = ", ".join(meta.get("authors", [])) if isinstance(meta.get("authors"), list) else meta.get("authors", "")
     source_type = meta.get("source_type") or meta.get("source_format") or "nature-reader Markdown"
+    source_page_viewer = build_source_page_viewer(source_pages)
+    view_controls = build_reader_view_controls(bool(source_pages))
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -2200,15 +2547,20 @@ def build_html(
       {f'<span class="badge">{html.escape(author_text)}</span>' if author_text else ''}
       {companions}
       {reader_theme_control()}
+      {view_controls}
     </div>
   </header>
   <div class="layout">
-    <nav class="toc" aria-label="Table of contents">
-      <h2>Contents</h2>
-      {toc_links or '<p>No headings detected.</p>'}
-    </nav>
+    <aside class="reader-sidebar" aria-label="Reader sidebar">
+      {source_page_viewer}
+      <nav class="toc" aria-label="Table of contents">
+        <h2>Contents</h2>
+        {toc_links or '<p>No headings detected.</p>'}
+      </nav>
+    </aside>
     <main>
-      <article>
+      <article id="readerDocument">
+        {summary_panel}
         {knowledge_panel}
         {body_html}
       </article>
@@ -2216,6 +2568,7 @@ def build_html(
   </div>
   {feedback_ui}
   {reader_theme_script()}
+  {reader_view_script(title, source_pages)}
   <footer class="footer">Generated from a nature-reader Markdown bundle. Source anchors are preserved for traceability.</footer>
 </body>
 </html>
@@ -2337,8 +2690,10 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     profile = load_profile(profile_path)
 
     concepts = concepts_for_annotation(profile or {}, glossary)
+    source_pages = collect_source_page_manifest(base_dir)
     body_html, toc = render_document(markdown, base_dir, not args.no_embed_assets, warnings)
     body_html = annotate_html_text(body_html, concepts)
+    summary_panel = build_paper_summary_panel(load_compiled_paper_summary(base_dir))
     knowledge_panel = build_knowledge_panel(profile or {}, glossary, concepts, profile_path)
     feedback_ui = build_feedback_ui(title, base_dir, concepts, True)
     output_name = output_path.name.lower()
@@ -2351,16 +2706,18 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         )
         return 2
     html_output = build_html(
-        title,
-        body_html,
-        toc,
-        meta,
-        base_dir,
-        knowledge_panel,
-        profile_path if profile else None,
-        feedback_ui,
-        args.math_renderer,
-        args.mathjax_url,
+        title=title,
+        body_html=body_html,
+        toc=toc,
+        meta=meta,
+        base_dir=base_dir,
+        source_pages=source_pages,
+        summary_panel=summary_panel,
+        knowledge_panel=knowledge_panel,
+        profile_path=profile_path if profile else None,
+        feedback_ui=feedback_ui,
+        math_renderer=args.math_renderer,
+        mathjax_url=args.mathjax_url,
     )
     html_issues = validate_generated_html(html_output, concepts, args.math_renderer)
     if html_issues:

@@ -36,7 +36,7 @@ from completion_state import (  # noqa: E402
     update_run_state,
     write_record,
 )
-from reader_wiki_compile import compile_reader_wiki  # noqa: E402
+from reader_wiki_compile import compile_reader_wiki, load_authored_paper_summary, validate_source_page_assets  # noqa: E402
 from markdown_reader_to_html import (  # noqa: E402
     annotate_html_text,
     build_knowledge_panel,
@@ -47,6 +47,7 @@ from preflight_reader_bundle import build_preflight_manifest, write_json as writ
 
 
 PIXEL = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=")
+PIXEL_SHA256 = hashlib.sha256(PIXEL).hexdigest()
 CONVERTER = ROOT / "skills" / "reader-skill" / "scripts" / "markdown_reader_to_html.py"
 AUDIT = ROOT / "skills" / "reader-skill" / "tests" / "adversarial_html_audit.py"
 
@@ -72,7 +73,7 @@ def source_map() -> dict:
             {"id": "A001", "page": 1, "type": "algorithm", "original_text": "1: Input circuit\n2: Output result"},
             {"id": "R001", "page": 1, "type": "reference", "original_text": "[1] Grounded Reference, 2026."},
         ],
-        "pages": [],
+        "pages": [{"page": 1, "source_page_image": "assets/source_pages/page-01.png", "sha256": PIXEL_SHA256}],
         "figures": [{"id": "F001", "page": 1, "caption_original": "Figure 1. Fixture object.", "source_page_image": "assets/source_pages/page-01.png"}],
         "tables": [{"id": "T001", "page": 1, "caption_original": "Table 1. Fixture data."}],
         "algorithms": [{"id": "A001", "page": 1, "source_block_id": "", "original_text": "1: Input\\n2: Output"}],
@@ -133,6 +134,9 @@ def complete_inventory(reader: Path) -> None:
 def make_reader(base: Path) -> Path:
     reader = base / "reader"
     reader.mkdir()
+    source_pages = reader / "assets" / "source_pages"
+    source_pages.mkdir(parents=True)
+    (source_pages / "page-01.png").write_bytes(PIXEL)
     write_json(reader / "source_map.json", source_map())
     complete_records(reader)
     complete_inventory(reader)
@@ -144,6 +148,30 @@ def make_reader(base: Path) -> Path:
     state = update_run_state(reader)
     if state["status"] != "pass":
         raise AssertionError(f"fixture state is not pass: {state}")
+    write_json(reader / "reader_wiki" / "paper_summary.json", {
+        "schema_version": 1,
+        "language": "zh-CN",
+        "overview": {
+            "text": "这份测试论文通过一个可追溯的量子电路陈述和一个双语公式块，验证正式阅读器能把源证据、中文解释、数学表达、对象卡片与交互界面组合为同一个可审计产物，并确保新增的论文总结、原始页面预览与视图控件不会绕过既有完成记录和结构门禁。",
+            "source_anchors": ["S001", "E001"],
+        },
+        "what_it_does": [
+            {"text": "给出一个可由稳定来源锚点定位的量子电路陈述。", "source_anchors": ["S001"]},
+            {"text": "使用独立公式块验证双语数学表达的一致性。", "source_anchors": ["E001"]},
+        ],
+        "how_it_works": [
+            {"text": "先将英文原始陈述和忠实中文翻译绑定到同一个来源块。", "source_anchors": ["S001"]},
+            {"text": "再在双语两侧保留相同的显式 LaTeX 公式签名。", "source_anchors": ["E001"]},
+            {"text": "最后把图、表和算法对象登记为可独立审核的结构化卡片。", "source_anchors": ["F001", "T001", "A001"]},
+        ],
+        "why_it_matters": [
+            {"text": "证明正式 HTML 可以保持从解释界面返回原始证据的路径。", "source_anchors": ["S001"]},
+            {"text": "证明交互增强不会替代公式和对象层面的结构验证。", "source_anchors": ["E001", "F001"]},
+        ],
+        "evidence_and_limitations": [
+            {"text": "该夹具只验证管线契约，不代表真实论文的科学结论或完整篇幅。", "source_anchors": ["S001"]},
+        ],
+    })
     return reader
 
 
@@ -232,11 +260,41 @@ def main() -> int:
         converted = run([sys.executable, str(CONVERTER), str(reader)])
         if converted.returncode:
             raise AssertionError(f"converter failed\n{converted.stdout}\n{converted.stderr}")
+        rendered_html = (reader / "reader_interactive.html").read_text(encoding="utf-8")
+        for token in (
+            'class="paper-summary" id="paper-summary"',
+            'id="sourcePageViewer"',
+            'id="toggleOriginal"',
+            'id="toggleSourcePages"',
+            'data-source-page="1"',
+            "Hide Original",
+            "Show Original",
+            "Hide Source Pages",
+            "Show Source Pages",
+        ):
+            if token not in rendered_html:
+                raise AssertionError(f"formal reader lacks summary/source-view control token: {token}")
         audited = run([sys.executable, str(AUDIT), str(reader)])
         if audited.returncode:
             raise AssertionError(f"audit failed\n{audited.stdout}\n{audited.stderr}")
         if not (reader / "reader_wiki" / "formal_artifact_manifest.json").is_file():
             raise AssertionError("formal artifact manifest was not written after audit")
+
+        summary_path = reader / "reader_wiki" / "paper_summary.json"
+        summary_fixture = json.loads(summary_path.read_text(encoding="utf-8"))
+        broken_summary = json.loads(json.dumps(summary_fixture, ensure_ascii=False))
+        broken_summary["why_it_matters"][0]["source_anchors"] = ["S999"]
+        write_json(summary_path, broken_summary)
+        _summary, summary_errors = load_authored_paper_summary(reader, source_map(), [], required=True)
+        if not any("unknown source anchor" in message for message in summary_errors):
+            raise AssertionError("paper summary contract accepted an unknown source anchor")
+        write_json(summary_path, summary_fixture)
+
+        unsafe_map = source_map()
+        unsafe_map["pages"][0]["source_page_image"] = "../page-01.png"
+        source_page_errors = validate_source_page_assets(reader, unsafe_map, required=True)
+        if not any("unsafe/noncanonical" in message for message in source_page_errors):
+            raise AssertionError("source-page contract accepted path traversal")
 
         # A formula component on only one language side must invalidate the
         # normalized reader before HTML generation.

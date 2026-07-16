@@ -59,6 +59,12 @@ Concept marks are paired semantic objects, just like aligned formulas:
 
 The Concept Ledger / Personal Knowledge Boundary is an English-language interface. Its only Chinese fields are the row values under `Chinese Name` and `Role in This Paper`. Column labels, section copy, status labels, concept names, and human-readable type labels remain English; raw enum values such as `math_object` must not be displayed.
 
+## Paper Summary Contract
+
+Full-paper bundles include a completion-authored `reader_wiki/paper_summary.json` with `schema_version: 1`, `language: zh-CN`, one `overview` object, and item arrays named `what_it_does`, `how_it_works`, `why_it_matters`, and `evidence_and_limitations`. Every object contains substantive Chinese `text` plus one or more valid `source_anchors`. The renderer validates and displays this content; it must never generate semantic summary prose from concepts or notes.
+
+PDF source-page images remain evidence-side assets under `assets/source_pages/`. Reader blocks carry `data-source-page`, and the left viewer may display only the page map bound in `source_map.pages`. Full-page evidence must never be inserted into an inline `figure-card`. Collapsing Original or source pages is a reversible view state; it cannot delete source content, alter feedback identity, or hide Original in print.
+
 ## Translation Contract
 
 Final HTML output requires faithful translations. The converter should reject `中文` blocks containing draft/paraphrase markers such as:

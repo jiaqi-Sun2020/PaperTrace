@@ -206,4 +206,20 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
             issues.append("reader-notes contains structural HTML pollution")
         if re.search(r"Source Page Index|source page index|assets/source_pages", note, re.I):
             issues.append("reader-notes contains source page/index pollution")
+    for token in ('id="toggleOriginal"', 'aria-controls="readerDocument"', "original-collapsed"):
+        if token not in html_text:
+            issues.append(f"reader Original-collapse contract is missing: {token}")
+    if not re.search(r'id="toggleOriginal"[^>]*aria-pressed="false"[^>]*aria-expanded="true"', html_text):
+        issues.append("reader Original-collapse control lacks initial ARIA state")
+    source_pages_match = re.search(
+        r'<script id="readerSourcePages" type="application/json">([\s\S]*?)</script>',
+        html_text,
+        re.I,
+    )
+    if source_pages_match and source_pages_match.group(1).strip() not in ("", "[]"):
+        for token in ('id="sourcePageViewer"', 'id="toggleSourcePages"', 'aria-controls="sourcePageViewer"'):
+            if token not in html_text:
+                issues.append(f"reader source-page viewer contract is missing: {token}")
+        if not re.search(r'id="toggleSourcePages"[^>]*aria-pressed="false"[^>]*aria-expanded="true"', html_text):
+            issues.append("reader source-page collapse control lacks initial ARIA state")
     return issues

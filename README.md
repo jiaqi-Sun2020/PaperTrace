@@ -244,6 +244,7 @@ python .\skills\reader-skill\scripts\reader_wiki_compile.py "<reader-dir>" --pro
 <reader-dir>\reader_wiki\algorithm_ledger.json
 <reader-dir>\reader_wiki\claim_contribution_ledger.json
 <reader-dir>\reader_wiki\annotation_metadata.json
+<reader-dir>\reader_wiki\paper_summary.json
 <reader-dir>\reader_wiki\structure_validation_report.json
 <reader-dir>\reader_wiki\normalized_reader.md
 ```
@@ -262,8 +263,10 @@ python .\skills\reader-skill\scripts\markdown_reader_to_html.py "<reader-dir>" -
 正式 HTML 应满足：
 
 - `reader_interactive.html` 是唯一正式 paper reader HTML；
+- 顶部包含当前主模型撰写的详细中文论文总结，分别回答“做了什么、怎么做、有什么意义、证据与局限”，且每项链接到正式 source anchor；
+- 左侧使用 `source_map.pages` 中哈希绑定的原始页面图，并随当前 source block 同步；Original 与原始页图可独立折叠，Contents 始终保留；
 - 30-60 个候选知识点，已有 profile 状态会合并，论文核心概念即使 mastered 也要进入 glossary；
-- 每个 knowledge mark 都有 `data-concept`、`data-status`、`data-source-anchor`、`data-concept-type`、`data-alias-zh` 和 `title`；
+- 每个 knowledge mark 都有 `data-concept`、`data-concept-id`、`data-status`、`data-source-anchor`、`data-concept-type`、`data-alias-zh` 和 `title`；
 - MathJax 存在，公式可渲染，不能出现 raw PDF formula noise；
 - Source Page Index 链接保持普通相对路径，例如 `assets/source_pages/page-01.png`；
 - figure/table/algorithm card 不得被整页截图冒充，不得被 CSS 裁剪；

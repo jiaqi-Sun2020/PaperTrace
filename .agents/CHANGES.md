@@ -7,6 +7,13 @@ This file records dated implementation and local-release milestones. Durable bou
 
 ## 2026-07-16
 
+### Source-grounded reader summary and source-page controls
+
+- Added a completion-authored `paper_summary.json` contract for detailed Chinese overview, method, significance, and evidence/limitation explanations with formal source anchors.
+- Added a left-side original-page viewer driven only by hash-bound `source_map.pages` assets and synchronized through per-block `data-source-page` metadata.
+- Added independent, accessible Original/source-page collapse controls with namespaced local state, responsive reflow, and print restoration of Original content.
+- Extended formal compilation, shared HTML validation, JavaScript regression coverage, and adversarial publication audit for the new contracts.
+
 ### Auditable daily-news ranking
 
 - Added `skills/ai-quantum-news-briefing/scripts/rank_briefing_candidates.py` with algorithm version `news-ranker-v1`.

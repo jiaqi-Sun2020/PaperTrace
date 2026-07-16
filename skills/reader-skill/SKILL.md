@@ -81,6 +81,7 @@ For every reader bundle, `markdown_reader_to_html.py` first compiles:
   preflight_manifest.json
   claim_contribution_ledger.json
   annotation_metadata.json
+  paper_summary.json
   structure_validation_report.json
   normalized_reader.md
 ```
@@ -103,6 +104,8 @@ For full papers, require a completion-authored `reader_wiki/concept_candidates.j
 
 The Personal Knowledge Boundary must be visible from both the header and TOC, summarize profile statuses, and never expose an absolute local profile path. Its visible interface language is English except for the values under `Chinese Name` and `Role in This Paper`, which remain Chinese. Use the exact English columns `Concept`, `Personal Status`, `Chinese Name`, `Type`, and `Role in This Paper`; render statuses and concept types as readable English labels, never internal enum tokens.
 
+Full-paper readers also require completion-authored `reader_wiki/paper_summary.json`. Reader-skill validates and renders it but never invents it. The summary must include a detailed Chinese overview plus distinct source-grounded sections for what the paper does, how it works, why it matters, and evidence/scope/limitations. Every item links back to valid completion anchors.
+
 If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a best-effort HTML file.
 
 ## End-To-End Output Contract
@@ -110,6 +113,7 @@ If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a
 `reader_interactive.html` means the paper reader is complete enough for real reading:
 
 - every substantive `**Original:**` block has a faithful `**中文:**` translation;
+- a detailed, source-anchored paper summary is visible from the header/TOC and links every claim back to formal source blocks;
 - every concept highlighted in `Original` has the same `concept_id` highlighted through a controlled Chinese alias in the paired `中文` panel, and vice versa;
 - `**注释:**` contains useful paper logic, knowledge-point, formula, figure/table, or reading guidance when needed;
 - every figure/table in `source_map.json` appears as an inspectable figure/table card or semantic table near the relevant prose;
@@ -125,6 +129,8 @@ If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a
 - every knowledge mark includes `data-concept`, `data-status`, `data-source-anchor`, `data-concept-type`, `data-alias-zh`, and `title`;
 - the feedback panel closes after `Save mark`, Esc, the close button, or blank-page click, while download/copy export remains available.
 - Source Page Index links remain plain relative paths such as `assets/source_pages/page-01.png`; inline math and concept highlighting must not run inside `href`, image `src`, file paths, or source-page labels.
+- full PDF readers expose every hash-bound `source_map.pages` image in a left-side source-page viewer that synchronizes to `data-source-page` reader blocks, uses only safe relative `assets/source_pages/` paths, and never substitutes a full page for an inline figure card;
+- global controls independently collapse/restore bilingual Original panels and the source-page viewer, preserve keyboard/ARIA state and namespaced localStorage state, keep Contents available, and force Original visible in print;
 - `Copy feedback for Codex` always fills a visible fallback textarea when clipboard access is unavailable or blocked, so the user can still retrieve feedback JSON.
 
 Do not generate or report any HTML from incomplete translation. The PDF reader pipeline is one-step-to-final: finish faithful translation, figure/table cards, LaTeX formulas, and block-specific notes first, then generate `reader_interactive.html`.
@@ -269,6 +275,9 @@ The output must:
 - use semantic structure: `header`, `main`, `article`, `section`, `figure`, `table`, `nav`;
 - preserve stable source anchors and source labels;
 - show substantive source blocks as aligned `Original` and `中文` columns;
+- render the model-authored paper summary before the concept ledger and article body;
+- place the synchronized original-page viewer in the left reader sidebar above Contents;
+- include accessible `Hide/Show Original` and `Hide/Show Source Pages` controls without deleting source DOM content;
 - show `注释` as a separate horizontal third column on wide screens;
 - keep figures/tables near their Markdown positions;
 - render formulas without letting concept highlighting break MathJax;

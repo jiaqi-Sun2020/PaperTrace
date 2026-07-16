@@ -113,6 +113,96 @@ function testThemePersists() {
   if (store.get("paper.reader.theme") !== "contrast") throw new Error("theme change was not persisted");
 }
 
+function extractReaderViewScript(source) {
+  const scripts = Array.from(source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+    .map((match) => match[1])
+    .filter((script) => script.includes("paper.reader.view."));
+  if (!scripts.length) throw new Error("missing reader view-control script");
+  return scripts[scripts.length - 1];
+}
+
+function testReaderViewControlsPersist() {
+  const viewScript = extractReaderViewScript(html);
+  const sourceJson = html.match(/<script id="readerSourcePages" type="application\/json">([\s\S]*?)<\/script>/);
+  if (!sourceJson) throw new Error("missing source-page JSON");
+  const pages = JSON.parse(sourceJson[1].replace(/<\\\//g, "</"));
+  if (!pages.length) throw new Error("source-page JSON is empty");
+
+  function button() {
+    return {
+      attrs: {}, textContent: "", disabled: false, listener: null,
+      setAttribute(name, value) { this.attrs[name] = value; },
+      addEventListener(type, fn) { if (type === "click") this.listener = fn; },
+    };
+  }
+  const originalButton = button();
+  const sourceButton = button();
+  const previousButton = button();
+  const nextButton = button();
+  const sourceViewer = { attrs: {}, setAttribute(name, value) { this.attrs[name] = value; } };
+  const sourceImage = { src: "", alt: "" };
+  const sourceOpen = { href: "" };
+  const sourceCounter = { textContent: "" };
+  const elements = {
+    toggleOriginal: originalButton,
+    toggleSourcePages: sourceButton,
+    sourcePageViewer: sourceViewer,
+    sourcePageImage: sourceImage,
+    sourcePageOpen: sourceOpen,
+    sourcePageCounter: sourceCounter,
+    sourcePagePrevious: previousButton,
+    sourcePageNext: nextButton,
+    readerSourcePages: { textContent: sourceJson[1] },
+  };
+  const bodyClasses = new Set();
+  const store = new Map();
+  const storageKeyMatch = viewScript.match(/const storageKey = '([^']+)'/);
+  if (!storageKeyMatch) throw new Error("missing namespaced reader view storage key");
+  store.set(storageKeyMatch[1], JSON.stringify({ originalCollapsed: true, sourcePagesCollapsed: true, currentPage: pages[0].page }));
+  const context = {
+    document: {
+      body: { classList: { toggle(name, enabled) { if (enabled) bodyClasses.add(name); else bodyClasses.delete(name); } } },
+      getElementById(id) { return elements[id] || null; },
+      addEventListener() {},
+      querySelectorAll() { return []; },
+    },
+    window: { matchMedia() { return { matches: false }; } },
+    localStorage: {
+      getItem(key) { return store.get(key) || null; },
+      setItem(key, value) { store.set(key, value); },
+    },
+    Element: function Element() {},
+    Map,
+    JSON,
+  };
+  vm.runInNewContext(viewScript, context, { timeout: 1000 });
+  if (!bodyClasses.has("original-collapsed") || !bodyClasses.has("source-pages-collapsed")) {
+    throw new Error("saved reader view state was not restored");
+  }
+  if (originalButton.textContent !== "Show Original" || sourceButton.textContent !== "Show Source Pages") {
+    throw new Error("reader view button text did not reflect collapsed state");
+  }
+  if (originalButton.attrs["aria-expanded"] !== "false" || sourceButton.attrs["aria-expanded"] !== "false") {
+    throw new Error("reader view controls did not expose collapsed ARIA state");
+  }
+  originalButton.listener();
+  sourceButton.listener();
+  if (bodyClasses.has("original-collapsed") || bodyClasses.has("source-pages-collapsed")) {
+    throw new Error("reader view controls did not restore visible state");
+  }
+  if (originalButton.attrs["aria-expanded"] !== "true" || sourceButton.attrs["aria-expanded"] !== "true") {
+    throw new Error("reader view controls did not expose expanded ARIA state");
+  }
+  if (sourceImage.src !== pages[0].src || !sourceCounter.textContent.includes("Page")) {
+    throw new Error("source-page viewer did not render the selected page");
+  }
+  if (pages.length > 1) {
+    nextButton.listener();
+    if (sourceImage.src !== pages[1].src) throw new Error("source-page Next control did not advance the image");
+  }
+}
+
 testSaveMarkClosesPanel();
 testThemePersists();
-console.log("reader JS runtime passed: save mark closes panel and theme persists.");
+testReaderViewControlsPersist();
+console.log("reader JS runtime passed: feedback, theme, summary-view controls, and source pages persist.");

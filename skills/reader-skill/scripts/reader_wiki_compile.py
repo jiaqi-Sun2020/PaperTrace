@@ -75,6 +75,21 @@ STOP_CONCEPT_FRAGMENTS = (
 )
 GENERIC_CONCEPT_NOISE = {"and", "amplitude", "coherent", "fig", "figure", "table", "ii", "iii", "iv"}
 
+SUMMARY_SECTION_MIN_ITEMS = {
+    "what_it_does": 2,
+    "how_it_works": 3,
+    "why_it_matters": 2,
+    "evidence_and_limitations": 1,
+}
+SUMMARY_PLACEHOLDER_MARKERS = (
+    "summary-required",
+    "todo",
+    "tbd",
+    "待总结",
+    "待补充",
+    "占位",
+)
+
 DIRTY_TEXT_MARKERS = MOJIBAKE_PATTERNS + ("�", "锟", "鈭", "脳", "涓枃", "闃呰")
 
 SEED_CONCEPTS: list[tuple[str, str, str, str]] = [
@@ -287,6 +302,117 @@ def clean_reader_field(text: Any) -> str:
     value = "".join(ch for ch in value if ord(ch) >= 32 or ch in "\n\r\t")
     value = re.sub(r"([A-Za-z])-\s+([A-Za-z])", r"\1\2", value)
     return value.strip()
+
+
+def source_anchor_ids(source_map: dict[str, Any], blocks: list[dict[str, Any]]) -> set[str]:
+    anchors = {str(block.get("source_anchor") or block.get("block_id") or "") for block in blocks}
+    for value in source_map.values():
+        if not isinstance(value, list):
+            continue
+        for row in value:
+            if not isinstance(row, dict):
+                continue
+            anchor = str(row.get("id") or row.get("block_id") or row.get("source_anchor") or "").strip()
+            if anchor:
+                anchors.add(anchor)
+    return {anchor for anchor in anchors if anchor}
+
+
+def load_authored_paper_summary(
+    reader_dir: Path,
+    source_map: dict[str, Any],
+    blocks: list[dict[str, Any]],
+    *,
+    required: bool,
+) -> tuple[dict[str, Any], list[str]]:
+    """Load the model-authored, source-anchored paper summary contract."""
+    path = reader_dir / "reader_wiki" / "paper_summary.json"
+    if not path.exists():
+        return {}, ["full-paper reader lacks completion-authored reader_wiki/paper_summary.json"] if required else []
+    summary = read_json(path)
+    errors: list[str] = []
+    if summary.get("schema_version") != 1:
+        errors.append("paper_summary.json schema_version must be 1")
+    if summary.get("language") != "zh-CN":
+        errors.append("paper_summary.json language must be zh-CN")
+
+    valid_anchors = source_anchor_ids(source_map, blocks)
+
+    def validate_entry(entry: Any, label: str, minimum_chars: int) -> None:
+        if not isinstance(entry, dict):
+            errors.append(f"paper summary {label} must be an object")
+            return
+        text = clean_space(entry.get("text"))
+        if len(text) < minimum_chars:
+            errors.append(f"paper summary {label} is too short for a detailed, non-template explanation")
+        lowered = text.casefold()
+        if any(marker in lowered for marker in SUMMARY_PLACEHOLDER_MARKERS):
+            errors.append(f"paper summary {label} contains a placeholder/template marker")
+        if text and not re.search(r"[\u3400-\u9fff]", text):
+            errors.append(f"paper summary {label} must contain Chinese explanatory prose")
+        if re.search(r"(?:[A-Za-z]:\\|file://|\.\.[/\\])", text, re.I):
+            errors.append(f"paper summary {label} contains an unsafe local path")
+        anchors = entry.get("source_anchors")
+        if not isinstance(anchors, list) or not anchors:
+            errors.append(f"paper summary {label} lacks source_anchors")
+            return
+        for anchor in anchors:
+            anchor_text = str(anchor).strip()
+            if anchor_text not in valid_anchors:
+                errors.append(f"paper summary {label} cites unknown source anchor {anchor_text!r}")
+
+    validate_entry(summary.get("overview"), "overview", 80)
+    for section, minimum_items in SUMMARY_SECTION_MIN_ITEMS.items():
+        items = summary.get(section)
+        if not isinstance(items, list) or len(items) < minimum_items:
+            errors.append(f"paper summary {section} requires at least {minimum_items} source-grounded items")
+            continue
+        for index, entry in enumerate(items, start=1):
+            validate_entry(entry, f"{section}[{index}]", 18)
+    return summary, errors
+
+
+def validate_source_page_assets(reader_dir: Path, source_map: dict[str, Any], *, required: bool) -> list[str]:
+    errors: list[str] = []
+    pages = source_map.get("pages")
+    if not isinstance(pages, list) or not pages:
+        return ["full PDF reader lacks source_map.pages source-page evidence"] if required else []
+    expected_count = int((source_map.get("paper") or {}).get("page_count") or 0)
+    if required and expected_count and len(pages) != expected_count:
+        errors.append(f"source page asset count is {len(pages)}; expected {expected_count}")
+    seen_pages: set[int] = set()
+    for row in pages:
+        if not isinstance(row, dict):
+            errors.append("source_map.pages contains a non-object entry")
+            continue
+        try:
+            page = int(row.get("page"))
+        except (TypeError, ValueError):
+            errors.append("source page entry lacks a positive integer page")
+            continue
+        if page < 1 or page in seen_pages:
+            errors.append(f"source page number is invalid or duplicated: {page}")
+        seen_pages.add(page)
+        relative = str(row.get("source_page_image") or "").replace("\\", "/")
+        if not re.fullmatch(r"assets/source_pages/[A-Za-z0-9._-]+\.(?:png|jpe?g|webp)", relative, re.I):
+            errors.append(f"source page {page} has unsafe/noncanonical image path: {relative!r}")
+            continue
+        asset = (reader_dir / relative).resolve()
+        source_root = (reader_dir / "assets" / "source_pages").resolve()
+        try:
+            asset.relative_to(source_root)
+        except ValueError:
+            errors.append(f"source page {page} escapes assets/source_pages")
+            continue
+        if not asset.is_file():
+            errors.append(f"source page {page} image is missing: {relative}")
+            continue
+        expected_hash = str(row.get("sha256") or "")
+        if not expected_hash or expected_hash != sha256_file(asset):
+            errors.append(f"source page {page} image hash is missing or stale")
+    if required and expected_count and seen_pages != set(range(1, expected_count + 1)):
+        errors.append("source page numbers do not form the complete contiguous PDF page range")
+    return errors
 
 
 def clean_optional_ledger_text(text: Any) -> str:
@@ -905,6 +1031,14 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
     paper_meta = source_map.get("paper") or {}
     source_path = str(paper_meta.get("source_path") or "")
     full_paper = not is_fixture and (page_count >= 4 or paper_meta.get("source_type") == "pdf" or source_path.lower().endswith(".pdf"))
+    errors.extend(validate_source_page_assets(reader_dir, source_map, required=full_paper))
+    paper_summary, summary_errors = load_authored_paper_summary(
+        reader_dir,
+        source_map,
+        blocks,
+        required=full_paper,
+    )
+    errors.extend(summary_errors)
     candidate_path = reader_dir / "reader_wiki" / "concept_candidates.json"
     if full_paper and not candidate_path.exists():
         errors.append("full-paper reader lacks completion-authored reader_wiki/concept_candidates.json")
@@ -959,6 +1093,10 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
     if candidate_path.exists():
         source_of_truth["concept_candidates"] = "reader_wiki/concept_candidates.json"
         source_of_truth["concept_candidates_sha256"] = sha256_file(candidate_path)
+    summary_path = reader_dir / "reader_wiki" / "paper_summary.json"
+    if summary_path.exists():
+        source_of_truth["paper_summary"] = "reader_wiki/paper_summary.json"
+        source_of_truth["paper_summary_sha256"] = sha256_file(summary_path)
     manifest = {
         "version": 1,
         "generated_at": utc_now(),
@@ -966,6 +1104,7 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
         "paper": source_map.get("paper") or {},
         "sections": sections,
         "bilingual_blocks": blocks,
+        "paper_summary": paper_summary,
         "normalized_markdown": "reader_wiki/normalized_reader.md",
         "completion_run_state_status": state.get("status", "missing"),
     }
@@ -982,6 +1121,8 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
             "figure_table_entries": len(figures_tables),
             "algorithms": len(algorithms),
             "claims": len(claim_ledger(blocks)),
+            "paper_summary_sections": 1 + sum(len(paper_summary.get(key) or []) for key in SUMMARY_SECTION_MIN_ITEMS) if paper_summary else 0,
+            "source_pages": len(source_map.get("pages") or []),
             "expected_source_blocks": int(state.get("expected_records") or 0),
             "faithful_source_blocks": int(state.get("completed_records") or 0),
         },

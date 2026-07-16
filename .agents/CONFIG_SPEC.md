@@ -124,6 +124,10 @@ Strict final generation should fail when source-map figure/table entries have no
 
 Strict final generation should also fail when source algorithms are summarized instead of rendered as full Algorithm cards, when Source Page Index links contain generated HTML/math markup inside `href`, or when the feedback UI lacks a copy fallback textarea.
 
+Full-paper readers require `reader_wiki/paper_summary.json` (`schema_version: 1`, `language: zh-CN`). It contains an `overview` object plus `what_it_does`, `how_it_works`, `why_it_matters`, and `evidence_and_limitations` arrays. Every object has substantive Chinese `text` and non-empty `source_anchors` that resolve to formal completion records. This file is authored during semantic completion; reader-skill validates/renders it but does not synthesize it.
+
+For PDF inputs, `source_map.pages` is the immutable page-view manifest. Each row contains a positive `page`, a bundle-relative `assets/source_pages/...` image, and its SHA-256. Formal HTML renders one synchronized left-side page viewer, adds `data-source-page` to source blocks, and supplies independent Original/source-page collapse controls. Absolute paths, traversal, missing/hash-stale pages, full-page figure cards, inaccessible controls, or print-hidden Original panels fail publication.
+
 Post-generation audit:
 
 ```powershell
