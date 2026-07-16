@@ -14,6 +14,7 @@ from typing import Any, Iterable
 from urllib.parse import urlsplit
 
 from briefing_contract import canonical_url, normalize_briefing_config
+from rank_briefing_candidates import ALGORITHM_VERSION, is_primary_official, is_reputable
 
 
 ACADEMIC_DOMAINS = {
@@ -113,9 +114,17 @@ def academic_kind(url: str) -> str:
 
 
 def is_academic_item(section: str, item: dict[str, Any]) -> bool:
+    source_kind = academic_kind(clean_text(item.get("source_url"), 1000))
+    if source_kind in ACADEMIC_DOMAINS.values():
+        return True
+    section_text = clean_text(section, 300).lower()
+    if any(word in section_text for word in ["社会", "social", "news", "新闻"]):
+        return False
+    if any(word in section_text for word in ["academic", "学术", "papers", "论文"]):
+        return True
     text = " ".join(
         [
-            section,
+            section_text,
             clean_text(item.get("category"), 200),
             clean_text(item.get("evidence_level"), 200),
             clean_text(item.get("source_title"), 300),
@@ -199,10 +208,14 @@ def audit_academic_delivery(config: dict[str, Any]) -> list[str]:
         if delivery and not clean_text(delivery.get("no_signal_reason"), 500):
             return ["academic_delivery opt-out requires no_signal_reason"]
         return []
+    failures: list[str] = []
     try:
-        minimum_items = max(1, int(delivery.get("minimum_items", 1)))
+        configured_minimum_items = int(delivery.get("minimum_items", 7))
+        minimum_items = max(7, configured_minimum_items)
     except (TypeError, ValueError):
         return ["academic_delivery.minimum_items must be a positive integer"]
+    if configured_minimum_items < 7:
+        failures.append("academic_delivery.minimum_items must be at least 7")
     formal_items = [
         item
         for _, item in iter_items(config)
@@ -218,15 +231,63 @@ def audit_academic_delivery(config: dict[str, Any]) -> list[str]:
         for section in config.get("sections", [])
         if isinstance(section, dict)
     ]
-    failures: list[str] = []
     if len(formal_items) < minimum_items:
         failures.append(
             f"academic_delivery requires at least {minimum_items} formal venue or arXiv item; found {len(formal_items)}"
         )
-    if not primary_venue_items:
-        failures.append("academic_delivery requires at least one non-arXiv formal venue paper")
+    try:
+        configured_maximum_items = int(delivery.get("maximum_items", 8))
+        configured_minimum_non_arxiv = int(delivery.get("minimum_non_arxiv_items", 2))
+        configured_maximum_continuing = int(delivery.get("maximum_continuing_items", 3))
+    except (TypeError, ValueError):
+        return failures + ["academic_delivery item limits must be integers"]
+    if configured_maximum_items > 8 or configured_maximum_items < minimum_items:
+        failures.append("academic_delivery publication range must stay within 7-8 items")
+    if configured_minimum_non_arxiv < 2:
+        failures.append("academic_delivery.minimum_non_arxiv_items must be at least 2")
+    if configured_maximum_continuing > 3:
+        failures.append("academic_delivery.maximum_continuing_items must be at most 3")
+    maximum_items = min(8, max(minimum_items, configured_maximum_items))
+    minimum_non_arxiv = max(2, configured_minimum_non_arxiv)
+    maximum_continuing = max(0, min(3, configured_maximum_continuing))
+    if len(formal_items) > maximum_items:
+        failures.append(f"academic_delivery permits at most {maximum_items} paper items; found {len(formal_items)}")
+    if len(primary_venue_items) < minimum_non_arxiv:
+        failures.append(
+            f"academic_delivery requires at least {minimum_non_arxiv} non-arXiv formal venue papers; found {len(primary_venue_items)}"
+        )
+    continuing_items = [item for item in formal_items if clean_text(item.get("novelty"), 80).lower() == "continuing"]
+    if len(continuing_items) > maximum_continuing:
+        failures.append(
+            f"academic_delivery permits at most {maximum_continuing} continuing paper items; found {len(continuing_items)}"
+        )
     if not any("academic" in title or "research" in title or "学术" in title or "论文" in title for title in academic_sections):
         failures.append("academic_delivery requires a dedicated academic research section")
+    delta_policy = config.get("delta_policy") or {}
+    if isinstance(delta_policy, dict) and delta_policy.get("mode") == "delta_first":
+        try:
+            configured_minimum_new = int(delivery.get("minimum_new_items", 4))
+            configured_maximum_new = int(delivery.get("maximum_new_items", 6))
+        except (TypeError, ValueError):
+            return failures + ["academic_delivery.minimum_new_items and maximum_new_items must be positive integers"]
+        if configured_minimum_new < 4:
+            failures.append("academic_delivery.minimum_new_items must be at least 4")
+        if configured_maximum_new > 6 or configured_maximum_new < max(4, configured_minimum_new):
+            failures.append("academic_delivery new-item range must stay within 4-6 items")
+        minimum_new_items = max(4, configured_minimum_new)
+        maximum_new_items = min(6, max(minimum_new_items, configured_maximum_new))
+        new_items = [
+            item for item in formal_items
+            if clean_text(item.get("novelty"), 80).lower() == "new"
+        ]
+        if len(new_items) < minimum_new_items:
+            failures.append(
+                f"academic_delivery final delta requires {minimum_new_items}-{maximum_new_items} new academic paper items; found {len(new_items)}"
+            )
+        if len(new_items) > maximum_new_items:
+            failures.append(
+                f"academic_delivery final delta permits at most {maximum_new_items} new academic paper items; found {len(new_items)}"
+            )
     return failures
 
 
@@ -247,10 +308,14 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
         for value in candidate_pool.get("required_source_classes", [])
         if clean_text(value, 120)
     }
+    failures: list[str] = []
     try:
-        minimum_items = max(1, int(delivery.get("minimum_items", 1)))
+        configured_minimum_items = int(delivery.get("minimum_items", 10))
+        minimum_items = max(10, configured_minimum_items)
     except (TypeError, ValueError):
         return ["social_delivery.minimum_items must be a positive integer"]
+    if configured_minimum_items < 10:
+        failures.append("social_delivery.minimum_items must be at least 10")
     social_sections = [
         section
         for section in config.get("sections", [])
@@ -265,7 +330,6 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
         for item in social_items
         if academic_kind(clean_text(item.get("source_url"), 1000)) not in ACADEMIC_DOMAINS.values()
     ]
-    failures: list[str] = []
     if not clean_text(candidate_pool.get("checked_at"), 120):
         failures.append("social_candidate_pool requires checked_at")
     missing_classes = sorted(required_classes - recorded_classes)
@@ -275,6 +339,64 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
         failures.append(f"social_delivery requires at least {minimum_items} social-news item; found {len(social_items)}")
     if len(non_academic_items) < minimum_items:
         failures.append("social news section requires non-academic source-backed items")
+    try:
+        configured_maximum_items = int(delivery.get("maximum_items", 14))
+        configured_minimum_active = int(delivery.get("minimum_new_or_material_update", 7))
+        configured_maximum_continuing = int(delivery.get("maximum_continuing_items", 3))
+        configured_minimum_reputable = int(delivery.get("minimum_reputable_media_items", 3))
+        configured_minimum_official = int(delivery.get("minimum_primary_official_items", 3))
+        configured_minimum_classes = int(delivery.get("minimum_source_classes", 3))
+        configured_maximum_organization = int(delivery.get("maximum_items_per_organization", 2))
+        configured_maximum_topic = int(delivery.get("maximum_items_per_topic", 3))
+    except (TypeError, ValueError):
+        return failures + ["social_delivery limits must be integers"]
+    if configured_maximum_items > 14 or configured_maximum_items < minimum_items:
+        failures.append("social_delivery publication range must stay within 10-14 items")
+    if configured_minimum_active < 7:
+        failures.append("social_delivery.minimum_new_or_material_update must be at least 7")
+    if configured_maximum_continuing > 3:
+        failures.append("social_delivery.maximum_continuing_items must be at most 3")
+    if configured_minimum_reputable < 3:
+        failures.append("social_delivery.minimum_reputable_media_items must be at least 3")
+    if configured_minimum_official < 3:
+        failures.append("social_delivery.minimum_primary_official_items must be at least 3")
+    if configured_minimum_classes < 3:
+        failures.append("social_delivery.minimum_source_classes must be at least 3")
+    if configured_maximum_organization > 2:
+        failures.append("social_delivery.maximum_items_per_organization must be at most 2")
+    if configured_maximum_topic > 3:
+        failures.append("social_delivery.maximum_items_per_topic must be at most 3")
+    maximum_items = min(14, max(minimum_items, configured_maximum_items))
+    minimum_active = max(7, configured_minimum_active)
+    maximum_continuing = max(0, min(3, configured_maximum_continuing))
+    minimum_reputable = max(3, configured_minimum_reputable)
+    minimum_official = max(3, configured_minimum_official)
+    minimum_classes = max(3, configured_minimum_classes)
+    maximum_organization = max(1, min(2, configured_maximum_organization))
+    maximum_topic = max(1, min(3, configured_maximum_topic))
+    if len(social_items) > maximum_items:
+        failures.append(f"social_delivery permits at most {maximum_items} items; found {len(social_items)}")
+    active_items = [item for item in social_items if clean_text(item.get("novelty"), 80).lower() in {"new", "material_update"}]
+    continuing_items = [item for item in social_items if clean_text(item.get("novelty"), 80).lower() == "continuing"]
+    source_classes = [clean_text((item.get("ranking") or {}).get("source_class") or item.get("source_class"), 120).lower() for item in social_items]
+    if len(active_items) < minimum_active:
+        failures.append(f"social_delivery requires at least {minimum_active} new or material-update items; found {len(active_items)}")
+    if len(continuing_items) > maximum_continuing:
+        failures.append(f"social_delivery permits at most {maximum_continuing} continuing items; found {len(continuing_items)}")
+    if sum(is_reputable(value) for value in source_classes) < minimum_reputable:
+        failures.append(f"social_delivery requires at least {minimum_reputable} reputable-media items")
+    if sum(is_primary_official(value) for value in source_classes) < minimum_official:
+        failures.append(f"social_delivery requires at least {minimum_official} primary-official items")
+    if len({value for value in source_classes if value}) < minimum_classes:
+        failures.append(f"social_delivery requires at least {minimum_classes} source classes")
+    organizations = Counter(clean_text((item.get("ranking") or {}).get("organization") or item.get("organization"), 200).lower() for item in social_items)
+    topics = Counter(clean_text((item.get("ranking") or {}).get("topic") or item.get("topic"), 200).lower() for item in social_items)
+    for organization, count in organizations.items():
+        if organization and count > maximum_organization:
+            failures.append(f"social_delivery organization cap exceeded: {organization} x{count} > {maximum_organization}")
+    for topic, count in topics.items():
+        if topic and count > maximum_topic:
+            failures.append(f"social_delivery topic cap exceeded: {topic} x{count} > {maximum_topic}")
     for item in social_items:
         missing_fields = [
             field
@@ -283,6 +405,81 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
         ]
         if missing_fields:
             failures.append("social news item is missing required evidence fields: " + ", ".join(missing_fields))
+    return failures
+
+
+def audit_ranking_delivery(config: dict[str, Any]) -> list[str]:
+    """Require a transparent, internally consistent ranking record for daily releases."""
+    delivery = config.get("academic_delivery") or {}
+    if not isinstance(delivery, dict) or not delivery.get("required"):
+        return []
+    policy = config.get("ranking_policy") or {}
+    manifest = config.get("ranking_manifest") or {}
+    failures: list[str] = []
+    if not isinstance(policy, dict) or not policy.get("enabled"):
+        return ["daily briefing requires ranking_policy.enabled=true"]
+    if clean_text(policy.get("algorithm_version"), 120) != ALGORITHM_VERSION:
+        failures.append(f"ranking_policy.algorithm_version must be {ALGORITHM_VERSION}")
+    if not isinstance(manifest, dict) or clean_text(manifest.get("algorithm_version"), 120) != ALGORITHM_VERSION:
+        failures.append(f"ranking_manifest.algorithm_version must be {ALGORITHM_VERSION}")
+        return failures
+    academic_policy = policy.get("academic") or {}
+    social_policy = policy.get("social") or {}
+    try:
+        if int(academic_policy.get("minimum_items", 0)) < 7 or int(academic_policy.get("maximum_items", 99)) > 8:
+            failures.append("ranking_policy academic publication range must be 7-8 items")
+        if int(social_policy.get("minimum_items", 0)) < 10:
+            failures.append("ranking_policy social minimum must be at least 10 items")
+    except (TypeError, ValueError):
+        failures.append("ranking_policy item limits must be integers")
+
+    ranked_items: dict[str, list[dict[str, Any]]] = {"academic": [], "social": []}
+    for section, item in iter_items(config):
+        kind = "academic" if academic_kind(clean_text(item.get("source_url"), 1000)) in ACADEMIC_DOMAINS.values() else "social"
+        ranking = item.get("ranking") or {}
+        label = clean_text(item.get("story_id") or item.get("id"), 240)
+        if not isinstance(ranking, dict) or not ranking:
+            failures.append(f"{label}: selected item is missing ranking evidence")
+            continue
+        if clean_text(ranking.get("algorithm_version"), 120) != ALGORITHM_VERSION:
+            failures.append(f"{label}: ranking algorithm version mismatch")
+        if ranking.get("eligible") is not True or ranking.get("selected") is not True:
+            failures.append(f"{label}: published item must be eligible and selected")
+        components = ranking.get("components") or {}
+        penalties = ranking.get("penalties") or {}
+        try:
+            computed = max(0.0, min(100.0, sum(float(value) for value in components.values()) + sum(float(value) for value in penalties.values())))
+            if abs(computed - float(ranking.get("base_score"))) > 0.02:
+                failures.append(f"{label}: ranking base_score is not reproducible from components and penalties")
+            rank = int(ranking.get("rank"))
+            if rank < 1:
+                raise ValueError
+        except (TypeError, ValueError):
+            failures.append(f"{label}: ranking score or rank is invalid")
+        ranked_items[kind].append(item)
+
+    for kind, items in ranked_items.items():
+        ranks = sorted(int((item.get("ranking") or {}).get("rank", 0)) for item in items)
+        if ranks != list(range(1, len(items) + 1)):
+            failures.append(f"{kind} ranking must use contiguous ranks starting at 1")
+    selected_counts = manifest.get("selected_counts") or {}
+    for kind in ("academic", "social"):
+        try:
+            if int(selected_counts.get(kind, -1)) != len(ranked_items[kind]):
+                failures.append(f"ranking_manifest selected count mismatch for {kind}")
+        except (TypeError, ValueError):
+            failures.append(f"ranking_manifest selected count is invalid for {kind}")
+    ledger = manifest.get("candidate_ledger") or []
+    if not isinstance(ledger, list) or not ledger:
+        failures.append("ranking_manifest requires a non-empty candidate_ledger")
+    else:
+        selected_ledger = {clean_text(row.get("story_id"), 240) for row in ledger if isinstance(row, dict) and row.get("selected")}
+        published_ids = {clean_text(item.get("story_id"), 240) for items in ranked_items.values() for item in items}
+        if selected_ledger != published_ids:
+            failures.append("ranking_manifest selected ledger does not match published story IDs")
+        for row in ledger:
+            if isinstance(row, dict) and not row.get("selected") and not row.get("exclusion_reasons"):
+                failures.append("ranking candidate exclusion requires an explicit reason")
     return failures
 
 
@@ -358,6 +555,7 @@ def audit(config: dict[str, Any]) -> dict[str, Any]:
     total_academic = sum(count for kind, count in academic_counts.items() if kind not in {"official", "other"})
     failures.extend(audit_academic_delivery(config))
     failures.extend(audit_social_delivery(config))
+    failures.extend(audit_ranking_delivery(config))
     if total_academic:
         checked_venues, checked_topics, primary_hits, evidence_failures = academic_search_venues(config)
         failures.extend(evidence_failures)

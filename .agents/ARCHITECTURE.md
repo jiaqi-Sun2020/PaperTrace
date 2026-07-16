@@ -1,36 +1,26 @@
 # Architecture
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-14
+- Last reviewed: 2026-07-16
 
 ## Top-Level Structure
 
 ```text
 PaperTrace/
-|-- 2024/
-|-- 2025/
 |-- 2026/
-|-- Optical/
-|-- Quantum Deep Leaning/
-|-- interset/
 |-- news/
 |-- readed/
-|-- 综述文章/
-|-- 王老师/
 |-- skills/
+|-- video/
 `-- .agents/
 ```
 
 ## Corpus Directories
 
-- `2024/`, `2025/`, `2026/`: papers organized by year and sometimes month.
-- `Optical/`: optics and photonics papers.
-- `Quantum Deep Leaning/`: quantum deep learning / quantum machine learning papers. The directory name is spelled as it exists on disk.
-- `interset/`: interest collection.
+- `2026/`: current papers and reader bundles organized by year and month.
 - `news/`: generated AI/quantum daily or multi-day briefing artifacts, including Markdown briefings, feedback HTML, feedback configs, and exported feedback JSON.
 - `readed/`: papers already read or previously processed.
-- `综述文章/`: review papers.
-- `王老师/`: small named collection.
+- `video/`: scripts and source documentation for paper-video material; generated audio/video output remains ignored.
 
 ## Skill Directories
 
@@ -44,13 +34,14 @@ skills/
 `-- utils/
     |-- chat-knowledge-profile/
     |-- demo-skill/
-    `-- lean-html-skill/
+    |-- lean-html-skill/
+    `-- neat-freak/
 ```
 
 ## Four Primary Pipeline Boundaries
 
 - **Pipeline 1 — Paper Reader HTML:** `nature-reader` builds internal evidence; `reader-skill` emits the terminal audited `reader_interactive.html`. The `*_reader/` workspace, Markdown, and `reader_wiki/` are not terminal artifacts.
-- **Pipeline 2 — AI + Quantum Daily Briefing Release:** `ai-quantum-news-briefing` owns discovery, evidence, staging, verification, publication, feedback parity, manifest, and story-index commit. Candidate/config/Markdown alone are not terminal artifacts.
+- **Pipeline 2 — AI + Quantum Daily Briefing Release:** `ai-quantum-news-briefing` owns discovery, evidence eligibility, `news-ranker-v1` scoring/quota selection, Delta compaction, staging, verification, publication, feedback parity, manifest, and story-index commit. Candidate/config/Markdown alone are not terminal artifacts.
 - **Pipeline 3 — Local Chat-to-Profile Import:** `chat-knowledge-profile` owns collect/extract/propose; a human review plus strict backed-up apply through `reader-learner` is the terminal mutation gate. It has no paper/news HTML deliverable.
 - **Pipeline 4 — Adaptive Teaching Decision & Evidence Loop:** `adaptive-teach` owns profile-backed analysis, one-topic selection, diagnostics, and private lesson/session artifacts. A lesson request ends at the validated session; only actual performance may enter `teaching_feedback.json`, and only delegated `reader-learner` import may mutate profile/review state.
 
@@ -60,10 +51,11 @@ Visible Wiki sync consumes outputs around these boundaries but does not replace 
 - `reader-skill`: reader-specific Markdown parsing, translation validation, source anchors, bilingual body semantics, and learner-profile annotation metadata. It may keep compatibility HTML wrappers, but reusable HTML shell, feedback UI, and export controls should move to `lean-html-skill`. `reader_interactive.html` is only for completed translated readers; incomplete bundles must be fixed before HTML generation.
 - `reader-learner`: learner profile import/update commands plus `feedback_visible_wiki_pipeline.py`, which invokes the strict reader/news importer and then projects all stable profile concepts and concise source summaries into `.agents/wiki/`.
 - `adaptive-teach`: explicit-invocation teaching decision layer for profile-backed weakness analysis, evidence-gap diagnosis, next-topic selection, short lessons, transparent review policy, session records, and strict teaching-feedback handoffs.
-- `ai-quantum-news-briefing`: source-grounded AI/quantum briefings, lightweight briefing-reader HTML, concept/freeform news feedback export, and explicit news-feedback bridge into the learner profile.
+- `ai-quantum-news-briefing`: source-grounded AI/quantum briefings, deterministic academic/social candidate ranking, lightweight briefing-reader HTML, concept/freeform news feedback export, and explicit news-feedback bridge into the learner profile.
 - `utils/lean-html-skill`: shared standalone HTML shell, reusable HTML components, feedback UI, browser-memory/localStorage behavior, and feedback2 export layer for domain skills, including future reader HTML output work.
 - `utils/chat-knowledge-profile`: reviewable chat-session import layer for initializing or extending `knowledge_profile.json` from exported ChatGPT/GPT/Claude/Deepseek conversations through sources, bounded evidence events, `conversation_summaries.json`, candidates, strict `reader-learner` handoffs, and patches.
 - `utils/demo-skill`: source-traceable bilingual project-demo layer. It stores the current PaperTrace Chinese/English four-pipeline HTML templates and a deterministic no-overwrite materializer; copied pages must be reconciled with the target repository's README/AGENTS contracts before publication.
+- `utils/neat-freak`: documentation-governance layer. It audits size, dead references, rule drift, release/document consistency, and bilingual demo parity; it does not own any of the four business pipelines.
 
 ## Agent Data
 
@@ -97,6 +89,22 @@ Visible Wiki sync consumes outputs around these boundaries but does not replace 
 |   `-- source_pages/
 ```
 
+## Generated Daily Release Shape
+
+```text
+news/<YYYY-MM-DD>/
+|-- daily_briefing_<YYYY-MM-DD>.md
+|-- briefing_reader_<YYYY-MM-DD>.html
+|-- news_feedback_<YYYY-MM-DD>.json
+|-- news_feedback_config_delta_<YYYY-MM-DD>.json
+|-- daily_pipeline_manifest_<YYYY-MM-DD>.json
+`-- daily_pipeline_index_updates_<YYYY-MM-DD>.json
+
+news/_index/story_index.jsonl
+```
+
+Candidate config enters `news-ranker-v1` first. Eligible academic and social items receive separate component scores; deterministic MMR-style selection enforces new/continuing, source-class, formal-source, organization, and topic quotas. The ranked config then enters Delta compaction and the transactional `run -> verify -> finalize -> verify` release. Item-level `ranking` and top-level `ranking_policy`/`ranking_manifest` remain part of the published audit surface.
+
 ## Module Boundaries
 
 - `nature-reader` produces `paper.md` and source-grounded assets; do not make it responsible for learner profile mutation or HTML feedback UI.
@@ -104,9 +112,11 @@ Visible Wiki sync consumes outputs around these boundaries but does not replace 
 - `reader-learner` writes `.agents/reader-learner/knowledge_profile.json`; keep this as the single owner of learner profile mutation.
 - `adaptive-teach` reads the profile and owns teaching decisions only. It must keep explicit weakness, insufficient evidence, and due review distinct; it sends actual learner evidence through the `reader-learner` teaching-feedback importer rather than writing the profile.
 - `ai-quantum-news-briefing` may normalize explicit news feedback, but it delegates profile mutation to `reader-learner`.
+- `ai-quantum-news-briefing` must run the ranker before Delta compaction and preserve ranking evidence through normalization, HTML generation, manifest verification, and publication.
 - `lean-html-skill` owns reusable HTML shell/post-processing, shared feedback UI, browser-memory/localStorage behavior, and feedback2 export controls; domain skills should call it instead of embedding new shared HTML UI logic.
 - `chat-knowledge-profile` owns chat conversation import staging. It generates strict concept-status handoff feedback for `reader-learner`, including `source_anchor`, `concept_type`, and bounded evidence; it should not silently overwrite the learner/person profile without a reviewable patch and backup.
 - `demo-skill` owns project-presentation templates and their content/interaction audit. It does not own reader generation, profile mutation, news publication, or shared application data contracts.
+- `neat-freak` owns documentation reconciliation only. Dated milestones belong in `.agents/CHANGES.md`; durable hard boundaries remain in `AGENTS.md`, commands in `RUNBOOK.md`, and data contracts in `CONFIG_SPEC.md`.
 - Keep news knowledge-map layout out of `knowledge_profile.json`; store evidence/status in the profile, and render layout only in HTML reports.
 - News feedback and paper reader feedback share `.agents/reader-learner/knowledge_profile.json`; do not create a separate long-term news memory file unless the user changes the architecture.
 - Project-level README and `.agents/*.md` document workflows; they should not duplicate full paper contents.

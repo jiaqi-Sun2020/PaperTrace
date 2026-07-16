@@ -347,7 +347,7 @@
           <div>
             <div class="eyebrow reveal">AI + quantum briefing</div>
             <h2 class="pipe-title reveal">Evidence briefing<br>pipeline</h2>
-            <p class="pipe-desc reveal">From candidate signals to verifiable analysis. Candidate feeds support discovery only; publication requires HTTPS evidence, an academic-source audit, and identity parity.</p>
+            <p class="pipe-desc reveal">From candidate signals to verifiable analysis. Feeds support discovery only; after the evidence gate, news-ranker-v1 selects by value, quotas, and diversity.</p>
           </div>
           <div class="mini-flow">
             <span><small>Input</small>Signals</span><i>→</i>
@@ -362,14 +362,14 @@
               <li>AI HOT candidate pool: discovery, never final evidence.</li>
               <li>Formal academic entry points: PRL / PRA / PRX / Nature / Science.</li>
               <li>Conference and open sources: ICLR / CVPR / ICML / NeurIPS / ACL.</li>
-              <li>Quantum sources: Quantum Journal and labeled arXiv preprints.</li>
-              <li>Every paper record carries its own evidence fingerprint.</li>
+              <li>Evidence gate: original HTTPS source, date, and unique fingerprint.</li>
+              <li>Ranking quotas: 7–8 academic papers; 10–14 social-news items.</li>
             </ul>
           </div>
           <div class="brief-col">
             <div class="panel-head">Evidence brief</div>
-            <div class="brief-copy"><strong>Formal delivery boundary</strong><br><br>A briefing is not complete at the candidate pool, Markdown, or config stage. Publication requires a verified interactive HTML reader, a complete default-<strong>unrated</strong> feedback JSON, manifest integrity, and committed story-index state.</div>
-            <div class="brief-meta">RUN → VERIFY → FINALIZE → VERIFY<br>ANALYSIS zh-CN<br>ACADEMIC DELIVERY ≥ 5 ITEMS</div>
+            <div class="brief-copy"><strong>Formal delivery boundary</strong><br><br>A candidate pool, Markdown, or config is not a release. Score components, selection trace, and exclusions must remain in the manifest; publication requires verified interactive HTML, complete default-<strong>unrated</strong> feedback, and committed story-index state.</div>
+            <div class="brief-meta">RUN → VERIFY → FINALIZE → VERIFY<br>ANALYSIS zh-CN<br>ACADEMIC 7–8 · SOCIAL 10–14</div>
           </div>
           <div class="brief-col graph-wrap">
             <div class="panel-head">Concept map · interactive</div>
@@ -382,6 +382,7 @@
         <div class="artifact-track">
           <span class="artifact"><b>CANDIDATES</b>candidate_pool.json</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>EVIDENCE</b>academic_search</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>RANK</b>news-ranker-v1</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>STAGING</b>daily_pipeline run</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>VERIFY</b>contract + UTF-8</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>PUBLISH</b>briefing_reader.html</span><span class="artifact-arrow">→</span>
@@ -486,7 +487,7 @@
         </article>
       </div>
       <footer class="footer">
-        <div>Local research. Compounding knowledge.<br>Built from README + .agents contracts.</div>
+        <div>Local research. Compounding knowledge.<br>Built from README + .agents contracts.<br>With thanks to <a href="https://github.com/KKKKhazix/khazix-skills/tree/main">KKKKhazix/khazix-skills</a> for public workflow inspiration.</div>
         <div class="status-box"><span>Teaching loop<br>Feedback validated</span><b>READY</b></div>
       </footer>
     </section>
@@ -531,7 +532,7 @@
     }
 
     function renderCanvases(){
-      drawNetwork(document.querySelector('#briefGraph'), ['Candidates','Official source','Facts','Judgment','Relevance','Venue sweep','Preprint','Date','Feedback'], 7);
+      drawNetwork(document.querySelector('#briefGraph'), ['Candidates','Official source','Facts','Judgment','Relevance','Venue sweep','Ranking quotas','Date','Feedback'], 7);
       drawRadar(document.querySelector('#profileChart'));
       drawNetwork(document.querySelector('#teachGraph'), ['Weakness','Evidence gap','Due review','Prerequisite','Diagnose','Teach','Review','Transfer'], 13);
       drawNetwork(document.querySelector('#wikiGraph'), ['Performance','Validation','Backup','Profile','Review queue','Atomic write','Visible Wiki','Source'], 17);

@@ -1,7 +1,7 @@
 # Runbook
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-14
+- Last reviewed: 2026-07-16
 
 ## Choose One Primary Pipeline
 
@@ -164,7 +164,7 @@ The briefing pipeline is end-to-end: candidate collection and `news_feedback_con
 
 Use profile import only after the user explicitly marks briefing concepts or asks to record briefing keywords. Exposure-only keywords should be `unrated`.
 
-For recurring daily briefings, use the delta-first story index to avoid repeating yesterday's items and to keep prompt context small. First get the compact recent-story context:
+For recurring daily briefings, use the delta-first story index to avoid repeating prior-day items and to keep prompt context small. First get the compact lookback context:
 
 ```powershell
 python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\news_delta.py context --index D:\AI\PaperTrace\news\_index\story_index.jsonl --date <YYYY-MM-DD> --days 7
@@ -256,15 +256,33 @@ python D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\init_knowled
 
 The skill writes concept-status candidates through strict `reader-learner` validation and writes non-concept user traits under `person_profile`. Review `profile_patch.json` before applying. Use `conversation_summaries.json` to inspect each conversation's `at_a_glance`, topic tags, explicit preferences, open questions, and action-like requests.
 
-## Validate Scripts
-
 ## Daily Academic And Feedback Release Gate
 
-For `daily_pipeline.py`, keep `analysis_language=zh-CN` and `academic_delivery.required` enabled with `minimum_items=5`. The normalized delta config must contain a dedicated academic section with five distinct formal paper records, each with a primary article/DOI/preprint URL and individual evidence fingerprint, plus an `academic_search` HTTP-evidence ledger spanning PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv. Label any paper from the wider context window with its actual date; do not describe it as a current-window publication.
+For `daily_pipeline.py`, keep `analysis_language=zh-CN`, `academic_delivery.required=true`, and `ranking_policy.enabled=true`. `news-ranker-v1` must select 7–8 academic papers (4–6 `new`, at least two non-arXiv formal papers, at most three `continuing`) plus 10–14 social items (target 12, at least seven `new`/`material_update`, at most three `continuing`). Social selection also requires at least three reputable-media items, three primary-official items, and three source classes, with at most two items per organization and three per topic. `academic_search` must still cover PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv with HTTP evidence. Preserve actual publication dates for wider-window academic context.
+
+To inspect the ranking before running the transactional release, run from `D:\AI\PaperTrace`:
+
+```powershell
+python .\skills\ai-quantum-news-briefing\scripts\rank_briefing_candidates.py --config <candidate_config.json> --output <ranked_config.json> --index .\news\_index\story_index.jsonl --date <YYYY-MM-DD> --days 7
+python .\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py --config <ranked_config.json> --fail-on-warning
+```
+
+The normal `daily_pipeline.py run` command performs the same ranking internally before Delta compaction. Candidate-only evidence, invalid dates, unsafe URLs, duplicates, and missing fact/judgment/relevance fields remain in the ranking ledger with exclusion reasons but cannot enter the publication.
 
 Before `finalize`, run the strict config audit. It blocks English-only `facts`/`judgment`/`relevance`, encoding-corrupted Chinese (`U+FFFD` or corruption-pattern `?`), and insufficient academic delivery. On failure, rebuild the UTF-8 input from source records; never repair strings with global replacements or publish a visually rendered but semantically corrupted HTML file.
 
 The interactive briefing must initialize browser state from embedded `initial_feedback_items`. Before any click, `Download JSON` must export exactly the complete automatic concept set with `default_status: "unrated"`; after edits, it exports the same identities with user changes overlaid. Removing an automatic item restores the baseline; freeform annotations remain removable.
+
+After the final strict verification, inspect the published manifest from `D:\AI\PaperTrace`:
+
+```powershell
+$manifest = Get-Content -LiteralPath '.\news\<YYYY-MM-DD>\daily_pipeline_manifest_<YYYY-MM-DD>.json' -Raw -Encoding UTF8 | ConvertFrom-Json
+$manifest | Select-Object status, ranking, delta_counts, expected_concepts, index_commit
+```
+
+`status` must be `complete`; `ranking.academic` must be 7 or 8 and `ranking.social` must be at least 10. The item-level ranking ledger in `news_feedback_config_delta_<YYYY-MM-DD>.json` must agree with the manifest.
+
+## Validate Scripts
 
 ```powershell
 python -m py_compile D:\AI\PaperTrace\skills\reader-skill\scripts\markdown_reader_to_html.py
@@ -275,6 +293,8 @@ python -m py_compile D:\AI\PaperTrace\skills\reader-learner\scripts\update_learn
 python -m py_compile D:\AI\PaperTrace\skills\reader-learner\scripts\migrate_knowledge_profile_v2.py
 python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py
 python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\news_delta.py
+python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\rank_briefing_candidates.py
+python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py
 python -m py_compile D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\import_news_feedback.py
 python -m py_compile D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py
 python -m py_compile D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\audit_chat_knowledge_profile.py

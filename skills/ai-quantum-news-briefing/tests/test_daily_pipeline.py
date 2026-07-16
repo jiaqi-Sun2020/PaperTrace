@@ -14,13 +14,14 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from audit_briefing_config import audit
+from audit_briefing_config import audit, audit_ranking_delivery
 from briefing_contract import concept_identity, normalize_briefing_config
 from briefing_to_feedback_html import render_html
 from config_to_news_feedback import export_feedback
 from daily_pipeline import cmd_finalize, cmd_run, verify_artifacts
 from lean_html import apply_design_system
 from news_delta import transform_config, upsert_index
+from rank_briefing_candidates import DEFAULT_RANKING_POLICY, rank_briefing_config
 
 
 def item(item_id: str = "N001", *, concept: str = "QSVT", url: str = "https://example.org/story") -> dict:
@@ -55,7 +56,229 @@ def with_fields(value: dict, **fields: object) -> dict:
     return result
 
 
+def ranked_candidate(
+    item_id: str,
+    *,
+    url: str,
+    source_class: str,
+    organization: str,
+    topic: str,
+    published_at: str = "2026-07-10",
+) -> dict:
+    return {
+        "id": item_id,
+        "story_id": item_id.lower(),
+        "title": f"Ranked candidate {item_id}",
+        "category": topic,
+        "facts": "Verified release with 42 measured results and a concrete deployment.",
+        "judgment": "The evidence is specific enough to compare with prior work.",
+        "relevance": "Relevant to quantum dynamics, error correction, or agent infrastructure.",
+        "source_title": f"Source {item_id}",
+        "source_url": url,
+        "source_excerpt": "Primary evidence excerpt with quantitative details.",
+        "evidence_level": "peer-reviewed venue" if "arxiv.org" not in url else "arXiv preprint",
+        "evidence_fingerprint": f"fingerprint-{item_id.lower()}",
+        "published_at": published_at,
+        "venue_sweep_note": "Official academic venues were checked; this item remains labeled as an arXiv preprint." if "arxiv.org" in url else "",
+        "source_class": source_class,
+        "organization": organization,
+        "topic": topic,
+        "corroborating_source_count": 2,
+        "concepts": [topic, item_id],
+    }
+
+
+def ranking_fixture() -> tuple[dict, list[dict]]:
+    academic: list[dict] = []
+    for index in range(1, 11):
+        if index <= 3:
+            url = f"https://www.nature.com/articles/ranking-{index}"
+            source_class = "formal_academic"
+        else:
+            url = f"https://arxiv.org/abs/2607.{14000 + index}"
+            source_class = "arxiv_preprint"
+        academic.append(
+            ranked_candidate(
+                f"A{index:03d}",
+                url=url,
+                source_class=source_class,
+                organization="",
+                topic=f"academic-topic-{index % 5}",
+            )
+        )
+    social_classes = ["reputable_media"] * 4 + ["official_primary"] * 4 + ["official_company_social"] * 6
+    social = [
+        ranked_candidate(
+            f"S{index:03d}",
+            url=f"https://social-{index}.example.org/story",
+            source_class=source_class,
+            organization=f"organization-{index}",
+            topic=f"social-topic-{index % 6}",
+        )
+        for index, source_class in enumerate(social_classes, start=1)
+    ]
+    raw = {
+        "briefing_title": "Ranked daily briefing",
+        "date_range": "2026-07-10",
+        "sections": [
+            {"title": "Academic research", "items": academic},
+            {"title": "Social news", "items": social},
+        ],
+        "academic_delivery": {
+            "required": True,
+            "minimum_items": 7,
+            "target_items": 8,
+            "maximum_items": 8,
+            "minimum_new_items": 4,
+            "maximum_new_items": 6,
+            "minimum_non_arxiv_items": 2,
+            "maximum_continuing_items": 3,
+        },
+        "social_delivery": {
+            "minimum_items": 10,
+            "target_items": 12,
+            "maximum_items": 14,
+            "minimum_new_or_material_update": 7,
+            "maximum_continuing_items": 3,
+            "minimum_reputable_media_items": 3,
+            "minimum_primary_official_items": 3,
+            "minimum_source_classes": 3,
+            "maximum_items_per_organization": 2,
+            "maximum_items_per_topic": 3,
+        },
+        "ranking_policy": DEFAULT_RANKING_POLICY,
+        "analysis_language": "en",
+    }
+    venues = ["aps-prl", "aps-pra", "aps-prx", "nature", "science", "openreview-iclr", "cvf-cvpr", "pmlr-icml", "neurips", "acl", "quantum-journal", "arxiv"]
+    raw["academic_search"] = {
+        "required_venues": venues,
+        "topics": [{"term": "quantum ranking test", "checked_venues": venues, "primary_hits": [{"venue": "nature", "url": academic[0]["source_url"]}], "status": "evidenced"}],
+        "rows": [
+            {
+                "term": "quantum ranking test",
+                "venue": venue,
+                "result": "checked",
+                "url": academic[0]["source_url"] if venue == "nature" else "",
+                "evidence": {
+                    "query_url": f"https://{venue}.example.org/search",
+                    "retrieved_at": "2026-07-10T00:00:00Z",
+                    "status_code": 200,
+                    "final_url": f"https://{venue}.example.org/search",
+                    "response_hash": (venue.replace("-", "") + "0" * 64)[:64],
+                },
+            }
+            for venue in venues
+        ],
+    }
+    raw["social_candidate_pool"] = {
+        "required_source_classes": ["ai_hot", "reputable_media", "official_company_social", "executive_social"],
+        "checked_at": "2026-07-10T00:00:00Z",
+        "ai_hot_artifact": "aihot_candidates_2026-07-10.json",
+    }
+    prior = [
+        {
+            "story_id": academic[index]["story_id"],
+            "last_seen": "2026-07-09",
+            "source_url": academic[index]["source_url"],
+            "summary": academic[index]["facts"],
+            "evidence_fingerprint": academic[index]["evidence_fingerprint"],
+        }
+        for index in (8, 9)
+    ]
+    return raw, prior
+
+
 class DailyPipelineTests(unittest.TestCase):
+    def test_ranker_selects_eight_academic_and_twelve_social_items_deterministically(self) -> None:
+        raw, prior = ranking_fixture()
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        repeated = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        self.assertEqual(ranked["ranking_manifest"], repeated["ranking_manifest"])
+        self.assertEqual(ranked["ranking_manifest"]["selected_counts"], {"academic": 8, "social": 12})
+        self.assertEqual([len(section["items"]) for section in ranked["sections"]], [8, 12])
+        self.assertEqual(audit_ranking_delivery(ranked), [])
+
+    def test_strict_audit_rejects_attempts_to_weaken_delivery_quotas(self) -> None:
+        raw, prior = ranking_fixture()
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        ranked["delta_policy"] = {"mode": "delta_first"}
+        ranked["academic_delivery"].update({
+            "minimum_items": 1,
+            "minimum_new_items": 1,
+            "minimum_non_arxiv_items": 1,
+            "maximum_continuing_items": 9,
+        })
+        ranked["social_delivery"].update({
+            "minimum_items": 1,
+            "maximum_items": 99,
+            "minimum_new_or_material_update": 1,
+            "maximum_items_per_organization": 99,
+        })
+        result = audit(ranked)
+        self.assertEqual(result["status"], "fail")
+        for expected in (
+            "academic_delivery.minimum_items must be at least 7",
+            "academic_delivery.minimum_new_items must be at least 4",
+            "academic_delivery.minimum_non_arxiv_items must be at least 2",
+            "academic_delivery.maximum_continuing_items must be at most 3",
+            "social_delivery.minimum_items must be at least 10",
+            "social_delivery publication range must stay within 10-14 items",
+            "social_delivery.minimum_new_or_material_update must be at least 7",
+            "social_delivery.maximum_items_per_organization must be at most 2",
+        ):
+            self.assertIn(expected, result["failures"])
+
+    def test_ranker_rejects_candidate_only_evidence_before_scoring_selection(self) -> None:
+        raw, prior = ranking_fixture()
+        raw["sections"][1]["items"][0]["evidence_level"] = "AI HOT API candidate"
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        ledger = ranked["ranking_manifest"]["candidate_ledger"]
+        rejected = next(row for row in ledger if row["story_id"] == "s001")
+        self.assertFalse(rejected["eligible"])
+        self.assertFalse(rejected["selected"])
+        self.assertIn("candidate_or_unverified_evidence", rejected["exclusion_reasons"])
+
+    def test_ranker_deduplicates_story_identity_before_selection(self) -> None:
+        raw, prior = ranking_fixture()
+        duplicate = dict(raw["sections"][1]["items"][0])
+        duplicate["id"] = "S999"
+        duplicate["evidence_fingerprint"] = "duplicate-fingerprint"
+        raw["sections"][1]["items"].append(duplicate)
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        duplicates = [
+            row for row in ranked["ranking_manifest"]["candidate_ledger"]
+            if row["story_id"] == duplicate["story_id"]
+        ]
+        self.assertEqual(sum(row["selected"] for row in duplicates), 1)
+        self.assertTrue(any("duplicate_candidate" in row["exclusion_reasons"] for row in duplicates))
+
+    def test_ranked_daily_pipeline_passes_run_verify_finalize_verify(self) -> None:
+        raw, prior = ranking_fixture()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            input_path = root / "candidate.json"
+            input_path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+            index_path = root / "story_index.jsonl"
+            index_path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in prior), encoding="utf-8")
+            args = Namespace(
+                config=str(input_path), output_dir=str(root / "news" / "2026-07-10"), index=str(index_path), date="2026-07-10",
+                days=7, continuing_mode="one-line", design_system="cosmic", background_mode="light",
+            )
+            self.assertEqual(cmd_run(args), 0)
+            run_dir = next((root / "news" / "2026-07-10" / ".staging").iterdir())
+            staged_verification = verify_artifacts(run_dir, strict=True)
+            self.assertEqual(staged_verification["status"], "pass", json.dumps(staged_verification, ensure_ascii=False, indent=2))
+            self.assertEqual(cmd_finalize(Namespace(run_dir=str(run_dir), strict=True)), 0)
+            self.assertEqual(verify_artifacts(root / "news" / "2026-07-10", strict=True)["status"], "pass")
+
+    def test_normalizer_preserves_ranking_evidence(self) -> None:
+        raw, prior = ranking_fixture()
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        canonical = normalize_briefing_config(ranked, require_source_url=True)
+        self.assertEqual(canonical["ranking_policy"]["algorithm_version"], "news-ranker-v1")
+        self.assertEqual(canonical["ranking_manifest"]["selected_counts"]["academic"], 8)
+        self.assertEqual(canonical["sections"][0]["items"][0]["ranking"]["rank"], 1)
+
     def test_lossy_question_mark_text_is_blocking(self) -> None:
         broken = config([with_fields(item(), facts="中文事实???????")])
         with self.assertRaisesRegex(ValueError, "encoding-corrupted"):
@@ -113,6 +336,26 @@ class DailyPipelineTests(unittest.TestCase):
         raw["academic_delivery"] = {"required": False, "no_signal_reason": "section routing test"}
         transformed, _, _ = transform_config(raw, [], __import__("datetime").date(2026, 7, 10), 7, "one-line")
         self.assertEqual(transformed["sections"][0]["title"], "Academic research and venue evidence")
+
+    def test_final_delta_cannot_weaken_four_to_six_new_academic_floor(self) -> None:
+        raw = config([
+            with_fields(item(f"A{index:03d}", url=f"https://arxiv.org/abs/2607.00{index:03d}"), category="Quantum research", novelty="continuing")
+            for index in range(1, 6)
+        ])
+        raw["sections"] = [{"title": "Academic research and venue evidence", "items": raw["sections"][0]["items"]}]
+        raw["academic_delivery"] = {"required": True, "minimum_items": 5, "minimum_new_items": 3, "maximum_new_items": 4}
+        raw["delta_policy"] = {"mode": "delta_first"}
+        result = audit(raw)
+        self.assertEqual(result["status"], "fail")
+        self.assertIn("academic_delivery.minimum_items must be at least 7", result["failures"])
+        self.assertIn("academic_delivery.minimum_new_items must be at least 4", result["failures"])
+        self.assertTrue(any("4-4 new academic paper items; found 0" in message for message in result["failures"]))
+
+    def test_normalizer_preserves_delta_policy(self) -> None:
+        raw = config()
+        raw["delta_policy"] = {"mode": "delta_first", "continuing_mode": "one-line"}
+        canonical = normalize_briefing_config(raw, require_source_url=True)
+        self.assertEqual(canonical["delta_policy"], raw["delta_policy"])
 
     def test_existing_story_cannot_be_forced_new(self) -> None:
         raw = config([with_fields(item(), novelty="new")])
@@ -253,6 +496,19 @@ class DailyPipelineTests(unittest.TestCase):
         raw["sections"] = [{"title": "Social news", "items": [item()]}]
         transformed, _, _ = transform_config(raw, [], __import__("datetime").date(2026, 7, 10), 7, "one-line")
         self.assertEqual(transformed["sections"][0]["title"], "社会新闻")
+
+    def test_social_research_announcement_is_not_counted_as_academic_paper(self) -> None:
+        social = with_fields(
+            item("S001", url="https://alignment.anthropic.com/2026/example"),
+            title="Anthropic 发布智能体安全研究",
+            category="AI 安全研究与社会影响",
+            evidence_level="official research publication",
+            source_title="Anthropic Alignment Science Blog - Research update",
+        )
+        raw = config([social])
+        raw["sections"] = [{"title": "社会新闻", "items": [social]}]
+        result = audit(raw)
+        self.assertEqual(result["academic_items"], 0)
 
     def test_68_concepts_remain_unrated_and_interactive(self) -> None:
         concepts = [f"concept-{index:02d}" for index in range(68)]

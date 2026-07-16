@@ -1,7 +1,7 @@
 # Decisions
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-14
+- Last reviewed: 2026-07-16
 
 ## Current Decisions
 
@@ -21,7 +21,9 @@
 | Remove `read-feedback-skill` from the active architecture. | active | The four primary pipelines do not call it. Historical generated explanation artifacts may remain, but no active skill, command, ownership rule, or pipeline terminal depends on it. |
 | Let AI/quantum briefing feedback share the learner profile. | active | The user wants daily briefing concepts to update the same knowledge boundary; `ai-quantum-news-briefing` generates source-grounded briefings, can render feedback HTML, normalizes explicit feedback, and delegates mutation to `reader-learner`. |
 | Treat news exposure-only concepts as `unrated`. | active | Seeing a concept in a briefing is evidence of exposure, not evidence that the user understands or does not understand it. |
-| Generate recurring daily briefings as delta-first reports. | active | User confirmed that repeated categories/stories across consecutive daily reports should be avoided. `news_delta.py` keeps a compact `news/_index/story_index.jsonl`, expands only new/material-update stories, and compresses or skips recently seen stories to reduce token use. |
+| Generate recurring daily briefings as delta-first reports. | active | User confirmed that repeated categories/stories across consecutive daily reports should be avoided. `news_delta.py` keeps a compact `news/_index/story_index.jsonl`, expands only new/material-update stories, and compresses or skips stories already present in the configured lookback window to reduce token use. |
+| Rank daily candidates before Delta compaction. | active | `news-ranker-v1` first enforces evidence eligibility, then uses separate academic/social component scores plus deterministic quota and MMR-style diversity selection. Publication preserves item scores, selection trace, quota metrics, and exclusion reasons; AI HOT discovery scores never substitute for this ranking. |
+| Keep dated milestones out of agent rules. | active | `AGENTS.md` contains only durable boundaries, `RUNBOOK.md` owns commands, `CONFIG_SPEC.md` owns data contracts, and `CHANGES.md` owns dated releases such as the verified 2026-07-16 8+12 briefing. This prevents the always-read rule layer from becoming a changelog. |
 | Use learner profile schema v2 with `concepts`, `events`, `sources`, and `review_queue`. | active | The user identified unstable concept keys, bloated notes, mixed evidence, coarse status, and missing learning scheduling; the split schema fixes those boundaries. |
 | Use `nature-reader` as the internal source-grounded paper evidence stage. | active | It preserves source anchors and builds the bilingual bundle, but Pipeline 1 is not complete until `reader-skill` emits and formally audits `reader_interactive.html`. |
 | Preserve PDFs as source corpus. | active | The project is a paper library; reader outputs should reference PDFs, not replace them. |
@@ -36,8 +38,7 @@
 
 ## Open Questions
 
-- Should future reader HTML default to local MathJax for offline reading?
-- Should completed reader bundles use local MathJax by default when generating `reader_interactive.html`?
+- Should completed reader bundles default to local MathJax for offline reading instead of the current configurable CDN/local behavior?
 - Which corpus folders should be treated as immutable archives?
 
 ## Decision Update Rule

@@ -51,7 +51,7 @@ python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\news_delta.py co
 
    - Treat the daily value as new information per reading cost.
    - Expand only `new` and `material_update` stories.
-   - Compress recently seen stories with no new facts into `持续跟踪，一句话`, or skip them when brevity matters.
+   - Compress stories already seen within the configured lookback window and carrying no new facts into `持续跟踪，一句话`, or skip them when brevity matters.
    - Use stable `story_id` when known; otherwise the helper derives one from source URL/title/concepts.
 
 4. Build the briefing in this order unless the user asks otherwise:
@@ -71,17 +71,21 @@ python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\news_delta.py co
 
 ### Mandatory Academic Delivery
 
-`daily_pipeline.py run` defaults to `academic_delivery.required=true` with `minimum_items=5`. Include five distinct paper-level records in a dedicated `Academic research and venue evidence` section. The section must include at least one formal primary academic source from an approved venue or publisher (for example PRL/PRA/PRX/PRX Quantum, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, or Quantum Journal). arXiv is required in the search coverage and may supply timely preprint context, but an all-arXiv academic delivery is invalid.
+`daily_pipeline.py run` defaults to a ranked academic delivery of 7–8 distinct paper-level records in a dedicated `Academic research and venue evidence` section. The final delta must contain 4–6 `new` papers absent from the recent story index, at least two non-arXiv formal venue papers, and at most three compact `continuing` records. `material_update` does not substitute for a new-paper quota. Approved sources include PRL/PRA/PRX/PRX Quantum, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv; an all-arXiv academic delivery is invalid.
 
-Search PRL, PRA, PRX/PRX Quantum, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv; the `academic_search` evidence ledger must cover each venue with auditable official HTTPS evidence. A company quantum blog, venue landing page, search page, or a venue check without an individual formal paper record does not satisfy the required non-arXiv item.
+Search PRL, PRA, PRX/PRX Quantum, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv on every daily run; the `academic_search` evidence ledger must cover each venue with auditable official HTTPS evidence, and the day’s selected new papers must be traceable to the current sweep. A company quantum blog, venue landing page, search page, or a venue check without an individual formal paper record does not satisfy the required non-arXiv item.
 
 If neither the requested window nor clearly labeled recent academic context has a defensible formal academic item, use an explicit opt-out with a concrete `no_signal_reason`; do not silently omit the academic section or invent a publication.
 
-Count five distinct, paper-level records with a primary article/DOI/preprint URL and a source-specific evidence fingerprint. At least one record must have a non-arXiv primary URL and a formal `evidence_level` such as `peer-reviewed venue` or `conference proceedings`. A journal landing page, one search result, a company platform update, or five paraphrases of one paper never satisfies the five-paper delivery. If the requested window has only new arXiv papers, widen the academic context window to find a defensible recent formal paper, label it as `near 7-day academic context`, and retain its actual publication date; never present it as same-day publication.
+Count seven or eight distinct paper records with a primary article/DOI/preprint URL and a source-specific evidence fingerprint. At least two records must have non-arXiv primary URLs and a formal `evidence_level` such as `peer-reviewed venue` or `conference proceedings`. A journal landing page, search result, company platform update, or repeated paraphrase cannot inflate the delivery. If the requested window lacks enough formal items, widen only to the configured academic context window, label the context, and retain every paper's actual publication date.
 
 ### Mandatory Social News Delivery
 
-Every daily briefing must also contain a separate `Social news` / `社会新闻` section with at least one verified, non-academic source-backed item. This is a second required page section, not a subsection of academic research and not an optional add-on. Suitable coverage includes policy and regulation, public-sector deployment, labor and education, social impact, infrastructure, industry, funding, or market developments. A paper, preprint, venue ledger, company research blog, or an empty “no signal” placeholder cannot satisfy this section.
+Every daily briefing must also contain a separate `Social news` / `社会新闻` section with at least 10 verified, non-academic source-backed items; the default target is 12 and the maximum is 14. At least seven must be `new` or `material_update`, at most three may be `continuing`, and the final selection must contain at least three reputable-media items, three primary-official items, and three source classes. No organization may occupy more than two slots and no topic more than three. A paper, preprint, venue ledger, candidate-only item, or empty placeholder cannot satisfy this section.
+
+### Deterministic Candidate Ranking
+
+Daily releases use `scripts/rank_briefing_candidates.py` and `news-ranker-v1` before delta compaction. The ranker first rejects missing/unsafe evidence, candidate-only AI HOT items, invalid dates, and duplicate story identities. It then computes separate academic and social component scores and selects with deterministic MMR-style source/topic/organization diversity constraints. `ranking`, `ranking_policy`, and `ranking_manifest` must survive normalization and publication. AI HOT scores are discovery priors only and never bypass primary-source verification.
 
 Build the social-news candidate pool from AI HOT; reliable news media (for example Reuters, AP, FT, WSJ, Bloomberg, and relevant local outlets); official X and Instagram accounts of leading AI companies; and official posts by their named executives. Prioritize original company, government, regulator, or publisher pages for final evidence. X/Instagram may surface candidates and may be the primary source only for an attributable announcement from the verified official organization or executive account; label it as an official social post and never turn reposts, rumors, or engagement metrics into facts.
 
@@ -245,11 +249,11 @@ Avoid overclaiming direct relevance. Use "可借鉴", "方向相关", or "概念
 Write in Chinese by default.
 
 Keep the briefing compact but complete:
-- For "今日资讯": 6-10 main items.
+- For "今日资讯": 7–8 academic papers plus 10–14 social-news items after ranking.
 - For "近三天/近4天": 8-14 main items.
 - For "只要重点": 3-5 items.
 
-Use clear section headings. Avoid padding. If there is no reliable news in a section, say "今天没有可核验的强信号", then move on.
+Use clear section headings. Avoid padding. If there is no reliable news in a section, say "截至 <YYYY-MM-DD>，本节没有可核验的强信号", then move on.
 
 ## Reliability Checklist
 
@@ -260,8 +264,8 @@ Before finalizing:
 - Separate company self-promotion from independently verified results.
 - Ensure quantum items are not old papers unless the user asked for background.
 - Ensure academic configs include top-level `academic_search`; if missing or incomplete, run `scripts/academic_venue_sweep.py`, search primary venues, and record the compact ledger before finalizing.
-- When academic delivery is required, verify the final delta config contains its dedicated academic section, the configured number of formal venue/arXiv items, and at least one individual non-arXiv formal paper record. A complete venue-search ledger does not excuse an all-arXiv delivery.
-- Verify the final delta config also contains a distinct `社会新闻` / `Social news` section with at least one verified non-academic item; do not let academic backfill or delta compaction erase this second required section.
+- When academic delivery is required, verify the final delta config contains its dedicated academic section, the configured number of formal venue/arXiv items, and at least two individual non-arXiv formal paper records. A complete venue-search ledger does not excuse an all-arXiv delivery.
+- Verify the final delta config contains a distinct `社会新闻` / `Social news` section with at least ten verified non-academic items and a passing `news-ranker-v1` manifest; do not let academic backfill or delta compaction erase or underfill it.
 - Default daily `facts`, `judgment`, and `relevance` to Chinese analysis. Preserve source titles, paper titles, model names, acronyms, and other proper nouns when translation would reduce precision.
 - Ensure arXiv items include `venue_sweep_note` and remain labeled as preprints. Do not finalize a daily briefing whose academic delivery is all arXiv, even if every preprint is correctly labeled.
 - Include a short "给你的科研观察" section.

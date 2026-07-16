@@ -343,7 +343,7 @@
           <div>
             <div class="eyebrow reveal">AI + quantum briefing</div>
             <h2 class="pipe-title reveal">资讯证据<br>流水线</h2>
-            <p class="pipe-desc reveal">从候选热点到可核验的中文分析。候选源只负责发现，正式发布需要 HTTPS 证据、学术来源审计与 identity parity。</p>
+            <p class="pipe-desc reveal">从候选热点到可核验的中文分析。候选源只负责发现；证据门槛通过后，news-ranker-v1 才按价值、配额与多样性选择发布项。</p>
           </div>
           <div class="mini-flow">
             <span><small>Input</small>Signals</span><i>→</i>
@@ -358,14 +358,14 @@
               <li>AI HOT 候选池：仅用于发现，不作最终证据。</li>
               <li>正式学术入口：PRL / PRA / PRX / Nature / Science。</li>
               <li>会议与开放来源：ICLR / CVPR / ICML / NeurIPS / ACL。</li>
-              <li>量子来源：Quantum Journal 与 arXiv preprint。</li>
-              <li>每条论文记录保留独立 evidence fingerprint。</li>
+              <li>证据门槛：HTTPS 原始来源、日期与独立 fingerprint。</li>
+              <li>排名配额：学术 7–8 篇；社会新闻 10–14 条。</li>
             </ul>
           </div>
           <div class="brief-col">
             <div class="panel-head">Evidence brief</div>
-            <div class="brief-copy"><strong>正式交付边界</strong><br><br>日报不是候选池、Markdown 或 config 的任一中间产物。只有交互 HTML、全量默认 <strong>unrated</strong> 的 feedback JSON、manifest 与 story index 状态通过最终验证，才算发布完成。</div>
-            <div class="brief-meta">RUN → VERIFY → FINALIZE → VERIFY<br>ANALYSIS zh-CN<br>ACADEMIC DELIVERY ≥ 5 ITEMS</div>
+            <div class="brief-copy"><strong>正式交付边界</strong><br><br>日报不是候选池、Markdown 或 config。排名分解、选择轨迹与淘汰原因必须进入 manifest；交互 HTML、全量默认 <strong>unrated</strong> feedback 与 story index 通过最终验证后才算发布完成。</div>
+            <div class="brief-meta">RUN → VERIFY → FINALIZE → VERIFY<br>ANALYSIS zh-CN<br>ACADEMIC 7–8 · SOCIAL 10–14</div>
           </div>
           <div class="brief-col graph-wrap">
             <div class="panel-head">Concept map · interactive</div>
@@ -378,6 +378,7 @@
         <div class="artifact-track">
           <span class="artifact"><b>CANDIDATES</b>candidate_pool.json</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>EVIDENCE</b>academic_search</span><span class="artifact-arrow">→</span>
+          <span class="artifact"><b>RANK</b>news-ranker-v1</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>STAGING</b>daily_pipeline run</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>VERIFY</b>contract + UTF-8</span><span class="artifact-arrow">→</span>
           <span class="artifact"><b>PUBLISH</b>briefing_reader.html</span><span class="artifact-arrow">→</span>
@@ -482,7 +483,7 @@
         </article>
       </div>
       <footer class="footer">
-        <div>Local research. Compounding knowledge.<br>Built from README + .agents contracts.</div>
+        <div>Local research. Compounding knowledge.<br>Built from README + .agents contracts.<br>感谢并借鉴 <a href="https://github.com/KKKKhazix/khazix-skills/tree/main">KKKKhazix/khazix-skills</a> 的公开工作流。</div>
         <div class="status-box"><span>Teaching loop<br>Feedback validated</span><b>READY</b></div>
       </footer>
     </section>
@@ -527,7 +528,7 @@
     }
 
     function renderCanvases(){
-      drawNetwork(document.querySelector('#briefGraph'), ['候选源','正式来源','事实','判断','相关性','学术检索','preprint','日期','反馈'], 7);
+      drawNetwork(document.querySelector('#briefGraph'), ['候选源','正式来源','事实','判断','相关性','学术检索','排名配额','日期','反馈'], 7);
       drawRadar(document.querySelector('#profileChart'));
       drawNetwork(document.querySelector('#teachGraph'), ['薄弱','证据不足','到期复习','前置阻塞','diagnose','teach','review','transfer'], 13);
       drawNetwork(document.querySelector('#wikiGraph'), ['实际表现','验证','备份','画像','复习队列','原子写入','Visible Wiki','来源'], 17);

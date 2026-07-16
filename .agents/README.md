@@ -2,7 +2,7 @@
 
 - Project root: `D:\AI\PaperTrace`
 - Generated with: `D:\AI\skill\S_paper_skills\util_skills\project-agent-generator-skill`
-- Last reviewed: 2026-07-14
+- Last reviewed: 2026-07-16
 
 This directory combines project-agent context and learner memory.
 
@@ -25,6 +25,7 @@ Directory roles:
 - `skills/utils/chat-knowledge-profile`: staged chat conversation import skill for turning local ChatGPT/GPT/Claude/Deepseek exports into bounded evidence events, conversation summaries, candidate profile signals, strict reader-learner handoffs, reviewable patches, and optional profile updates.
 - `skills/adaptive-teach`: explicit-invocation, profile-backed teaching decision skill. It reads the profile, selects a diagnostic/teach/review/prerequisite/transfer session, generates short lessons, and delegates validated teaching feedback to `reader-learner`.
 - `skills/utils/demo-skill`: bilingual project-demo skill that verifies README/AGENTS contracts, materializes the bundled Chinese/English four-pipeline templates, and audits the intended Git upload scope.
+- `skills/utils/neat-freak`: documentation-governance skill that reconciles code, release artifacts, README, `.agents/`, demos, and durable rules without turning agent instructions into a changelog.
 
 Recommended reading order:
 
@@ -34,9 +35,10 @@ Recommended reading order:
 4. `CONFIG_SPEC.md`
 5. `RUNBOOK.md`
 6. `DECISIONS.md`
-7. `WIKI_SCHEMA.md` when the task touches `.agents/wiki/`.
-8. `reader-learner/knowledge_profile.json` only when the task needs learner-profile data.
-9. `adaptive-teach/TEACHING-MISSION.md` and `adaptive-teach/teaching-settings.json` only when the task is an explicit teaching request.
+7. `CHANGES.md` for dated implementation/release milestones.
+8. `WIKI_SCHEMA.md` when the task touches `.agents/wiki/`.
+9. `reader-learner/knowledge_profile.json` only when the task needs learner-profile data.
+10. `adaptive-teach/TEACHING-MISSION.md` and `adaptive-teach/teaching-settings.json` only when the task is an explicit teaching request.
 
 Files:
 
@@ -48,6 +50,7 @@ Files:
 | `CONFIG_SPEC.md` | Config/data surfaces and profile schema notes. |
 | `RUNBOOK.md` | Verified commands and common workflows. |
 | `DECISIONS.md` | Durable design choices and open questions. |
+| `CHANGES.md` | Dated implementation and local-release milestones; historical facts belong here rather than in `AGENTS.md`. |
 | `WIKI_SCHEMA.md` | Persistent visible-Wiki boundary, frontmatter, relation, and validation rules. |
 | `reader-learner/knowledge_profile.json` | Long-term learner profile with stable concepts, raw feedback events, source index, and review queue. |
 | `adaptive-teach/` | Private derived teaching state; cannot establish concept status or replace profile evidence. |
@@ -68,7 +71,7 @@ Visual/math note: final reader HTML also requires figure/table cards or semantic
 
 Credential rule: except for permitted learner-profile reads/updates, do not open, print, copy, summarize, upload, or modify any suspected key/password/token/credential file.
 
-Daily AI/quantum briefing note: `skills/ai-quantum-news-briefing` can create source-grounded AI/quantum daily or multi-day briefings, render them as feedback HTML with concept chips and freeform annotations, and convert explicit news feedback into the same learner profile through `scripts/import_news_feedback.py`. News exposure alone should be imported as `unrated`; do not infer `known`, `unknown`, `learning`, or `mastered` without explicit user feedback. The end-to-end briefing contract finishes at the interactive HTML reader plus full feedback JSON, not at candidate/config generation; use `D:\AI\PaperTrace\news\2026-07-07_to_2026-07-09` as the sample output layout. Publish through `daily_pipeline.py run`, `verify`, and `finalize`; index mutation is forbidden before final verification.
+Daily AI/quantum briefing note: `skills/ai-quantum-news-briefing` runs `news-ranker-v1` before Delta compaction, then publishes 7–8 academic papers and 10–14 social-news items (target 12) with auditable score components, quotas, selection trace, and exclusions. It renders feedback HTML with concept chips and freeform annotations and converts explicit news feedback into the same learner profile through `scripts/import_news_feedback.py`. News exposure alone should be imported as `unrated`; do not infer `known`, `unknown`, `learning`, or `mastered` without explicit user feedback. The end-to-end briefing contract finishes only after `daily_pipeline.py run -> verify -> finalize -> verify`; index mutation is forbidden before final verification. The verified 2026-07-16 local release and its 8+12 result are recorded in `CHANGES.md`.
 
 Chat conversation import note: use `skills/utils/chat-knowledge-profile` only with local `.txt`, `.md`, `.html`, or `.json` ChatGPT/GPT/Claude/Deepseek exports. The pipeline is `collect -> extract -> propose -> apply`; `collect` also writes `conversation_summaries.json`. Review `profile_patch.json` before applying, and use `--backup` when mutating `knowledge_profile.json`. Share URLs should be copied or exported locally first.
 

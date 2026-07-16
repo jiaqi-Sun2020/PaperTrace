@@ -231,6 +231,12 @@ def normalize_briefing_config(
             "published_at": clean_text(raw_item.get("published_at") or raw_item.get("publishedAt"), 100),
             "verified_at": clean_text(raw_item.get("verified_at"), 100),
             "venue_sweep_note": clean_text(raw_item.get("venue_sweep_note"), 1000),
+            "source_class": clean_text(raw_item.get("source_class"), 120),
+            "organization": clean_text(raw_item.get("organization"), 200),
+            "topic": clean_text(raw_item.get("topic"), 200),
+            "corroborating_source_count": raw_item.get("corroborating_source_count", 0),
+            "ranking_signals": raw_item.get("ranking_signals") if isinstance(raw_item.get("ranking_signals"), dict) else {},
+            "ranking": raw_item.get("ranking") if isinstance(raw_item.get("ranking"), dict) else {},
             "concepts": concepts,
         }
         all_ids.add(item_id)
@@ -244,8 +250,11 @@ def normalize_briefing_config(
         "sections": normalized_sections,
         "academic_search": config.get("academic_search") or config.get("academic_venue_sweep") or {},
         "academic_delivery": config.get("academic_delivery") or {},
+        "delta_policy": config.get("delta_policy") or {},
         "social_delivery": config.get("social_delivery") or {},
         "social_candidate_pool": config.get("social_candidate_pool") or {},
+        "ranking_policy": config.get("ranking_policy") or {},
+        "ranking_manifest": config.get("ranking_manifest") or {},
         "analysis_language": clean_text(config.get("analysis_language"), 40),
         "profile_path": clean_text(config.get("profile_path"), 1200),
     }

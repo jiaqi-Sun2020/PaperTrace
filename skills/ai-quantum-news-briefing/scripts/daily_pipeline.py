@@ -40,6 +40,7 @@ from news_delta import (
     transform_config,
     upsert_index,
 )
+from rank_briefing_candidates import DEFAULT_RANKING_POLICY, merged_policy, rank_briefing_config
 
 
 ARTIFACT_NAMES = {
@@ -216,16 +217,61 @@ def cmd_run(args: argparse.Namespace) -> int:
         raw_config = dict(raw_config)
         raw_config["academic_delivery"] = {
             "required": True,
-            "minimum_items": 5,
+            "minimum_items": 7,
+            "target_items": 8,
+            "maximum_items": 8,
+            "minimum_new_items": 4,
+            "maximum_new_items": 6,
+            "minimum_non_arxiv_items": 2,
+            "maximum_continuing_items": 3,
             "context_days": 7,
-            "policy": "Include at least five academic paper records, including one non-arXiv formal venue paper, in a dedicated academic section.",
+            "policy": "Rank an academic candidate pool and publish seven or eight papers, including four to six new papers and at least two non-arXiv formal venue papers.",
         }
     if "social_delivery" not in raw_config:
         raw_config = dict(raw_config)
         raw_config["social_delivery"] = {
-            "minimum_items": 1,
-            "policy": "Include at least one source-grounded, non-academic item in a dedicated social news section.",
+            "minimum_items": 10,
+            "target_items": 12,
+            "maximum_items": 14,
+            "minimum_new_or_material_update": 7,
+            "maximum_continuing_items": 3,
+            "minimum_reputable_media_items": 3,
+            "minimum_primary_official_items": 3,
+            "minimum_source_classes": 3,
+            "maximum_items_per_organization": 2,
+            "maximum_items_per_topic": 3,
+            "policy": "Rank a verified social-news candidate pool and publish at least ten items with source, organization, and topic diversity.",
         }
+    academic_delivery = raw_config.get("academic_delivery") or {}
+    if isinstance(academic_delivery, dict) and academic_delivery.get("required"):
+        raw_config = dict(raw_config)
+        academic_delivery = dict(academic_delivery)
+        academic_delivery["minimum_items"] = max(7, int(academic_delivery.get("minimum_items", 7)))
+        academic_delivery["target_items"] = max(academic_delivery["minimum_items"], int(academic_delivery.get("target_items", 8)))
+        academic_delivery["maximum_items"] = max(academic_delivery["target_items"], int(academic_delivery.get("maximum_items", 8)))
+        academic_delivery["minimum_new_items"] = max(4, int(academic_delivery.get("minimum_new_items", 4)))
+        academic_delivery["maximum_new_items"] = max(academic_delivery["minimum_new_items"], 6, int(academic_delivery.get("maximum_new_items", 6)))
+        academic_delivery["minimum_non_arxiv_items"] = max(2, int(academic_delivery.get("minimum_non_arxiv_items", 2)))
+        academic_delivery["maximum_continuing_items"] = min(3, int(academic_delivery.get("maximum_continuing_items", 3)))
+        raw_config["academic_delivery"] = academic_delivery
+
+        social_delivery = dict(raw_config.get("social_delivery") or {})
+        social_delivery["minimum_items"] = max(10, int(social_delivery.get("minimum_items", 10)))
+        social_delivery["target_items"] = max(social_delivery["minimum_items"], int(social_delivery.get("target_items", 12)))
+        social_delivery["maximum_items"] = max(social_delivery["target_items"], int(social_delivery.get("maximum_items", 14)))
+        social_delivery["minimum_new_or_material_update"] = max(7, int(social_delivery.get("minimum_new_or_material_update", 7)))
+        social_delivery["maximum_continuing_items"] = min(3, int(social_delivery.get("maximum_continuing_items", 3)))
+        social_delivery["minimum_reputable_media_items"] = max(3, int(social_delivery.get("minimum_reputable_media_items", 3)))
+        social_delivery["minimum_primary_official_items"] = max(3, int(social_delivery.get("minimum_primary_official_items", 3)))
+        social_delivery["minimum_source_classes"] = max(3, int(social_delivery.get("minimum_source_classes", 3)))
+        social_delivery["maximum_items_per_organization"] = min(2, int(social_delivery.get("maximum_items_per_organization", 2)))
+        social_delivery["maximum_items_per_topic"] = min(3, int(social_delivery.get("maximum_items_per_topic", 3)))
+        raw_config["social_delivery"] = social_delivery
+
+        ranking_policy = merged_policy(raw_config.get("ranking_policy"))
+        ranking_policy["academic"] = {**ranking_policy["academic"], **{key: academic_delivery[key] for key in DEFAULT_RANKING_POLICY["academic"] if key in academic_delivery}}
+        ranking_policy["social"] = {**ranking_policy["social"], **{key: social_delivery[key] for key in DEFAULT_RANKING_POLICY["social"] if key in social_delivery}}
+        raw_config["ranking_policy"] = ranking_policy
     assert_config_text_integrity(raw_config)
     run_date = infer_date(raw_config, args.date).isoformat()
     output_root = Path(args.output_dir or (config_path.parents[2] / "news" / run_date)).expanduser().resolve()
@@ -234,9 +280,15 @@ def cmd_run(args: argparse.Namespace) -> int:
     run_root.mkdir(parents=True, exist_ok=False)
     index_path = Path(args.index).expanduser().resolve() if args.index else output_root.parent / "_index" / "story_index.jsonl"
 
+    index_records = load_index(index_path)
+    ranked_config = (
+        rank_briefing_config(raw_config, index_records, date.fromisoformat(run_date), args.days)
+        if isinstance(raw_config.get("academic_delivery"), dict) and raw_config["academic_delivery"].get("required")
+        else raw_config
+    )
     transformed, delta_manifest, index_updates = transform_config(
-        raw_config,
-        load_index(index_path),
+        ranked_config,
+        index_records,
         date.fromisoformat(run_date),
         args.days,
         args.continuing_mode,
@@ -265,6 +317,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         "output_dir": str(output_root),
         "index_path": str(index_path),
         "delta_counts": delta_manifest.get("counts", {}),
+        "ranking": (ranked_config.get("ranking_manifest") or {}).get("selected_counts", {}),
         "expected_concepts": len(feedback["items"]),
         "default_status": "unrated",
         "design_system": args.design_system,

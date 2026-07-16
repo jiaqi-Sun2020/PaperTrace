@@ -27,13 +27,6 @@ The request authorizes creating and completing reader bundles inside this reposi
    only after the audited formal HTML contract passes. A progress update is
    commentary, never a final response.
 
-0. Treat this trigger as an explicit persistence request. When the Codex goal
-   tools are available, create or continue one unbudgeted active goal for the
-   selected PDF set before the first implementation command. The goal remains
-   active while `final_response_allowed` is false and may be marked complete
-   only after the audited formal HTML contract passes. A progress update is
-   commentary, never a final response.
-
 1. Discover the supplied PDFs and process them in a deterministic order.
 2. Finish one paper completely—faithful block-level Chinese, block-specific notes, LaTeX reconstruction, inspectable figure/table/algorithm cards, `reader_wiki`, `reader_interactive.html`, and adversarial audit—before beginning the next.
 3. Continue automatically after each audited pass. “一篇一篇来” controls sequencing; it does **not** mean “finish one extraction and wait for another user message”.
@@ -43,11 +36,6 @@ The request authorizes creating and completing reader bundles inside this reposi
 The batch controller creates no batch-history or root-level state file. After
 every checkpoint, read the `agent_continuation_contract` embedded in its JSON
 standard output and treat it as a fail-closed response boundary:
-
-- The first implementation command must be
-  `build_formal_reader_batch.py --agent-continuation`; do not begin by editing
-  `paper.md` directly. If the current turn has not observed a controller
-  contract, a final response is forbidden.
 
 - The first implementation command must be
   `build_formal_reader_batch.py --agent-continuation`; do not begin by editing
