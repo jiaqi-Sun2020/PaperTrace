@@ -186,6 +186,7 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
             break
     required_attrs = (
         "data-concept=",
+        "data-concept-id=",
         "data-status=",
         "data-source-anchor=",
         "data-concept-type=",

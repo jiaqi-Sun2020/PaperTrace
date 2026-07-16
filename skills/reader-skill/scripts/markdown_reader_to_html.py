@@ -51,7 +51,14 @@ REFERENCE_LIST_LABEL = "Reference list (original only)"
 DEFAULT_MATHJAX_URL = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 KNOWN_STATUSES = {"known", "mastered"}
 ANNOTATED_STATUSES = {"unknown", "learning", "unrated"}
-BILINGUAL_BLOCK_RE = re.compile(r'(<section\s+class="bilingual-block"[\s\S]*?</section>)', re.I)
+BILINGUAL_PAIR_RE = re.compile(
+    r'(?P<original_open><article\s+class="lang-panel\s+original"[^>]*>)'
+    r'(?P<original_body>[\s\S]*?)(?P<original_close></article>)'
+    r'(?P<between>[\s\S]*?)'
+    r'(?P<translation_open><article\s+class="lang-panel\s+translation"[^>]*>)'
+    r'(?P<translation_body>[\s\S]*?)(?P<translation_close></article>)',
+    re.I,
+)
 DRAFT_TRANSLATION_MARKERS = (
     "中文译意",
     "非逐句精翻",
@@ -596,6 +603,7 @@ def concepts_for_annotation(profile: dict, glossary: list[dict]) -> list[dict]:
         if normalize_key(term) in seen:
             continue
         seen.add(normalize_key(term))
+        aliases_en = item.get("aliases_en") if isinstance(item.get("aliases_en"), list) else []
         aliases_zh = item.get("aliases_zh") if isinstance(item.get("aliases_zh"), list) else []
         source_anchors = item.get("source_anchors") if isinstance(item.get("source_anchors"), list) else []
         concepts.append({
@@ -607,24 +615,56 @@ def concepts_for_annotation(profile: dict, glossary: list[dict]) -> list[dict]:
             "concept_id": item.get("concept_id") or normalize_key(term),
             "concept_type": item.get("concept_type") or "term",
             "source_anchor": source_anchors[0] if source_anchors else "",
+            "aliases_en": [str(alias).strip() for alias in aliases_en if str(alias).strip()],
+            "aliases_zh": [str(alias).strip() for alias in aliases_zh if str(alias).strip()],
             "alias_zh": usable_translation(aliases_zh[0] if aliases_zh else "", item.get("translation", "")),
         })
-    concepts.sort(key=lambda item: len(item["term"]), reverse=True)
+    concepts.sort(
+        key=lambda item: max(
+            [len(item["term"])]
+            + [len(alias) for alias in item.get("aliases_en", [])]
+            + [len(alias) for alias in item.get("aliases_zh", [])]
+        ),
+        reverse=True,
+    )
     return concepts
 
 
-def annotate_text_segment(text: str, concepts: list[dict]) -> str:
+def concept_match_terms(concept: dict, language: str) -> list[str]:
+    """Return the controlled vocabulary permitted in one language panel."""
+    if language == "zh":
+        candidates = concept.get("aliases_zh", [])
+    else:
+        candidates = [concept.get("term", ""), *concept.get("aliases_en", [])]
+    terms: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        term = str(candidate).strip()
+        key = term.casefold()
+        if term and key not in seen:
+            seen.add(key)
+            terms.append(term)
+    return terms
+
+
+def concept_term_pattern(term: str) -> re.Pattern[str]:
+    escaped = re.escape(html.escape(term))
+    # Chinese aliases are commonly embedded without spaces. ASCII word
+    # boundaries are useful for English but would suppress valid Han matches.
+    if re.search(r"[\u3400-\u9fff]", term):
+        return re.compile(f"({escaped})", re.I)
+    return re.compile(r"(?<![\w-])(" + escaped + r")(?![\w-])", re.I)
+
+
+def annotate_text_segment(text: str, concepts: list[dict], language: str = "en") -> str:
     pieces = MATH_SPAN_RE.split(text)
     for idx in range(0, len(pieces), 2):
         piece = pieces[idx]
         matches = []
         for order, concept in enumerate(concepts):
-            term = concept["term"]
-            if not term:
-                continue
-            pattern = re.compile(r'(?<![\w-])(' + re.escape(html.escape(term)) + r')(?![\w-])', re.I)
-            for match in pattern.finditer(piece):
-                matches.append((match.start(), match.end(), order, concept, match.group(1)))
+            for term in concept_match_terms(concept, language):
+                for match in concept_term_pattern(term).finditer(piece):
+                    matches.append((match.start(), match.end(), order, concept, match.group(1)))
         if matches:
             matches.sort(key=lambda item: (item[0], -(item[1] - item[0]), item[2]))
             selected = []
@@ -659,27 +699,62 @@ def annotate_text_segment(text: str, concepts: list[dict]) -> str:
     return "".join(pieces)
 
 
-def annotate_html_fragment(html_text: str, concepts: list[dict]) -> str:
+def annotate_html_fragment(html_text: str, concepts: list[dict], language: str = "en") -> str:
     if not concepts:
         return html_text
     parts = re.split(r'(<[^>]+>)', html_text)
     for idx in range(0, len(parts), 2):
-        parts[idx] = annotate_text_segment(parts[idx], concepts)
+        parts[idx] = annotate_text_segment(parts[idx], concepts, language)
     return "".join(parts)
 
 
 def annotate_html_text(html_text: str, concepts: list[dict]) -> str:
     if not concepts:
         return html_text
-    parts = BILINGUAL_BLOCK_RE.split(html_text)
-    if len(parts) == 1:
-        return annotate_html_fragment(html_text, concepts)
-    for idx in range(1, len(parts), 2):
-        parts[idx] = annotate_html_fragment(parts[idx], concepts)
-    return "".join(parts)
+
+    def annotate_pair(match: re.Match[str]) -> str:
+        original_body = annotate_html_fragment(match.group("original_body"), concepts, "en")
+        original_ids = set(re.findall(r'data-concept-id="([^"]+)"', original_body, re.I))
+        paired_concepts = [
+            concept
+            for concept in concepts
+            if str(concept.get("concept_id") or concept.get("term")) in original_ids
+        ]
+        translation_body = annotate_html_fragment(
+            match.group("translation_body"),
+            paired_concepts,
+            "zh",
+        )
+        return (
+            match.group("original_open")
+            + original_body
+            + match.group("original_close")
+            + match.group("between")
+            + match.group("translation_open")
+            + translation_body
+            + match.group("translation_close")
+        )
+
+    return BILINGUAL_PAIR_RE.sub(annotate_pair, html_text)
 
 
 def build_knowledge_panel(profile: dict | None, glossary: list[dict], concepts: list[dict], profile_path: Path | None) -> str:
+    status_labels = {
+        "unknown": "Needs explanation",
+        "learning": "Learning",
+        "known": "Known",
+        "mastered": "Mastered",
+        "unrated": "Unrated",
+    }
+    concept_type_labels = {
+        "figure_element": "Figure element",
+        "formula_variable": "Formula variable",
+        "math_object": "Mathematical object",
+        "method_component": "Method component",
+        "metric": "Metric",
+        "model_module": "Model module",
+        "term": "Term",
+    }
     rows = []
     status_counts = {status: 0 for status in ("unknown", "learning", "known", "mastered", "unrated")}
     unmatched_count = 0
@@ -691,11 +766,11 @@ def build_knowledge_panel(profile: dict | None, glossary: list[dict], concepts: 
             _matched_term, info = matched
             status = str(info.get("status") or "unrated").lower()
             status_counts[status if status in status_counts else "unknown"] += 1
-            status_label = {"unknown": "需讲解", "learning": "学习中", "known": "已了解", "mastered": "已掌握"}.get(status, "待确认")
+            status_label = status_labels.get(status, "Unrated")
         else:
             info = {}
             status = "unrated"
-            status_label = "尚未纳入个人档案"
+            status_label = "Not in personal profile"
             unmatched_count += 1
         translation = usable_translation(info.get("translation"), item.get("translation", ""))
         explanation = info.get("ai_explanation") or item.get("note", "")
@@ -704,7 +779,7 @@ def build_knowledge_panel(profile: dict | None, glossary: list[dict], concepts: 
             f"<td>{html.escape(term)}</td>"
             f"<td><span class=\"status {html.escape(status, quote=True)}\">{html.escape(status_label)}</span></td>"
             f"<td>{html.escape(str(translation))}</td>"
-            f"<td>{html.escape(str(item.get('concept_type', 'term')))}</td>"
+            f"<td>{html.escape(concept_type_labels.get(str(item.get('concept_type', 'term')), 'Term'))}</td>"
             f"<td>{html.escape(str(explanation))}</td>"
             "</tr>"
         )
@@ -714,16 +789,22 @@ def build_knowledge_panel(profile: dict | None, glossary: list[dict], concepts: 
         profile_label = Path(*profile_path.parts[profile_path.parts.index(".agents"):]).as_posix()
     else:
         profile_label = profile_path.name if profile_path else "profile loaded"
-    summary = " · ".join([f"学习中：{status_counts['learning']}", f"已了解：{status_counts['known']}", f"已掌握：{status_counts['mastered']}", f"需讲解：{status_counts['unknown']}", f"尚未纳入个人档案：{unmatched_count}"])
+    summary = " · ".join([
+        f"Learning: {status_counts['learning']}",
+        f"Known: {status_counts['known']}",
+        f"Mastered: {status_counts['mastered']}",
+        f"Needs explanation: {status_counts['unknown']}",
+        f"Not in personal profile: {unmatched_count}",
+    ])
     return f'''
 <section class="knowledge-panel" id="personal-knowledge-boundary">
-  <h2>本文概念账本与个人知识边界</h2>
-  <p>本文概念账本来自 <code>reader_wiki/concept_ledger.json</code>。只有与个人知识档案精确匹配的概念才显示学习状态；其余概念仅表示“尚未纳入个人档案”，不代表你不理解。</p>
+  <h2>Paper Concept Ledger / Personal Knowledge Boundary</h2>
+  <p>The paper-specific concept ledger comes from <code>reader_wiki/concept_ledger.json</code>. A learning status is shown only for an exact match in the personal knowledge profile; all other rows mean only that the concept is not yet recorded in that profile.</p>
   <p class="knowledge-summary">{html.escape(summary)}</p>
-  <p class="profile-path">个人知识档案：{html.escape(profile_label)}</p>
+  <p class="profile-path">Personal knowledge profile: {html.escape(profile_label)}</p>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>概念</th><th>个人状态</th><th>中文名称</th><th>类型</th><th>在本文中的作用</th></tr></thead>
+      <thead><tr><th>Concept</th><th>Personal Status</th><th>Chinese Name</th><th>Type</th><th>Role in This Paper</th></tr></thead>
       <tbody>{''.join(rows)}</tbody>
     </table>
   </div>
@@ -2152,7 +2233,7 @@ def validate_generated_html(html_text: str, concepts: list[dict], math_renderer:
         save_match = re.search(r"function saveCurrent\(\) \{([\s\S]*?)\n  \}", html_text)
         if not save_match or "closePanel();" not in save_match.group(1):
             issues.append("Save mark does not close the annotate panel")
-    required_attrs = ("data-concept=", "data-status=", "data-source-anchor=", "data-concept-type=", "data-alias-zh=", "title=")
+    required_attrs = ("data-concept=", "data-concept-id=", "data-status=", "data-source-anchor=", "data-concept-type=", "data-alias-zh=", "title=")
     mark_count = len(re.findall(r'<mark\s+class="knowledge-gap\b', html_text))
     if concepts and mark_count == 0:
         issues.append("concept ledger exists but HTML contains no knowledge marks")

@@ -99,7 +99,9 @@ Before accepting that layer, verify the completion ledger certifies 100% source 
 
 Also require product-neutral content provenance: the completion ledger must certify that the current-session primary model directly authored `chinese_translation`, `block_specific_notes`, and `latex_reconstruction`, with `external_translation_backend: none`, and must bind that declaration to `translation_notes.md` by hash. Do not generate formal HTML when this provenance is missing or stale.
 
-For full papers, require a completion-authored `reader_wiki/concept_candidates.json`. The formal Concept Ledger must be paper-specific, source-anchored, at least 90% Chinese-aliased and explained, and free of equation numbers, section labels, layout tokens, or generic uppercase matches. The Personal Knowledge Boundary must be visible from both the header and TOC, summarize profile statuses, and never expose an absolute local profile path.
+For full papers, require a completion-authored `reader_wiki/concept_candidates.json`. The formal Concept Ledger must be paper-specific, source-anchored, at least 90% Chinese-aliased and explained, and free of equation numbers, section labels, layout tokens, or generic uppercase matches. Concept highlighting is source-driven and language-scoped: first identify concepts in `Original` from the English canonical name and controlled English aliases, then allow `中文` to match controlled Chinese aliases only for those same concept IDs. A Chinese word that merely resembles a ledger concept must not create a new block-level mark. Within a bilingual block, the set of highlighted `concept_id` values must be identical on both sides; English-only marks in the Chinese panel are invalid. Longest controlled alias wins when aliases overlap.
+
+The Personal Knowledge Boundary must be visible from both the header and TOC, summarize profile statuses, and never expose an absolute local profile path. Its visible interface language is English except for the values under `Chinese Name` and `Role in This Paper`, which remain Chinese. Use the exact English columns `Concept`, `Personal Status`, `Chinese Name`, `Type`, and `Role in This Paper`; render statuses and concept types as readable English labels, never internal enum tokens.
 
 If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a best-effort HTML file.
 
@@ -108,6 +110,7 @@ If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a
 `reader_interactive.html` means the paper reader is complete enough for real reading:
 
 - every substantive `**Original:**` block has a faithful `**中文:**` translation;
+- every concept highlighted in `Original` has the same `concept_id` highlighted through a controlled Chinese alias in the paired `中文` panel, and vice versa;
 - `**注释:**` contains useful paper logic, knowledge-point, formula, figure/table, or reading guidance when needed;
 - every figure/table in `source_map.json` appears as an inspectable figure/table card or semantic table near the relevant prose;
 - every algorithm in the source appears as a full algorithm card with original numbered steps and Chinese numbered steps; summaries are invalid;

@@ -37,7 +37,12 @@ from completion_state import (  # noqa: E402
     write_record,
 )
 from reader_wiki_compile import compile_reader_wiki  # noqa: E402
-from markdown_reader_to_html import markdown_inline  # noqa: E402
+from markdown_reader_to_html import (  # noqa: E402
+    annotate_html_text,
+    build_knowledge_panel,
+    concepts_for_annotation,
+    markdown_inline,
+)
 from preflight_reader_bundle import build_preflight_manifest, write_json as write_preflight_json  # noqa: E402
 
 
@@ -147,6 +152,58 @@ def run(command: list[str]) -> subprocess.CompletedProcess[str]:
 
 
 def main() -> int:
+    glossary = [
+        {
+            "term": "Quantum Fourier transform",
+            "aliases_en": ["QFT"],
+            "aliases_zh": ["量子傅里叶变换"],
+            "translation": "量子傅里叶变换",
+            "note": "在本文中执行相干重组。",
+            "concept_id": "quantum-fourier-transform",
+            "concept_type": "math_object",
+            "source_anchors": ["S001"],
+            "status": "unrated",
+        },
+        {
+            "term": "Color ordering",
+            "aliases_en": [],
+            "aliases_zh": ["颜色排序"],
+            "translation": "颜色排序",
+            "note": "标记外部粒子的次序。",
+            "concept_id": "color-ordering",
+            "concept_type": "term",
+            "source_anchors": ["S001"],
+            "status": "unrated",
+        },
+    ]
+    annotation_concepts = concepts_for_annotation({}, glossary)
+    bilingual_html = (
+        '<section class="bilingual-block has-notes" id="S001">'
+        '<article class="lang-panel original"><p>The quantum Fourier transform is applied.</p></article>'
+        '<article class="lang-panel translation"><p>随后应用量子傅里叶变换；颜色排序只在译文补充说明中出现。</p></article>'
+        '</section>'
+    )
+    annotated = annotate_html_text(bilingual_html, annotation_concepts)
+    if annotated.count('data-concept-id="quantum-fourier-transform"') != 2:
+        raise AssertionError("bilingual concept annotation did not emit one aligned mark per language")
+    if '<mark class="knowledge-gap unrated"' not in annotated or '>量子傅里叶变换</mark>' not in annotated:
+        raise AssertionError("Chinese panel did not match its controlled Chinese alias")
+    if 'data-concept-id="color-ordering"' in annotated:
+        raise AssertionError("an incidental Chinese term created a concept absent from Original")
+    panel = build_knowledge_panel(None, glossary, annotation_concepts, None)
+    for token in (
+        "Paper Concept Ledger / Personal Knowledge Boundary",
+        "Personal Status",
+        "Chinese Name",
+        "Role in This Paper",
+        "Mathematical object",
+        "Not in personal profile",
+    ):
+        if token not in panel:
+            raise AssertionError(f"knowledge panel lacks English interface token: {token}")
+    if ">math_object<" in panel or ">个人状态<" in panel:
+        raise AssertionError("knowledge panel leaked an internal enum or Chinese interface label")
+
     with tempfile.TemporaryDirectory(prefix="completion_v3_", dir=ROOT) as temporary:
         reader = make_reader(Path(temporary))
 

@@ -936,7 +936,7 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
         "version": 1,
         "generated_at": utc_now(),
         "concept_count": len(concepts),
-        "required_mark_attrs": ["data-concept", "data-status", "data-source-anchor", "data-concept-type", "data-alias-zh", "title"],
+        "required_mark_attrs": ["data-concept", "data-concept-id", "data-status", "data-source-anchor", "data-concept-type", "data-alias-zh", "title"],
         "concepts": concepts,
     }
     source_of_truth = {

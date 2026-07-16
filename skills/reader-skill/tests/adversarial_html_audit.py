@@ -37,7 +37,7 @@ from completion_state import (  # noqa: E402
 
 
 REQUIRED_MARK_ATTRS = (
-    "data-concept", "data-status", "data-source-anchor", "data-concept-type", "data-alias-zh", "title",
+    "data-concept", "data-concept-id", "data-status", "data-source-anchor", "data-concept-type", "data-alias-zh", "title",
 )
 MATH_RE = re.compile(r'(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$|(?<!\\)\$(?!\s)(?:\\.|[^$]){1,800}?(?<!\\)\$)')
 
@@ -63,6 +63,18 @@ def html_math_signatures(panel_html: str) -> list[str]:
         kind = "display" if match.group("class").lower() == "math-display" else "inline"
         signatures.append(f"{kind}:{body}")
     return signatures
+
+
+def knowledge_marks(panel_html: str) -> list[tuple[str, str]]:
+    """Return ``(concept_id, visible_text)`` for rendered concept marks."""
+    marks: list[tuple[str, str]] = []
+    for match in re.finditer(r'<mark\s+([^>]*)>([\s\S]*?)</mark>', panel_html, re.I):
+        concept_id_match = re.search(r'data-concept-id="([^"]+)"', match.group(1), re.I)
+        if not concept_id_match:
+            continue
+        visible_text = unescape(re.sub(r"<[^>]+>", "", match.group(2))).strip()
+        marks.append((unescape(concept_id_match.group(1)), visible_text))
+    return marks
 
 
 def css_block(html_text: str, selector: str) -> str:
@@ -279,11 +291,21 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         fail("not all algorithm records rendered as algorithm cards", issues)
     if formulas and 'class="math-display"' not in html_text:
         fail("formula records exist but no display math was rendered", issues)
+    concepts_path = wiki / "concept_ledger.json"
+    concepts = read_json(concepts_path) if concepts_path.exists() else {}
+    concepts_by_id = {
+        str(item.get("concept_id")): item
+        for item in concepts.get("concepts") or []
+        if item.get("concept_id")
+    }
     bilingual_sections = re.findall(
         r'<section class="bilingual-block[^>]*" id="([^"]+)">([\s\S]*?)</section>',
         html_text,
         re.I,
     )
+    original_concept_marks = 0
+    chinese_concept_marks = 0
+    concept_aligned_blocks = 0
     for block_id, section_html in bilingual_sections:
         original_match = re.search(r'<article class="lang-panel original">([\s\S]*?)</article>', section_html, re.I)
         translation_match = re.search(r'<article class="lang-panel translation">([\s\S]*?)</article>', section_html, re.I)
@@ -298,6 +320,28 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
                 f"(Original={original_math}, Chinese={translation_math})",
                 issues,
             )
+        original_marks = knowledge_marks(original_match.group(1))
+        chinese_marks = knowledge_marks(translation_match.group(1))
+        original_concept_marks += len(original_marks)
+        chinese_concept_marks += len(chinese_marks)
+        original_ids = {concept_id for concept_id, _text in original_marks}
+        chinese_ids = {concept_id for concept_id, _text in chinese_marks}
+        if original_ids != chinese_ids:
+            fail(
+                f"{block_id}: rendered Original/Chinese concept IDs are not aligned "
+                f"(Original={sorted(original_ids)}, Chinese={sorted(chinese_ids)})",
+                issues,
+            )
+        else:
+            concept_aligned_blocks += 1
+        for concept_id, visible_text in chinese_marks:
+            concept = concepts_by_id.get(concept_id, {})
+            aliases_zh = {str(alias).strip() for alias in concept.get("aliases_zh") or [] if str(alias).strip()}
+            if visible_text not in aliases_zh:
+                fail(
+                    f"{block_id}: Chinese concept mark {concept_id!r} uses uncontrolled text {visible_text!r}",
+                    issues,
+                )
     if algorithms and len(re.findall(r'class="alg-line-no"', html_text)) < sum(len(row["object_metadata"].get("original_steps") or []) for row in algorithms):
         fail("algorithm card line count is smaller than completion records", issues)
     if re.search(r'<figure\s+class="figure-card"[\s\S]*?assets/source_pages/', html_text, re.I):
@@ -309,8 +353,6 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
     for token in ("function closePanel()", "downloadFeedback", "copyFeedback", "readerFeedbackSeed", 'id="readerThemeSelect"', "paper.reader.theme"):
         if token not in html_text:
             fail(f"formal interaction contract is missing: {token}", issues)
-    concepts_path = wiki / "concept_ledger.json"
-    concepts = read_json(concepts_path) if concepts_path.exists() else {}
     is_fixture = "fixture" in json.dumps(source_map.get("paper") or {}, ensure_ascii=False).lower()
     full_paper = not is_fixture and (int((source_map.get("paper") or {}).get("page_count") or 0) >= 4 or (source_map.get("paper") or {}).get("source_type") == "pdf")
     marks = re.findall(r'<mark\s+class="knowledge-gap\b[^>]*>', html_text)
@@ -321,6 +363,36 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
             if f"{attr}=" not in mark:
                 fail(f"knowledge mark is missing {attr}", issues)
                 break
+    knowledge_panel_match = re.search(
+        r'<section class="knowledge-panel" id="personal-knowledge-boundary">([\s\S]*?)</section>',
+        html_text,
+        re.I,
+    )
+    if not knowledge_panel_match:
+        fail("Paper Concept Ledger / Personal Knowledge Boundary panel is missing", issues)
+    else:
+        knowledge_panel = knowledge_panel_match.group(1)
+        required_panel_text = (
+            "Paper Concept Ledger / Personal Knowledge Boundary",
+            "Concept",
+            "Personal Status",
+            "Chinese Name",
+            "Type",
+            "Role in This Paper",
+            "Personal knowledge profile:",
+        )
+        for token in required_panel_text:
+            if token not in knowledge_panel:
+                fail(f"knowledge panel is missing required English interface text: {token}", issues)
+        for enum_token in (
+            "figure_element",
+            "formula_variable",
+            "math_object",
+            "method_component",
+            "model_module",
+        ):
+            if re.search(rf">\s*{re.escape(enum_token)}\s*<", knowledge_panel):
+                fail(f"knowledge panel exposes internal concept type enum: {enum_token}", issues)
     dark = validate_dark_theme_readability(html_text, issues)
     math_inline = [unescape(match) for match in re.findall(r'<span class="math-inline">([\s\S]*?)</span>', html_text)]
     if any(re.fullmatch(r"\$[A-Za-z]{3,}\$", value) for value in math_inline):
@@ -335,6 +407,9 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         "formulas": len(formulas),
         "references": len(references),
         "marks": len(marks),
+        "original_concept_marks": original_concept_marks,
+        "chinese_concept_marks": chinese_concept_marks,
+        "concept_aligned_blocks": concept_aligned_blocks,
         "math_display": len(re.findall(r'class="math-display"', html_text)),
         "dark_min_contrast": min(dark.values()) if dark else "missing",
     }

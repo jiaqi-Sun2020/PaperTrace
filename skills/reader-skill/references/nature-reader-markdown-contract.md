@@ -47,6 +47,18 @@ chip or display card is a hard validation failure.
 The renderer must not infer additional math components from plain underscores,
 superscripts, model names, or variable-looking prose.
 
+## Bilingual Concept-Alignment Contract
+
+Concept marks are paired semantic objects, just like aligned formulas:
+
+- `Original` is the semantic driver and matches only `canonical_name` plus controlled `aliases_en`.
+- `中文` matches only controlled `aliases_zh` for concept IDs already found in the paired `Original`; do not create a mark from an incidental Chinese term and do not reuse the English canonical name as a fallback.
+- The unique `data-concept-id` set must be identical in the two language panels of every bilingual block.
+- Chinese aliases must include the minimal source-backed spelling variants actually used by the completed translation. Prefer one canonical translation and add a variant only when the reader text requires it.
+- Resolve overlaps by longest match and emit no nested marks.
+
+The Concept Ledger / Personal Knowledge Boundary is an English-language interface. Its only Chinese fields are the row values under `Chinese Name` and `Role in This Paper`. Column labels, section copy, status labels, concept names, and human-readable type labels remain English; raw enum values such as `math_object` must not be displayed.
+
 ## Translation Contract
 
 Final HTML output requires faithful translations. The converter should reject `中文` blocks containing draft/paraphrase markers such as:
