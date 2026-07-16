@@ -7,18 +7,13 @@ This file records dated implementation and local-release milestones. Durable bou
 
 ## 2026-07-16
 
-### Wide source-page reader layout
-
-- Enlarged the synchronized source-page viewer into a viewport-height responsive left column while preserving full-page aspect ratio and scroll access.
-- Moved Contents into an independent sticky right column, leaving the article in the center; narrow screens reflow all three regions.
-- Added shared-contract, regression, and adversarial checks for left-viewer/center-article/right-Contents ordering and source-column sizing.
-
-### Source-grounded reader summary and source-page controls
+### Source-grounded adaptive reader workspace
 
 - Added a completion-authored `paper_summary.json` contract for detailed Chinese overview, method, significance, and evidence/limitation explanations with formal source anchors.
-- Added a left-side original-page viewer driven only by hash-bound `source_map.pages` assets and synchronized through per-block `data-source-page` metadata.
-- Added independent, accessible Original/source-page collapse controls with namespaced local state, responsive reflow, and print restoration of Original content.
-- Extended formal compilation, shared HTML validation, JavaScript regression coverage, and adversarial publication audit for the new contracts.
+- Reworked the reader into synchronized source/article/Contents regions: a substantially larger viewport-height source pane, a protected-width article, and sticky Contents. Wide layouts are pointer/keyboard resizable, medium layouts compact Contents to a restore rail, and narrow layouts stack without horizontal overflow.
+- Added independent, accessible Original/source-page/Contents collapse controls, persistent restore paths, namespaced local view state, and print restoration of Original content.
+- Changed annotation feedback from a translation-covering overlay to a layout-reserving desktop dock or scroll-safe bottom workspace.
+- Extended formal compilation, shared contract validation, JavaScript regression coverage, and adversarial publication audit for summary provenance, pane ordering and sizing, folding, responsiveness, and annotation non-overlap.
 
 ### Auditable daily-news ranking
 

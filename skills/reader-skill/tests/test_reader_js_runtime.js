@@ -54,11 +54,16 @@ function testSaveMarkClosesPanel() {
     function showVisualFeedback() {}
     function refreshSummary() {}
     function getStatus() { return "learning"; }
-    const document = { querySelectorAll() { return []; } };
+    const bodyClasses = new Set(["feedback-open"]);
+    const document = {
+      body: { classList: { remove(name) { bodyClasses.delete(name); } } },
+      querySelectorAll() { return []; },
+    };
     ${closePanel}
     ${saveCurrent}
     saveCurrent();
     if (dock.hidden !== true) throw new Error("Save mark did not close panel");
+    if (bodyClasses.has("feedback-open")) throw new Error("Save mark did not release docked feedback layout space");
     if (feedback.size !== 1) throw new Error("Save mark did not persist feedback item");
   `;
   vm.runInNewContext(script, {}, { timeout: 1000 });
@@ -137,15 +142,32 @@ function testReaderViewControlsPersist() {
   }
   const originalButton = button();
   const sourceButton = button();
+  const contentsButton = button();
+  const sourcePaneButton = button();
+  const contentsPaneButton = button();
   const previousButton = button();
   const nextButton = button();
   const sourceViewer = { attrs: {}, setAttribute(name, value) { this.attrs[name] = value; } };
   const sourceImage = { src: "", alt: "" };
   const sourceOpen = { href: "" };
   const sourceCounter = { textContent: "" };
+  const contentsPane = { attrs: {}, setAttribute(name, value) { this.attrs[name] = value; } };
+  const contentsContent = { attrs: {}, setAttribute(name, value) { this.attrs[name] = value; } };
+  const layoutStyles = new Map();
+  const layout = {
+    style: {
+      setProperty(name, value) { layoutStyles.set(name, value); },
+      removeProperty(name) { layoutStyles.delete(name); },
+    },
+  };
   const elements = {
     toggleOriginal: originalButton,
     toggleSourcePages: sourceButton,
+    toggleContents: contentsButton,
+    sourcePaneToggle: sourcePaneButton,
+    contentsPaneToggle: contentsPaneButton,
+    tableOfContents: contentsPane,
+    tableOfContentsContent: contentsContent,
     sourcePageViewer: sourceViewer,
     sourcePageImage: sourceImage,
     sourcePageOpen: sourceOpen,
@@ -158,15 +180,24 @@ function testReaderViewControlsPersist() {
   const store = new Map();
   const storageKeyMatch = viewScript.match(/const storageKey = '([^']+)'/);
   if (!storageKeyMatch) throw new Error("missing namespaced reader view storage key");
-  store.set(storageKeyMatch[1], JSON.stringify({ originalCollapsed: true, sourcePagesCollapsed: true, currentPage: pages[0].page }));
+  store.set(storageKeyMatch[1], JSON.stringify({
+    originalCollapsed: true,
+    sourcePagesCollapsed: true,
+    contentsCollapsed: true,
+    currentPage: pages[0].page,
+  }));
   const context = {
     document: {
-      body: { classList: { toggle(name, enabled) { if (enabled) bodyClasses.add(name); else bodyClasses.delete(name); } } },
+      body: {
+        classList: { toggle(name, enabled) { if (enabled) bodyClasses.add(name); else bodyClasses.delete(name); } },
+        style: { setProperty() {} },
+      },
       getElementById(id) { return elements[id] || null; },
       addEventListener() {},
+      querySelector(selector) { return selector === ".layout" ? layout : null; },
       querySelectorAll() { return []; },
     },
-    window: { matchMedia() { return { matches: false }; } },
+    window: { innerWidth: 1920, matchMedia() { return { matches: false }; }, addEventListener() {} },
     localStorage: {
       getItem(key) { return store.get(key) || null; },
       setItem(key, value) { store.set(key, value); },
@@ -176,7 +207,7 @@ function testReaderViewControlsPersist() {
     JSON,
   };
   vm.runInNewContext(viewScript, context, { timeout: 1000 });
-  if (!bodyClasses.has("original-collapsed") || !bodyClasses.has("source-pages-collapsed")) {
+  if (!bodyClasses.has("original-collapsed") || !bodyClasses.has("source-pages-collapsed") || !bodyClasses.has("toc-collapsed")) {
     throw new Error("saved reader view state was not restored");
   }
   if (originalButton.textContent !== "Show Original" || sourceButton.textContent !== "Show Source Pages") {
@@ -185,9 +216,13 @@ function testReaderViewControlsPersist() {
   if (originalButton.attrs["aria-expanded"] !== "false" || sourceButton.attrs["aria-expanded"] !== "false") {
     throw new Error("reader view controls did not expose collapsed ARIA state");
   }
+  if (contentsButton.textContent !== "Show Contents" || contentsButton.attrs["aria-expanded"] !== "false") {
+    throw new Error("Contents collapse state was not restored accessibly");
+  }
   originalButton.listener();
   sourceButton.listener();
-  if (bodyClasses.has("original-collapsed") || bodyClasses.has("source-pages-collapsed")) {
+  contentsButton.listener();
+  if (bodyClasses.has("original-collapsed") || bodyClasses.has("source-pages-collapsed") || bodyClasses.has("toc-collapsed")) {
     throw new Error("reader view controls did not restore visible state");
   }
   if (originalButton.attrs["aria-expanded"] !== "true" || sourceButton.attrs["aria-expanded"] !== "true") {
@@ -196,6 +231,7 @@ function testReaderViewControlsPersist() {
   if (sourceImage.src !== pages[0].src || !sourceCounter.textContent.includes("Page")) {
     throw new Error("source-page viewer did not render the selected page");
   }
+  if (!layoutStyles.has("--toc-pane-width")) throw new Error("responsive pane width was not applied");
   if (pages.length > 1) {
     nextButton.listener();
     if (sourceImage.src !== pages[1].src) throw new Error("source-page Next control did not advance the image");
@@ -205,4 +241,4 @@ function testReaderViewControlsPersist() {
 testSaveMarkClosesPanel();
 testThemePersists();
 testReaderViewControlsPersist();
-console.log("reader JS runtime passed: feedback, theme, summary-view controls, and source pages persist.");
+console.log("reader JS runtime passed: feedback docking, theme, collapsible panes, resize state, and source pages persist.");

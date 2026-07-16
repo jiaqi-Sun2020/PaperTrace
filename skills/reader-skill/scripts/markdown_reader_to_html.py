@@ -1247,6 +1247,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     const blockLabel = currentBlock ? `  ·  ${{currentBlock}}` : '';
     conceptLabel.textContent = (existing.concept || 'Free annotation') + blockLabel;
     dock.hidden = false;
+    document.body.classList.add('feedback-open');
     conceptInput.focus();
   }}
 
@@ -1331,6 +1332,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
 
   function closePanel() {{
     dock.hidden = true;
+    document.body.classList.remove('feedback-open');
   }}
 
   function saveCurrent(options) {{
@@ -1572,6 +1574,7 @@ def build_reader_view_controls(has_source_pages: bool) -> str:
 <div class="reader-view-controls" role="group" aria-label="Reader view controls">
   <button type="button" id="toggleOriginal" aria-pressed="false" aria-expanded="true" aria-controls="readerDocument">Hide Original</button>
   {source_button}
+  <button type="button" id="toggleContents" aria-pressed="false" aria-expanded="true" aria-controls="tableOfContents">Hide Contents</button>
 </div>'''.strip()
 
 
@@ -1584,6 +1587,15 @@ def reader_view_script(title: str, source_pages: list[dict]) -> str:
 (() => {{
   const originalButton = document.getElementById('toggleOriginal');
   const sourceButton = document.getElementById('toggleSourcePages');
+  const contentsButton = document.getElementById('toggleContents');
+  const sourcePaneButton = document.getElementById('sourcePaneToggle');
+  const contentsPaneButton = document.getElementById('contentsPaneToggle');
+  const sourcePaneResizer = document.getElementById('sourcePaneResizer');
+  const contentsPaneResizer = document.getElementById('contentsPaneResizer');
+  const layout = document.querySelector('.layout');
+  const sourceSidebar = document.querySelector('.reader-sidebar');
+  const contentsPane = document.getElementById('tableOfContents');
+  const contentsContent = document.getElementById('tableOfContentsContent');
   const sourceViewer = document.getElementById('sourcePageViewer');
   const sourceImage = document.getElementById('sourcePageImage');
   const sourceOpen = document.getElementById('sourcePageOpen');
@@ -1594,14 +1606,25 @@ def reader_view_script(title: str, source_pages: list[dict]) -> str:
   const pages = sourceData ? JSON.parse(sourceData.textContent || '[]') : [];
   const pageByNumber = new Map(pages.map((item, index) => [Number(item.page), {{...item, index}}]));
   const storageKey = 'paper.reader.view.{storage_suffix}';
-  let state = {{ originalCollapsed: false, sourcePagesCollapsed: false, currentPage: pages.length ? Number(pages[0].page) : null }};
+  let state = {{
+    originalCollapsed: false,
+    sourcePagesCollapsed: false,
+    contentsCollapsed: false,
+    sourcePaneWidth: null,
+    contentsPaneWidth: null,
+    currentPage: pages.length ? Number(pages[0].page) : null
+  }};
 
   try {{
     const stored = JSON.parse(localStorage.getItem(storageKey) || 'null');
     if (stored && typeof stored === 'object') state = {{...state, ...stored}};
-    else if (window.matchMedia('(max-width: 860px)').matches) state.sourcePagesCollapsed = true;
+    else {{
+      if (window.matchMedia('(max-width: 860px)').matches) state.sourcePagesCollapsed = true;
+      if (window.matchMedia('(max-width: 1500px)').matches) state.contentsCollapsed = true;
+    }}
   }} catch (_error) {{
     if (window.matchMedia('(max-width: 860px)').matches) state.sourcePagesCollapsed = true;
+    if (window.matchMedia('(max-width: 1500px)').matches) state.contentsCollapsed = true;
   }}
 
   function persist() {{
@@ -1621,9 +1644,49 @@ def reader_view_script(title: str, source_pages: list[dict]) -> str:
     if (shouldPersist) persist();
   }}
 
+  function viewportWidth() {{
+    return Number(window.innerWidth) || 1920;
+  }}
+
+  function clampSourceWidth(value) {{
+    const viewport = viewportWidth();
+    const contentsWidth = state.contentsCollapsed ? 44 : (Number(state.contentsPaneWidth) || Math.min(280, Math.max(210, viewport * .13)));
+    const articleMinimum = viewport >= 1680 ? 620 : 520;
+    const maximum = Math.max(360, viewport - contentsWidth - articleMinimum - 80);
+    return Math.round(Math.min(Math.max(Number(value) || viewport * .42, 360), maximum));
+  }}
+
+  function clampContentsWidth(value) {{
+    return Math.round(Math.min(Math.max(Number(value) || viewportWidth() * .13, 180), 360));
+  }}
+
+  function applyPaneWidths() {{
+    if (!layout || !layout.style) return;
+    if (state.sourcePaneWidth !== null && Number.isFinite(Number(state.sourcePaneWidth))) {{
+      state.sourcePaneWidth = clampSourceWidth(state.sourcePaneWidth);
+      layout.style.setProperty('--source-pane-width', `${{state.sourcePaneWidth}}px`);
+    }} else {{
+      layout.style.removeProperty?.('--source-pane-width');
+    }}
+    const contentsWidth = state.contentsCollapsed ? 44 : clampContentsWidth(state.contentsPaneWidth);
+    layout.style.setProperty('--toc-pane-width', `${{contentsWidth}}px`);
+    document.body.style?.setProperty('--toc-pane-width', `${{contentsWidth}}px`);
+  }}
+
+  function updatePaneButton(button, collapsed, expandedText, collapsedText) {{
+    if (!button) return;
+    button.setAttribute('aria-pressed', String(Boolean(collapsed)));
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.setAttribute('aria-label', collapsed ? collapsedText : expandedText);
+    button.title = collapsed ? collapsedText : expandedText;
+    const shortLabel = button.querySelector?.('.pane-toggle-short');
+    if (shortLabel) shortLabel.textContent = collapsed ? 'Show' : 'Hide';
+  }}
+
   function applyState() {{
     document.body.classList.toggle('original-collapsed', Boolean(state.originalCollapsed));
     document.body.classList.toggle('source-pages-collapsed', Boolean(state.sourcePagesCollapsed));
+    document.body.classList.toggle('toc-collapsed', Boolean(state.contentsCollapsed));
     if (originalButton) {{
       originalButton.setAttribute('aria-pressed', String(Boolean(state.originalCollapsed)));
       originalButton.setAttribute('aria-expanded', String(!state.originalCollapsed));
@@ -1634,7 +1697,16 @@ def reader_view_script(title: str, source_pages: list[dict]) -> str:
       sourceButton.setAttribute('aria-expanded', String(!state.sourcePagesCollapsed));
       sourceButton.textContent = state.sourcePagesCollapsed ? 'Show Source Pages' : 'Hide Source Pages';
     }}
+    if (contentsButton) {{
+      contentsButton.setAttribute('aria-pressed', String(Boolean(state.contentsCollapsed)));
+      contentsButton.setAttribute('aria-expanded', String(!state.contentsCollapsed));
+      contentsButton.textContent = state.contentsCollapsed ? 'Show Contents' : 'Hide Contents';
+    }}
+    updatePaneButton(sourcePaneButton, state.sourcePagesCollapsed, 'Hide source pages', 'Show source pages');
+    updatePaneButton(contentsPaneButton, state.contentsCollapsed, 'Hide Contents', 'Show Contents');
     if (sourceViewer) sourceViewer.setAttribute('aria-hidden', String(Boolean(state.sourcePagesCollapsed)));
+    if (contentsContent) contentsContent.setAttribute('aria-hidden', String(Boolean(state.contentsCollapsed)));
+    applyPaneWidths();
     updatePage(state.currentPage, false);
   }}
 
@@ -1648,6 +1720,21 @@ def reader_view_script(title: str, source_pages: list[dict]) -> str:
     applyState();
     persist();
   }});
+  sourcePaneButton?.addEventListener('click', () => {{
+    state.sourcePagesCollapsed = !state.sourcePagesCollapsed;
+    applyState();
+    persist();
+  }});
+  contentsButton?.addEventListener('click', () => {{
+    state.contentsCollapsed = !state.contentsCollapsed;
+    applyState();
+    persist();
+  }});
+  contentsPaneButton?.addEventListener('click', () => {{
+    state.contentsCollapsed = !state.contentsCollapsed;
+    applyState();
+    persist();
+  }});
   previousButton?.addEventListener('click', () => {{
     const current = pageByNumber.get(Number(state.currentPage));
     if (current && current.index > 0) updatePage(pages[current.index - 1].page);
@@ -1656,6 +1743,53 @@ def reader_view_script(title: str, source_pages: list[dict]) -> str:
     const current = pageByNumber.get(Number(state.currentPage));
     if (current && current.index < pages.length - 1) updatePage(pages[current.index + 1].page);
   }});
+
+  function attachPaneResizer(handle, pane, kind) {{
+    if (!handle || !pane) return;
+    let active = false;
+    let startX = 0;
+    let startWidth = 0;
+    const setWidth = value => {{
+      if (kind === 'source') state.sourcePaneWidth = clampSourceWidth(value);
+      else state.contentsPaneWidth = clampContentsWidth(value);
+      applyPaneWidths();
+    }};
+    handle.addEventListener('pointerdown', event => {{
+      if (event.button !== undefined && event.button !== 0) return;
+      active = true;
+      startX = event.clientX;
+      startWidth = pane.getBoundingClientRect().width;
+      handle.setPointerCapture?.(event.pointerId);
+      document.body.classList.add('pane-resizing');
+      event.preventDefault();
+    }});
+    handle.addEventListener('pointermove', event => {{
+      if (!active) return;
+      const delta = event.clientX - startX;
+      setWidth(startWidth + (kind === 'source' ? delta : -delta));
+    }});
+    const finish = event => {{
+      if (!active) return;
+      active = false;
+      handle.releasePointerCapture?.(event.pointerId);
+      document.body.classList.remove('pane-resizing');
+      persist();
+    }};
+    handle.addEventListener('pointerup', finish);
+    handle.addEventListener('pointercancel', finish);
+    handle.addEventListener('keydown', event => {{
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      const direction = event.key === 'ArrowRight' ? 1 : -1;
+      const current = pane.getBoundingClientRect().width;
+      setWidth(current + (kind === 'source' ? direction : -direction) * 24);
+      persist();
+      event.preventDefault();
+    }});
+  }}
+
+  attachPaneResizer(sourcePaneResizer, sourceSidebar, 'source');
+  attachPaneResizer(contentsPaneResizer, contentsPane, 'contents');
+  window.addEventListener?.('resize', () => applyPaneWidths());
 
   document.addEventListener('click', event => {{
     const sourceBlock = event.target instanceof Element ? event.target.closest('[data-source-page]') : null;
@@ -1948,6 +2082,11 @@ def css() -> str:
 }
 * { box-sizing: border-box; }
 body {
+  --source-pane-width: clamp(520px, 42vw, 1400px);
+  --toc-pane-width: clamp(210px, 13vw, 280px);
+  --collapsed-pane-width: 44px;
+  --reader-gutter: 16px;
+  --feedback-dock-width: 390px;
   margin: 0;
   font-family: Arial, "Noto Sans SC", "Microsoft YaHei", sans-serif;
   color: var(--ink);
@@ -1966,15 +2105,17 @@ a:hover { text-decoration: underline; }
 .badge { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 4px 10px; }
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
-  gap: 24px;
-  max-width: 1900px;
+  grid-template-columns: minmax(0, 1fr) var(--toc-pane-width);
+  gap: var(--reader-gutter);
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
-  padding: 24px;
+  padding: var(--reader-gutter);
+  transition: padding-right .2s ease;
 }
 .layout.has-source-pages {
-  grid-template-columns: clamp(360px, 27vw, 560px) minmax(0, 1fr) minmax(220px, 260px);
-  max-width: 2200px;
+  grid-template-columns: minmax(360px, var(--source-pane-width)) minmax(520px, 1fr) var(--toc-pane-width);
+  max-width: none;
 }
 .reader-sidebar {
   position: sticky;
@@ -1982,6 +2123,7 @@ a:hover { text-decoration: underline; }
   align-self: start;
   height: calc(100vh - 32px);
   min-width: 0;
+  overflow: visible;
 }
 .toc {
   position: sticky;
@@ -1990,15 +2132,57 @@ a:hover { text-decoration: underline; }
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 14px;
+  padding: 0;
   min-height: 120px;
   max-height: calc(100vh - 32px);
-  overflow: auto;
+  overflow: visible;
+  min-width: 0;
 }
+.toc-content { max-height: calc(100vh - 34px); overflow: auto; padding: 14px; }
 .toc h2 { margin: 0 0 10px; font-size: 1rem; }
 .toc a { display: block; padding: 6px 0; color: var(--ink); font-size: .92rem; }
 .toc .level-3 { padding-left: 12px; }
 .toc .level-4 { padding-left: 24px; }
+.pane-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 6;
+}
+.pane-resizer::after {
+  content: "";
+  position: absolute;
+  top: 38%;
+  bottom: 38%;
+  left: 5px;
+  border-left: 2px solid var(--line);
+}
+.pane-resizer:hover::after, .pane-resizer:focus-visible::after { border-color: var(--accent); }
+.source-pane-resizer { right: -14px; }
+.contents-pane-resizer { left: -14px; }
+.pane-toggle {
+  position: absolute;
+  z-index: 7;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+  color: var(--accent);
+  font: inherit;
+  font-size: .72rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(23, 32, 51, .08);
+}
+.pane-toggle:hover, .pane-toggle:focus-visible { border-color: var(--accent); outline: 2px solid var(--accent-soft); }
+.source-pane-toggle { top: 44%; right: -25px; width: 26px; min-height: 58px; padding: 7px 3px; }
+.contents-pane-toggle { top: 44%; left: -25px; width: 26px; min-height: 58px; padding: 7px 3px; }
+.pane-toggle-short { writing-mode: vertical-rl; text-orientation: mixed; }
+.pane-rail-label { display: none; }
+body.pane-resizing { cursor: col-resize; user-select: none; }
+body.pane-resizing iframe, body.pane-resizing img { pointer-events: none; }
 .reader-view-controls { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 .reader-view-controls button, .source-page-actions button {
   border: 1px solid var(--line);
@@ -2037,10 +2221,52 @@ a:hover { text-decoration: underline; }
 .source-page-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .source-page-actions button:disabled { opacity: .45; cursor: not-allowed; }
 body.source-pages-collapsed .source-page-viewer { display: none; }
-body.source-pages-collapsed .reader-sidebar { display: none; }
+body.source-pages-collapsed .reader-sidebar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 32px);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
 body.source-pages-collapsed .layout.has-source-pages {
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
-  max-width: 1900px;
+  grid-template-columns: var(--collapsed-pane-width) minmax(520px, 1fr) var(--toc-pane-width);
+  max-width: none;
+}
+body.source-pages-collapsed .source-pane-resizer { display: none; }
+body.source-pages-collapsed .source-pane-toggle {
+  position: static;
+  width: 100%;
+  min-height: 100%;
+  border: 0;
+  box-shadow: none;
+  padding: 8px 4px;
+}
+body.source-pages-collapsed .source-pane-toggle .pane-toggle-short,
+body.toc-collapsed .contents-pane-toggle .pane-toggle-short { display: none; }
+body.source-pages-collapsed .source-pane-toggle .pane-rail-label,
+body.toc-collapsed .contents-pane-toggle .pane-rail-label {
+  display: block;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: .04em;
+}
+body.toc-collapsed .toc-content { display: none; }
+body.toc-collapsed .contents-pane-resizer { display: none; }
+body.toc-collapsed .toc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 32px);
+}
+body.toc-collapsed .contents-pane-toggle {
+  position: static;
+  width: 100%;
+  min-height: calc(100vh - 34px);
+  border: 0;
+  box-shadow: none;
+  padding: 8px 4px;
 }
 body.original-collapsed .bilingual-block .lang-panel.original,
 body.original-collapsed .algorithm-card .lang-panel.original { display: none; }
@@ -2264,10 +2490,11 @@ main { min-width: 0; }
 }
 .feedback-dock {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
-  width: min(420px, calc(100vw - 28px));
-  max-height: calc(100vh - 36px);
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: min(var(--feedback-dock-width), calc(100vw - 32px));
+  max-height: none;
   overflow: auto;
   background: var(--paper);
   border: 1px solid var(--line);
@@ -2279,7 +2506,7 @@ main { min-width: 0; }
 .feedback-dock[hidden] { display: none; }
 .feedback-opener {
   position: fixed;
-  right: 18px;
+  right: calc(var(--toc-pane-width) + 32px);
   bottom: 18px;
   z-index: 19;
   border: 1px solid var(--accent);
@@ -2289,6 +2516,54 @@ main { min-width: 0; }
   padding: 9px 12px;
   box-shadow: 0 12px 28px rgba(31, 111, 235, .2);
   cursor: pointer;
+  transition: right .2s ease, opacity .15s ease;
+}
+body.toc-collapsed .feedback-opener { right: calc(var(--collapsed-pane-width) + 32px); }
+body.feedback-open .feedback-opener { opacity: 0; pointer-events: none; }
+@media (min-width: 1680px) {
+  body.feedback-open .layout {
+    padding-right: calc(var(--feedback-dock-width) + 32px);
+  }
+  body.feedback-open .layout.has-source-pages {
+    grid-template-columns: minmax(360px, min(var(--source-pane-width), 32vw)) minmax(520px, 1fr) var(--collapsed-pane-width);
+  }
+  body.feedback-open .layout.no-source-pages {
+    grid-template-columns: minmax(520px, 1fr) var(--collapsed-pane-width);
+  }
+  body.feedback-open .toc-content,
+  body.feedback-open .contents-pane-resizer,
+  body.feedback-open .contents-pane-toggle .pane-toggle-short { display: none; }
+  body.feedback-open .toc {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 32px);
+  }
+  body.feedback-open .contents-pane-toggle {
+    position: static;
+    width: 100%;
+    min-height: calc(100vh - 34px);
+    border: 0;
+    box-shadow: none;
+    padding: 8px 4px;
+  }
+  body.feedback-open .contents-pane-toggle .pane-rail-label {
+    display: block;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: .04em;
+  }
+}
+@media (max-width: 1679px) {
+  body.feedback-open .layout { padding-bottom: min(62vh, 590px); }
+  .feedback-dock {
+    top: auto;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+    max-height: min(58vh, 560px);
+  }
 }
 .feedback-dock h2 {
   margin: 0 0 8px;
@@ -2454,9 +2729,14 @@ code {
     padding: 14px;
   }
   .reader-sidebar { position: static; order: 1; width: 100%; height: auto; margin-bottom: 0; }
+  body.source-pages-collapsed .reader-sidebar { display: none; }
   .source-page-viewer { height: auto; }
   .source-page-open { flex: none; max-height: 70vh; }
   .toc { position: static; order: 2; width: 100%; max-height: none; }
+  .toc-content { max-height: none; }
+  body.toc-collapsed .toc { display: none; }
+  .pane-resizer, .pane-toggle { display: none; }
+  .feedback-opener, body.toc-collapsed .feedback-opener { right: 14px; }
   main { order: 3; }
   .pair-grid, .bilingual-block.has-notes .pair-grid { grid-template-columns: 1fr; }
   body.original-collapsed .bilingual-block.has-notes .pair-grid { grid-template-columns: 1fr; }
@@ -2467,10 +2747,11 @@ code {
   body { background: #fff; }
   .site-header, .section, .prose, .md-table, .bilingual-block, .reference-block, .figure-card, .label-card, .algorithm-card { border-color: #c8ced8; box-shadow: none; }
   .layout { display: flex; flex-direction: column; max-width: none; padding: 0; }
-  .reader-sidebar { position: static; display: block; height: auto; }
-  .toc { position: static; order: 1; max-height: none; break-after: page; }
+  .reader-sidebar { display: none !important; }
+  .toc { display: block !important; position: static; order: 1; max-height: none; break-after: page; }
+  .toc-content { display: block !important; max-height: none; }
   main { order: 2; }
-  .source-page-viewer, .reader-view-controls { display: none !important; }
+  .source-page-viewer, .reader-view-controls, .pane-resizer, .pane-toggle { display: none !important; }
   body.original-collapsed .bilingual-block .lang-panel.original,
   body.original-collapsed .algorithm-card .lang-panel.original { display: block !important; }
   body.original-collapsed .pair-grid,
@@ -2547,7 +2828,13 @@ def build_html(
     source_type = meta.get("source_type") or meta.get("source_format") or "nature-reader Markdown"
     source_page_viewer = build_source_page_viewer(source_pages)
     source_sidebar = (
-        f'<aside class="reader-sidebar" aria-label="Original paper pages">{source_page_viewer}</aside>'
+        f'''<aside class="reader-sidebar" aria-label="Original paper pages">
+      {source_page_viewer}
+      <div class="pane-resizer source-pane-resizer" id="sourcePaneResizer" role="separator" aria-label="Resize original paper panel" aria-orientation="vertical" tabindex="0"></div>
+      <button type="button" class="pane-toggle source-pane-toggle" id="sourcePaneToggle" aria-pressed="false" aria-expanded="true" aria-controls="sourcePageViewer">
+        <span class="pane-toggle-short">Hide</span><span class="pane-rail-label">Original Paper</span>
+      </button>
+    </aside>'''
         if source_page_viewer
         else ""
     )
@@ -2584,9 +2871,15 @@ def build_html(
         {body_html}
       </article>
     </main>
-    <nav class="toc" aria-label="Table of contents">
-      <h2>Contents</h2>
-      {toc_links or '<p>No headings detected.</p>'}
+    <nav class="toc" id="tableOfContents" aria-label="Table of contents">
+      <div class="pane-resizer contents-pane-resizer" id="contentsPaneResizer" role="separator" aria-label="Resize Contents panel" aria-orientation="vertical" tabindex="0"></div>
+      <button type="button" class="pane-toggle contents-pane-toggle" id="contentsPaneToggle" aria-pressed="false" aria-expanded="true" aria-controls="tableOfContents">
+        <span class="pane-toggle-short">Hide</span><span class="pane-rail-label">Contents</span>
+      </button>
+      <div class="toc-content" id="tableOfContentsContent">
+        <h2>Contents</h2>
+        {toc_links or '<p>No headings detected.</p>'}
+      </div>
     </nav>
   </div>
   {feedback_ui}

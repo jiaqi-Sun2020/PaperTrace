@@ -211,13 +211,30 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
             issues.append(f"reader Original-collapse contract is missing: {token}")
     if not re.search(r'id="toggleOriginal"[^>]*aria-pressed="false"[^>]*aria-expanded="true"', html_text):
         issues.append("reader Original-collapse control lacks initial ARIA state")
+    for token in (
+        'id="toggleContents"',
+        'id="contentsPaneToggle"',
+        'id="contentsPaneResizer"',
+        "toc-collapsed",
+        "document.body.classList.add('feedback-open')",
+        "document.body.classList.remove('feedback-open')",
+    ):
+        if token not in html_text:
+            issues.append(f"reader adaptive-pane contract is missing: {token}")
     source_pages_match = re.search(
         r'<script id="readerSourcePages" type="application/json">([\s\S]*?)</script>',
         html_text,
         re.I,
     )
     if source_pages_match and source_pages_match.group(1).strip() not in ("", "[]"):
-        for token in ('id="sourcePageViewer"', 'id="toggleSourcePages"', 'aria-controls="sourcePageViewer"'):
+        for token in (
+            'id="sourcePageViewer"',
+            'id="toggleSourcePages"',
+            'aria-controls="sourcePageViewer"',
+            'id="sourcePaneToggle"',
+            'id="sourcePaneResizer"',
+            'role="separator"',
+        ):
             if token not in html_text:
                 issues.append(f"reader source-page viewer contract is missing: {token}")
         if not re.search(r'id="toggleSourcePages"[^>]*aria-pressed="false"[^>]*aria-expanded="true"', html_text):

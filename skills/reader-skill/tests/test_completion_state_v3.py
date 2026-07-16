@@ -267,11 +267,20 @@ def main() -> int:
             'id="sourcePageViewer"',
             'id="toggleOriginal"',
             'id="toggleSourcePages"',
+            'id="toggleContents"',
+            'id="sourcePaneToggle"',
+            'id="contentsPaneToggle"',
+            'id="sourcePaneResizer"',
+            'id="contentsPaneResizer"',
+            'role="separator"',
             'data-source-page="1"',
             "Hide Original",
             "Show Original",
             "Hide Source Pages",
             "Show Source Pages",
+            "Hide Contents",
+            "Show Contents",
+            "feedback-open",
         ):
             if token not in rendered_html:
                 raise AssertionError(f"formal reader lacks summary/source-view control token: {token}")

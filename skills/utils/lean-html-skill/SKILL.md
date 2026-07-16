@@ -107,7 +107,7 @@ Domain skills should follow this split:
 3. Use this utility for reusable standalone HTML shell behavior and shared annotation/export controls.
 4. Tell the user the HTML only collects feedback; profile updates still require `reader-learner` or `ai-quantum-news-briefing/scripts/import_news_feedback.py`.
 
-For reader HTML integration, domain skills should run the shared contract validator before reporting success. The contract rejects missing MathJax, missing feedback close handlers, missing copy fallback, source-page links polluted by generated markup, Algorithm summaries, missing knowledge-mark metadata, and reader-notes structure pollution.
+For reader HTML integration, domain skills should run the shared contract validator before reporting success. The contract rejects missing MathJax, missing feedback close handlers, missing copy fallback, source-page links polluted by generated markup, Algorithm summaries, missing knowledge-mark metadata, and reader-notes structure pollution. For full PDF readers it also rejects missing source/article/Contents pane ordering, inaccessible resize/collapse/restore controls, and annotation layouts that can permanently cover translated content.
 
 ## Resources
 

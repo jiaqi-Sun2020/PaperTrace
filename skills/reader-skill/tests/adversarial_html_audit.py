@@ -517,11 +517,21 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         "original-collapsed",
         "Hide Original",
         "Show Original",
+        'id="toggleContents"',
+        'id="sourcePaneResizer"',
+        'id="contentsPaneResizer"',
+        'role="separator"',
+        "toc-collapsed",
+        "Show Contents",
+        "Hide Contents",
         "paper.reader.view.",
     ):
         if token not in html_text:
             fail(f"reader collapse-control contract is missing: {token}", issues)
-    for control_id in (("toggleOriginal", "toggleSourcePages") if full_paper else ("toggleOriginal",)):
+    control_ids = ("toggleOriginal", "toggleContents")
+    if full_paper:
+        control_ids += ("toggleSourcePages", "sourcePaneToggle", "contentsPaneToggle")
+    for control_id in control_ids:
         if not re.search(rf'id="{control_id}"[^>]*aria-pressed="false"[^>]*aria-expanded="true"', html_text):
             fail(f"{control_id} lacks initial ARIA toggle state", issues)
     if full_paper and not re.search(
@@ -534,11 +544,28 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
     ):
         fail("reader is not ordered as left source-page viewer, center article, right Contents", issues)
     if full_paper and not re.search(
-        r'\.layout\.has-source-pages\s*\{[\s\S]*?grid-template-columns:\s*clamp\(',
+        r'--source-pane-width:\s*clamp\([\s\S]*?\.layout\.has-source-pages\s*\{'
+        r'[\s\S]*?grid-template-columns:[^;]*var\(--source-pane-width\)',
         html_text,
         re.I,
     ):
         fail("wide reader layout does not reserve an enlarged responsive source-page column", issues)
+    if full_paper and not re.search(
+        r'id="sourcePaneResizer"[^>]*role="separator"[^>]*tabindex="0"[\s\S]*?'
+        r'id="contentsPaneResizer"[^>]*role="separator"[^>]*tabindex="0"',
+        html_text,
+        re.I,
+    ):
+        fail("reader panes do not expose keyboard-accessible resize separators", issues)
+    for token in (
+        "document.body.classList.add('feedback-open')",
+        "document.body.classList.remove('feedback-open')",
+        "body.feedback-open .layout",
+        "padding-right: calc(var(--feedback-dock-width) + 32px)",
+        "body.feedback-open .layout { padding-bottom:",
+    ):
+        if token not in html_text:
+            fail(f"docked annotation non-overlay contract is missing: {token}", issues)
     if full_paper and "body.source-pages-collapsed .source-page-viewer { display: none; }" not in html_text:
         fail("source-page collapse CSS can hide more than the page viewer or is missing", issues)
     if not re.search(

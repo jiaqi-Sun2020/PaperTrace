@@ -74,6 +74,7 @@ Visible Wiki sync consumes outputs around these boundaries but does not replace 
 |-- translation_notes.md
 |-- reader_wiki/
 |   |-- reader_manifest.json
+|   |-- paper_summary.json
 |   |-- concept_ledger.json
 |   |-- formula_ledger.json
 |   |-- figure_table_ledger.json
@@ -104,6 +105,14 @@ news/_index/story_index.jsonl
 ```
 
 Candidate config enters `news-ranker-v1` first. Eligible academic and social items receive separate component scores; deterministic MMR-style selection enforces new/continuing, source-class, formal-source, organization, and topic quotas. The ranked config then enters Delta compaction and the transactional `run -> verify -> finalize -> verify` release. Item-level `ranking` and top-level `ranking_policy`/`ranking_manifest` remain part of the published audit surface.
+
+## Reader Presentation Data Flow
+
+- `paper_summary.json` supplies the source-anchored Chinese overview rendered before the concept ledger; it is completion evidence, not browser-authored state.
+- `source_map.pages` is the immutable manifest for the original-page viewer. Reader blocks expose `data-source-page`, and the browser synchronizes the left viewer without rerendering the PDF or treating full pages as article figures.
+- Source and Contents widths, collapse states, and theme are reversible presentation preferences stored under namespaced localStorage keys. They never mutate `paper.md`, `source_map.json`, `reader_wiki`, feedback identity, or the learner profile.
+- On wide screens, opening annotation feedback reserves a right-side dock and compacts Contents; at smaller widths it creates a scroll-safe bottom workspace. Closing feedback restores the reading layout without hiding translated content.
+- `reader-skill` owns the paper-specific pane semantics and source-page synchronization. `lean-html-skill` owns reusable chrome/feedback behavior and the shared contract checks that prevent inaccessible controls, broken restore paths, or translation-covering feedback.
 
 ## Module Boundaries
 

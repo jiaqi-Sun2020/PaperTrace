@@ -129,9 +129,10 @@ If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a
 - every knowledge mark includes `data-concept`, `data-status`, `data-source-anchor`, `data-concept-type`, `data-alias-zh`, and `title`;
 - the feedback panel closes after `Save mark`, Esc, the close button, or blank-page click, while download/copy export remains available.
 - Source Page Index links remain plain relative paths such as `assets/source_pages/page-01.png`; inline math and concept highlighting must not run inside `href`, image `src`, file paths, or source-page labels.
-- full PDF readers expose every hash-bound `source_map.pages` image in an enlarged, viewport-height left source-page viewer that synchronizes to `data-source-page` reader blocks, uses only safe relative `assets/source_pages/` paths, and never substitutes a full page for an inline figure card;
-- wide readers use three ordered regions—source pages left, article center, and sticky Contents right—while narrow readers reflow without losing any region;
-- global controls independently collapse/restore bilingual Original panels and the source-page viewer, preserve keyboard/ARIA state and namespaced localStorage state, keep right-side Contents available, and force Original visible in print;
+- full PDF readers expose every hash-bound `source_map.pages` image in an enlarged, viewport-height left source-page viewer that defaults to a substantial fluid share of wide screens, synchronizes to `data-source-page` reader blocks, uses only safe relative `assets/source_pages/` paths, and never substitutes a full page for an inline figure card;
+- wide readers use three ordered, user-resizable regions—source pages left, article center with a protected minimum width, and sticky Contents right—while medium widths default Contents to a recoverable rail and narrow widths stack without overflow;
+- global controls independently collapse/restore bilingual Original panels, source pages, and Contents; drag separators support pointer and keyboard resizing; all view state uses namespaced localStorage and Original remains visible in print;
+- opening `Annotate / 自由标注` must reserve layout space on wide screens, temporarily compact Contents, and use a scroll-safe bottom workspace at smaller widths so translated text is never permanently hidden beneath the panel;
 - `Copy feedback for Codex` always fills a visible fallback textarea when clipboard access is unavailable or blocked, so the user can still retrieve feedback JSON.
 
 Do not generate or report any HTML from incomplete translation. The PDF reader pipeline is one-step-to-final: finish faithful translation, figure/table cards, LaTeX formulas, and block-specific notes first, then generate `reader_interactive.html`.
@@ -277,8 +278,8 @@ The output must:
 - preserve stable source anchors and source labels;
 - show substantive source blocks as aligned `Original` and `中文` columns;
 - render the model-authored paper summary before the concept ledger and article body;
-- place the enlarged synchronized original-page viewer alone in the left reader sidebar, the article in the center, and sticky Contents in a separate right column on wide screens;
-- include accessible `Hide/Show Original` and `Hide/Show Source Pages` controls without deleting source DOM content;
+- place the enlarged synchronized original-page viewer alone in a resizable left pane, the article in a minimum-width center pane, and sticky resizable Contents in a separate right pane on wide screens;
+- include accessible `Hide/Show Original`, `Hide/Show Source Pages`, and `Hide/Show Contents` controls plus persistent restore rails without deleting source DOM content;
 - show `注释` as a separate horizontal third column on wide screens;
 - keep figures/tables near their Markdown positions;
 - render formulas without letting concept highlighting break MathJax;

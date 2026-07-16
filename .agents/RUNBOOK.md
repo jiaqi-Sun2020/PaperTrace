@@ -129,7 +129,7 @@ python D:\AI\PaperTrace\skills\reader-skill\tests\adversarial_html_audit.py <rea
 
 Do not report Pipeline 1 as complete until this audit passes. A passing reader bundle or completion ledger is still intermediate. The audit checks Algorithm cards instead of summaries, MathJax/formula integrity, the model-authored source-linked paper summary, hash-bound source-page viewer data, Original/source-page collapse controls, knowledge-mark metadata, concept coverage, reader-notes pollution, `Save mark` panel closing, and feedback-copy fallback.
 
-Before rendering a full paper, author `reader_wiki/paper_summary.json` with detailed Chinese overview/what/how/significance/evidence-limit sections and formal source anchors. For PDF readers, preserve every `source_map.pages` image under `assets/source_pages/`; the renderer uses those existing assets for the enlarged, viewport-height left viewer and must not rerender the PDF or embed full pages as article figures. On wide screens, the article stays in the center and Contents occupies a separate sticky right column.
+Before rendering a full paper, author `reader_wiki/paper_summary.json` with detailed Chinese overview/what/how/significance/evidence-limit sections and formal source anchors. For PDF readers, preserve every `source_map.pages` image under `assets/source_pages/`; the renderer uses those existing assets for the enlarged, viewport-height left viewer and must not rerender the PDF or embed full pages as article figures. On wide screens, source pages and Contents are independently resizable around a minimum-width center article; medium widths may default Contents to a restore rail, and narrow widths stack.
 
 After generation, verify the view-control JavaScript from `D:\AI\PaperTrace`:
 
@@ -137,7 +137,7 @@ After generation, verify the view-control JavaScript from `D:\AI\PaperTrace`:
 node .\skills\reader-skill\tests\test_reader_js_runtime.js <reader-dir>
 ```
 
-`Hide Original` and `Hide Source Pages` are independent view states. Contents remains available in its own right-side region when source pages are hidden, and print output must restore Original even if it was collapsed on screen.
+`Hide Original`, `Hide Source Pages`, and `Hide Contents` are independent view states. Pointer/keyboard separators resize the source and Contents panes, each collapsed pane leaves a restore path, and print output must restore Original even if it was collapsed on screen. Opening `Annotate / 自由标注` must reserve a desktop dock or a smaller-screen scroll-safe bottom region rather than permanently cover translated text.
 
 If Source Page Index links do not open, inspect the generated `href` values first. They must be plain relative paths such as `assets/source_pages/page-01.png`; generated spans such as `<span class="math-inline">` inside a link target mean the HTML renderer annotated a file path and the reader must be regenerated after fixing the renderer.
 
