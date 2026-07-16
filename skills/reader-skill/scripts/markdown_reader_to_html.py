@@ -1966,29 +1966,33 @@ a:hover { text-decoration: underline; }
 .badge { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 4px 10px; }
 .layout {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
   gap: 24px;
-  max-width: 1760px;
+  max-width: 1900px;
   margin: 0 auto;
   padding: 24px;
+}
+.layout.has-source-pages {
+  grid-template-columns: clamp(360px, 27vw, 560px) minmax(0, 1fr) minmax(220px, 260px);
+  max-width: 2200px;
 }
 .reader-sidebar {
   position: sticky;
   top: 16px;
   align-self: start;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  max-height: calc(100vh - 32px);
+  height: calc(100vh - 32px);
   min-width: 0;
 }
 .toc {
+  position: sticky;
+  top: 16px;
+  align-self: start;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
-  flex: 1 1 auto;
   min-height: 120px;
+  max-height: calc(100vh - 32px);
   overflow: auto;
 }
 .toc h2 { margin: 0 0 10px; font-size: 1rem; }
@@ -2008,7 +2012,9 @@ a:hover { text-decoration: underline; }
 .reader-view-controls button:hover, .source-page-actions button:hover { border-color: var(--accent); }
 .reader-view-controls button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
 .source-page-viewer {
-  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   min-height: 0;
   background: var(--paper);
   border: 1px solid var(--line);
@@ -2020,7 +2026,8 @@ a:hover { text-decoration: underline; }
 .source-page-viewer-head span { color: var(--muted); font-size: .82rem; white-space: nowrap; }
 .source-page-open {
   display: block;
-  max-height: min(52vh, 660px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -2030,7 +2037,11 @@ a:hover { text-decoration: underline; }
 .source-page-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .source-page-actions button:disabled { opacity: .45; cursor: not-allowed; }
 body.source-pages-collapsed .source-page-viewer { display: none; }
-body.source-pages-collapsed .layout { grid-template-columns: minmax(190px, 260px) minmax(0, 1fr); max-width: 1600px; }
+body.source-pages-collapsed .reader-sidebar { display: none; }
+body.source-pages-collapsed .layout.has-source-pages {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
+  max-width: 1900px;
+}
 body.original-collapsed .bilingual-block .lang-panel.original,
 body.original-collapsed .algorithm-card .lang-panel.original { display: none; }
 body.original-collapsed .bilingual-block .pair-grid,
@@ -2434,12 +2445,19 @@ code {
   color: var(--muted);
   font-size: .9rem;
 }
-@media (max-width: 860px) {
-  .layout { display: block; padding: 14px; }
-  .reader-sidebar { position: static; display: block; max-height: none; margin-bottom: 14px; }
-  .source-page-viewer { margin-bottom: 14px; }
-  .source-page-open { max-height: 60vh; }
-  .toc { max-height: none; }
+@media (max-width: 1100px) {
+  .layout, .layout.has-source-pages,
+  body.source-pages-collapsed .layout.has-source-pages {
+    display: flex;
+    flex-direction: column;
+    max-width: none;
+    padding: 14px;
+  }
+  .reader-sidebar { position: static; order: 1; width: 100%; height: auto; margin-bottom: 0; }
+  .source-page-viewer { height: auto; }
+  .source-page-open { flex: none; max-height: 70vh; }
+  .toc { position: static; order: 2; width: 100%; max-height: none; }
+  main { order: 3; }
   .pair-grid, .bilingual-block.has-notes .pair-grid { grid-template-columns: 1fr; }
   body.original-collapsed .bilingual-block.has-notes .pair-grid { grid-template-columns: 1fr; }
   .site-header { padding: 22px 14px; }
@@ -2448,9 +2466,10 @@ code {
 @media print {
   body { background: #fff; }
   .site-header, .section, .prose, .md-table, .bilingual-block, .reference-block, .figure-card, .label-card, .algorithm-card { border-color: #c8ced8; box-shadow: none; }
-  .layout { display: block; max-width: none; padding: 0; }
-  .reader-sidebar { position: static; display: block; max-height: none; }
-  .toc { max-height: none; break-after: page; }
+  .layout { display: flex; flex-direction: column; max-width: none; padding: 0; }
+  .reader-sidebar { position: static; display: block; height: auto; }
+  .toc { position: static; order: 1; max-height: none; break-after: page; }
+  main { order: 2; }
   .source-page-viewer, .reader-view-controls { display: none !important; }
   body.original-collapsed .bilingual-block .lang-panel.original,
   body.original-collapsed .algorithm-card .lang-panel.original { display: block !important; }
@@ -2527,6 +2546,12 @@ def build_html(
     author_text = ", ".join(meta.get("authors", [])) if isinstance(meta.get("authors"), list) else meta.get("authors", "")
     source_type = meta.get("source_type") or meta.get("source_format") or "nature-reader Markdown"
     source_page_viewer = build_source_page_viewer(source_pages)
+    source_sidebar = (
+        f'<aside class="reader-sidebar" aria-label="Original paper pages">{source_page_viewer}</aside>'
+        if source_page_viewer
+        else ""
+    )
+    layout_class = "layout has-source-pages" if source_page_viewer else "layout no-source-pages"
     view_controls = build_reader_view_controls(bool(source_pages))
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -2550,14 +2575,8 @@ def build_html(
       {view_controls}
     </div>
   </header>
-  <div class="layout">
-    <aside class="reader-sidebar" aria-label="Reader sidebar">
-      {source_page_viewer}
-      <nav class="toc" aria-label="Table of contents">
-        <h2>Contents</h2>
-        {toc_links or '<p>No headings detected.</p>'}
-      </nav>
-    </aside>
+  <div class="{layout_class}">
+    {source_sidebar}
     <main>
       <article id="readerDocument">
         {summary_panel}
@@ -2565,6 +2584,10 @@ def build_html(
         {body_html}
       </article>
     </main>
+    <nav class="toc" aria-label="Table of contents">
+      <h2>Contents</h2>
+      {toc_links or '<p>No headings detected.</p>'}
+    </nav>
   </div>
   {feedback_ui}
   {reader_theme_script()}

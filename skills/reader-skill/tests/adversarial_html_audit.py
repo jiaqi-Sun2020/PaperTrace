@@ -525,11 +525,20 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         if not re.search(rf'id="{control_id}"[^>]*aria-pressed="false"[^>]*aria-expanded="true"', html_text):
             fail(f"{control_id} lacks initial ARIA toggle state", issues)
     if full_paper and not re.search(
-        r'<aside class="reader-sidebar"[\s\S]*?id="sourcePageViewer"[\s\S]*?<nav class="toc"',
+        r'<div class="layout has-source-pages">\s*'
+        r'<aside class="reader-sidebar"[^>]*>[\s\S]*?id="sourcePageViewer"[\s\S]*?</aside>\s*'
+        r'<main>[\s\S]*?</main>\s*'
+        r'<nav class="toc"',
         html_text,
         re.I,
     ):
-        fail("source-page viewer is not positioned in the left sidebar above Contents", issues)
+        fail("reader is not ordered as left source-page viewer, center article, right Contents", issues)
+    if full_paper and not re.search(
+        r'\.layout\.has-source-pages\s*\{[\s\S]*?grid-template-columns:\s*clamp\(',
+        html_text,
+        re.I,
+    ):
+        fail("wide reader layout does not reserve an enlarged responsive source-page column", issues)
     if full_paper and "body.source-pages-collapsed .source-page-viewer { display: none; }" not in html_text:
         fail("source-page collapse CSS can hide more than the page viewer or is missing", issues)
     if not re.search(

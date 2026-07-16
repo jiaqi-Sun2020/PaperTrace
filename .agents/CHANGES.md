@@ -7,6 +7,12 @@ This file records dated implementation and local-release milestones. Durable bou
 
 ## 2026-07-16
 
+### Wide source-page reader layout
+
+- Enlarged the synchronized source-page viewer into a viewport-height responsive left column while preserving full-page aspect ratio and scroll access.
+- Moved Contents into an independent sticky right column, leaving the article in the center; narrow screens reflow all three regions.
+- Added shared-contract, regression, and adversarial checks for left-viewer/center-article/right-Contents ordering and source-column sizing.
+
 ### Source-grounded reader summary and source-page controls
 
 - Added a completion-authored `paper_summary.json` contract for detailed Chinese overview, method, significance, and evidence/limitation explanations with formal source anchors.

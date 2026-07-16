@@ -263,6 +263,7 @@ def main() -> int:
         rendered_html = (reader / "reader_interactive.html").read_text(encoding="utf-8")
         for token in (
             'class="paper-summary" id="paper-summary"',
+            'class="layout has-source-pages"',
             'id="sourcePageViewer"',
             'id="toggleOriginal"',
             'id="toggleSourcePages"',
@@ -274,6 +275,11 @@ def main() -> int:
         ):
             if token not in rendered_html:
                 raise AssertionError(f"formal reader lacks summary/source-view control token: {token}")
+        source_viewer_position = rendered_html.find('<aside class="reader-sidebar"')
+        article_position = rendered_html.find("<main>")
+        contents_position = rendered_html.find('<nav class="toc"')
+        if not 0 <= source_viewer_position < article_position < contents_position:
+            raise AssertionError("formal reader must order the source viewer left, article center, and Contents right")
         audited = run([sys.executable, str(AUDIT), str(reader)])
         if audited.returncode:
             raise AssertionError(f"audit failed\n{audited.stdout}\n{audited.stderr}")

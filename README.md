@@ -264,7 +264,7 @@ python .\skills\reader-skill\scripts\markdown_reader_to_html.py "<reader-dir>" -
 
 - `reader_interactive.html` 是唯一正式 paper reader HTML；
 - 顶部包含当前主模型撰写的详细中文论文总结，分别回答“做了什么、怎么做、有什么意义、证据与局限”，且每项链接到正式 source anchor；
-- 左侧使用 `source_map.pages` 中哈希绑定的原始页面图，并随当前 source block 同步；Original 与原始页图可独立折叠，Contents 始终保留；
+- 宽屏采用“左侧大幅原始页面图—中间正文—右侧固定 Contents”三栏布局：页图来自 `source_map.pages` 的哈希绑定资产并随当前 source block 同步；窄屏自动重排，Original 与原始页图可独立折叠，Contents 始终保留；
 - 30-60 个候选知识点，已有 profile 状态会合并，论文核心概念即使 mastered 也要进入 glossary；
 - 每个 knowledge mark 都有 `data-concept`、`data-concept-id`、`data-status`、`data-source-anchor`、`data-concept-type`、`data-alias-zh` 和 `title`；
 - MathJax 存在，公式可渲染，不能出现 raw PDF formula noise；

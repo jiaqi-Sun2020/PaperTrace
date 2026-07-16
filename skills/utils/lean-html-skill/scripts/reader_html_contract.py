@@ -222,4 +222,12 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
                 issues.append(f"reader source-page viewer contract is missing: {token}")
         if not re.search(r'id="toggleSourcePages"[^>]*aria-pressed="false"[^>]*aria-expanded="true"', html_text):
             issues.append("reader source-page collapse control lacks initial ARIA state")
+        if not re.search(
+            r'<div class="layout has-source-pages">\s*'
+            r'<aside class="reader-sidebar"[^>]*>[\s\S]*?id="sourcePageViewer"[\s\S]*?</aside>\s*'
+            r'<main>[\s\S]*?</main>\s*<nav class="toc"',
+            html_text,
+            re.I,
+        ):
+            issues.append("reader layout must place source pages left, article center, and Contents right")
     return issues
