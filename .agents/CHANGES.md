@@ -1,11 +1,35 @@
 # Changes
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-16
+- Last reviewed: 2026-07-17
 
 This file records dated implementation and local-release milestones. Durable boundaries belong in `AGENTS.md`, commands in `RUNBOOK.md`, data contracts in `CONFIG_SPEC.md`, and architecture/ownership in `ARCHITECTURE.md`.
 
+## 2026-07-17
+
+### Whole-source math evidence contract
+
+- Extended the source-math gate from formula/equation records to every immutable source row with layout-math evidence, including paragraphs, captions, and object descriptions.
+- Added the persisted `source-math-inventory-v1` contract: ordered page-reviewed components must be present exactly once in both Original and Chinese; migration invalidates older pass records without that evidence.
+- Added source-bound override support for reviewed math inventories and exact signature replacements. The override writer now preserves the independent object inventory; the completion loader defensively recovers only the unmistakable historic accidental formula-inventory shape.
+- Updated reader compilation and the adversarial audit to prove source-inventory parity, then rebuilt and audited all 130 records in `Active Quantum Kernel Acquisition for Gaussian Process Regression`.
+
+### Explicit inline-math boundary and runtime proof
+
+- Extended the formula gate from equation records to every Original/Chinese block, rejecting raw TeX commands, ASCII script syntax, and split PDF math fragments outside explicit delimiters.
+- Made strict bilingual component identity opt-in through `bilingual_math_contract: exact-v1`; this preserves exact source/translation pairs without forcing legitimate explanatory math to be deleted from other blocks.
+- Prevented content overrides from silently restoring noisy extracted Original text, added authored-content/provenance hashes and round-trip verification, and allowed reviewed Original reconstructions through record overrides.
+- Routed paper-summary and Concept Ledger role text through the same audited inline-math renderer, added final visible-text raw-math scanning, MathJax runtime status, and regression coverage for S004/S013-style failures.
+- Rebuilt and adversarially audited `Active Quantum Kernel Acquisition for Gaussian Process Regression`, including full source-language compiled Algorithm cards.
+
 ## 2026-07-16
+
+### Atomic formulas and compiled source algorithms
+
+- Added a fail-closed formula contract: Original/Chinese formula components remain aligned, each display owns one logical formula, and plaintext PDF-extraction duplicates, literal `\n`, packed `\quad`/`\qquad`, and `align`/`gather` packing are rejected.
+- Replaced translated Algorithm step lists with `latex_compiled_algorithm`: complete source-language `.tex`, verified XeLaTeX `.svg`, compile manifest, hashes, engine, translated-comment count, and source/compiled numbered-step parity.
+- Updated reader-wiki compilation, completion/preflight gates, the shared HTML contract, formal HTML rendering, adversarial audit, regression fixtures, README, and agent/skill contracts.
+- Rebuilt the two algorithms and affected formula blocks in the `Active Quantum Kernel Acquisition for Gaussian Process Regression` reader as the end-to-end test case.
 
 ### Source-grounded adaptive reader workspace
 

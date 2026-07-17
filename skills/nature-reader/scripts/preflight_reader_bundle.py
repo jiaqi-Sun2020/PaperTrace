@@ -15,10 +15,17 @@ import hashlib
 import json
 import os
 import re
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[3]
+READER_SCRIPTS = ROOT / "skills" / "reader-skill" / "scripts"
+if str(READER_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(READER_SCRIPTS))
+from formula_contract import atomic_formula_issues  # noqa: E402
 
 
 ANCHOR_RE = re.compile(r'(?m)^<a\s+id=["\']([^"\']+)["\']\s*>\s*</a>\s*$')
@@ -185,8 +192,17 @@ def build_preflight_manifest(reader_dir: Path) -> tuple[dict[str, Any], list[str
         else:
             if not card_present:
                 issues.append(f"{object_id}: registered algorithm/pseudocode lacks a Markdown card")
-            if str(inventory_row.get("representation") or "") not in {"structured_steps", "pseudocode_table"}:
-                issues.append(f"{object_id}: algorithm inventory must declare structured_steps or pseudocode_table")
+            if str(inventory_row.get("representation") or "") != "latex_compiled_algorithm":
+                issues.append(f"{object_id}: algorithm inventory must declare latex_compiled_algorithm")
+            tex_path = str(inventory_row.get("latex_source_path") or "").replace("\\", "/")
+            compiled_path = str(inventory_row.get("compiled_asset_path") or "").replace("\\", "/")
+            manifest_path = str(inventory_row.get("compile_manifest_path") or "").replace("\\", "/")
+            if not tex_path or not (reader_dir / tex_path).is_file():
+                issues.append(f"{object_id}: algorithm LaTeX source is absent")
+            if not compiled_path or not (reader_dir / compiled_path).is_file():
+                issues.append(f"{object_id}: compiled Algorithm asset is absent")
+            if not manifest_path or not (reader_dir / manifest_path).is_file():
+                issues.append(f"{object_id}: Algorithm compile manifest is absent")
         object_checks.append({
             "id": object_id,
             "kind": kind,
@@ -211,6 +227,26 @@ def build_preflight_manifest(reader_dir: Path) -> tuple[dict[str, Any], list[str
         if paper_path.exists() and not has_latex:
             issues.append(f"{block_id}: formula source block lacks Original-side LaTeX before HTML generation")
         formula_checks.append({"id": block_id, "original_latex": has_latex})
+
+    zh_label = "\u4e2d\u6587"
+    notes_label = "\u6ce8\u91ca"
+    for row in source_blocks:
+        block_id = str(row.get("id") or "")
+        if not block_id or str(row.get("type") or "").lower() == "reference":
+            continue
+        segment = segments.get(block_id, "")
+        original_match = re.search(
+            rf"(?ms)^\*\*Original:\*\*\s*(.*?)(?=^\*\*(?:{zh_label}|Notes|{notes_label}):\*\*|\Z)",
+            segment,
+        )
+        zh_match = re.search(
+            rf"(?ms)^\*\*{zh_label}:\*\*\s*(.*?)(?=^\*\*(?:Notes|{notes_label}):\*\*|\Z)",
+            segment,
+        )
+        for field, match in (("Original", original_match), ("Chinese", zh_match)):
+            value = match.group(1).strip() if match else ""
+            for message in atomic_formula_issues(value, field=field):
+                issues.append(f"{block_id}: {message}")
 
     reference_blocks = [row for row in source_blocks if str(row.get("type") or "").lower() == "reference"]
     raw_reference_detected = False

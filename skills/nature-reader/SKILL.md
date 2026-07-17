@@ -57,7 +57,8 @@ reader_wiki/canonical_reader.md
 Inventory must include prose, formulas, references, figures, tables, and
 algorithms before a formal build. Figures require tight object crops and bbox
 provenance; tables require a semantic table or tight crop; algorithms require
-matched original/Chinese lines; references stay original-only. The helper
+complete source-language LaTeX plus a successful compiled asset, with Chinese
+permitted only for actual source comments; references stay original-only. The helper
 `complete_reader_bundle.py` only seeds/validates this state and may emit
 `reader_progress.html`; it cannot create a formal HTML file or fabricate
 translation/object content. Use the explicit-directory batch entry point in
@@ -116,24 +117,29 @@ Formal completion requires a one-to-one evidence chain, not merely non-empty bil
 - Give every substantive `Sxxx` / `Exxx` source row its own Markdown block with the same anchor. Coverage must be 100%; missing, duplicate, overlapping, or range-merged anchors fail completion.
 - Keep immutable extraction in `source_map.json` and `raw/pages/`; do not expose line-broken PDF extraction verbatim as the formal `**Original:**`. The reader-facing Original must be a complete, source-faithful normalization: repair columns, paragraphs, dehyphenation, headings, lists, and formulas while preserving every claim and qualifier. Never summarize, paraphrase, or synthesize an English replacement.
 - Every source row typed `equation_or_formula` / `formula` must contain reconstructed LaTeX in the Original column itself. LaTeX present only in `中文` does not satisfy completion.
+- When bootstrap detects PDF-layout mathematics in any source row—including a paragraph or caption, not only a formula row (split indices, a split matrix entry, a detached accent, a Unicode derivative/summation symbol, or a broken displayed relation)—its completion record must carry `object_metadata.source_math_inventory`. Use `contract: source-math-inventory-v1`, `status: complete`, and one ordered `{id, presentation, signature}` item for every reconstructed source component. Original and Chinese must each match that inventory exactly; one appended representative formula never repairs the row.
 - Mechanical Original normalization happens before semantic completion only. It may repair layout but may not import LaTeX from Chinese or overwrite reviewed Original text; it must refuse to run after a completion ledger exists.
 - For a full paper, author `reader_wiki/concept_candidates.json` with paper-specific concepts, exact source anchors/evidence spans, Chinese aliases, types, and non-template explanation notes. Each concept must have one canonical Chinese alias plus the minimal controlled variants that actually occur in completed `中文` blocks (for example, `算符`/`算子` only when both forms are present). The alias list is an evidence-backed rendering vocabulary, not a synonym dump: every listed variant must be traceable to the paper translation, and every translated occurrence corresponding to an English-highlighted concept must be covered. Formula numbers, section numerals, layout tokens, and generic uppercase words are not concepts.
 - For a full paper, directly author `reader_wiki/paper_summary.json` in Chinese after block completion. It must separately explain the overview, what the paper does, how it works, why it matters, and its evidence/scope/limitations. Every summary item must cite one or more valid `S/E/F/T/A` source anchors. A renderer, concept ledger, local model, or extraction script must never synthesize this semantic summary automatically.
 - Bind each completed block to the immutable source row with a source-evidence hash and an Original-fidelity check. An empty hash or low similarity fails completion. Independently compare source-map blocks against every raw PDF page; self-referential `N/N` block counts are insufficient.
 - Require every `Fxxx`, `Txxx`, and `Axxx` card to exist in `source_map.json`. If extraction missed an object, repair or regenerate the extraction evidence before completion; never invent an unregistered formal object ID.
-- Require an exact `reader_wiki/object_inventory.json` row for every `Fxxx`, `Txxx`, and `Axxx`. Figures need tight local crops plus source-page bbox provenance; tables need `semantic_table` or `tight_crop`; algorithms/pseudocode need `structured_steps` or `pseudocode_table` and matching original/Chinese numbered steps.
+- Require an exact `reader_wiki/object_inventory.json` row for every `Fxxx`, `Txxx`, and `Axxx`. Figures need tight local crops plus source-page bbox provenance; tables need `semantic_table` or `tight_crop`; algorithms/pseudocode require `latex_compiled_algorithm`, a source `.tex`, compiled `.svg`, compile manifest, hashes, engine, and a numbered-step count equal to the source. Preserve the source language for Require/Ensure and every executable step; translate only actual comments inside `\Comment{...}`.
 - Keep bibliography rows as `Rxxx` and render them original-only. Bibliography text must never be translated into `**中文:**`.
 - Require `translation_notes.md` to describe the completed state. Any remaining draft, raw-evidence-only, completion-required, or placeholder status fails completion.
 - Store bundle artifact paths in ledgers as bundle-relative paths. Moving a bundle must not leave a formal manifest pointing at a nonexistent previous directory.
 
 Final readers must also satisfy the visual/math contract:
 
-- Every substantive figure/table mentioned in `source_map.json` must appear as a figure/table card near the relevant prose, with a tight crop or semantic Markdown table, original caption, Chinese caption, and a concrete reading note. Every algorithm/procedure/pseudocode must appear as structured bilingual numbered steps, not a summary.
-- Important formulas must be reconstructed as LaTeX display math (`\[...\]` or `$$...$$`). Noisy PDF text such as `QKT √ d`, `e−iHt`, or collapsed superscripts/subscripts is evidence only, not final formula rendering.
-- Within every bilingual source block, Original and Chinese must contain the
-  same ordered formula-component signatures, including inline versus display
-  presentation. A formula styled only on one side is incomplete, not an
-  explanatory enhancement. Markdown headings are forbidden inside `Original`
+- Every substantive figure/table mentioned in `source_map.json` must appear as a figure/table card near the relevant prose, with a tight crop or semantic Markdown table, original caption, Chinese caption, and a concrete reading note. Every algorithm/procedure/pseudocode must appear once as a complete compiled-LaTeX card, never as a summary or a translated duplicate body.
+- Important formulas must be reconstructed as LaTeX display math (`\[...\]` or `$$...$$`). Remove the corresponding line-broken/plaintext extraction from reader-facing prose after reconstruction. Each display contains exactly one logical formula; split independent equations into separate displays and use `split`/`multline` only to wrap one formula. Noisy PDF text such as `QKT √ d`, `e−iHt`, collapsed superscripts/subscripts, literal `\n`, `\qquad`, or `align`/`gather` equation packing is not formal reader content.
+- Never use a global formula-normalization pass that strips math delimiters or appends LaTeX to all blocks. A repair override must identify one source-bound record, replace an exact reviewed fragment, preserve valid JSON escapes such as `\n`, and leave unrelated Original/Chinese math untouched.
+- In every bilingual source block, all mathematical notation must use explicit
+  inline/display delimiters in both fields. Raw TeX commands, ASCII scripts
+  such as `A^-1`, and PDF-layout fragments such as a detached hat or split
+  Greek index fail in paragraph records as well as formula records. Set
+  `object_metadata.bilingual_math_contract: exact-v1` only for blocks whose
+  Original/Chinese components must be identical in order and presentation.
+  Markdown headings are forbidden inside `Original`
   and `中文` fields because they can break aligned panel boundaries.
 - `**注释:**` must be block-specific. Do not leave template notes such as `逻辑位置：本文主题是...这一块用于定位原文...` or `标注建议：如果这里有不懂...`.
 

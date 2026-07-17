@@ -167,7 +167,7 @@ input that may be compiled into formal HTML.
 Run from `D:\AI\PaperTrace`:
 
 ```powershell
-python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "C:\Users\SSS\Desktop\PAPER\2026\7" --reader-root "D:\AI\PaperTrace\2026\7" --agent-continuation
+python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "D:\AI\PaperTrace\2026\7" --agent-continuation
 ```
 
 The specified directory is the complete input set. The command sorts only its
@@ -192,7 +192,7 @@ render, and adversarial audit pass.
 Audit the batch response boundary from `D:\AI\PaperTrace` with:
 
 ```powershell
-python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "C:\Users\SSS\Desktop\PAPER\2026\7" --reader-root "D:\AI\PaperTrace\2026\7" --agent-continuation | python .\skills\reader-skill\tests\adversarial_batch_audit.py -
+python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "D:\AI\PaperTrace\2026\7" --agent-continuation | python .\skills\reader-skill\tests\adversarial_batch_audit.py -
 ```
 
 `nature-reader` 负责把 PDF 变成内部 source-grounded evidence/bundle。当前会话的主大模型按 skill contract 直接完成中文、块级注释与 LaTeX 重建；相关脚本只负责抽取、校验、编译与渲染。该阶段生成或修复同名 `*_reader/` 工作目录，并写出：
@@ -206,11 +206,13 @@ python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "C:\
 
 `paper.md` 必须是完整中英对照，不允许把“待忠实翻译”、摘要、阅读提示模板或 PDF 抽取噪声当作正式中文栏。图、表、算法和关键公式必须进入结构化 block/card：
 
-- `Original`：只放原文和必要 LaTeX；
-- `中文`：忠实翻译，并保留对应 LaTeX；
+- `Original`：放 source-faithful 正文和重建后的 LaTeX；所有段落中的数学内容都必须有显式定界符，重建公式后删除同一公式的 PDF 断行/纯文字副本；
+- `中文`：忠实翻译，数学内容同样必须使用显式 LaTeX；需要逐组件严格对应的块以 `bilingual_math_contract: exact-v1` 声明，避免为了全局数量相等而删除合理的解释性公式；
+- `source math inventory`：凡 bootstrap 标记为 `source_math_inventory_required` 的原文行（包括段落、图注和对象描述，而非仅公式行），必须在页级复核后保存完整、有序的 `source-math-inventory-v1` 组件清单；清单中的每个签名都须在 Original 与中文各渲染一次，不能用追加一个代表公式或全局删除定界符来“修复”；
 - `注释`：只解释当前 block 的逻辑、知识点、公式读法或图表读法；
-- figure/table/algorithm：必须有编号、caption、中文说明、source page 和可检查内容；
-- formula：必须重构为可渲染 LaTeX，交给 MathJax 渲染。
+- figure/table：必须有编号、caption、中文说明、source page 和可检查内容；
+- algorithm：完整正文保留源语言，仅实际注释可译为中文；以 `.tex` 经 XeLaTeX 编译为 `.svg`，并用 manifest/hash/编号步骤数约束完整性；
+- formula：必须重构为可渲染 LaTeX，且一个展示块只承载一个逻辑公式；独立公式逐个展示，不能用 `\quad`/`\qquad` 或 `align`/`gather` 挤在一起。
 
 如果 reader bundle 来自 draft extraction helper，先运行 completion pass：
 
@@ -267,9 +269,9 @@ python .\skills\reader-skill\scripts\markdown_reader_to_html.py "<reader-dir>" -
 - 阅读器按可用空间自适应：宽屏采用“左侧约 42% 起步的可拖拽大幅原始页—最低可读宽度正文—可拖拽 Contents”三栏布局，中等宽度默认把 Contents 收成可恢复窄条，窄屏自动纵向重排；Original、原始页图和 Contents 均可独立折叠，`Annotate / 自由标注` 展开时会让出布局空间或增加滚动安全区，不覆盖译文；
 - 30-60 个候选知识点，已有 profile 状态会合并，论文核心概念即使 mastered 也要进入 glossary；
 - 每个 knowledge mark 都有 `data-concept`、`data-concept-id`、`data-status`、`data-source-anchor`、`data-concept-type`、`data-alias-zh` 和 `title`；
-- MathJax 存在，公式可渲染，不能出现 raw PDF formula noise；
+- MathJax 存在且运行时状态为 pass；任何 Original、中文、论文总结或概念账本可见文本都不能出现裸 `\sigma`、`A^-1`、PDF 断裂公式、展示公式的文字重复副本或多公式挤在同一展示块；
 - Source Page Index 链接保持普通相对路径，例如 `assets/source_pages/page-01.png`；
-- figure/table/algorithm card 不得被整页截图冒充，不得被 CSS 裁剪；
+- figure/table card 不得被整页截图冒充，不得被 CSS 裁剪；algorithm card 必须展示构建期编译的完整 SVG，不得显示翻译后的重复算法正文；
 - feedback panel、Download feedback JSON、Copy feedback for Codex fallback textarea、主题切换控件都要可用；
 - Dark theme 必须通过实际对比度检查，不能只检查控件存在。
 
@@ -282,7 +284,7 @@ cd D:\AI\PaperTrace
 python .\skills\reader-skill\tests\adversarial_html_audit.py "<reader-dir>"
 ```
 
-该审核会检查：`reader_wiki` 是否 pass、MathJax、公式噪声、知识点 metadata、Save mark 后面板关闭、feedback 导出、Source Page Index href 污染、figure/table 裁剪、algorithm card 完整性、主题控件和 Dark theme contrast/readability。
+该审核会检查：`reader_wiki` 是否 pass、MathJax 加载/排版状态、所有可见面板的裸公式泄漏、声明为 `exact-v1` 的原文/中文公式组件对齐、一个展示块一个逻辑公式、重复纯文字公式清理、知识点 metadata、Save mark 后面板关闭、feedback 导出、Source Page Index href 污染、figure/table 裁剪、完整源码 Algorithm 的 XeLaTeX/SVG/manifest/hash/步骤数契约、主题控件和 Dark theme contrast/readability。
 
 ### 5. HTML feedback -> reader_feedback.json
 
@@ -507,7 +509,7 @@ python -m py_compile D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\script
 python -m py_compile D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\audit_chat_knowledge_profile.py
 python D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\audit_chat_knowledge_profile.py
 python -m py_compile D:\AI\PaperTrace\skills\utils\demo-skill\scripts\create_demo.py
-python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py D:\AI\PaperTrace\skills\utils\demo-skill
+python -X utf8 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\utils\demo-skill
 ```
 
 Reader end-to-end 测试：

@@ -5,7 +5,57 @@
 from __future__ import annotations
 
 import re
+from html.parser import HTMLParser
 from typing import Any
+
+
+class _VisibleTextCollector(HTMLParser):
+    """Collect user-visible text while excluding explicit math/code regions."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._skip_stack: list[bool] = []
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() in {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}:
+            return
+        values = {key.lower(): (value or "") for key, value in attrs}
+        classes = set(values.get("class", "").split())
+        inherited = bool(self._skip_stack and self._skip_stack[-1])
+        own = tag.lower() in {"script", "style", "pre", "code", "textarea", "svg"} or bool(
+            classes & {"math-inline", "math-display"}
+        )
+        self._skip_stack.append(inherited or own)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        return
+
+    def handle_endtag(self, tag: str) -> None:
+        if self._skip_stack:
+            self._skip_stack.pop()
+
+    def handle_data(self, data: str) -> None:
+        if not (self._skip_stack and self._skip_stack[-1]):
+            self.parts.append(data)
+
+
+def _visible_raw_math_issues(html_text: str) -> list[str]:
+    collector = _VisibleTextCollector()
+    collector.feed(html_text)
+    visible = " ".join(collector.parts)
+    issues: list[str] = []
+    command = re.search(r"\\(?:[A-Za-z]{2,}|[A-Za-z](?=[_^{]))", visible)
+    if command:
+        preview = re.sub(r"\s+", " ", visible[max(0, command.start() - 28):command.end() + 56]).strip()
+        issues.append(f"visible prose contains raw TeX outside a math node: {preview[:120]}")
+    script = re.search(
+        r"(?<![\w\\])(?:[A-Za-z][A-Za-z0-9]*)(?:_\{[A-Za-z0-9,+\-]+\}|\^\{?[-+A-Za-z0-9]+\}?)+",
+        visible,
+    )
+    if script:
+        issues.append(f"visible prose contains uncompiled subscript/superscript syntax: {script.group(0)[:80]}")
+    return issues
 
 
 def _css_block(html_text: str, selector: str) -> str:
@@ -148,6 +198,9 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
     issues: list[str] = []
     if math_renderer == "mathjax" and 'id="MathJax-script"' not in html_text:
         issues.append("MathJax script is missing")
+    if math_renderer == "mathjax" and "data-math-status" not in html_text:
+        issues.append("MathJax runtime status contract is missing")
+    issues.extend(_visible_raw_math_issues(html_text))
     if "feedbackDock" in html_text:
         if "function closePanel()" not in html_text:
             issues.append("feedback UI closePanel handler is missing")
@@ -165,6 +218,27 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
         issues.append("Algorithm content is summarized; use a full algorithm-card")
     if re.search(r'Algorithm\s+\d+', html_text, re.I) and 'class="algorithm-card"' not in html_text:
         issues.append("Algorithm content exists but no algorithm-card is rendered")
+    algorithm_cards = re.findall(r'<section class="algorithm-card"[\s\S]*?</section>', html_text, re.I)
+    for index, card in enumerate(algorithm_cards, start=1):
+        if 'data-algorithm-contract="latex-compiled-algorithm-v1"' not in card:
+            issues.append(f"algorithm-card {index} lacks the compiled-LaTeX contract marker")
+        if not re.search(
+            r'<img\b[^>]+class="algorithm-render"[^>]+src="(?:[^"]+\.svg|data:image/svg\+xml[^"]*)"',
+            card,
+            re.I,
+        ):
+            issues.append(f"algorithm-card {index} lacks a compiled SVG algorithm")
+        if 'class="lang-panel translation"' in card or re.search(r'\*\*中文算法', card):
+            issues.append(f"algorithm-card {index} contains a translated algorithm body")
+    if 'class="alg-line-no"' in html_text:
+        issues.append("legacy line-list algorithm rendering remains; use compiled LaTeX")
+    for index, body in enumerate(
+        re.findall(r'<div class="math-display">([\s\S]*?)</div>', html_text, re.I),
+        start=1,
+    ):
+        math = re.sub(r"<[^>]+>", "", body)
+        if re.search(r'\\q(?:uad|quad)|\\begin\{(?:align\*?|aligned|gather\*?|gathered)\}', math):
+            issues.append(f"math-display {index} contains multiple logical formulas")
     if 'id="readerThemeSelect"' not in html_text:
         issues.append("reader theme control is missing")
     if "localStorage" not in html_text or "paper.reader.theme" not in html_text:

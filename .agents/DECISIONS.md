@@ -1,7 +1,7 @@
 # Decisions
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-16
+- Last reviewed: 2026-07-17
 
 ## Current Decisions
 
@@ -31,7 +31,9 @@
 | Use feedback JSON/copy payloads rather than direct browser writes to `.agents`. | active | Static browser pages cannot safely write local project files. |
 | Export reader feedback manually at the end of a reading session. | active | The HTML keeps feedback in page memory and only persists it through `Download feedback JSON` or `Copy feedback for Codex`. |
 | Use MathJax for formula rendering in generated HTML. | active | Browsers do not render TeX natively; `reader-skill` can point to CDN or local MathJax. |
-| Treat Algorithms as first-class reader objects. | active | Algorithm sections must be rendered like figures/tables with original numbered steps and Chinese numbered steps; Algorithm summaries are invalid formal-reader output. |
+| Treat Algorithms as compiled first-class reader objects. | active | Preserve Require/Ensure and every executable step in the source language; translate only actual comments. Build complete `.tex` files with XeLaTeX, render verified SVG cards, and bind source/asset/manifest hashes plus numbered-step parity. Summaries and translated duplicate bodies are invalid. |
+| Make all reader math explicit and display formulas atomic. | active | MathJax cannot infer boundaries from raw `\sigma`, `A^-1`, or split PDF glyphs, and narrow panes become unreadable when independent equations share a display. Every block type therefore rejects math outside explicit delimiters; each display owns one logical formula. Exact bilingual component parity is an explicit `exact-v1` block contract, preventing explanatory math from being deleted merely to satisfy a global count check. |
+| Require a source-math inventory wherever extraction has math-layout evidence. | active | A record type is not reliable evidence: paragraphs, captions, and object descriptions can contain split indices or detached operators. Bootstrap therefore marks any affected source row; formal completion persists ordered page-reviewed source components and verifies that Original and Chinese render every component exactly. An appended representative formula or global delimiter cleanup cannot prove source coverage. |
 | Protect Source Page Index links from annotation and math wrapping. | active | A prior renderer regression inserted inline-math HTML into source-page `href` values, making links impossible to open. File paths and HTML attributes are now protected rendering zones. |
 | Require adversarial HTML audit before reporting formal reader success. | active | Static validation plus browser-facing failure checks catch Algorithm summaries, broken source links, formula/MathJax pollution, missing concept metadata, weak concept coverage, reader-notes pollution, and feedback UI regressions. |
 | Provide feedback-copy fallback text in generated readers. | active | Clipboard permissions can fail in local/browser contexts; `Copy feedback for Codex` must always expose a visible fallback textarea containing the same JSON payload. |

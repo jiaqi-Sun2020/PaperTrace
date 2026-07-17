@@ -51,7 +51,7 @@ only in commentary and must be followed by more tool work.
 Run the only formal batch entry point from `D:\AI\PaperTrace`:
 
 ```powershell
-python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "C:\Users\SSS\Desktop\PAPER\2026\7" --reader-root "D:\AI\PaperTrace\2026\7" --resume --agent-continuation
+python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "D:\AI\PaperTrace\2026\7" --resume --agent-continuation
 ```
 
 It emits the exact discovered paths, order, hashes, and embedded
@@ -90,11 +90,25 @@ Raw sources remain immutable: PDF files, extraction text, source maps, and origi
 
 Each bilingual block in `reader_manifest.json` must keep stable `block_id`, `source_anchor`, `source_page`, `section`, `block_type`, `original`, `zh`, `notes`, `formulas`, `concepts`, `figures`, and `tables` fields.
 
-Each block must also pass bilingual presentation alignment: Original and
-Chinese have the same ordered LaTeX component signatures and the same
-inline/display classification. Reject one-sided formula chips or display
-cards. Reject Markdown headings inside either bilingual field; section titles
-belong outside the field and must never terminate a language panel early.
+Every block must make each mathematical component explicit with inline or
+display delimiters in both language fields; raw TeX commands, ASCII script
+syntax, and PDF-layout math fragments outside those delimiters fail even in a
+paragraph record. Use `object_metadata.bilingual_math_contract: exact-v1` when
+a block is authored as a strict bilingual mathematical pair; only those blocks
+require identical ordered signatures and inline/display classification.
+Reject Markdown headings inside either bilingual field; section titles belong
+outside the field and must never terminate a language panel early.
+When bootstrap marks any source row (including a paragraph or caption) with
+`source_math_inventory_required`, require the completed record to carry a
+`source-math-inventory-v1` object whose ordered component signatures match
+both Original and Chinese exactly. Treat the inventory as source coverage;
+derive it only after page-level review of the already authored components:
+an appended representative formula, global delimiter stripping, or a
+one-sided formula override is not a repair.
+Display components are atomic: one logical formula per `\[...\]`/`$$...$$`.
+Independent equations must be separate displays, while `split`/`multline` may
+wrap only one formula. Reject packed `\quad`/`\qquad`, `align`/`gather`, literal
+`\n`, and prose equations that duplicate a reconstructed display.
 
 Before accepting that layer, verify the completion ledger certifies 100% source coverage and 100% faithful `Original` blocks, and that its hash-bound preflight manifest passes. Reject missing or merged source IDs, low-fidelity English rewrites, empty evidence hashes, unregistered figure/table/algorithm cards, missing object-inventory rows, stale absolute artifact paths, and a `paper.md` hash that differs from the completion ledger. Concept counts and HTML structure can never compensate for failed source fidelity. Formal Original blocks must repair PDF layout and reconstruct Original-side LaTeX while immutable raw evidence remains separately inspectable; no post-completion normalizer may rewrite them.
 
@@ -117,9 +131,9 @@ If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a
 - every concept highlighted in `Original` has the same `concept_id` highlighted through a controlled Chinese alias in the paired `中文` panel, and vice versa;
 - `**注释:**` contains useful paper logic, knowledge-point, formula, figure/table, or reading guidance when needed;
 - every figure/table in `source_map.json` appears as an inspectable figure/table card or semantic table near the relevant prose;
-- every algorithm in the source appears as a full algorithm card with original numbered steps and Chinese numbered steps; summaries are invalid;
+- every algorithm in the source appears once as a complete compiled-LaTeX card: Require/Ensure and executable statements remain in the source language, only actual comments may be translated inside `\Comment{...}`, and the `.tex`, `.svg`, manifest, hashes, engine, and source/compiled numbered-step parity are validated; summaries and translated duplicate bodies are invalid;
 - every bibliography `R###` source block appears in a single original-language reference panel and never in a Chinese translation panel;
-- important formulas are reconstructed as LaTeX display math rather than raw PDF extraction noise;
+- important formulas are reconstructed as atomic LaTeX display math rather than raw PDF extraction noise, and the duplicate plaintext extraction is removed from both language fields;
 - display-math delimiters contain only valid mathematical content; Chinese prose punctuation such as `。` must remain outside the delimiters;
 - `**注释:**` is block-specific and contains no generic scaffolding such as `逻辑位置：本文主题是...` or `标注建议：如果这里有不懂...`;
 - no `待忠实翻译`, `中文译意`, `非逐句精翻`, `reading scaffold`, or placeholder Chinese remains;
@@ -339,4 +353,4 @@ Before finishing:
 18. Source Page Index links contain no `<span class="math-inline">` or other generated markup and their target files exist under `assets/source_pages/`.
 19. `Copy feedback for Codex` exposes a fallback textarea populated with the same JSON as the clipboard payload.
 20. `python D:\AI\PaperTrace\skills\reader-skill\tests\adversarial_html_audit.py <reader-dir>` passes before success is reported.
-21. Every bilingual block has identical ordered Original/Chinese formula-component signatures, and no field-local heading can escape its language panel.
+21. Every bilingual field has no raw/uncompiled TeX or PDF-layout math fragments; blocks marked `bilingual_math_contract: exact-v1` also have identical ordered Original/Chinese formula-component signatures, and no field-local heading can escape its language panel.

@@ -515,30 +515,62 @@ def build_completion_ledger(reader_dir: Path) -> tuple[dict[str, Any], list[str]
         if kind == "algorithm":
             if not source_row:
                 issues.append(f"{anchor}: algorithm card has no matching immutable source_map row")
-            original_alg = has_label(segment, ("Original algorithm",))
-            chinese_alg = has_label(segment, ("中文算法", "Chinese algorithm", "涓枃绠楁硶"))
-            original_alg_text, algorithm_rest = extract_label(segment, "Original algorithm", ("中文算法", "Chinese algorithm"))
-            chinese_alg_text, _ = extract_label(algorithm_rest, "中文算法", ("Chinese algorithm", "Reading note", "注释"))
-            if not chinese_alg_text:
-                chinese_alg_text, _ = extract_label(algorithm_rest, "Chinese algorithm", ("Reading note", "注释"))
-            original_steps = len(ALGORITHM_LINE_RE.findall(original_alg_text))
-            chinese_steps = len(ALGORITHM_LINE_RE.findall(chinese_alg_text))
-            line_count = original_steps + chinese_steps
-            alg_similarity = evidence_similarity(original_alg_text, source_original(source_row))
-            if not original_alg or not chinese_alg or original_steps < 2 or chinese_steps != original_steps:
-                issues.append(f"{anchor}: algorithm must have original and Chinese numbered steps, not a summary")
-            if source_row and alg_similarity < MIN_ORIGINAL_SIMILARITY:
-                issues.append(f"{anchor}: Original algorithm does not match immutable source evidence")
+            tex_value, algorithm_rest = extract_label(
+                segment, "Algorithm LaTeX", ("Compiled algorithm", "Compile manifest", "Reading note")
+            )
+            asset_value, algorithm_rest = extract_label(
+                algorithm_rest, "Compiled algorithm", ("Compile manifest", "Reading note")
+            )
+            manifest_value, _ = extract_label(algorithm_rest, "Compile manifest", ("Reading note", "注释"))
+            tex_rel = tex_value.strip().strip("`")
+            asset_rel = asset_value.strip().strip("`")
+            manifest_rel = manifest_value.strip().strip("`")
+            tex_path = reader_dir / tex_rel
+            asset_path = reader_dir / asset_rel
+            manifest_path = reader_dir / manifest_rel
+            manifest: dict[str, Any] = {}
+            if manifest_path.is_file():
+                try:
+                    manifest = read_json(manifest_path)
+                except Exception as exc:
+                    issues.append(f"{anchor}: invalid Algorithm compile manifest: {exc}")
+            source_numbers = [int(value) for value in re.findall(r"(?m)^\s*(\d+)\s*:", source_original(source_row))]
+            expected_steps = max(source_numbers) if source_numbers else 0
+            numbered_steps = int(manifest.get("numbered_states") or 0)
+            valid = (
+                source_row
+                and tex_path.is_file()
+                and asset_path.is_file()
+                and bool(manifest)
+                and manifest.get("contract") == "latex-compiled-algorithm-v1"
+                and manifest.get("compile_status") == "pass"
+                and manifest.get("tex_sha256") == sha256_file(tex_path)
+                and manifest.get("svg_sha256") == sha256_file(asset_path)
+                and expected_steps >= 2
+                and numbered_steps == expected_steps
+            )
+            if any(label in segment for label in ("**Original algorithm:**", "**中文算法:**", "**Chinese algorithm:**")):
+                issues.append(f"{anchor}: legacy translated Algorithm body is forbidden; translate source comments only")
+                valid = False
+            if not valid:
+                issues.append(
+                    f"{anchor}: Algorithm must preserve all {expected_steps or 'source'} numbered steps in hash-bound compiled LaTeX"
+                )
             algorithms.append({
                 "block_id": anchor,
-                "numbered_steps": line_count,
-                "has_original_algorithm": original_alg,
-                "has_chinese_algorithm": chinese_alg,
+                "representation": "latex_compiled_algorithm",
+                "numbered_steps": numbered_steps,
+                "source_numbered_steps": expected_steps,
+                "translated_comments": int(manifest.get("translated_comments") or 0),
+                "latex_source_path": tex_rel,
+                "latex_source_sha256": manifest.get("tex_sha256", ""),
+                "compiled_asset_path": asset_rel,
+                "compiled_asset_sha256": manifest.get("svg_sha256", ""),
+                "compile_manifest_path": manifest_rel,
+                "compile_manifest_sha256": sha256_file(manifest_path) if manifest_path.is_file() else "",
+                "compile_engine": manifest.get("engine", ""),
                 "source_evidence_hash": source_evidence_hash(source_row) if source_row else "",
-                "original_steps": original_steps,
-                "chinese_steps": chinese_steps,
-                "original_similarity": round(alg_similarity, 6),
-                "status": "ok" if source_row and original_alg and chinese_alg and original_steps >= 2 and chinese_steps == original_steps and alg_similarity >= MIN_ORIGINAL_SIMILARITY else "error",
+                "status": "ok" if valid else "error",
             })
             rendered_algorithm_ids.add(anchor)
 

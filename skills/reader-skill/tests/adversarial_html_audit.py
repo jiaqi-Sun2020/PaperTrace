@@ -22,6 +22,9 @@ from typing import Any
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
+LEAN_HTML_SCRIPTS = Path(__file__).resolve().parents[2] / "utils" / "lean-html-skill" / "scripts"
+if str(LEAN_HTML_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(LEAN_HTML_SCRIPTS))
 
 from completion_state import (  # noqa: E402
     PIPELINE_VERSION,
@@ -35,6 +38,8 @@ from completion_state import (  # noqa: E402
     sha256_file,
     validate_record,
 )
+from formula_contract import atomic_formula_issues, bilingual_math_issues  # noqa: E402
+from reader_html_contract import validate_generated_reader_html  # noqa: E402
 
 
 REQUIRED_MARK_ATTRS = (
@@ -243,6 +248,14 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
     except (ValueError, json.JSONDecodeError) as exc:
         fail(f"completion record schema/JSON failure: {exc}", issues)
         records = {}
+    exact_math_alignment_ids = {
+        str(record.get("source_anchor") or "")
+        for record in records.values()
+        if (
+            (record.get("object_metadata") or {}).get("bilingual_math_contract") == "exact-v1"
+            or (record.get("object_metadata") or {}).get("source_math_inventory_required")
+        )
+    }
     if not records_dir(reader_dir).is_dir():
         fail("completion_blocks directory is missing", issues)
     if set(records) != set(expected):
@@ -265,6 +278,11 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
     algorithms = [record for record in records.values() if record.get("record_kind") == "algorithm"]
     formulas = [record for record in records.values() if record.get("record_kind") == "formula"]
     references = [record for record in records.values() if record.get("record_kind") == "reference"]
+    algorithm_source_ids = {
+        str((record.get("object_metadata") or {}).get("source_block_id") or "")
+        for record in algorithms
+        if str((record.get("object_metadata") or {}).get("source_block_id") or "")
+    }
     for record in figures:
         meta = record["object_metadata"]
         asset = reader_dir / str(meta.get("asset_path") or "")
@@ -278,11 +296,46 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
             fail(f"{record['stable_id']}: tight-crop table asset is absent", issues)
     for record in algorithms:
         meta = record["object_metadata"]
-        if len(meta.get("original_steps") or []) != len(meta.get("zh_steps") or []):
-            fail(f"{record['stable_id']}: algorithm is not line-by-line bilingual", issues)
+        latex_path = reader_dir / str(meta.get("latex_source_path") or "")
+        svg_path = reader_dir / str(meta.get("compiled_asset_path") or "")
+        manifest_path = reader_dir / str(meta.get("compile_manifest_path") or "")
+        for label, path, expected_hash in (
+            ("LaTeX source", latex_path, meta.get("latex_source_sha256")),
+            ("compiled SVG", svg_path, meta.get("compiled_asset_sha256")),
+            ("compile manifest", manifest_path, meta.get("compile_manifest_sha256")),
+        ):
+            if not path.is_file() or sha256_file(path) != expected_hash:
+                fail(f"{record['stable_id']}: {label} is absent or hash-mismatched", issues)
+        if manifest_path.is_file():
+            algorithm_manifest = read_json(manifest_path)
+            if algorithm_manifest.get("contract") != "latex-compiled-algorithm-v1" or algorithm_manifest.get("status") != "pass":
+                fail(f"{record['stable_id']}: compile manifest does not prove a passing algorithm build", issues)
+            if int(algorithm_manifest.get("numbered_states") or 0) != int(meta.get("numbered_steps") or 0):
+                fail(f"{record['stable_id']}: compiled/source algorithm line counts disagree", issues)
+        if latex_path.is_file():
+            latex = latex_path.read_text(encoding="utf-8")
+            without_comments = re.sub(r"\\Comment\{[^{}]*\}", "", latex)
+            if re.search(r"[\u3400-\u9fff]", without_comments):
+                fail(f"{record['stable_id']}: Chinese appears outside algorithm comments", issues)
     for record in formulas:
         if not MATH_RE.search(str(record.get("original") or "")):
             fail(f"{record['stable_id']}: Original formula is not verifiable LaTeX", issues)
+    for record in records.values():
+        if record.get("record_kind") != "block":
+            continue
+        for field, label in (("original", "Original"), ("zh", "Chinese")):
+            for message in atomic_formula_issues(str(record.get(field) or ""), field=label):
+                fail(f"{record['stable_id']}: {message}", issues)
+        if (
+            (record.get("object_metadata") or {}).get("bilingual_math_contract") == "exact-v1"
+            or (record.get("object_metadata") or {}).get("source_math_inventory_required")
+        ):
+            for message in bilingual_math_issues(
+                str(record.get("original") or ""),
+                str(record.get("zh") or ""),
+                block_id=str(record.get("stable_id") or "block"),
+            ):
+                fail(message, issues)
 
     zh_label = "\u4e2d\u6587"
     segments = {anchor: segment for anchor, segment in re.findall(r'(?ms)<a id="([^"]+)"></a>(.*?)(?=\n<a id="|\Z)', canonical)}
@@ -303,10 +356,28 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         fail("progress HTML content leaked into formal HTML", issues)
     if 'id="MathJax-script"' not in html_text:
         fail("MathJax script is missing", issues)
+    for message in validate_generated_reader_html(html_text, [], "mathjax"):
+        fail(f"generated HTML contract: {message}", issues)
     if len(re.findall(r'<figure class="figure-card"', html_text, re.I)) < len(figures):
         fail("not all figure records rendered as figure cards", issues)
     if len(re.findall(r'<section class="algorithm-card"', html_text, re.I)) < len(algorithms):
         fail("not all algorithm records rendered as algorithm cards", issues)
+    compiled_algorithm_cards = re.findall(
+        r'<section class="algorithm-card"[^>]*data-algorithm-contract="latex-compiled-algorithm-v1"[\s\S]*?</section>',
+        html_text,
+        re.I,
+    )
+    if len(compiled_algorithm_cards) != len(algorithms):
+        fail("algorithm cards do not exactly implement the compiled-LaTeX contract", issues)
+    for card in compiled_algorithm_cards:
+        if not re.search(
+            r'<img\b[^>]+class="algorithm-render"[^>]+src="(?:[^"]+\.svg|data:image/svg\+xml[^"]*)"',
+            card,
+            re.I,
+        ):
+            fail("compiled algorithm card lacks an SVG render", issues)
+        if 'class="lang-panel translation"' in card or "中文算法" in card:
+            fail("compiled algorithm card contains a translated algorithm body", issues)
     if formulas and 'class="math-display"' not in html_text:
         fail("formula records exist but no display math was rendered", issues)
     concepts_path = wiki / "concept_ledger.json"
@@ -326,6 +397,7 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         for record in records.values()
         if record.get("record_kind") == "block"
         and re.fullmatch(r"(?:S|E)\d+", str(record.get("source_anchor") or ""))
+        and str(record.get("source_anchor") or "") not in algorithm_source_ids
     )
     if len(bilingual_sections) != expected_bilingual_count:
         fail(
@@ -343,7 +415,7 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
             continue
         original_math = html_math_signatures(original_match.group(1))
         translation_math = html_math_signatures(translation_match.group(1))
-        if original_math != translation_math:
+        if block_id in exact_math_alignment_ids and original_math != translation_math:
             fail(
                 f"{block_id}: rendered Original/Chinese formula components are not one-to-one aligned "
                 f"(Original={original_math}, Chinese={translation_math})",
@@ -365,14 +437,14 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
             concept_aligned_blocks += 1
         for concept_id, visible_text in chinese_marks:
             concept = concepts_by_id.get(concept_id, {})
-            aliases_zh = {str(alias).strip() for alias in concept.get("aliases_zh") or [] if str(alias).strip()}
-            if visible_text not in aliases_zh:
+            aliases_zh = {str(alias).strip().casefold() for alias in concept.get("aliases_zh") or [] if str(alias).strip()}
+            if visible_text.casefold() not in aliases_zh:
                 fail(
                     f"{block_id}: Chinese concept mark {concept_id!r} uses uncontrolled text {visible_text!r}",
                     issues,
                 )
-    if algorithms and len(re.findall(r'class="alg-line-no"', html_text)) < sum(len(row["object_metadata"].get("original_steps") or []) for row in algorithms):
-        fail("algorithm card line count is smaller than completion records", issues)
+    if algorithms and 'class="alg-line-no"' in html_text:
+        fail("legacy line-list algorithm rendering remains in formal HTML", issues)
     if re.search(r'<figure\s+class="figure-card"[\s\S]*?assets/source_pages/[\s\S]*?</figure>', html_text, re.I):
         fail("HTML figure card directly uses a full source-page image", issues)
     figure_css = css_block(html_text, ".figure-card img")
@@ -442,8 +514,13 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
             entries.extend(item for item in (manifest_summary.get(key) or []) if isinstance(item, dict))
         summary_items = len(entries)
         for index, entry in enumerate(entries, start=1):
-            rendered_text = html.escape(str(entry.get("text") or "").strip())
-            if not rendered_text or rendered_text not in html_text:
+            source_text = str(entry.get("text") or "").strip()
+            rendered_components = [
+                html.escape(component.strip())
+                for component in MATH_RE.split(source_text)
+                if component.strip()
+            ]
+            if not rendered_components or any(component not in html_text for component in rendered_components):
                 fail(f"paper summary entry {index} is absent from rendered HTML", issues)
             for anchor in entry.get("source_anchors") or []:
                 anchor_text = str(anchor)
@@ -501,6 +578,10 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
                 fail(f"source-page viewer contract is missing: {token}", issues)
         for record in records.values():
             if record.get("record_kind") != "block":
+                continue
+            if not re.fullmatch(r"(?:S|E)\d+", str(record.get("source_anchor") or "")):
+                continue
+            if str(record.get("source_anchor") or "") in algorithm_source_ids:
                 continue
             anchor = re.escape(str(record.get("source_anchor") or ""))
             page = int(record.get("source_page") or 0)

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Iterable
 
 from reader_wiki_compile import compile_reader_wiki
+from formula_contract import atomic_formula_issues
 
 LEAN_HTML_SCRIPTS = Path(__file__).resolve().parents[2] / "utils" / "lean-html-skill" / "scripts"
 if LEAN_HTML_SCRIPTS.exists():
@@ -46,7 +47,6 @@ MATH_SPAN_RE = re.compile(
 DISPLAY_MATH_BLOCK_RE = re.compile(r'^\s*(\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$)\s*$')
 DISPLAY_MATH_ANY_RE = re.compile(r'(\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$)')
 ALGORITHM_RE = re.compile(r'\bAlgorithm\s+\d+\b', re.I)
-ALGORITHM_LINE_RE = re.compile(r'^\s*(\d+)\s*:\s*(.*)$')
 REFERENCE_LIST_LABEL = "Reference list (original only)"
 DEFAULT_MATHJAX_URL = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 KNOWN_STATUSES = {"known", "mastered"}
@@ -285,6 +285,18 @@ def validate_reader_structure(markdown: str, base_dir: Path) -> list[str]:
         md_block = markdown_block_for_anchor(markdown, block_id)
         if md_block and not re.search(r'(\\\[|\\\(|\$\$|(?<!\\)\$)', md_block):
             issues.append(f"{block_id}: equation/formula block lacks reconstructed LaTeX math")
+
+    for anchor, segment in split_top_segments(markdown):
+        if not anchor or anchor.startswith("A"):
+            continue
+        _source, rest = extract_label_block(segment, "Source", ("Original", "中文", "注释", "Notes"))
+        original, rest = extract_label_block(rest, "Original", ("中文", "注释", "Notes"))
+        chinese, _ = extract_label_block(rest, "中文", ("注释", "Notes"))
+        for field, value in (("original", original), ("zh", chinese)):
+            issues.extend(
+                f"{anchor}: {message}"
+                for message in atomic_formula_issues(value, field=field)
+            )
 
     if issues:
         preview = "\n".join(f"- {issue}" for issue in issues[:12])
@@ -713,18 +725,30 @@ def annotate_html_text(html_text: str, concepts: list[dict]) -> str:
         return html_text
 
     def annotate_pair(match: re.Match[str]) -> str:
-        original_body = annotate_html_fragment(match.group("original_body"), concepts, "en")
-        original_ids = set(re.findall(r'data-concept-id="([^"]+)"', original_body, re.I))
-        paired_concepts = [
+        original_probe = annotate_html_fragment(match.group("original_body"), concepts, "en")
+        original_ids = set(re.findall(r'data-concept-id="([^"]+)"', original_probe, re.I))
+        original_concepts = [
             concept
             for concept in concepts
             if str(concept.get("concept_id") or concept.get("term")) in original_ids
         ]
-        translation_body = annotate_html_fragment(
+        translation_probe = annotate_html_fragment(
             match.group("translation_body"),
-            paired_concepts,
+            original_concepts,
             "zh",
         )
+        translation_ids = set(re.findall(r'data-concept-id="([^"]+)"', translation_probe, re.I))
+        paired_concepts = [
+            concept
+            for concept in original_concepts
+            if str(concept.get("concept_id") or concept.get("term")) in translation_ids
+        ]
+        # A bilingual highlight is useful only when the same paper-specific
+        # concept is explicit in both panels.  Re-render both sides from the
+        # unannotated fragments using their intersection to make that
+        # one-to-one contract structural rather than alias-luck dependent.
+        original_body = annotate_html_fragment(match.group("original_body"), paired_concepts, "en")
+        translation_body = annotate_html_fragment(match.group("translation_body"), paired_concepts, "zh")
         return (
             match.group("original_open")
             + original_body
@@ -738,7 +762,15 @@ def annotate_html_text(html_text: str, concepts: list[dict]) -> str:
     return BILINGUAL_PAIR_RE.sub(annotate_pair, html_text)
 
 
-def build_knowledge_panel(profile: dict | None, glossary: list[dict], concepts: list[dict], profile_path: Path | None) -> str:
+def build_knowledge_panel(
+    profile: dict | None,
+    glossary: list[dict],
+    concepts: list[dict],
+    profile_path: Path | None,
+    base_dir: Path,
+    embed_assets: bool,
+    warnings: list[str],
+) -> str:
     status_labels = {
         "unknown": "Needs explanation",
         "learning": "Learning",
@@ -774,13 +806,14 @@ def build_knowledge_panel(profile: dict | None, glossary: list[dict], concepts: 
             unmatched_count += 1
         translation = usable_translation(info.get("translation"), item.get("translation", ""))
         explanation = info.get("ai_explanation") or item.get("note", "")
+        explanation_html = markdown_inline(str(explanation), base_dir, embed_assets, warnings)
         rows.append(
             "<tr>"
             f"<td>{html.escape(term)}</td>"
             f"<td><span class=\"status {html.escape(status, quote=True)}\">{html.escape(status_label)}</span></td>"
             f"<td>{html.escape(str(translation))}</td>"
             f"<td>{html.escape(concept_type_labels.get(str(item.get('concept_type', 'term')), 'Term'))}</td>"
-            f"<td>{html.escape(str(explanation))}</td>"
+            f"<td>{explanation_html}</td>"
             "</tr>"
         )
     if not rows:
@@ -836,7 +869,12 @@ def summary_source_links(anchors: object) -> str:
     return f'<span class="summary-sources" aria-label="Source anchors">{" ".join(links)}</span>' if links else ""
 
 
-def build_paper_summary_panel(summary: dict) -> str:
+def build_paper_summary_panel(
+    summary: dict,
+    base_dir: Path,
+    embed_assets: bool,
+    warnings: list[str],
+) -> str:
     if not summary:
         return ""
     overview = summary.get("overview") if isinstance(summary.get("overview"), dict) else {}
@@ -857,7 +895,7 @@ def build_paper_summary_panel(summary: dict) -> str:
             if not text_value:
                 continue
             rendered_items.append(
-                f'<li><span class="summary-text">{html.escape(text_value)}</span>'
+                f'<li><span class="summary-text">{markdown_inline(text_value, base_dir, embed_assets, warnings)}</span>'
                 f'{summary_source_links(item.get("source_anchors"))}</li>'
             )
         if rendered_items:
@@ -865,7 +903,12 @@ def build_paper_summary_panel(summary: dict) -> str:
                 f'<section class="paper-summary-section"><h3>{html.escape(heading)}</h3>'
                 f'<{list_tag}>{"".join(rendered_items)}</{list_tag}></section>'
             )
-    overview_text = html.escape(str(overview.get("text") or "").strip())
+    overview_text = markdown_inline(
+        str(overview.get("text") or "").strip(),
+        base_dir,
+        embed_assets,
+        warnings,
+    )
     return f'''
 <section class="paper-summary" id="paper-summary">
   <h2>Paper Summary / 论文总结</h2>
@@ -1874,35 +1917,31 @@ def parse_algorithm_segment(segment: str) -> dict[str, str] | None:
         return None
     title_match = re.search(r'(?m)^#{1,6}\s+(.+?)\s*$', segment)
     title = title_match.group(1).strip() if title_match else "Algorithm"
-    placed, _ = extract_label_block(segment, "Placed near", ("Source", "Original algorithm", "中文算法", "Chinese algorithm", "Reading note"))
-    source, _ = extract_label_block(segment, "Source", ("Original algorithm", "中文算法", "Chinese algorithm", "Reading note"))
-    original, _ = extract_label_block(segment, "Original algorithm", ("中文算法", "Chinese algorithm", "Reading note"))
-    chinese, _ = extract_label_block(segment, "中文算法", ("Reading note",))
-    if not chinese:
-        chinese, _ = extract_label_block(segment, "Chinese algorithm", ("Reading note",))
+    placed, _ = extract_label_block(
+        segment, "Placed near", ("Source", "Algorithm LaTeX", "Compiled algorithm", "Compile manifest", "Reading note")
+    )
+    source, rest = extract_label_block(
+        segment, "Source", ("Algorithm LaTeX", "Compiled algorithm", "Compile manifest", "Reading note")
+    )
+    latex_path, rest = extract_label_block(
+        rest, "Algorithm LaTeX", ("Compiled algorithm", "Compile manifest", "Reading note")
+    )
+    compiled_path, rest = extract_label_block(
+        rest, "Compiled algorithm", ("Compile manifest", "Reading note")
+    )
+    manifest_path, _ = extract_label_block(rest, "Compile manifest", ("Reading note",))
     note, _ = extract_label_block(segment, "Reading note", ())
-    if original and chinese:
-        return {"title": title, "placed": placed, "source": source, "original": original, "chinese": chinese, "note": note}
+    if latex_path and compiled_path and manifest_path:
+        return {
+            "title": title,
+            "placed": placed,
+            "source": source,
+            "latex_path": latex_path.strip().strip("`"),
+            "compiled_path": compiled_path.strip().strip("`"),
+            "manifest_path": manifest_path.strip().strip("`"),
+            "note": note,
+        }
     return None
-
-
-def render_algorithm_steps(text: str, base_dir: Path, embed_assets: bool, warnings: list[str]) -> str:
-    rows = []
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("```"):
-            continue
-        match = ALGORITHM_LINE_RE.match(line)
-        if match:
-            rows.append(
-                "<li>"
-                f"<span class=\"alg-line-no\">{html.escape(match.group(1))}</span>"
-                f"<span class=\"alg-line-text\">{markdown_inline(match.group(2), base_dir, embed_assets, warnings)}</span>"
-                "</li>"
-            )
-        else:
-            rows.append(f"<li class=\"alg-comment\"><span class=\"alg-line-text\">{markdown_inline(line, base_dir, embed_assets, warnings)}</span></li>")
-    return '<ol class="algorithm-lines">' + "".join(rows) + "</ol>"
 
 
 def render_algorithm_card(anchor: str | None, segment: str, base_dir: Path, embed_assets: bool, warnings: list[str]) -> str | None:
@@ -1912,13 +1951,16 @@ def render_algorithm_card(anchor: str | None, segment: str, base_dir: Path, embe
     block_id = anchor or slugify(parsed["title"], "algorithm")
     meta = " · ".join(item for item in (parsed.get("placed"), parsed.get("source")) if item)
     note_html = f'<aside class="algorithm-note">{markdown_blocks(parsed["note"], base_dir, embed_assets, warnings)}</aside>' if parsed.get("note") else ""
+    compiled_src = html.escape(image_src(parsed["compiled_path"], base_dir, embed_assets, warnings), quote=True)
     return f'''
-<section class="algorithm-card" id="{html.escape(block_id, quote=True)}"{source_page_attribute(parsed.get('source') or parsed.get('placed'))}>
+<section class="algorithm-card" id="{html.escape(block_id, quote=True)}" data-algorithm-contract="latex-compiled-algorithm-v1"{source_page_attribute(parsed.get('source') or parsed.get('placed'))}>
   <h3>{markdown_inline(parsed["title"], base_dir, embed_assets, warnings)}</h3>
   {f'<div class="block-source"><span>Source</span> {markdown_inline(meta, base_dir, embed_assets, warnings)}</div>' if meta else ''}
-  <div class="pair-grid">
-    <article class="lang-panel original"><h3>Original Algorithm</h3>{render_algorithm_steps(parsed["original"], base_dir, embed_assets, warnings)}</article>
-    <article class="lang-panel translation"><h3>中文算法</h3>{render_algorithm_steps(parsed["chinese"], base_dir, embed_assets, warnings)}</article>
+  <figure class="compiled-algorithm">
+    <img class="algorithm-render" src="{compiled_src}" alt="Compiled source-faithful {html.escape(parsed['title'], quote=True)}">
+    <figcaption><a href="{html.escape(parsed['latex_path'], quote=True)}" target="_blank" rel="noopener">LaTeX source</a> · <a href="{html.escape(parsed['manifest_path'], quote=True)}" target="_blank" rel="noopener">compile manifest</a></figcaption>
+  </figure>
+  <div class="algorithm-explanation">
     {note_html}
   </div>
 </section>'''.strip()
@@ -1942,13 +1984,24 @@ def render_document(markdown: str, base_dir: Path, embed_assets: bool, warnings:
             html_parts.append(reference)
             continue
 
+        # Object cards can contain bilingual caption labels.  Classify stable
+        # figure/table anchors before the generic bilingual-block parser so a
+        # caption never consumes the object card that owns it.
+        is_registered_object = bool(anchor and re.fullmatch(r"[FT]\d+", anchor))
+        if is_registered_object:
+            html_parts.append(
+                f'<figure class="figure-card" id="{html.escape(anchor, quote=True)}"'
+                f'{source_page_attribute(segment)}>{markdown_blocks(segment, base_dir, embed_assets, warnings)}</figure>'
+            )
+            continue
+
         bilingual = render_bilingual_segment(anchor, segment, base_dir, embed_assets, warnings)
         if bilingual:
             html_parts.append(bilingual)
             continue
 
         heading_match = HEADING_RE.search(segment.strip().splitlines()[0] if segment.strip().splitlines() else "")
-        is_figure_or_table = bool(anchor and re.match(r'^[FT]\d+', anchor)) or bool(IMAGE_RE.search(segment))
+        is_figure_or_table = bool(IMAGE_RE.search(segment))
         if is_figure_or_table:
             block_id = anchor or f"figure-{len(html_parts) + 1}"
             html_parts.append(
@@ -2328,6 +2381,9 @@ main { min-width: 0; }
 .reference-panel { padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
 .reference-panel h3 { margin: 0 0 10px; font-size: .92rem; letter-spacing: .03em; color: var(--muted); }
 .math-display {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   background: var(--reader-math-bg);
   border: 1px solid var(--line);
@@ -2340,6 +2396,9 @@ main { min-width: 0; }
   font-family: "Cambria Math", "Times New Roman", serif;
 }
 .math-display mjx-container {
+  display: block !important;
+  width: max-content;
+  min-width: 100%;
   margin: 0 !important;
 }
 .figure-card img {
@@ -2364,31 +2423,27 @@ main { min-width: 0; }
   margin: 0 0 10px;
   letter-spacing: 0;
 }
-.algorithm-lines {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
-  font-size: .92rem;
+.compiled-algorithm {
+  margin: 14px 0 0;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--reader-panel-bg);
+  padding: 14px;
 }
-.algorithm-lines li {
-  display: grid;
-  grid-template-columns: 3.2em minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  border-bottom: 1px solid #eef2f7;
-  padding: 4px 0;
+.algorithm-render {
+  display: block;
+  width: 100%;
+  min-width: 720px;
+  height: auto;
+  margin: 0 auto;
 }
-.alg-line-no {
+.compiled-algorithm figcaption {
+  margin-top: 10px;
   color: var(--muted);
-  text-align: right;
-  user-select: none;
+  font-size: .82rem;
 }
-.alg-comment {
-  color: var(--muted);
-}
+.algorithm-explanation { margin-top: 12px; }
 .algorithm-note {
   border: 1px solid var(--reader-note-border);
   border-radius: 8px;
@@ -2784,12 +2839,20 @@ def math_support(math_renderer: str, mathjax_url: str) -> str:
       startup: {
         ready: function () {
           MathJax.startup.defaultReady();
-          document.documentElement.classList.add('math-ready');
+        },
+        pageReady: function () {
+          return MathJax.startup.defaultPageReady().then(function () {
+            document.documentElement.classList.add('math-ready');
+            document.documentElement.setAttribute('data-math-status', 'pass');
+          }).catch(function (error) {
+            document.documentElement.setAttribute('data-math-status', 'typeset-error');
+            throw error;
+          });
         }
       }
     };
   </script>
-  <script async id="MathJax-script" src="__MATHJAX_URL__"></script>
+  <script async id="MathJax-script" src="__MATHJAX_URL__" onerror="document.documentElement.setAttribute('data-math-status','load-error')"></script>
 """.replace("__MATHJAX_URL__", escaped_url).strip()
 
 
@@ -3009,8 +3072,21 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     source_pages = collect_source_page_manifest(base_dir)
     body_html, toc = render_document(markdown, base_dir, not args.no_embed_assets, warnings)
     body_html = annotate_html_text(body_html, concepts)
-    summary_panel = build_paper_summary_panel(load_compiled_paper_summary(base_dir))
-    knowledge_panel = build_knowledge_panel(profile or {}, glossary, concepts, profile_path)
+    summary_panel = build_paper_summary_panel(
+        load_compiled_paper_summary(base_dir),
+        base_dir,
+        not args.no_embed_assets,
+        warnings,
+    )
+    knowledge_panel = build_knowledge_panel(
+        profile or {},
+        glossary,
+        concepts,
+        profile_path,
+        base_dir,
+        not args.no_embed_assets,
+        warnings,
+    )
     feedback_ui = build_feedback_ui(title, base_dir, concepts, True)
     output_name = output_path.name.lower()
     if output_name != "reader_interactive.html":

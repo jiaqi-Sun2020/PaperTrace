@@ -15,7 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from completion_state import PIPELINE_VERSION, canonical_path, read_json as read_completion_json, reader_is_formal_ready, run_state_path
+from completion_state import PIPELINE_VERSION, canonical_path, load_all_records, read_json as read_completion_json, reader_is_formal_ready, run_state_path
+from formula_contract import atomic_formula_issues, canonical_math_signature
 
 
 ANCHOR_RE = re.compile(r'(?m)^<a\s+id=["\']([^"\']+)["\']\s*>\s*</a>\s*$')
@@ -540,6 +541,10 @@ def validate_text_quality(blocks: list[dict[str, Any]]) -> tuple[list[str], list
                     f"{bid}.{field}: Markdown heading inside a bilingual field breaks aligned panel boundaries; "
                     "normalize it as ordinary field text"
                 )
+            errors.extend(
+                f"{bid}: {message}"
+                for message in atomic_formula_issues(block.get(field, ""), field=field)
+            )
         notes = block.get("notes", "")
         for pattern in NOTE_POLLUTION_PATTERNS:
             if re.search(pattern, notes, re.I | re.M):
@@ -602,7 +607,13 @@ def bilingual_formula_alignment_errors(original_formulas: list[str], zh_formulas
     ]
 
 
-def formula_ledger(blocks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+def formula_ledger(
+    blocks: list[dict[str, Any]],
+    exact_alignment_ids: set[str] | None = None,
+    source_math_inventories: dict[str, dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    exact_alignment_ids = exact_alignment_ids or set()
+    source_math_inventories = source_math_inventories or {}
     ledger: list[dict[str, Any]] = []
     errors: list[str] = []
     for block in blocks:
@@ -612,8 +623,33 @@ def formula_ledger(blocks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
         formulas = [m.group(0) for m in ANY_MATH_RE.finditer(combined)]
         if block["block_type"] == "formula" or formulas:
             ferr = validate_math_balance("\n".join(formulas))
-            alignment_errors = bilingual_formula_alignment_errors(original_formulas, zh_formulas)
+            alignment_required = block["block_id"] in exact_alignment_ids
+            alignment_errors = (
+                bilingual_formula_alignment_errors(original_formulas, zh_formulas)
+                if alignment_required else []
+            )
             ferr.extend(alignment_errors)
+            inventory = source_math_inventories.get(str(block["source_anchor"]) or "")
+            expected_inventory: list[dict[str, str]] = []
+            if inventory:
+                expected_inventory = [
+                    {
+                        "id": str(component.get("id") or ""),
+                        "presentation": str(component.get("presentation") or ""),
+                        "signature": canonical_math_signature(str(component.get("signature") or "")),
+                    }
+                    for component in (inventory.get("components") or [])
+                    if isinstance(component, dict)
+                ]
+                expected_signatures = [f"{item['presentation']}:{item['signature']}" for item in expected_inventory]
+                original_inventory_signatures = [
+                    f"{formula_signature(value).split(':', 1)[0]}:{canonical_math_signature(value)}"
+                    for value in original_formulas
+                ]
+                if original_inventory_signatures != expected_signatures:
+                    ferr.append("Original math nodes do not match source_math_inventory")
+                if alignment_required and not expected_inventory:
+                    ferr.append("source_math_inventory has no usable components")
             errors.extend(f"{block['block_id']}: {err}" for err in ferr)
             entry = {
                 "block_id": block["block_id"],
@@ -623,7 +659,9 @@ def formula_ledger(blocks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
                 "zh_formulas": zh_formulas,
                 "original_formula_signatures": [formula_signature(value) for value in original_formulas],
                 "zh_formula_signatures": [formula_signature(value) for value in zh_formulas],
-                "bilingual_alignment": "pass" if not alignment_errors else "fail",
+                "bilingual_alignment_contract": "exact-v1" if alignment_required else "explicit-math-v1",
+                "bilingual_alignment": "pass" if alignment_required and not alignment_errors else "fail" if alignment_errors else "not-required",
+                "source_math_inventory": expected_inventory,
                 "has_display_math": bool(DISPLAY_MATH_RE.search(combined)),
                 "validation_errors": ferr,
             }
@@ -680,13 +718,13 @@ def figure_table_ledger(markdown: str, source_map: dict[str, Any]) -> tuple[list
     return entries, errors
 
 
-def algorithm_ledger(markdown: str, source_map: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
+def algorithm_ledger(reader_dir: Path, markdown: str, source_map: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
     entries: list[dict[str, Any]] = []
     errors: list[str] = []
     segments = dict(split_segments(markdown))
     source_algorithm_rows = {
         str(row.get("id") or row.get("block_id") or ""): row
-        for row in (source_map.get("blocks") or [])
+        for row in [*(source_map.get("blocks") or []), *(source_map.get("algorithms") or [])]
         if isinstance(row, dict)
         and (
             str(row.get("type") or "").lower() == "algorithm"
@@ -702,26 +740,59 @@ def algorithm_ledger(markdown: str, source_map: dict[str, Any]) -> tuple[list[di
         if block_id.startswith("A") or ALGORITHM_RE.search(segment):
             if block_id not in source_algorithm_rows:
                 errors.append(f"{block_id}: algorithm card has no matching immutable source_map row")
-            has_original = "**Original algorithm:**" in segment
-            has_zh = "**中文算法:**" in segment or "**Chinese algorithm:**" in segment
-            original_text, rest = extract_label(segment, "Original algorithm", ("中文算法", "Chinese algorithm"))
-            zh_text, _ = extract_label(rest, "中文算法", ("Chinese algorithm", "Reading note", "注释"))
-            if not zh_text:
-                zh_text, _ = extract_label(rest, "Chinese algorithm", ("Reading note", "注释"))
-            original_steps = len(ALGORITHM_LINE_RE.findall(original_text))
-            chinese_steps = len(ALGORITHM_LINE_RE.findall(zh_text))
-            line_count = original_steps + chinese_steps
-            ok = block_id in source_algorithm_rows and has_original and has_zh and original_steps >= 2 and chinese_steps == original_steps
+            tex_value, rest = extract_label(
+                segment, "Algorithm LaTeX", ("Compiled algorithm", "Compile manifest", "Reading note")
+            )
+            asset_value, rest = extract_label(
+                rest, "Compiled algorithm", ("Compile manifest", "Reading note")
+            )
+            manifest_value, _ = extract_label(rest, "Compile manifest", ("Reading note",))
+            tex_rel = tex_value.strip().strip("`")
+            asset_rel = asset_value.strip().strip("`")
+            manifest_rel = manifest_value.strip().strip("`")
+            tex_path = reader_dir / tex_rel
+            asset_path = reader_dir / asset_rel
+            manifest_path = reader_dir / manifest_rel
+            manifest: dict[str, Any] = {}
+            if manifest_path.is_file():
+                try:
+                    manifest = read_json(manifest_path)
+                except Exception as exc:
+                    errors.append(f"{block_id}: Algorithm compile manifest is invalid: {exc}")
+            ok = (
+                block_id in source_algorithm_rows
+                and tex_path.is_file()
+                and asset_path.is_file()
+                and bool(manifest)
+                and manifest.get("contract") == "latex-compiled-algorithm-v1"
+                and manifest.get("compile_status") == "pass"
+                and manifest.get("tex_sha256") == sha256_file(tex_path)
+                and manifest.get("svg_sha256") == sha256_file(asset_path)
+                and int(manifest.get("numbered_states") or 0) >= 2
+            )
+            if any(label in segment for label in ("**Original algorithm:**", "**中文算法:**", "**Chinese algorithm:**")):
+                errors.append(
+                    f"{block_id}: legacy bilingual Algorithm body is forbidden; "
+                    "preserve source statements and translate comments only"
+                )
+                ok = False
             if not ok:
-                errors.append(f"{block_id}: algorithm card must include full original and Chinese numbered steps")
+                errors.append(
+                    f"{block_id}: Algorithm requires hash-bound LaTeX source, compile manifest, and compiled SVG"
+                )
             entries.append({
                 "block_id": block_id,
                 "kind": "algorithm",
-                "has_original_algorithm": has_original,
-                "has_chinese_algorithm": has_zh,
-                "numbered_steps": line_count,
-                "original_steps": original_steps,
-                "chinese_steps": chinese_steps,
+                "representation": "latex_compiled_algorithm",
+                "latex_source_path": tex_rel,
+                "latex_source_sha256": manifest.get("tex_sha256", ""),
+                "compiled_asset_path": asset_rel,
+                "compiled_asset_sha256": manifest.get("svg_sha256", ""),
+                "compile_manifest_path": manifest_rel,
+                "compile_manifest_sha256": sha256_file(manifest_path) if manifest_path.is_file() else "",
+                "compile_engine": manifest.get("engine", ""),
+                "numbered_steps": int(manifest.get("numbered_states") or 0),
+                "translated_comments": int(manifest.get("translated_comments") or 0),
                 "source_evidence_hash": hashlib.sha256(
                     json.dumps(source_algorithm_rows.get(block_id, {}), ensure_ascii=False, sort_keys=True).encode("utf-8")
                 ).hexdigest() if block_id in source_algorithm_rows else "",
@@ -1016,11 +1087,26 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
     text_errors, text_warnings = validate_text_quality(blocks)
     errors.extend(text_errors)
     warnings.extend(text_warnings)
-    formulas, formula_errors = formula_ledger(blocks)
+    exact_alignment_ids = {
+        str(record.get("source_anchor") or "")
+        for record in load_all_records(reader_dir)
+        if record.get("record_kind") == "block"
+        and (
+            (record.get("object_metadata") or {}).get("bilingual_math_contract") == "exact-v1"
+            or (record.get("object_metadata") or {}).get("source_math_inventory_required")
+        )
+    }
+    source_math_inventories = {
+        str(record.get("source_anchor") or ""): (record.get("object_metadata") or {}).get("source_math_inventory")
+        for record in load_all_records(reader_dir)
+        if record.get("record_kind") == "block"
+        and (record.get("object_metadata") or {}).get("source_math_inventory_required")
+    }
+    formulas, formula_errors = formula_ledger(blocks, exact_alignment_ids, source_math_inventories)
     errors.extend(formula_errors)
     figures_tables, ft_errors = figure_table_ledger(markdown, source_map)
     errors.extend(ft_errors)
-    algorithms, algorithm_errors = algorithm_ledger(markdown, source_map)
+    algorithms, algorithm_errors = algorithm_ledger(reader_dir, markdown, source_map)
     errors.extend(algorithm_errors)
     authored_candidates, candidate_errors = load_authored_concept_candidates(reader_dir, blocks)
     errors.extend(candidate_errors)

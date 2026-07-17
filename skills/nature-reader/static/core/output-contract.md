@@ -53,14 +53,7 @@ Rules:
   Chinese must have identical ordered LaTeX component signatures, including
   inline/display kind. Field-local Markdown headings and one-sided math
   components are hard failures.
-- Preserve one-to-one presentation objects inside the pair: Original and
-  Chinese must have identical ordered LaTeX component signatures, including
-  inline/display kind. Field-local Markdown headings and one-sided math
-  components are hard failures.
-- Preserve one-to-one presentation objects inside the pair: Original and
-  Chinese must have identical ordered LaTeX component signatures, including
-  inline/display kind. Field-local Markdown headings and one-sided math
-  components are hard failures.
+- Make each display an atomic logical formula. Split independent equations into separate displays; `split`/`multline` may only wrap one formula. Packed `\quad`/`\qquad`, `align`/`gather`, literal `\n`, and prose equations duplicated by a display are hard failures.
 - Preserve a one-to-one mapping between substantive source-map rows and bilingual blocks. `**Source:**` must name exactly the block's own stable ID; ranges, overlaps, missing IDs, and summary compression are hard failures.
 - Keep `**Original:**` source-faithful and reader-ready. Immutable raw extraction stays in `source_map.json`/`raw/pages`; formal Original repairs line breaks, columns, headings, lists, and formulas without paraphrase, synthesis, omission, or summary.
 - Formula source blocks require LaTeX in Original as well as faithful Chinese. A combined formula count cannot hide an empty English formula layer.
@@ -69,7 +62,7 @@ Rules:
 - Full papers require a completion-authored `reader_wiki/concept_candidates.json`; reject equation labels, section numerals, layout words, generic uppercase matches, missing Chinese aliases, and template explanations.
 - Validate PDF coverage independently at raw-page level; a source map cannot certify only itself.
 - Every formal figure, table, and algorithm ID must have an immutable source-map row and a non-empty evidence hash.
-- Every registered figure, table, and algorithm/pseudocode must also have a matching object-inventory row and Markdown card. Figure crops require a local asset and source-page bounding-box provenance; tables require `semantic_table` or `tight_crop`; algorithms require `structured_steps` or `pseudocode_table` with matched original/Chinese numbered steps.
+- Every registered figure, table, and algorithm/pseudocode must also have a matching object-inventory row and Markdown card. Figure crops require a local asset and source-page bounding-box provenance; tables require `semantic_table` or `tight_crop`; algorithms require `latex_compiled_algorithm` with a complete source-language `.tex`, verified `.svg`, compile manifest, hashes, engine, and source-matching numbered-step count. Chinese may appear only in translations of actual comments.
 - If a block cannot be translated faithfully yet, keep it out of final HTML generation and record the reason in `translation_notes.md`.
 - Require `translation_notes.md` to declare `Content authorship: current-session-primary-model`, `External translation backend: none`, and the three directly authored fields `chinese_translation`, `block_specific_notes`, and `latex_reconstruction`. Formal completion fails without this product-neutral provenance.
 

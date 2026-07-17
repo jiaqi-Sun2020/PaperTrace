@@ -31,14 +31,28 @@ def main() -> int:
             if record is None:
                 continue
             previous = str(authored.get("replace") or "").strip()
-            if previous and previous in record["original"]:
-                record["original"] = record["original"].replace(previous, latex)
-                changed += 1
-            if latex not in record["original"]:
-                record["original"] = record["original"].rstrip() + "\n\n" + latex
+            if record["record_kind"] == "block":
+                if not previous:
+                    raise ValueError(
+                        f"{anchor}: block override requires an exact replace fragment; "
+                        "appending formulae is forbidden because it can mask PDF extraction residue"
+                    )
+                if previous not in record["original"]:
+                    if latex in record["original"] and latex in record["zh"]:
+                        continue
+                    raise ValueError(f"{anchor}: exact replace fragment is absent from the Original block")
+                record["original"] = record["original"].replace(previous, latex, 1)
+                if previous in record["zh"]:
+                    record["zh"] = record["zh"].replace(previous, latex, 1)
+                elif latex not in record["zh"]:
+                    raise ValueError(f"{anchor}: Chinese block needs the same reviewed formula component")
                 changed += 1
             if record["record_kind"] == "formula":
-                record["zh"] = str(authored.get("zh") or "")
+                if previous and previous in record["original"]:
+                    record["original"] = record["original"].replace(previous, latex, 1)
+                elif latex not in record["original"]:
+                    record["original"] = latex
+                record["zh"] = latex
                 record["notes"] = str(authored.get("zh") or "")
             record["status"] = "pass"
             record["validation_errors"] = []

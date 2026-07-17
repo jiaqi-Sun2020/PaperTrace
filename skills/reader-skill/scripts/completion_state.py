@@ -18,9 +18,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from formula_contract import atomic_formula_issues, bilingual_math_issues, source_math_evidence_issues, source_math_inventory_issues
+
 
 SCHEMA_VERSION = 3
 PIPELINE_VERSION = "formal-reader-v3"
+SOURCE_MATH_EVIDENCE_CONTRACT = "source-math-evidence-v2"
 STATUS_VALUES = {"pending", "pass", "invalid"}
 RECORD_KINDS = {"block", "formula", "figure", "table", "algorithm", "reference"}
 MATH_RE = re.compile(r'(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$|(?<!\\)\$(?!\s)(?:\\.|[^$]){1,800}?(?<!\\)\$)')
@@ -82,6 +85,30 @@ def source_text(row: dict[str, Any]) -> str:
         or row.get("caption")
         or ""
     )
+
+
+def source_math_inventory_required(value: str) -> bool:
+    """Decide at bootstrap whether a source formula block needs full review.
+
+    Existing completed bundles are not silently rewritten during a contract
+    upgrade.  Newly seeded formula evidence with OCR/layout math residue is
+    explicitly marked pending for a source component inventory instead.
+    """
+
+    if source_math_evidence_issues(value, field="Source evidence"):
+        return True
+    return bool(re.search(r"(?m)(?:^|\n)\s*[^\n]{0,80}(?:=|∝|≤|≥|≲|≳)[^\n]{1,80}", value))
+
+
+def source_math_inventory_evidence(value: str) -> list[str]:
+    """Return immutable-source signals that require component reconstruction.
+
+    Extraction type is only a hint: theorem math also appears in paragraph and
+    caption rows. These labels are derived evidence for the completion gate,
+    not rendered reader content.
+    """
+
+    return list(dict.fromkeys(source_math_evidence_issues(value, field="Source evidence")))
 
 
 def evidence_hash(row: dict[str, Any]) -> str:
@@ -165,6 +192,16 @@ def validate_record(record: dict[str, Any]) -> list[str]:
             errors.append("pass block Chinese text duplicates translatable Original text")
         if PLACEHOLDER_RE.search(original + "\n" + zh):
             errors.append("pass block contains a placeholder")
+        for field, value in (("Original", original), ("Chinese", zh)):
+            errors.extend(atomic_formula_issues(value, field=field))
+        if (
+            metadata.get("source_math_inventory_required") or "source_math_inventory" in metadata
+        ):
+            # Formula source blocks carry a component inventory.  This is a
+            # fail-closed evidence contract, not a presentational hint.
+            errors.extend(source_math_inventory_issues(metadata, original, zh, block_id=str(record["stable_id"])))
+        elif metadata.get("bilingual_math_contract") == "exact-v1":
+            errors.extend(bilingual_math_issues(original, zh, block_id=str(record["stable_id"])))
     elif kind == "formula":
         if not MATH_RE.search(original):
             errors.append("pass formula requires Original-side LaTeX")
@@ -187,12 +224,17 @@ def validate_record(record: dict[str, Any]) -> list[str]:
         if representation == "tight_crop" and not metadata.get("asset_path"):
             errors.append("tight-crop table requires asset_path")
     elif kind == "algorithm":
-        original_steps = metadata.get("original_steps")
-        zh_steps = metadata.get("zh_steps")
-        if not isinstance(original_steps, list) or not isinstance(zh_steps, list):
-            errors.append("pass algorithm requires original_steps and zh_steps")
-        elif len(original_steps) < 2 or len(original_steps) != len(zh_steps):
-            errors.append("algorithm original/Chinese steps must be matched and numbered")
+        if metadata.get("representation") != "latex_compiled_algorithm":
+            errors.append("pass algorithm requires latex_compiled_algorithm representation")
+        for key in (
+            "latex_source_path", "latex_source_sha256", "compiled_asset_path",
+            "compiled_asset_sha256", "compile_manifest_path", "compile_manifest_sha256",
+            "compile_engine",
+        ):
+            if not str(metadata.get(key) or "").strip():
+                errors.append(f"pass algorithm requires {key}")
+        if int(metadata.get("numbered_steps") or 0) < 2:
+            errors.append("pass algorithm requires every source-numbered step")
     elif kind == "reference":
         if not original:
             errors.append("pass reference requires original-only citation text")
@@ -243,11 +285,19 @@ def expected_records(source_map: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         block_type = str(source.get("type") or "paragraph").lower()
         kind = "reference" if block_type == "reference" else "block"
+        block_metadata = {"source_object": False}
+        math_evidence = source_math_inventory_evidence(source_text(source))
+        if block_type in {"equation_or_formula", "formula"} and not math_evidence:
+            math_evidence = ["Source evidence: source_map declares a formula/equation block"]
+        if kind == "block" and block_type != "algorithm" and math_evidence:
+            block_metadata["source_math_inventory_required"] = True
+            block_metadata["source_math_evidence_contract"] = SOURCE_MATH_EVIDENCE_CONTRACT
+            block_metadata["source_math_evidence"] = math_evidence
         rows.append(new_record(
             stable_id=f"{kind}:{anchor}", record_kind=kind, block_type=block_type, source_anchor=anchor,
             source_page=int(source.get("page") or 1), source_evidence_hash=evidence_hash(source),
             source_pdf_sha256=pdf_hash,
-            object_metadata={"source_object": False},
+            object_metadata=block_metadata,
         ))
         if block_type in {"formula", "equation_or_formula"}:
             rows.append(new_record(
@@ -309,6 +359,22 @@ def seed_records(reader_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
             records.append(baseline)
             continue
         if existing["source_evidence_hash"] == baseline["source_evidence_hash"] and existing["source_pdf_sha256"] == baseline["source_pdf_sha256"]:
+            baseline_metadata = baseline.get("object_metadata") or {}
+            if baseline_metadata.get("source_math_inventory_required"):
+                metadata = existing.setdefault("object_metadata", {})
+                metadata.update({
+                    "source_math_inventory_required": True,
+                    "source_math_evidence_contract": SOURCE_MATH_EVIDENCE_CONTRACT,
+                    "source_math_evidence": list(baseline_metadata.get("source_math_evidence") or []),
+                })
+                inventory = metadata.get("source_math_inventory")
+                if not isinstance(inventory, dict) or inventory.get("status") != "complete":
+                    existing["status"] = "invalid"
+                    existing["validation_errors"] = [
+                        "source-math evidence contract upgraded; author a complete source_math_inventory before formal rendering"
+                    ]
+                    issues.append(f"{existing['stable_id']}: source-math inventory is required by {SOURCE_MATH_EVIDENCE_CONTRACT}")
+                write_record(reader_dir, existing)
             records.append(existing)
             continue
         existing["status"] = "invalid"
@@ -422,6 +488,31 @@ def ensure_object_inventory(reader_dir: Path) -> Path:
     if path.exists():
         current = read_json(path)
         if str(current.get("source_map_sha256") or "") != source_hash:
+            # A source-math override must never write through this file, but a
+            # historical helper could accidentally replace the object ledger
+            # with a formula inventory.  Recover only that unmistakable shape
+            # from the authoritative completion records; do not overwrite an
+            # inventory that claims another source map.
+            if (
+                current.get("contract") == "source-math-inventory-v1"
+                and not current.get("objects")
+                and not current.get("source_items")
+            ):
+                recovered = {
+                    "version": 3,
+                    "role": "derived_source_and_object_completion_inventory",
+                    "source_map_sha256": source_hash,
+                    "objects": objects,
+                    "source_items": source_items,
+                }
+                by_stable_id = {str(record.get("stable_id") or ""): record for record in load_all_records(reader_dir)}
+                for row in recovered["objects"]:
+                    record = by_stable_id.get(f"{row['kind']}:{row['id']}")
+                    if record:
+                        row.update(record.get("object_metadata") or {})
+                        row["status"] = str(record.get("status") or row["status"])
+                atomic_write_json(path, recovered)
+                return path
             raise ValueError("object_inventory.json belongs to a different source_map and cannot be overwritten")
         if isinstance(current.get("source_items"), list):
             return path
@@ -593,10 +684,14 @@ def compile_canonical_markdown(reader_dir: Path, *, materialize_paper: bool) -> 
     source_map = read_json(reader_dir / "source_map.json")
     title = str((source_map.get("paper") or {}).get("title") or "Untitled Paper")
     records = _record_map(reader_dir)
-    algorithm_object_anchors = {
-        row["source_anchor"] for row in records.values()
-        if row.get("record_kind") == "algorithm" and row.get("status") == "pass"
-    }
+    algorithm_object_anchors = set()
+    for row in records.values():
+        if row.get("record_kind") != "algorithm" or row.get("status") != "pass":
+            continue
+        algorithm_object_anchors.add(row["source_anchor"])
+        source_block_id = str((row.get("object_metadata") or {}).get("source_block_id") or "")
+        if source_block_id:
+            algorithm_object_anchors.add(source_block_id)
     lines = [f"# {title}", "", "> Canonical reader derived solely from v3 pass records.", "", "## Bilingual Reader", ""]
     for record in sorted(records.values(), key=lambda row: (row["source_page"], row["stable_id"])):
         if record["status"] != "pass":
@@ -624,11 +719,21 @@ def compile_canonical_markdown(reader_dir: Path, *, materialize_paper: bool) -> 
             lines.extend([f"**Original caption:** {metadata['original_caption']}", "", f"**{ZH_LABEL}表注:** {metadata['zh_caption']}", "", f"**Reading note:** {record['notes']}", ""])
         elif kind == "algorithm":
             number = re.sub(r"\D+", "", anchor) or anchor
-            lines.extend([f'<a id="{anchor}"></a>', f"### Algorithm {number} ({anchor})", "", f"**Source:** p.{record['source_page']} {anchor}", "", "**Original algorithm:**"])
-            lines.extend(f"{index}: {step}" for index, step in enumerate(metadata["original_steps"], start=1))
-            lines.extend(["", f"**{ZH_LABEL}算法:**"])
-            lines.extend(f"{index}: {step}" for index, step in enumerate(metadata["zh_steps"], start=1))
-            lines.extend(["", f"**Reading note:** {record['notes']}", ""])
+            lines.extend([
+                f'<a id="{anchor}"></a>',
+                f"### Algorithm {number} ({anchor})",
+                "",
+                f"**Source:** p.{record['source_page']} {anchor}",
+                "",
+                f"**Algorithm LaTeX:** `{metadata['latex_source_path']}`",
+                "",
+                f"**Compiled algorithm:** `{metadata['compiled_asset_path']}`",
+                "",
+                f"**Compile manifest:** `{metadata['compile_manifest_path']}`",
+                "",
+                f"**Reading note:** {record['notes']}",
+                "",
+            ])
     content = "\n".join(lines).rstrip() + "\n"
     destination = canonical_path(reader_dir)
     atomic_write_text(destination, content)

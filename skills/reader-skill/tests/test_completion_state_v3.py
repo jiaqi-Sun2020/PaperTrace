@@ -76,7 +76,7 @@ def source_map() -> dict:
         "pages": [{"page": 1, "source_page_image": "assets/source_pages/page-01.png", "sha256": PIXEL_SHA256}],
         "figures": [{"id": "F001", "page": 1, "caption_original": "Figure 1. Fixture object.", "source_page_image": "assets/source_pages/page-01.png"}],
         "tables": [{"id": "T001", "page": 1, "caption_original": "Table 1. Fixture data."}],
-        "algorithms": [{"id": "A001", "page": 1, "source_block_id": "", "original_text": "1: Input\\n2: Output"}],
+        "algorithms": [{"id": "A001", "page": 1, "source_block_id": "", "original_text": "1: Input circuit\n2: Output result"}],
     }
 
 
@@ -85,6 +85,33 @@ def complete_records(reader: Path) -> None:
     assets.mkdir(parents=True, exist_ok=True)
     figure_asset = assets / "figure-f001.png"
     figure_asset.write_bytes(PIXEL)
+    algorithm_dir = assets / "algorithms"
+    algorithm_dir.mkdir(parents=True, exist_ok=True)
+    algorithm_tex = algorithm_dir / "A001.tex"
+    algorithm_svg = algorithm_dir / "A001.svg"
+    algorithm_manifest = algorithm_dir / "A001.compile.json"
+    algorithm_tex.write_text(
+        "\\begin{algorithmic}[1]\n\\Require circuit\n\\State Input circuit\n"
+        "\\State Output result\n\\Ensure result\n\\end{algorithmic}\n",
+        encoding="utf-8",
+    )
+    algorithm_svg.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80"><text x="8" y="30">Algorithm fixture</text></svg>\n',
+        encoding="utf-8",
+    )
+    write_json(algorithm_manifest, {
+        "schema_version": 1,
+        "contract": "latex-compiled-algorithm-v1",
+        "engine": "fixture-xelatex",
+        "tex_path": "A001.tex",
+        "tex_sha256": sha256_file(algorithm_tex),
+        "svg_path": "A001.svg",
+        "svg_sha256": sha256_file(algorithm_svg),
+        "numbered_states": 2,
+        "translated_comments": 0,
+        "status": "pass",
+        "compile_status": "pass",
+    })
     seed_records(reader)
     for record in load_all_records(reader):
         kind = record["record_kind"]
@@ -95,6 +122,17 @@ def complete_records(reader: Path) -> None:
                 record.update({"original": "The amplitude is \\[x^2+y^2\\].", "zh": "振幅为 \\[x^2+y^2\\]。", "notes": "双语两侧保留同一可验证 LaTeX。"})
             else:
                 record.update({"original": "1: Input circuit\n2: Output result", "zh": "1：输入量子电路\n2：输出结果", "notes": "算法源块与对象卡分别登记。"})
+            if record["source_anchor"] == "E001":
+                record["object_metadata"] = {
+                    **record["object_metadata"],
+                    "source_math_inventory": {
+                        "contract": "source-math-inventory-v1",
+                        "status": "complete",
+                        "components": [
+                            {"id": "amplitude", "presentation": "display", "signature": "x^2+y^2"},
+                        ],
+                    },
+                }
             record["status"] = "pass"
         elif kind == "formula":
             record.update({"original": "\\[x^2+y^2\\]", "zh": "", "notes": "由对应原文块保留。", "status": "pass"})
@@ -112,8 +150,20 @@ def complete_records(reader: Path) -> None:
             })
         elif kind == "algorithm":
             record.update({
-                "notes": "逐行算法。", "status": "pass",
-                "object_metadata": {**record["object_metadata"], "original_steps": ["Input circuit", "Output result"], "zh_steps": ["输入量子电路", "输出结果"]},
+                "notes": "完整源码算法，经构建期 LaTeX 编译。", "status": "pass",
+                "object_metadata": {
+                    **record["object_metadata"],
+                    "representation": "latex_compiled_algorithm",
+                    "latex_source_path": "assets/algorithms/A001.tex",
+                    "latex_source_sha256": sha256_file(algorithm_tex),
+                    "compiled_asset_path": "assets/algorithms/A001.svg",
+                    "compiled_asset_sha256": sha256_file(algorithm_svg),
+                    "compile_manifest_path": "assets/algorithms/A001.compile.json",
+                    "compile_manifest_sha256": sha256_file(algorithm_manifest),
+                    "compile_engine": "fixture-xelatex",
+                    "numbered_steps": 2,
+                    "translated_comments": 0,
+                },
             })
         write_record(reader, record)
 
@@ -127,7 +177,14 @@ def complete_inventory(reader: Path) -> None:
         elif row["id"] == "T001":
             row.update({"representation": "semantic_table", "status": "complete"})
         elif row["id"] == "A001":
-            row.update({"representation": "structured_steps", "status": "complete"})
+            row.update({
+                "representation": "latex_compiled_algorithm",
+                "asset_path": "assets/algorithms/A001.svg",
+                "latex_source_path": "assets/algorithms/A001.tex",
+                "compiled_asset_path": "assets/algorithms/A001.svg",
+                "compile_manifest_path": "assets/algorithms/A001.compile.json",
+                "status": "complete",
+            })
     write_json(inventory_path, inventory)
 
 
@@ -218,7 +275,7 @@ def main() -> int:
         raise AssertionError("Chinese panel did not match its controlled Chinese alias")
     if 'data-concept-id="color-ordering"' in annotated:
         raise AssertionError("an incidental Chinese term created a concept absent from Original")
-    panel = build_knowledge_panel(None, glossary, annotation_concepts, None)
+    panel = build_knowledge_panel(None, glossary, annotation_concepts, None, ROOT, True, [])
     for token in (
         "Paper Concept Ledger / Personal Knowledge Boundary",
         "Personal Status",
@@ -242,6 +299,29 @@ def main() -> int:
         seed_records(reader)
         if block_path.read_bytes() != before:
             raise AssertionError("same-source pass record was overwritten on resume")
+
+        # A contract upgrade must not let an old same-PDF pass record bypass
+        # source-math inventory requirements. The source block is deliberately
+        # typed as a formula in the fixture, while the migration behaviour is
+        # independent of the extraction type in production.
+        equation_path = record_path(reader, "block:E001")
+        equation_record = json.loads(equation_path.read_text(encoding="utf-8"))
+        reviewed_inventory = equation_record["object_metadata"].pop("source_math_inventory")
+        equation_record["object_metadata"].pop("source_math_inventory_required", None)
+        equation_record["object_metadata"].pop("source_math_evidence_contract", None)
+        equation_record["object_metadata"].pop("source_math_evidence", None)
+        equation_record["status"] = "pass"
+        equation_record["validation_errors"] = []
+        write_json(equation_path, equation_record)
+        seed_records(reader)
+        migrated = json.loads(equation_path.read_text(encoding="utf-8"))
+        if migrated["status"] != "invalid" or not migrated["object_metadata"].get("source_math_inventory_required"):
+            raise AssertionError("same-source math-contract upgrade did not invalidate a legacy pass record")
+        migrated["object_metadata"]["source_math_inventory"] = reviewed_inventory
+        migrated["status"] = "pass"
+        migrated["validation_errors"] = []
+        write_json(equation_path, migrated)
+        seed_records(reader)
 
         progress = render_progress_html(reader)
         progress_text = progress.read_text(encoding="utf-8")
@@ -281,6 +361,8 @@ def main() -> int:
             "Hide Contents",
             "Show Contents",
             "feedback-open",
+            'data-algorithm-contract="latex-compiled-algorithm-v1"',
+            'class="algorithm-render"',
         ):
             if token not in rendered_html:
                 raise AssertionError(f"formal reader lacks summary/source-view control token: {token}")
@@ -311,20 +393,40 @@ def main() -> int:
         if not any("unsafe/noncanonical" in message for message in source_page_errors):
             raise AssertionError("source-page contract accepted path traversal")
 
-        # A formula component on only one language side must invalidate the
-        # normalized reader before HTML generation.
+        # A block that explicitly opts into exact bilingual math must reject
+        # a component present on only one language side.
         formula_block_path = record_path(reader, "block:E001")
         formula_block = json.loads(formula_block_path.read_text(encoding="utf-8"))
+        formula_block.setdefault("object_metadata", {})["bilingual_math_contract"] = "exact-v1"
         formula_block["zh"] = "振幅表达式包含平方和。"
         write_json(formula_block_path, formula_block)
-        compile_canonical_markdown(reader, materialize_paper=True)
         try:
+            compile_canonical_markdown(reader, materialize_paper=True)
             compile_reader_wiki(reader, strict=True)
         except ValueError as exc:
-            if "formula components are not one-to-one aligned" not in str(exc):
+            if "bilingual math count mismatch" not in str(exc):
                 raise AssertionError(f"wrong asymmetric-formula failure: {exc}")
         else:
             raise AssertionError("reader-wiki accepted an Original-only formula component")
+        formula_block["zh"] = "振幅为 \\[x^2+y^2\\]。"
+        write_json(formula_block_path, formula_block)
+        compile_canonical_markdown(reader, materialize_paper=True)
+
+        # One display may not pack two independent formulas together merely
+        # to save horizontal space; both languages must use atomic displays.
+        compound = "First \\[x=1,\\qquad y=2\\]"
+        formula_block["original"] = compound
+        formula_block["zh"] = "首先 \\[x=1,\\qquad y=2\\]"
+        write_json(formula_block_path, formula_block)
+        try:
+            compile_canonical_markdown(reader, materialize_paper=True)
+            compile_reader_wiki(reader, strict=True)
+        except ValueError as exc:
+            if "multiple logical formulas" not in str(exc):
+                raise AssertionError(f"wrong compound-formula failure: {exc}")
+        else:
+            raise AssertionError("reader-wiki accepted two formulas in one display")
+        formula_block["original"] = "The amplitude is \\[x^2+y^2\\]."
         formula_block["zh"] = "振幅为 \\[x^2+y^2\\]。"
         write_json(formula_block_path, formula_block)
         compile_canonical_markdown(reader, materialize_paper=True)

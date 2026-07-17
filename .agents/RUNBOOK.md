@@ -57,7 +57,7 @@ Validate the reusable skill and script:
 
 ```powershell
 python -m py_compile .\skills\utils\demo-skill\scripts\create_demo.py
-python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py .\skills\utils\demo-skill
+python -X utf8 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" .\skills\utils\demo-skill
 ```
 
 Root HTML is ignored by `/*.html`. To publish only the reviewed pages, use the exact paths rather than changing the global ignore rule:
@@ -91,7 +91,18 @@ The reader bundle must already contain faithful `**中文:**` translations. `rea
 
 When the user requests a completed regenerated paper reader, the active primary model in the current user-facing session must directly author the translated `**中文:**` blocks, block-specific notes, and LaTeX reconstruction. Do not delegate these fields to Ollama, SDKs, external translators, secondary models, or scripts.
 
-Before strict HTML generation, check that figure/table entries in `source_map.json` have actual cards or semantic tables in `paper.md`, important equations are LaTeX display math, and `**注释:**` does not contain generic scaffolds such as `逻辑位置：本文主题是...` or `标注建议：如果这里有不懂...`.
+Before strict HTML generation, check that figure/table entries in `source_map.json` have actual cards or semantic tables in `paper.md`, every mathematical component in every Original/Chinese block has explicit delimiters, important equations are atomic LaTeX displays with their duplicate extraction text removed from both language fields, and `**注释:**` does not contain generic scaffolds such as `逻辑位置：本文主题是...` or `标注建议：如果这里有不懂...`. Put each independent equation in its own display. Raw `\sigma`, `A^-1`, detached PDF hats, or split indices are completion failures even when the source row is typed as a paragraph.
+
+When any source row (formula, paragraph, caption, or object description) carries `source_math_inventory_required`, review its PDF page and author `object_metadata.source_math_inventory` before rendering. Its ordered components are the audit checklist: every item must be rendered once in Original and once in Chinese with the same LaTeX signature. A reviewed inventory may be derived only from already authored, page-checked components; it never substitutes for source review. Do not fix the row by appending a formula, and do not run any global delimiter-removal script; use a source-bound exact replacement override instead.
+
+For every algorithm, author a complete source-language `assets/algorithms/Axxx.tex`; translate only comments that already exist, using `\Comment{...}`. Compile from `D:\AI\PaperTrace` with the detected TeX Live runtime:
+
+```powershell
+$env:PATH='D:\software\paper_software\texlive\2023\bin\windows;' + $env:PATH
+python .\skills\nature-reader\scripts\compile_algorithm_latex.py "<reader-dir>\assets\algorithms\A001.tex" --output-dir "<reader-dir>\assets\algorithms"
+```
+
+Record the `.tex`, compiled `.svg`, compile manifest, hashes, engine, and source-matching numbered-step count in the algorithm completion record and `object_inventory.json`. Do not create a Chinese duplicate of the executable algorithm body.
 
 If a PDF extraction helper produced a draft bundle, first run the completion pass. This upgrades `paper.md`, `source_map.json`, `translation_notes.md`, formula blocks, and figure/table cards before the reader-wiki hard gate runs:
 
@@ -127,7 +138,7 @@ After a successful generation, run the adversarial HTML audit from the project r
 python D:\AI\PaperTrace\skills\reader-skill\tests\adversarial_html_audit.py <reader-dir>
 ```
 
-Do not report Pipeline 1 as complete until this audit passes. A passing reader bundle or completion ledger is still intermediate. The audit checks Algorithm cards instead of summaries, MathJax/formula integrity, the model-authored source-linked paper summary, hash-bound source-page viewer data, Original/source-page collapse controls, knowledge-mark metadata, concept coverage, reader-notes pollution, `Save mark` panel closing, and feedback-copy fallback.
+Do not report Pipeline 1 as complete until this audit passes. A passing reader bundle or completion ledger is still intermediate. The audit checks compiled full-source Algorithm cards instead of summaries/translated duplicate bodies, explicit math boundaries in every visible panel, atomic MathJax formulas without plaintext duplication, declared `exact-v1` bilingual pairs, MathJax runtime status, the model-authored source-linked paper summary, hash-bound source-page viewer data, Original/source-page collapse controls, knowledge-mark metadata, concept coverage, reader-notes pollution, `Save mark` panel closing, and feedback-copy fallback.
 
 Before rendering a full paper, author `reader_wiki/paper_summary.json` with detailed Chinese overview/what/how/significance/evidence-limit sections and formal source anchors. For PDF readers, preserve every `source_map.pages` image under `assets/source_pages/`; the renderer uses those existing assets for the enlarged, viewport-height left viewer and must not rerender the PDF or embed full pages as article figures. On wide screens, source pages and Contents are independently resizable around a minimum-width center article; medium widths may default Contents to a restore rail, and narrow widths stack.
 
@@ -316,11 +327,11 @@ python D:\AI\PaperTrace\skills\reader-skill\tests\test_reader_e2e.py
 ## Validate Skills
 
 ```powershell
-python C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py D:\AI\PaperTrace\skills\reader-skill
-python C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py D:\AI\PaperTrace\skills\reader-learner
-python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py D:\AI\PaperTrace\skills\ai-quantum-news-briefing
-python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py D:\AI\PaperTrace\skills\utils\chat-knowledge-profile
-python -X utf8 C:\Users\SSS\.codex\skills\.system\skill-creator\scripts\quick_validate.py D:\AI\PaperTrace\skills\utils\demo-skill
+python "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\reader-skill
+python "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\reader-learner
+python -X utf8 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\ai-quantum-news-briefing
+python -X utf8 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\utils\chat-knowledge-profile
+python -X utf8 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\utils\demo-skill
 ```
 
 ## Sync And Validate The Persistent Visible Wiki

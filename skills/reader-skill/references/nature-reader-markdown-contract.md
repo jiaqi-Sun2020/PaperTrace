@@ -40,10 +40,17 @@ Render this as one `reference-block` / `reference-panel`, never as an `Original`
 HTML conversion should render this as one aligned reader block. `Original` and `中文` are the bilingual pair; `注释` is a separate guidance column.
 
 Do not place Markdown headings (`#` through `######`) inside `Original` or
-`中文`. Put section headings outside the anchored block. Formula components are
-paired objects: both language fields must contain the same ordered LaTeX
-expressions with the same inline/display presentation. A one-sided formula
-chip or display card is a hard validation failure.
+`中文`. Put section headings outside the anchored block.
+Every mathematical component in either language field must use an explicit
+LaTeX delimiter; raw TeX commands, ASCII scripts, and PDF-layout fragments
+outside delimiters are hard failures. Set
+`object_metadata.bilingual_math_contract: exact-v1` for a strictly paired
+block; that opt-in requires the same ordered expressions and inline/display
+presentation on both sides.
+Each display is one logical formula. Put independent equations in separate
+display blocks; use `split` or `multline` only to wrap one formula. Packed
+`\quad`/`\qquad`, `align`/`gather`, literal `\n`, and a plaintext equation that
+duplicates a reconstructed display are hard failures.
 The renderer must not infer additional math components from plain underscores,
 superscripts, model names, or variable-looking prose.
 
@@ -81,7 +88,7 @@ There is no draft-bypass HTML route. If any of these markers remain, fix the Mar
 
 Figure and table cards should keep image/table, source pointer, caption, translation, and reading note together. Use extracted images or reliable crops. Do not embed a full PDF source page as the primary figure.
 
-Every source-map object must have a matching `reader_wiki/object_inventory.json` row. Figure cards require a tight asset and bbox provenance; tables declare `semantic_table` or `tight_crop`; algorithms/pseudocode declare `structured_steps` or `pseudocode_table` and render matched original/Chinese numbered steps.
+Every source-map object must have a matching `reader_wiki/object_inventory.json` row. Figure cards require a tight asset and bbox provenance; tables declare `semantic_table` or `tight_crop`; algorithms/pseudocode declare `latex_compiled_algorithm` and bind a complete source-language `.tex`, compiled `.svg`, compile manifest, hashes, engine, and source-matching numbered-step count. Only actual algorithm comments may be translated; executable statements must not be duplicated in Chinese.
 
 ## Tables
 

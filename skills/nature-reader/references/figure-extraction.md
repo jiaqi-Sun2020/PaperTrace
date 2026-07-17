@@ -18,7 +18,7 @@ Default placement rule:
 
 If the paper has a complex multi-column layout, prefer a clean reading layout over exact visual mimicry.
 
-Caption-only extraction is not enough for a final reader. If `source_map.json` records a figure, table, or algorithm/pseudocode object, the final `paper.md` must contain a corresponding visual card, semantic/tight-crop table card, or structured bilingual steps card. Use a clearly marked draft only when this cannot be completed yet.
+Caption-only extraction is not enough for a final reader. If `source_map.json` records a figure, table, or algorithm/pseudocode object, the final `paper.md` must contain a corresponding visual card, semantic/tight-crop table card, or compiled-LaTeX algorithm card. Use a clearly marked draft only when this cannot be completed yet.
 
 ## Object inventory and provenance
 
@@ -26,7 +26,7 @@ Keep raw source object identity immutable in `source_map.json`. Store all derive
 
 - figure: tight `asset_path`, source-page `bbox`, and `representation: tight_crop`
 - table: `representation: semantic_table` or `tight_crop`; a semantic table is preferred when cells can be recovered faithfully
-- algorithm/pseudocode: `representation: structured_steps` or `pseudocode_table`, with a source block pointer
+- algorithm/pseudocode: `representation: latex_compiled_algorithm`, with source block pointer, `.tex`, `.svg`, compile manifest, hashes, engine, and source/compiled numbered-step parity
 
 The inventory must be bound to the current source-map hash. A full-page image is provenance evidence, never an object crop.
 
@@ -70,15 +70,17 @@ For a table, include a faithful Markdown pipe table when cells can be recovered;
 
 **Source:** p.5 A001
 
-**Original algorithm:**
-1: [source step]
-2: [source step]
+**Algorithm LaTeX:** `assets/algorithms/A001.tex`
 
-**中文算法:**
-1: [faithful Chinese step]
-2: [faithful Chinese step]
+**Compiled algorithm:** `assets/algorithms/A001.svg`
+
+**Compile manifest:** `assets/algorithms/A001.compile.json`
 
 **Reading note:** [what the control flow or invariant establishes]
 ```
 
-The original and Chinese step counts must match. A prose paraphrase, high-level summary, or an unnumbered code snippet does not satisfy this contract.
+The LaTeX must preserve the full source algorithm, including Require, Ensure,
+and every numbered executable statement. Keep the body in the source language;
+Chinese is allowed only inside `\Comment{...}` for comments that exist in the
+source. Compile with XeLaTeX and publish the verified SVG. A translated body,
+prose paraphrase, summary, missing step, or uncompiled snippet fails.
