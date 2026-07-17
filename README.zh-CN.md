@@ -50,6 +50,10 @@ Reader/news feedback import 与 Visible Wiki 是共享下游工作流。Adaptive
 
 ## 快速开始：直接交给 Codex
 
+从下面四条路径中选择一条，直接将对应请求发送给 Codex。
+
+### 1. 将 PDF 生成正式交互式 Reader
+
 如果你的目标是把一个文件夹中的论文逐篇变成正式的可交互中文 Reader，无需先运行脚本。把 PDF 放入本地文件夹，然后在 Codex 中直接发送：
 
 > 阅读当前项目下的 README 和 `.agents`，根据 PAPER pipeline 将 `<PDF-folder>` 下的 PDF 生成对应的可交互 HTML，一篇一篇来。
@@ -58,17 +62,27 @@ Reader/news feedback import 与 Visible Wiki 是共享下游工作流。Adaptive
 
 > 阅读当前项目下的 README 和 `.agents`，根据 PAPER pipeline 将 `D:\Papers\2026\7` 下的 PDF 生成对应的可交互 HTML，一篇一篇来。
 
-Codex 会稳定排序该文件夹中的 PDF，并对每篇论文依次完成：
+Codex 会按顺序处理 PDF；每篇通过后自动继续下一篇，只交付经审计的 `<paper-name>_reader\reader_interactive.html`。若源证据无法通过严格门禁，会报告具体阻断点，而不会把草稿当作正式结果。
 
-1. 建立可追溯的原文证据、中英对照、块级注释与论文总结；
-2. 重建 LaTeX 公式、可检查的图表卡片与完整的源语言 Algorithm 卡片；
-3. 生成 `reader_interactive.html`，包含原始论文页、译文、概念标注和反馈控件；
-4. 运行正式结构校验与对抗性 HTML 审计；
-5. 当前一篇通过后自动继续下一篇，无需再发送“继续”。
+### 2. 发布有来源的 AI + Quantum 日报
 
-每篇通过审计的论文都会在对应的 `<paper-name>_reader\reader_interactive.html` 中交付。若 PDF 不可读、已有完成产物的覆盖意图不明确，或无法依据 PDF 证据修复严格验证失败，Codex 会报告具体阻断点；草稿或 `reader_progress.html` 不会被当作正式结果。
+> 阅读当前项目下的 README 和 <code>.agents</code>，根据 <code>&lt;日期或日期范围&gt;</code> 的当前、可核验来源，完成 AI + Quantum 日报发布流水线。先构建有证据的候选配置，再依次完成 <code>run → verify → finalize → verify</code>。交付可交互日报 HTML、反馈 JSON、manifest 与 index；候选清单或 staging 输出都不能当作最终结果。
 
-需要恢复中断任务、排查失败或在 CI 中调用时，再使用下面 [Paper Reader Pipeline](#paper-reader) 的脚本入口。
+Codex 会核验来源和日期，应用排名与 Delta 规则，并仅在严格发布链路通过后发布。导出的反馈概念初始状态均为 <code>unrated</code>。
+
+### 3. 从本地聊天导出准备可审核画像补丁
+
+> 阅读当前项目下的 README 和 <code>.agents</code>，将 <code>&lt;chat-export-or-folder&gt;</code> 中的本地聊天导出按“聊天到画像”流水线处理：依次 collect、extract、propose，生成 <code>profile_patch.json</code> 供我审核；在我明确确认前不要 apply。
+
+审核补丁后，再明确要求 Codex 执行带备份的 apply。候选或 proposed patch 绝不能静默修改画像。
+
+### 4. 生成一节基于证据的短课或复习
+
+> 阅读当前项目下的 README 和 <code>.agents</code>，使用自适应教学流水线分析我当前的知识画像，选择一个有证据支持的下一主题，并生成一节短课和透明的复习建议。在我之后提供真实学习表现的 teaching feedback 之前，不要更新知识画像。
+
+课程只是受控教学产物，不是掌握证据；只有来自真实表现的已验证反馈才能回写画像。
+
+需要恢复中断任务、排查失败或在 CI 中调用时，再使用下面 [论文 Reader 流水线](#paper-reader) 的脚本入口。
 
 ## 设计取向
 

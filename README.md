@@ -50,6 +50,10 @@ Reader/news feedback import and Visible Wiki projection are shared downstream wo
 
 ## Quick start: ask Codex directly
 
+Choose one of the four paths below and send its request to Codex.
+
+### 1. Turn PDFs into formal interactive readers
+
 To turn every PDF in a folder into a formal interactive Chinese reader, you do not need to run scripts first. Place the PDFs in a local folder and send Codex this request:
 
 > Read the README and <code>.agents</code> in the current project. Following the PAPER pipeline, generate the corresponding interactive HTML for the PDFs under <code>&lt;PDF-folder&gt;</code>, one paper at a time.
@@ -58,15 +62,25 @@ For example:
 
 > Read the README and <code>.agents</code> in the current project. Following the PAPER pipeline, generate the corresponding interactive HTML for the PDFs under <code>D:\Papers\2026\7</code>, one paper at a time.
 
-Codex will sort the PDFs deterministically and, for each paper:
+Codex processes the PDFs in order, continues automatically after each pass, and delivers only an audited <code>&lt;paper-name&gt;_reader\reader_interactive.html</code>. If source evidence cannot satisfy a hard gate, it reports the concrete blocker instead of presenting a draft as final.
 
-1. build traceable source evidence, faithful bilingual blocks, block notes, and a paper summary;
-2. reconstruct LaTeX, inspectable figures/tables, and complete source-language Algorithm cards;
-3. generate <code>reader_interactive.html</code> with original pages, translation, concept marks, and feedback controls;
-4. run the formal structure gate and adversarial HTML audit;
-5. automatically continue to the next paper after the current one passes.
+### 2. Release a sourced AI + Quantum briefing
 
-The completed artifact is stored in the corresponding <code>&lt;paper-name&gt;_reader\reader_interactive.html</code>. Codex reports a concrete blocker if the PDF is unreadable, a completed bundle would be ambiguously overwritten, or source evidence cannot repair a failing gate. Drafts and <code>reader_progress.html</code> are never reported as formal output.
+> Read the README and <code>.agents</code> in the current project. Using current, source-verifiable information for <code>&lt;date or date-range&gt;</code>, produce the AI + Quantum Daily Briefing Release. Build the evidence-backed candidate config, then complete <code>run → verify → finalize → verify</code>. Deliver the interactive briefing HTML, feedback JSON, manifest, and index; do not treat a candidate list or staging output as final.
+
+Codex verifies sources and dates, applies the ranking and Delta rules, then publishes only after the strict release sequence succeeds. Concepts in the exported feedback start as <code>unrated</code>.
+
+### 3. Prepare a reviewable profile patch from local chat exports
+
+> Read the README and <code>.agents</code> in the current project. Import the local chat export at <code>&lt;chat-export-or-folder&gt;</code> through the Chat-to-Profile pipeline: collect, extract, and propose a profile patch. Show me the resulting <code>profile_patch.json</code> for review and do not apply it yet.
+
+After you review the patch, explicitly ask Codex to run the backed-up apply step. A candidate or a proposed patch must never silently change the profile.
+
+### 4. Generate one evidence-based lesson or review
+
+> Read the README and <code>.agents</code> in the current project. Use the Adaptive Teaching pipeline to analyze my current knowledge profile, select one evidence-backed next topic, and generate a short lesson with a transparent review proposal. Do not update my knowledge profile unless I later provide actual learning performance as teaching feedback.
+
+The lesson is a controlled teaching artifact, not evidence of mastery. Only validated feedback from actual performance may return to the profile.
 
 Use the script interface below only when you need recovery, diagnostics, or CI integration.
 
