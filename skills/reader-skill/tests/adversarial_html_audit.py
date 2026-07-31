@@ -644,9 +644,16 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         "body.feedback-open .layout",
         "padding-right: calc(var(--feedback-dock-width) + 32px)",
         "body.feedback-open .layout { padding-bottom:",
+        "scrollbar-gutter: stable",
+        'id="feedbackSaveStatus"',
     ):
         if token not in html_text:
             fail(f"docked annotation non-overlay contract is missing: {token}", issues)
+    save_match = re.search(r"function saveCurrent\([^)]*\) \{([\s\S]*?)\n  \}", html_text)
+    if not save_match or "announceSaved(item);" not in save_match.group(1):
+        fail("Save mark does not confirm an in-place save", issues)
+    elif "closePanel();" in save_match.group(1):
+        fail("Save mark closes the annotation panel and destabilizes reader layout", issues)
     if full_paper and "body.source-pages-collapsed .source-page-viewer { display: none; }" not in html_text:
         fail("source-page collapse CSS can hide more than the page viewer or is missing", issues)
     if not re.search(

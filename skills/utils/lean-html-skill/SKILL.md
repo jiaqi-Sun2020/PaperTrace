@@ -52,7 +52,7 @@ Design layer rules:
 - `lean-html-skill` owns reusable page chrome, shared feedback forms, copy/download controls, localStorage/browser-memory behavior, and common status/question UI.
 - Existing `reader-skill/scripts/markdown_reader_to_html.py` may remain as a compatibility wrapper while reusable HTML pieces are migrated here incrementally.
 - New feedback export behavior for reader HTML should be implemented here first, then called from `reader-skill`.
-- Shared reader feedback UI must keep `Download feedback JSON` and `Copy feedback for Codex` working, close the annotate panel after `Save mark`, and close on Esc, blank-page click, or the close button.
+- Shared reader feedback UI must keep `Download feedback JSON` and `Copy feedback for Codex` working, preserve the open panel and reader geometry after `Save mark`, and close only on Esc, blank-page click, or the close button.
 - `Copy feedback for Codex` must populate a visible fallback textarea with the export JSON even when clipboard access is unavailable; feedback must never be trapped behind a browser permission failure.
 - Shared knowledge marks must preserve reader-specific metadata from `reader-skill`: `data-concept`, `data-status`, `data-source-anchor`, `data-concept-type`, `data-alias-zh`, and `title`.
 - Shared inline rendering must not annotate or math-wrap inside `href`, `src`, file paths, source-page labels, code spans, or HTML attributes. Source Page Index links must remain plain clickable paths.

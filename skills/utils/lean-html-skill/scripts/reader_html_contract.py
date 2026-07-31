@@ -205,8 +205,12 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
         if "function closePanel()" not in html_text:
             issues.append("feedback UI closePanel handler is missing")
         save_match = re.search(r"function saveCurrent\([^)]*\) \{([\s\S]*?)\n  \}", html_text)
-        if not save_match or "closePanel();" not in save_match.group(1):
-            issues.append("Save mark does not close the annotate panel")
+        if not save_match or "announceSaved(item);" not in save_match.group(1):
+            issues.append("Save mark does not announce a successful in-place save")
+        elif "closePanel();" in save_match.group(1):
+            issues.append("Save mark must not close the annotate panel or change reader layout")
+        if "scrollbar-gutter: stable" not in html_text:
+            issues.append("reader does not reserve a stable scrollbar gutter")
         if "feedbackExportFallback" not in html_text:
             issues.append("feedback copy fallback textarea is missing")
     if re.search(r'href="[^"]*<span\s+class="math-inline"', html_text, re.I):

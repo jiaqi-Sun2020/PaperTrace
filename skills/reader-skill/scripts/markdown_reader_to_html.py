@@ -991,6 +991,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     <button type="button" id="copyFeedback">Copy feedback for Codex</button>
     <button type="button" id="closeFeedback">Close</button>
   </div>
+  <p class="feedback-save-status" id="feedbackSaveStatus" role="status" aria-live="polite" hidden></p>
   <div class="feedback-summary" id="feedbackSummary">No saved feedback yet.</div>
   <textarea id="feedbackExportFallback" class="feedback-export-fallback" readonly hidden aria-label="Feedback JSON export fallback"></textarea>
   <details class="feedback-list-wrap" id="feedbackListWrap">
@@ -1013,6 +1014,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
   const explanationStyle = document.getElementById('feedbackExplanationStyle');
   const needsExplanation = document.getElementById('needsExplanation');
   const summary = document.getElementById('feedbackSummary');
+  const saveStatus = document.getElementById('feedbackSaveStatus');
   const statusButtons = Array.from(document.querySelectorAll('.status-buttons button'));
   const opener = document.getElementById('openFreeFeedback');
   let currentConcept = null;
@@ -1116,6 +1118,19 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     refreshFeedbackList();
   }}
 
+  function clearSaveStatus() {{
+    if (!saveStatus) return;
+    saveStatus.hidden = true;
+    saveStatus.textContent = '';
+  }}
+
+  function announceSaved(item) {{
+    if (!saveStatus) return;
+    const label = (item.concept || item.selected_text || 'annotation').slice(0, 72);
+    saveStatus.hidden = false;
+    saveStatus.textContent = `Saved: ${{label}}. This panel stays open; use Close when you are done.`;
+  }}
+
   function feedbackKey(concept, blockId, kind) {{
     return `${{kind || 'concept'}}::${{concept || 'free annotation'}}::${{blockId || ''}}`;
   }}
@@ -1126,6 +1141,19 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
 
   function blockById(blockId) {{
     return blockId ? document.getElementById(blockId) : null;
+  }}
+
+  function currentReadingAnchor() {{
+    const block = blockById(currentBlock);
+    if (!block || !block.querySelector) return block;
+    return block.querySelector('.pair-grid, .algorithm-render, .table-wrap, .figure-card, .label-card') || block;
+  }}
+
+  function restoreVerticalReadingPosition(anchor, previousTop) {{
+    if (!anchor || !Number.isFinite(previousTop) || typeof anchor.getBoundingClientRect !== 'function') return;
+    if (typeof window === 'undefined' || typeof window.scrollBy !== 'function') return;
+    const delta = anchor.getBoundingClientRect().top - previousTop;
+    if (Math.abs(delta) > .5) window.scrollBy(0, delta);
   }}
 
   function removeVisualFeedback(key) {{
@@ -1172,11 +1200,13 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     if (!block) return;
     const existing = Array.from(block.querySelectorAll('.saved-feedback-badge')).find(el => keyMatches(el, key));
     if (existing) return;
-    let tray = Array.from(block.children).find(el => el.classList && el.classList.contains('saved-feedback-tray'));
+    const sourceLine = Array.from(block.children).find(el => el.classList && el.classList.contains('block-source'));
+    const trayOwner = sourceLine || block;
+    let tray = Array.from(trayOwner.children).find(el => el.classList && el.classList.contains('saved-feedback-tray'));
     if (!tray) {{
       tray = document.createElement('div');
       tray.className = 'saved-feedback-tray';
-      block.prepend(tray);
+      trayOwner.appendChild(tray);
     }}
     const badge = document.createElement('button');
     badge.type = 'button';
@@ -1279,6 +1309,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
   }}
 
   function openPanel(existing) {{
+    clearSaveStatus();
     conceptInput.value = existing.concept || '';
     question.value = existing.user_question || '';
     note.value = existing.note || '';
@@ -1378,8 +1409,11 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     document.body.classList.remove('feedback-open');
   }}
 
-  function saveCurrent(options) {{
-    const shouldClose = !options || options.close !== false;
+  function saveCurrent() {{
+    const readingAnchor = currentReadingAnchor();
+    const readingTop = readingAnchor && typeof readingAnchor.getBoundingClientRect === 'function'
+      ? readingAnchor.getBoundingClientRect().top
+      : null;
     const concept = conceptInput.value.trim() || currentConcept || currentSelectedText || 'free annotation';
     const key = feedbackKey(concept, currentBlock, currentKind);
     if (currentKey && currentKey !== key && feedback.has(currentKey)) {{
@@ -1419,7 +1453,8 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
       el.classList.add(getStatus());
     }});
     refreshSummary();
-    if (shouldClose) closePanel();
+    announceSaved(item);
+    restoreVerticalReadingPosition(readingAnchor, readingTop);
   }}
 
   function downloadFeedback() {{
@@ -1488,8 +1523,8 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
   }});
   document.getElementById('saveFeedback').addEventListener('click', saveCurrent);
   document.getElementById('deleteFeedback').addEventListener('click', () => deleteFeedbackItem(currentKey));
-  document.getElementById('downloadFeedback').addEventListener('click', () => {{ saveCurrent({{ close: false }}); downloadFeedback(); }});
-  document.getElementById('copyFeedback').addEventListener('click', () => {{ saveCurrent({{ close: false }}); copyFeedback(); }});
+  document.getElementById('downloadFeedback').addEventListener('click', () => {{ saveCurrent(); downloadFeedback(); }});
+  document.getElementById('copyFeedback').addEventListener('click', () => {{ saveCurrent(); copyFeedback(); }});
   document.getElementById('closeFeedback').addEventListener('click', closePanel);
   document.addEventListener('keydown', event => {{
     if (event.key === 'Escape') closePanel();
@@ -2134,6 +2169,7 @@ def css() -> str:
   --warn: var(--reader-warn);
 }
 * { box-sizing: border-box; }
+html { scrollbar-gutter: stable; }
 body {
   --source-pane-width: clamp(520px, 42vw, 1400px);
   --toc-pane-width: clamp(210px, 13vw, 280px);
@@ -2164,7 +2200,6 @@ a:hover { text-decoration: underline; }
   max-width: none;
   margin: 0 auto;
   padding: var(--reader-gutter);
-  transition: padding-right .2s ease;
 }
 .layout.has-source-pages {
   grid-template-columns: minmax(360px, var(--source-pane-width)) minmax(520px, 1fr) var(--toc-pane-width);
@@ -2523,13 +2558,14 @@ main { min-width: 0; }
   color: var(--reader-status-saved-text);
   border-bottom: 2px solid var(--reader-status-saved-border);
   border-radius: 4px;
-  padding: 0 2px;
+  padding: 0;
 }
 .saved-feedback-tray {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 0 0 10px;
+  margin: 0 0 0 8px;
+  vertical-align: middle;
 }
 .saved-feedback-badge {
   border: 1px solid var(--reader-status-saved-border);
@@ -2685,6 +2721,12 @@ body.feedback-open .feedback-opener { opacity: 0; pointer-events: none; }
   background: var(--accent);
   color: var(--reader-primary-text);
   border-color: var(--accent);
+}
+.feedback-save-status {
+  margin: 8px 0 0;
+  color: var(--reader-status-saved-text);
+  font-size: .9rem;
+  font-weight: 700;
 }
 .feedback-summary {
   color: var(--muted);
@@ -2962,10 +3004,14 @@ def validate_generated_html(html_text: str, concepts: list[dict], math_renderer:
     if "feedbackDock" in html_text:
         if "function closePanel()" not in html_text:
             issues.append("feedback UI closePanel handler is missing")
-        save_match = re.search(r"function saveCurrent\(\) \{([\s\S]*?)\n  \}", html_text)
-        if not save_match or "closePanel();" not in save_match.group(1):
-            issues.append("Save mark does not close the annotate panel")
-    required_attrs = ("data-concept=", "data-concept-id=", "data-status=", "data-source-anchor=", "data-concept-type=", "data-alias-zh=", "title=")
+        save_match = re.search(r"function saveCurrent\([^)]*\) \{([\s\S]*?)\n  \}", html_text)
+        if not save_match or "announceSaved(item);" not in save_match.group(1):
+            issues.append("Save mark does not announce a successful in-place save")
+        elif "closePanel();" in save_match.group(1):
+            issues.append("Save mark must not close the annotate panel or change reader layout")
+        if "scrollbar-gutter: stable" not in html_text:
+            issues.append("reader does not reserve a stable scrollbar gutter")
+        required_attrs = ("data-concept=", "data-concept-id=", "data-status=", "data-source-anchor=", "data-concept-type=", "data-alias-zh=", "title=")
     mark_count = len(re.findall(r'<mark\s+class="knowledge-gap\b', html_text))
     if concepts and mark_count == 0:
         issues.append("concept ledger exists but HTML contains no knowledge marks")

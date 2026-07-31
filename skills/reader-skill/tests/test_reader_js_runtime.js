@@ -28,7 +28,7 @@ function extractFunction(source, name) {
   throw new Error(`unterminated function ${name}`);
 }
 
-function testSaveMarkClosesPanel() {
+function testSaveMarkPreservesReaderLayout() {
   const closePanel = extractFunction(html, "closePanel");
   const saveCurrent = extractFunction(html, "saveCurrent");
   const script = `
@@ -54,6 +54,10 @@ function testSaveMarkClosesPanel() {
     function showVisualFeedback() {}
     function refreshSummary() {}
     function getStatus() { return "learning"; }
+    function currentReadingAnchor() { return null; }
+    function restoreVerticalReadingPosition() {}
+    function announceSaved(item) { saveStatus.textContent = item.concept; saveStatus.hidden = false; }
+    const saveStatus = { hidden: true, textContent: "" };
     const bodyClasses = new Set(["feedback-open"]);
     const document = {
       body: { classList: { remove(name) { bodyClasses.delete(name); } } },
@@ -62,11 +66,31 @@ function testSaveMarkClosesPanel() {
     ${closePanel}
     ${saveCurrent}
     saveCurrent();
-    if (dock.hidden !== true) throw new Error("Save mark did not close panel");
-    if (bodyClasses.has("feedback-open")) throw new Error("Save mark did not release docked feedback layout space");
+    if (dock.hidden !== false) throw new Error("Save mark unexpectedly closed the panel");
+    if (!bodyClasses.has("feedback-open")) throw new Error("Save mark unexpectedly changed docked reader layout");
     if (feedback.size !== 1) throw new Error("Save mark did not persist feedback item");
+    if (saveStatus.hidden || saveStatus.textContent !== "Hamiltonian") throw new Error("Save mark did not announce an in-place save");
+    closePanel();
+    if (dock.hidden !== true || bodyClasses.has("feedback-open")) throw new Error("Close did not release the docked feedback layout");
   `;
   vm.runInNewContext(script, {}, { timeout: 1000 });
+}
+
+function testSaveMarkRestoresReadingPosition() {
+  const restoreVerticalReadingPosition = extractFunction(html, "restoreVerticalReadingPosition");
+  const script = `
+    const scrollCalls = [];
+    const window = { scrollBy(x, y) { scrollCalls.push([x, y]); } };
+    const anchor = { getBoundingClientRect() { return { top: 134 }; } };
+    ${restoreVerticalReadingPosition}
+    restoreVerticalReadingPosition(anchor, 100);
+    if (scrollCalls.length !== 1 || scrollCalls[0][0] !== 0 || scrollCalls[0][1] !== 34) {
+      throw new Error("Save mark did not restore the reading position after marker insertion");
+    }
+    restoreVerticalReadingPosition(anchor, 133.8);
+    if (scrollCalls.length !== 1) throw new Error("sub-pixel marker movement should not scroll the reader");
+  `;
+  vm.runInNewContext(script, { Number, Math }, { timeout: 1000 });
 }
 
 function extractThemeScript(source) {
@@ -238,7 +262,8 @@ function testReaderViewControlsPersist() {
   }
 }
 
-testSaveMarkClosesPanel();
+testSaveMarkPreservesReaderLayout();
+testSaveMarkRestoresReadingPosition();
 testThemePersists();
 testReaderViewControlsPersist();
-console.log("reader JS runtime passed: feedback docking, theme, collapsible panes, resize state, and source pages persist.");
+console.log("reader JS runtime passed: in-place feedback save, theme, collapsible panes, resize state, and source pages persist.");

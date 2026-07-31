@@ -1,9 +1,18 @@
 # Changes
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-17
+- Last reviewed: 2026-07-31
 
 This file records dated implementation and local-release milestones. Durable boundaries belong in `AGENTS.md`, commands in `RUNBOOK.md`, data contracts in `CONFIG_SPEC.md`, and architecture/ownership in `ARCHITECTURE.md`.
+
+## 2026-07-31
+
+### Layout-stable annotation saves
+
+- Separated annotation persistence from panel dismissal: `Save mark` now confirms an in-place save and retains the open feedback workspace; only Close, Esc, or a blank-page click restores the reading layout.
+- Reserved a stable scrollbar gutter, removed the mismatched grid-padding transition, moved saved-block badges out of the article-top insertion path, and compensated the reading anchor after a marker changes local content height.
+- Updated the reader/lean-HTML contracts, runbook, JavaScript regression coverage, and adversarial HTML audit to reject save handlers that close the panel or omit stable-scrollbar handling.
+- Rebuilt and adversarially audited `Active Quantum Kernel Acquisition for Gaussian Process Regression` as the verification reader.
 
 ## 2026-07-17
 

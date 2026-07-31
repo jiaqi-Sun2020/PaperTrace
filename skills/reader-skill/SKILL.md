@@ -141,7 +141,7 @@ If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a
 - every normalized bilingual block has a parsed source page and a one-to-one immutable source row;
 - feedback controls and learner-profile annotations are available;
 - every knowledge mark includes `data-concept`, `data-status`, `data-source-anchor`, `data-concept-type`, `data-alias-zh`, and `title`;
-- the feedback panel closes after `Save mark`, Esc, the close button, or blank-page click, while download/copy export remains available.
+- `Save mark` persists and confirms the current annotation without changing the reader layout; the feedback panel closes only after Esc, the close button, or a blank-page click, while download/copy export remains available.
 - Source Page Index links remain plain relative paths such as `assets/source_pages/page-01.png`; inline math and concept highlighting must not run inside `href`, image `src`, file paths, or source-page labels.
 - full PDF readers expose every hash-bound `source_map.pages` image in an enlarged, viewport-height left source-page viewer that defaults to a substantial fluid share of wide screens, synchronizes to `data-source-page` reader blocks, uses only safe relative `assets/source_pages/` paths, and never substitutes a full page for an inline figure card;
 - wide readers use three ordered, user-resizable regions—source pages left, article center with a protected minimum width, and sticky Contents right—while medium widths default Contents to a recoverable rail and narrow widths stack without overflow;
@@ -320,14 +320,14 @@ In the generated HTML:
 1. Click a highlighted concept, or select arbitrary text and use the free annotation control.
 2. Mark `mastered`, `known`, `learning`, `unknown`, or `unrated`.
 3. Add note, exact question, question type, explanation style, and selected/source context when useful.
-4. Click `Save mark`.
-5. Confirm the saved item appears in the feedback panel and, when a source block is detected, as a page badge.
-6. Use `Download feedback JSON` or `Copy feedback for Codex`.
+4. Click `Save mark`; the panel remains open so the reader geometry and current reading position stay stable.
+5. Confirm the in-panel save status and saved item; when a source block is detected, confirm its page badge.
+6. Use `Download feedback JSON` or `Copy feedback for Codex`, then close the panel when finished.
 7. Import the exported payload with `reader-learner`.
 
 The HTML page stores marks in browser memory/local page state. It does not update `.agents` automatically. This persistence and export behavior should be shared with `lean-html-skill` instead of reimplemented in domain-specific scripts.
 
-`Save mark` closes the annotate panel. `Download feedback JSON` and `Copy feedback for Codex` save the current form state without closing the panel. Copy must populate the fallback export textarea even when clipboard access succeeds.
+`Save mark`, `Download feedback JSON`, and `Copy feedback for Codex` save the current form state without closing the panel. This separates persistence from layout changes: only Esc, the close button, or a blank-page click closes the panel. Copy must populate the fallback export textarea even when clipboard access succeeds.
 
 ## Quality Checklist
 
