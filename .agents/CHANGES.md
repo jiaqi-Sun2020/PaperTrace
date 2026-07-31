@@ -9,10 +9,17 @@ This file records dated implementation and local-release milestones. Durable bou
 
 ### Layout-stable annotation saves
 
-- Separated annotation persistence from panel dismissal: `Save mark` now confirms an in-place save and retains the open feedback workspace; only Close, Esc, or a blank-page click restores the reading layout.
+- Separated annotation persistence from panel dismissal: `Save mark` now confirms an in-place save and retains the open feedback workspace; only Close or Esc dismisses it. Blank-page and article-content clicks are inert.
 - Reserved a stable scrollbar gutter, removed the mismatched grid-padding transition, moved saved-block badges out of the article-top insertion path, and compensated the reading anchor after a marker changes local content height.
-- Updated the reader/lean-HTML contracts, runbook, JavaScript regression coverage, and adversarial HTML audit to reject save handlers that close the panel or omit stable-scrollbar handling.
+- Replaced the wide-screen feedback reflow with one permanently reserved right utility lane. Contents and feedback alternate in that lane without changing source/article columns; smaller screens retain the scroll-safe bottom workspace.
+- Updated the reader/lean-HTML contracts, runbook, JavaScript regression coverage, and adversarial HTML audit to reject save handlers that close the panel, blank-click dismissal, feedback-open grid mutation, or missing stable-scrollbar handling.
 - Rebuilt and adversarially audited `Active Quantum Kernel Acquisition for Gaussian Process Regression` as the verification reader.
+
+### Robust selectable-PDF extraction
+
+- Kept Poppler raw reading order as the preferred text source, but added a failover to pypdf when Poppler returns replacement characters, known Windows font-map mojibake, empty pages, or a page-count mismatch.
+- Normalized Unicode presentation ligatures, recognized Nature-style `Fig. N |` captions and numeric bibliography entries, and stopped bibliography classification at post-reference headings.
+- Generated and formally audited all 60 source records in `Experimental realization of a bidirectional`, including four figures, four formula groups, eight reference blocks, source-page navigation, and the stable annotation utility lane.
 
 ## 2026-07-17
 

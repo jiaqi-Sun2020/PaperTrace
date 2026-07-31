@@ -27,13 +27,28 @@ from pypdf import PdfReader
 from materialize_reader_markdown import materialize_reader_markdown
 
 
-CAPTION_RE = re.compile(r"^(?:fig(?:ure)?\.?(?:\s|\u00a0)*\d+|table\s+[ivxlcdm\d]+)\b", re.I)
-CAPTION_LINE_RE = re.compile(r"^(?:FIG(?:URE)?\.?\s*\d+|TABLE\s+[IVXLCDM\d]+)\s*[:.]", re.I)
+CAPTION_RE = re.compile(
+    r"^(?:(?:fig(?:ure)?\.?(?:\s|\u00a0)*)?\d+\s*\||fig(?:ure)?\.?(?:\s|\u00a0)*\d+|table\s+[ivxlcdm\d]+)\b",
+    re.I,
+)
+CAPTION_LINE_RE = re.compile(r"^(?:FIG(?:URE)?\.?\s*\d+|TABLE\s+[IVXLCDM\d]+)\s*[|:.]", re.I)
 PSEUDOCODE_RE = re.compile(r"\b(?:algorithm|procedure|pseudocode)\s*(?:\d+|:)", re.I)
 REFERENCE_HEADING_RE = re.compile(r"^(?:references|bibliography)\s*$", re.I)
 REFERENCE_ENTRY_RE = re.compile(r"^(?:\[\d+\]|\d+\.)\s+")
+POST_REFERENCE_HEADING_RE = re.compile(
+    r"^(?:acknowledgements?|author contributions?|funding|competing interests?|additional information)\s*$",
+    re.I,
+)
 PAGE_NUMBER_RE = re.compile(r"^\s*\d+\s*$")
 SPACE_RE = re.compile(r"[ \t]+")
+PDF_LIGATURES = str.maketrans({
+    "\ufb00": "ff",
+    "\ufb01": "fi",
+    "\ufb02": "fl",
+    "\ufb03": "ffi",
+    "\ufb04": "ffl",
+})
+POPPLER_MOJIBAKE_HINTS = ("铿", "鈥", "螖", "蟺", "脼", "忖")
 
 
 def utc_now() -> str:
@@ -79,22 +94,35 @@ def run(args: list[str]) -> None:
 
 
 def extract_reading_order_pages(pdf_path: Path, page_count: int) -> list[str]:
-    """Use Poppler's raw content-stream order to avoid two-column interleaving."""
+    """Prefer Poppler reading order and fail over when its Unicode mapping is visibly corrupt."""
     pdftotext = require_executable("pdftotext")
     completed = subprocess.run(
         [pdftotext, "-raw", "-enc", "UTF-8", str(pdf_path), "-"],
-        text=True,
-        encoding="utf-8",
-        errors="replace",
         capture_output=True,
     )
-    if completed.returncode:
-        raise RuntimeError(f"pdftotext -raw failed ({completed.returncode}): {completed.stderr.strip()}")
-    pages = completed.stdout.replace("\r\n", "\n").split("\f")
-    if pages and not pages[-1].strip():
-        pages.pop()
-    if len(pages) != page_count:
-        raise RuntimeError(f"pdftotext returned {len(pages)} pages; expected {page_count}")
+    if completed.returncode == 0:
+        poppler_text = completed.stdout.decode("utf-8", errors="replace").replace("\r\n", "\n")
+        poppler_pages = poppler_text.split("\f")
+        if poppler_pages and not poppler_pages[-1].strip():
+            poppler_pages.pop()
+        poppler_is_clean = (
+            len(poppler_pages) == page_count
+            and all(page.strip() for page in poppler_pages)
+            and "\ufffd" not in poppler_text
+            and not any(marker in poppler_text for marker in POPPLER_MOJIBAKE_HINTS)
+        )
+        if poppler_is_clean:
+            return [page.translate(PDF_LIGATURES) for page in poppler_pages]
+
+    reader = PdfReader(str(pdf_path))
+    pages = [
+        str(page.extract_text() or "").replace("\r\n", "\n").translate(PDF_LIGATURES)
+        for page in reader.pages
+    ]
+    if len(pages) != page_count or any(not page.strip() for page in pages):
+        raise RuntimeError(f"pypdf returned {len(pages)} non-empty pages; expected {page_count}")
+    if any("\ufffd" in page for page in pages):
+        raise RuntimeError("pypdf extraction contains Unicode replacement characters")
     return pages
 
 
@@ -105,6 +133,12 @@ def clean_line(value: str) -> str:
 
 
 def split_page_blocks(page_text: str) -> list[str]:
+    page_text = re.sub(
+        r"(?im)^(References|Bibliography|Acknowledgements?|Author contributions?|Funding|"
+        r"Competing interests?|Additional information|Data availability|Methods)\s*$",
+        r"\n\n\1\n\n",
+        page_text,
+    )
     paragraphs = [clean_line(part) for part in re.split(r"\n\s*\n", page_text) if clean_line(part)]
     result: list[str] = []
     for paragraph in paragraphs:
@@ -231,24 +265,19 @@ def create_source_map(pdf_path: Path, reader_dir: Path) -> tuple[dict[str, Any],
     for page_no, text in enumerate(reading_order_pages, start=1):
         raw_path = raw_pages_dir / f"page-{page_no:02d}.txt"
         atomic_write_text(raw_path, text)
-        # Some two-column PDFs omit a standalone References heading and the
-        # block splitter may join the page number to the first citation.  Two
-        # or more numbered entries on one page are sufficient source evidence
-        # that the page is bibliography material; preserving it as ordinary
-        # bilingual prose would violate the original-only reference contract.
-        page_is_bibliography = bool(REFERENCE_HEADING_RE.search(text.strip())) or len(
-            re.findall(r"(?m)^\s*\[\d+\]\s+", text)
-        ) >= 2
         for paragraph in split_page_blocks(text):
             sequence += 1
             kind = classify_block(paragraph)
             block_id = f"S{sequence:03d}"
-            if page_is_bibliography or REFERENCE_HEADING_RE.match(paragraph) or (in_bibliography and REFERENCE_ENTRY_RE.match(paragraph)):
+            if POST_REFERENCE_HEADING_RE.match(paragraph):
+                in_bibliography = False
+            if REFERENCE_HEADING_RE.match(paragraph):
+                in_bibliography = True
+                continue
+            if in_bibliography and kind != "caption":
                 kind = "reference"
                 references += 1
                 block_id = f"R{references:03d}"
-            if page_is_bibliography or REFERENCE_HEADING_RE.match(paragraph):
-                in_bibliography = True
             if kind == "caption":
                 captions += 1
                 block_id = f"C{captions:03d}"

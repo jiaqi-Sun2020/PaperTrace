@@ -1,7 +1,7 @@
 # Runbook
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-16
+- Last reviewed: 2026-07-31
 
 ## Choose One Primary Pipeline
 
@@ -77,6 +77,8 @@ The PDF bootstrap now materializes a UTF-8 working `paper.md` automatically. For
 python .\skills\nature-reader\scripts\materialize_reader_markdown.py "<reader-dir>"
 ```
 
+For new extraction, `extract_pdf_bundle.py` prefers Poppler raw reading order. If Poppler returns Unicode replacement characters, known Windows font-map mojibake, empty pages, or a page-count mismatch, it automatically retries through pypdf and still fails closed if the fallback is incomplete or corrupt. Do not manually keep a visibly damaged Poppler result.
+
 The materializer is no-overwrite by default and preserves `source_map.json`. It writes explicit `[translation-required]` and `[block-note-required]` markers; these are work-queue markers, not valid final content. After replacing them with source-grounded Chinese and block-specific notes, run the UTF-8 integrity gate:
 
 ```powershell
@@ -138,7 +140,7 @@ After a successful generation, run the adversarial HTML audit from the project r
 python D:\AI\PaperTrace\skills\reader-skill\tests\adversarial_html_audit.py <reader-dir>
 ```
 
-Do not report Pipeline 1 as complete until this audit passes. A passing reader bundle or completion ledger is still intermediate. The audit checks compiled full-source Algorithm cards instead of summaries/translated duplicate bodies, explicit math boundaries in every visible panel, atomic MathJax formulas without plaintext duplication, declared `exact-v1` bilingual pairs, MathJax runtime status, the model-authored source-linked paper summary, hash-bound source-page viewer data, Original/source-page collapse controls, knowledge-mark metadata, concept coverage, reader-notes pollution, an in-place `Save mark` confirmation that preserves reader layout, stable scrollbar handling, and feedback-copy fallback.
+Do not report Pipeline 1 as complete until this audit passes. A passing reader bundle or completion ledger is still intermediate. The audit checks compiled full-source Algorithm cards instead of summaries/translated duplicate bodies, explicit math boundaries in every visible panel, atomic MathJax formulas without plaintext duplication, declared `exact-v1` bilingual pairs, MathJax runtime status, the model-authored source-linked paper summary, hash-bound source-page viewer data, Original/source-page collapse controls, knowledge-mark metadata, concept coverage, reader-notes pollution, an in-place `Save mark` confirmation, stable scrollbar handling, a fixed wide-screen utility lane, inert blank-page clicks, and feedback-copy fallback.
 
 Before rendering a full paper, author `reader_wiki/paper_summary.json` with detailed Chinese overview/what/how/significance/evidence-limit sections and formal source anchors. For PDF readers, preserve every `source_map.pages` image under `assets/source_pages/`; the renderer uses those existing assets for the enlarged, viewport-height left viewer and must not rerender the PDF or embed full pages as article figures. On wide screens, source pages and Contents are independently resizable around a minimum-width center article; medium widths may default Contents to a restore rail, and narrow widths stack.
 
@@ -148,7 +150,7 @@ After generation, verify the view-control JavaScript from `D:\AI\PaperTrace`:
 node .\skills\reader-skill\tests\test_reader_js_runtime.js <reader-dir>
 ```
 
-`Hide Original`, `Hide Source Pages`, and `Hide Contents` are independent view states. Pointer/keyboard separators resize the source and Contents panes, each collapsed pane leaves a restore path, and print output must restore Original even if it was collapsed on screen. Opening `Annotate / 自由标注` must reserve a desktop dock or a smaller-screen scroll-safe bottom region rather than permanently cover translated text.
+`Hide Original`, `Hide Source Pages`, and `Hide Contents` are independent view states. Pointer/keyboard separators resize the source and Contents panes, each collapsed pane leaves a restore path, and print output must restore Original even if it was collapsed on screen. On wide screens, Contents and `Annotate / 自由标注` must alternate inside the same fixed utility lane without changing the source/article grid. Blank-page clicks must not dismiss feedback or reveal Contents; only Close or Esc may dismiss it. Smaller screens use a scroll-safe bottom region rather than permanently cover translated text.
 
 If Source Page Index links do not open, inspect the generated `href` values first. They must be plain relative paths such as `assets/source_pages/page-01.png`; generated spans such as `<span class="math-inline">` inside a link target mean the HTML renderer annotated a file path and the reader must be regenerated after fixing the renderer.
 

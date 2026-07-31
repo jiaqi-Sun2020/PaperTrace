@@ -213,6 +213,11 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
             issues.append("reader does not reserve a stable scrollbar gutter")
         if "feedbackExportFallback" not in html_text:
             issues.append("feedback copy fallback textarea is missing")
+        if re.search(
+            r"document\.addEventListener\(['\"]pointerdown['\"][\s\S]{0,800}?closePanel\(\)",
+            html_text,
+        ):
+            issues.append("blank-page pointerdown must not close feedback or reveal Contents")
     if re.search(r'href="[^"]*<span\s+class="math-inline"', html_text, re.I):
         issues.append("link href contains math-inline markup")
     for href in re.findall(r'href="([^"]*assets/source_pages/[^"]+)"', html_text, re.I):
@@ -296,9 +301,18 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
         "toc-collapsed",
         "document.body.classList.add('feedback-open')",
         "document.body.classList.remove('feedback-open')",
+        "--utility-pane-width: var(--feedback-dock-width)",
+        "body.feedback-open .toc",
+        "visibility: hidden",
     ):
         if token not in html_text:
             issues.append(f"reader adaptive-pane contract is missing: {token}")
+    if re.search(
+        r"body\.feedback-open\s+\.layout(?:\.[^{\s]+)?\s*\{[^}]*(?:grid-template-columns|padding-right)",
+        html_text,
+        re.I,
+    ):
+        issues.append("opening feedback must not mutate the wide reader grid")
     source_pages_match = re.search(
         r'<script id="readerSourcePages" type="application/json">([\s\S]*?)</script>',
         html_text,

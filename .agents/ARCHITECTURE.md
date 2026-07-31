@@ -1,7 +1,7 @@
 # Architecture
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-16
+- Last reviewed: 2026-07-31
 
 ## Top-Level Structure
 
@@ -111,7 +111,7 @@ Candidate config enters `news-ranker-v1` first. Eligible academic and social ite
 - `paper_summary.json` supplies the source-anchored Chinese overview rendered before the concept ledger; it is completion evidence, not browser-authored state.
 - `source_map.pages` is the immutable manifest for the original-page viewer. Reader blocks expose `data-source-page`, and the browser synchronizes the left viewer without rerendering the PDF or treating full pages as article figures.
 - Source and Contents widths, collapse states, and theme are reversible presentation preferences stored under namespaced localStorage keys. They never mutate `paper.md`, `source_map.json`, `reader_wiki`, feedback identity, or the learner profile.
-- On wide screens, opening annotation feedback reserves a right-side dock and compacts Contents; at smaller widths it creates a scroll-safe bottom workspace. Closing feedback restores the reading layout without hiding translated content.
+- On wide screens, one fixed-width right utility lane is part of the base grid: Contents and annotation feedback alternate inside it without changing source/article columns. Blank-page clicks are inert; only Close or Esc dismisses feedback. At smaller widths, feedback uses a scroll-safe bottom workspace without covering translated content.
 - `reader-skill` owns the paper-specific pane semantics and source-page synchronization. `lean-html-skill` owns reusable chrome/feedback behavior and the shared contract checks that prevent inaccessible controls, broken restore paths, or translation-covering feedback.
 
 ## Module Boundaries

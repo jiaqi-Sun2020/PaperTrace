@@ -1529,14 +1529,6 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
   document.addEventListener('keydown', event => {{
     if (event.key === 'Escape') closePanel();
   }});
-  document.addEventListener('pointerdown', event => {{
-    if (dock.hidden) return;
-    const target = event.target;
-    if (!target || !(target instanceof Element)) return;
-    if (dock.contains(target)) return;
-    if (target.closest('.knowledge-gap, #openFreeFeedback, .saved-feedback-badge, .feedback-row-label')) return;
-    closePanel();
-  }});
   refreshSummary();
 }}());
 </script>'''.replace("__READER_FEEDBACK_SEED__", metadata_json).strip()
@@ -1729,8 +1721,9 @@ def reader_view_script(title: str, source_pages: list[dict]) -> str:
   function clampSourceWidth(value) {{
     const viewport = viewportWidth();
     const contentsWidth = state.contentsCollapsed ? 44 : (Number(state.contentsPaneWidth) || Math.min(280, Math.max(210, viewport * .13)));
+    const reservedRightWidth = viewport >= 1680 ? 390 : contentsWidth;
     const articleMinimum = viewport >= 1680 ? 620 : 520;
-    const maximum = Math.max(360, viewport - contentsWidth - articleMinimum - 80);
+    const maximum = Math.max(360, viewport - reservedRightWidth - articleMinimum - 80);
     return Math.round(Math.min(Math.max(Number(value) || viewport * .42, 360), maximum));
   }}
 
@@ -2176,6 +2169,7 @@ body {
   --collapsed-pane-width: 44px;
   --reader-gutter: 16px;
   --feedback-dock-width: 390px;
+  --utility-pane-width: var(--feedback-dock-width);
   margin: 0;
   font-family: Arial, "Noto Sans SC", "Microsoft YaHei", sans-serif;
   color: var(--ink);
@@ -2612,38 +2606,25 @@ main { min-width: 0; }
 body.toc-collapsed .feedback-opener { right: calc(var(--collapsed-pane-width) + 32px); }
 body.feedback-open .feedback-opener { opacity: 0; pointer-events: none; }
 @media (min-width: 1680px) {
-  body.feedback-open .layout {
-    padding-right: calc(var(--feedback-dock-width) + 32px);
+  body {
+    --source-pane-width: clamp(520px, calc(100vw - 1090px), 1400px);
   }
-  body.feedback-open .layout.has-source-pages {
-    grid-template-columns: minmax(360px, min(var(--source-pane-width), 32vw)) minmax(520px, 1fr) var(--collapsed-pane-width);
+  .layout {
+    grid-template-columns: minmax(620px, 1fr) var(--utility-pane-width);
   }
-  body.feedback-open .layout.no-source-pages {
-    grid-template-columns: minmax(520px, 1fr) var(--collapsed-pane-width);
+  .layout.has-source-pages {
+    grid-template-columns: minmax(360px, var(--source-pane-width)) minmax(620px, 1fr) var(--utility-pane-width);
   }
-  body.feedback-open .toc-content,
-  body.feedback-open .contents-pane-resizer,
-  body.feedback-open .contents-pane-toggle .pane-toggle-short { display: none; }
+  .toc {
+    width: min(100%, var(--toc-pane-width));
+    justify-self: end;
+  }
   body.feedback-open .toc {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: calc(100vh - 32px);
+    visibility: hidden;
+    pointer-events: none;
   }
-  body.feedback-open .contents-pane-toggle {
-    position: static;
-    width: 100%;
-    min-height: calc(100vh - 34px);
-    border: 0;
-    box-shadow: none;
-    padding: 8px 4px;
-  }
-  body.feedback-open .contents-pane-toggle .pane-rail-label {
-    display: block;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    letter-spacing: .04em;
-  }
+  .feedback-opener,
+  body.toc-collapsed .feedback-opener { right: calc(var(--utility-pane-width) + 32px); }
 }
 @media (max-width: 1679px) {
   body.feedback-open .layout { padding-bottom: min(62vh, 590px); }

@@ -141,12 +141,12 @@ If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a
 - every normalized bilingual block has a parsed source page and a one-to-one immutable source row;
 - feedback controls and learner-profile annotations are available;
 - every knowledge mark includes `data-concept`, `data-status`, `data-source-anchor`, `data-concept-type`, `data-alias-zh`, and `title`;
-- `Save mark` persists and confirms the current annotation without changing the reader layout; the feedback panel closes only after Esc, the close button, or a blank-page click, while download/copy export remains available.
+- `Save mark` persists and confirms the current annotation without changing the reader layout; the feedback panel closes only after Esc or the explicit close button. Clicking article whitespace or other non-feedback content must not dismiss it, reveal Contents, or change reader geometry, while download/copy export remains available.
 - Source Page Index links remain plain relative paths such as `assets/source_pages/page-01.png`; inline math and concept highlighting must not run inside `href`, image `src`, file paths, or source-page labels.
 - full PDF readers expose every hash-bound `source_map.pages` image in an enlarged, viewport-height left source-page viewer that defaults to a substantial fluid share of wide screens, synchronizes to `data-source-page` reader blocks, uses only safe relative `assets/source_pages/` paths, and never substitutes a full page for an inline figure card;
 - wide readers use three ordered, user-resizable regions—source pages left, article center with a protected minimum width, and sticky Contents right—while medium widths default Contents to a recoverable rail and narrow widths stack without overflow;
 - global controls independently collapse/restore bilingual Original panels, source pages, and Contents; drag separators support pointer and keyboard resizing; all view state uses namespaced localStorage and Original remains visible in print;
-- opening `Annotate / 自由标注` must reserve layout space on wide screens, temporarily compact Contents, and use a scroll-safe bottom workspace at smaller widths so translated text is never permanently hidden beneath the panel;
+- opening `Annotate / 自由标注` must use a permanently reserved right utility lane on wide screens: Contents and feedback alternate inside the same fixed-width lane without changing the source/article grid. At smaller widths it uses a scroll-safe bottom workspace so translated text is never permanently hidden beneath the panel;
 - `Copy feedback for Codex` always fills a visible fallback textarea when clipboard access is unavailable or blocked, so the user can still retrieve feedback JSON.
 
 Do not generate or report any HTML from incomplete translation. The PDF reader pipeline is one-step-to-final: finish faithful translation, figure/table cards, LaTeX formulas, and block-specific notes first, then generate `reader_interactive.html`.
@@ -327,7 +327,7 @@ In the generated HTML:
 
 The HTML page stores marks in browser memory/local page state. It does not update `.agents` automatically. This persistence and export behavior should be shared with `lean-html-skill` instead of reimplemented in domain-specific scripts.
 
-`Save mark`, `Download feedback JSON`, and `Copy feedback for Codex` save the current form state without closing the panel. This separates persistence from layout changes: only Esc, the close button, or a blank-page click closes the panel. Copy must populate the fallback export textarea even when clipboard access succeeds.
+`Save mark`, `Download feedback JSON`, and `Copy feedback for Codex` save the current form state without closing the panel. Blank-page clicks are inert with respect to both feedback and Contents; only Esc or the explicit close button closes the panel. Copy must populate the fallback export textarea even when clipboard access succeeds.
 
 ## Quality Checklist
 

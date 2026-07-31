@@ -641,8 +641,10 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
     for token in (
         "document.body.classList.add('feedback-open')",
         "document.body.classList.remove('feedback-open')",
-        "body.feedback-open .layout",
-        "padding-right: calc(var(--feedback-dock-width) + 32px)",
+        "--utility-pane-width: var(--feedback-dock-width)",
+        "grid-template-columns: minmax(360px, var(--source-pane-width)) minmax(620px, 1fr) var(--utility-pane-width)",
+        "body.feedback-open .toc",
+        "visibility: hidden",
         "body.feedback-open .layout { padding-bottom:",
         "scrollbar-gutter: stable",
         'id="feedbackSaveStatus"',
@@ -654,6 +656,17 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         fail("Save mark does not confirm an in-place save", issues)
     elif "closePanel();" in save_match.group(1):
         fail("Save mark closes the annotation panel and destabilizes reader layout", issues)
+    if re.search(
+        r"document\.addEventListener\(['\"]pointerdown['\"][\s\S]{0,800}?closePanel\(\)",
+        html_text,
+    ):
+        fail("blank-page pointerdown closes feedback and unexpectedly reveals Contents", issues)
+    if re.search(
+        r"body\.feedback-open\s+\.layout(?:\.[^{\s]+)?\s*\{[^}]*(?:grid-template-columns|padding-right)",
+        html_text,
+        re.I,
+    ):
+        fail("opening feedback mutates the wide reader grid instead of using the fixed utility lane", issues)
     if full_paper and "body.source-pages-collapsed .source-page-viewer { display: none; }" not in html_text:
         fail("source-page collapse CSS can hide more than the page viewer or is missing", issues)
     if not re.search(

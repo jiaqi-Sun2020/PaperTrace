@@ -76,6 +76,18 @@ function testSaveMarkPreservesReaderLayout() {
   vm.runInNewContext(script, {}, { timeout: 1000 });
 }
 
+function testBlankPageClickDoesNotDismissFeedback() {
+  if (/document\.addEventListener\(['"]pointerdown['"][\s\S]{0,800}?closePanel\(\)/.test(html)) {
+    throw new Error("blank-page pointerdown still dismisses feedback");
+  }
+  if (!html.includes("--utility-pane-width: var(--feedback-dock-width)")) {
+    throw new Error("wide reader does not reserve a stable utility lane");
+  }
+  if (/body\.feedback-open\s+\.layout(?:\.[^{\s]+)?\s*\{[^}]*(?:grid-template-columns|padding-right)/i.test(html)) {
+    throw new Error("feedback-open still mutates the wide reader grid");
+  }
+}
+
 function testSaveMarkRestoresReadingPosition() {
   const restoreVerticalReadingPosition = extractFunction(html, "restoreVerticalReadingPosition");
   const script = `
@@ -263,7 +275,8 @@ function testReaderViewControlsPersist() {
 }
 
 testSaveMarkPreservesReaderLayout();
+testBlankPageClickDoesNotDismissFeedback();
 testSaveMarkRestoresReadingPosition();
 testThemePersists();
 testReaderViewControlsPersist();
-console.log("reader JS runtime passed: in-place feedback save, theme, collapsible panes, resize state, and source pages persist.");
+console.log("reader JS runtime passed: explicit feedback dismissal, stable utility lane, in-place save, theme, collapsible panes, resize state, and source pages persist.");
