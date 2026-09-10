@@ -6,6 +6,7 @@ The PDF has an extractable text layer. Load the `pdf` skill first for extraction
 
 - Extract the text layer directly; do not OCR text that is already selectable.
 - Prefer Poppler raw reading order, but fail over to direct pypdf extraction when Poppler emits replacement characters or known Windows font-map mojibake; normalize Unicode presentation ligatures before materializing source blocks.
+- Register stable figure/table/algorithm identities from caption and procedure evidence before semantic completion. The reader controller freezes `reader_wiki/source_map_lock.json` after discovery; later crop/compile work must not add, remove, or renumber frozen source objects.
 - Process the whole document, not just the first pages. Build the source map (step 2) across every page.
 - Watch for multi-column layouts: recover natural reading order rather than top-to-bottom raw stream order.
 - Keep ligatures, hyphenated line breaks, superscripts, subscripts, and math intact; rejoin words split across line breaks.

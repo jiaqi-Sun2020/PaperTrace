@@ -488,6 +488,25 @@ def ensure_object_inventory(reader_dir: Path) -> Path:
     if path.exists():
         current = read_json(path)
         if str(current.get("source_map_sha256") or "") != source_hash:
+            # Object discovery is allowed to extend source_map only before the
+            # controller writes source_map_lock.json. At that point this file
+            # is still a derived inventory, so refresh it instead of trapping
+            # the next resume behind a stale bootstrap hash. Once frozen, any
+            # source-map mutation remains a hard mismatch.
+            lock_path = reader_dir / "reader_wiki" / "source_map_lock.json"
+            completed_objects = [
+                row for row in current.get("objects", [])
+                if isinstance(row, dict) and str(row.get("status") or "") == "pass"
+            ]
+            if not lock_path.exists() and not completed_objects:
+                atomic_write_json(path, {
+                    "version": 3,
+                    "role": "derived_source_and_object_completion_inventory",
+                    "source_map_sha256": source_hash,
+                    "objects": objects,
+                    "source_items": source_items,
+                })
+                return path
             # A source-math override must never write through this file, but a
             # historical helper could accidentally replace the object ledger
             # with a formula inventory.  Recover only that unmistakable shape

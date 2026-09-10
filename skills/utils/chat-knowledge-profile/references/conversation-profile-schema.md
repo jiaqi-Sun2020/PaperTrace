@@ -81,6 +81,8 @@ Use summaries for browsing and review. Do not treat them as profile truth withou
       "candidate_id": "cand-...",
       "type": "concept_status|learning_preference|research_interest|workflow_preference|project_rule|writing_style",
       "label": "first principles explanation",
+      "canonical_concept_id": "first-principles-explanation",
+      "concept_type": "term",
       "status": "learning",
       "confidence": 0.7,
       "evidence_event_ids": ["chat-evt-..."],
@@ -98,6 +100,12 @@ Use summaries for browsing and review. Do not treat them as profile truth withou
   "patch_version": 1,
   "generated_from": "chat-knowledge-profile",
   "review_required": true,
+  "status_authority": {
+    "kind": "explicit_user_declaration",
+    "scope": "all_reviewed_concepts",
+    "status": "mastered",
+    "note": "bounded user-authored declaration"
+  },
   "operations": [],
   "reader_feedback_handoff": {
     "source_kind": "chat_session",

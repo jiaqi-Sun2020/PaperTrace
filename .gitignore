@@ -11,6 +11,9 @@ __pycache__/
 .tmp/
 tmp/
 *.log
+profile_imports/
+skills.manifest.json
+skills.lock.json
 
 # Personal learner memory and exported vault data
 .agents/reader-learner/

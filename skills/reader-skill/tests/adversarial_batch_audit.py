@@ -6,8 +6,8 @@ non-prefix execution, more than one active paper, reportable draft HTML,
 contradictory continuation flags, and a batch-level formal manifest that
 claims success while any selected paper is pending or queued.  Formal-prefix
 readers are re-audited with the normal reader adversarial audit by default.
-The report is ephemeral (normally piped on standard input); the audit also
-rejects legacy batch-history/state artifacts under the reader root.
+The report must point to a project-local persisted orchestration state under
+``<reader-root>/.papertrace_jobs``; legacy ad-hoc state artifacts remain invalid.
 """
 
 from __future__ import annotations
@@ -48,6 +48,7 @@ def sha256_file(path: Path) -> str:
 
 def audit_batch_report(report: dict[str, Any], *, run_reader_audits: bool = True) -> list[str]:
     issues: list[str] = []
+    orchestration_state: dict[str, Any] | None = None
     snapshot = report.get("input_snapshot") or {}
     state = report
     contract = report.get("agent_continuation_contract") or {}
@@ -57,11 +58,27 @@ def audit_batch_report(report: dict[str, Any], *, run_reader_audits: bool = True
     if not reader_root_value:
         issues.append("batch report lacks reader_root")
     else:
-        reader_root = Path(reader_root_value)
+        reader_root = Path(reader_root_value).resolve()
         if (reader_root / ".reader_pipeline_runs").exists():
             issues.append("forbidden legacy .reader_pipeline_runs directory exists")
         if (reader_root / "reader_batch_state.json").exists():
             issues.append("forbidden persisted reader_batch_state.json exists")
+        orchestration_value = str(report.get("orchestration_state_path") or "").strip()
+        if not orchestration_value:
+            issues.append("batch report lacks persisted orchestration_state_path")
+        else:
+            orchestration_path = Path(orchestration_value).resolve()
+            try:
+                orchestration_path.relative_to(reader_root / ".papertrace_jobs")
+            except ValueError:
+                issues.append("orchestration state escapes reader_root/.papertrace_jobs")
+            if not orchestration_path.is_file():
+                issues.append("persisted orchestration state is missing")
+            else:
+                try:
+                    orchestration_state = read_json(orchestration_path)
+                except Exception as exc:
+                    issues.append(f"persisted orchestration state is unreadable: {exc}")
     if report.get("source_set_sha256") != snapshot.get("source_set_sha256"):
         issues.append("report source-set hash differs from the embedded input snapshot")
     papers = snapshot.get("papers") or []
@@ -73,6 +90,31 @@ def audit_batch_report(report: dict[str, Any], *, run_reader_audits: bool = True
         return issues
     if [row.get("paper_id") for row in papers] != [row.get("paper_id") for row in results]:
         issues.append("batch-report order/identity differs from the current input snapshot")
+    if orchestration_state is not None:
+        persisted_papers = orchestration_state.get("selected_papers") or []
+        persisted_identity = [
+            (row.get("order"), row.get("paper_id"), row.get("pdf_path"), row.get("sha256"))
+            for row in persisted_papers
+        ] if isinstance(persisted_papers, list) else []
+        snapshot_identity = [
+            (row.get("order"), row.get("paper_id"), row.get("pdf_path"), row.get("sha256"))
+            for row in papers
+        ]
+        if persisted_identity != snapshot_identity:
+            issues.append("persisted orchestration selection differs from the embedded input snapshot")
+        if orchestration_state.get("source_set_sha256") != report.get("source_set_sha256"):
+            issues.append("persisted orchestration source-set hash differs from the batch report")
+        if orchestration_state.get("next_command") != contract.get("next_command"):
+            issues.append("persisted orchestration next_command differs from the continuation contract")
+        persisted_active = orchestration_state.get("active_paper")
+        contract_active = contract.get("active_paper")
+        persisted_active_id = persisted_active.get("paper_id") if isinstance(persisted_active, dict) else None
+        contract_active_id = contract_active.get("paper_id") if isinstance(contract_active, dict) else None
+        if persisted_active_id != contract_active_id:
+            issues.append("persisted orchestration active paper differs from the continuation contract")
+        expected_job_status = "complete" if contract.get("status") == "complete" else "blocked" if contract.get("status") == "blocked" else "active"
+        if orchestration_state.get("status") != expected_job_status:
+            issues.append("persisted orchestration status differs from the continuation contract")
 
     statuses = [str(row.get("status") or "") for row in results]
     active_indexes = [index for index, status in enumerate(statuses) if status in {"pending", "invalid", "blocked"}]

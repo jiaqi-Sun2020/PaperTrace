@@ -1,8 +1,7 @@
 # Agent Context Index
 
 - Project root: `D:\AI\PaperTrace`
-- Generated with: `D:\AI\skill\S_paper_skills\util_skills\project-agent-generator-skill`
-- Last reviewed: 2026-07-16
+- Last reviewed: 2026-08-11
 
 This directory combines project-agent context and learner memory.
 
@@ -25,7 +24,6 @@ Directory roles:
 - `skills/utils/chat-knowledge-profile`: staged chat conversation import skill for turning local ChatGPT/GPT/Claude/Deepseek exports into bounded evidence events, conversation summaries, candidate profile signals, strict reader-learner handoffs, reviewable patches, and optional profile updates.
 - `skills/adaptive-teach`: explicit-invocation, profile-backed teaching decision skill. It reads the profile, selects a diagnostic/teach/review/prerequisite/transfer session, generates short lessons, and delegates validated teaching feedback to `reader-learner`.
 - `skills/utils/demo-skill`: bilingual project-demo skill that verifies README/AGENTS contracts, materializes the bundled Chinese/English four-pipeline templates, and audits the intended Git upload scope.
-- `skills/utils/neat-freak`: documentation-governance skill that reconciles code, release artifacts, README, `.agents/`, demos, and durable rules without turning agent instructions into a changelog.
 
 Recommended reading order:
 
@@ -60,6 +58,8 @@ Do not treat these files as a transcript. They should summarize stable project f
 Feedback note: interactive reader HTML does not auto-write to this directory. The user must export with `Download feedback JSON` or `Copy feedback for Codex`, then import/process that feedback with `reader-learner`.
 
 PDF bootstrap note: `skills/nature-reader/scripts/extract_pdf_bundle.py` creates immutable raw evidence and automatically materializes a UTF-8 `paper.md` working draft. The draft keeps stable source anchors and uses explicit `[translation-required]` / `[block-note-required]` markers, so it is inspectable but cannot pass completion. For a legacy raw bundle missing `paper.md`, run `materialize_reader_markdown.py <reader-dir>`; it preserves `source_map.json` and refuses to overwrite an existing reader by default. Complete every bilingual block and structural object, run the text audit and `complete_reader_bundle.py`, and only then invoke `reader-skill`.
+
+Formal continuation note: `build_formal_reader_batch.py` freezes the requested PDF selection under `<reader-root>/.papertrace_jobs/`, persists heartbeat/phase/next-command state and a bounded `next_authoring_packet.json`, invokes the continuation guard in production, and uses tool-safe exit 0 for ordinary `action_required` checkpoints. Pass `--max-papers N` for a limited prefix. Register all source-object identities before `source_map_lock.json`; never mutate the frozen source map from an authoring helper.
 
 Reader UTF-8 note: on Windows, never send Chinese Markdown through a default PowerShell code-page pipe or here-string. Use a UTF-8-safe writer or encoded payload, then run `audit_reader_text.py <paper.md>`. The completion pass applies the same audit and rejects `U+FFFD`, disallowed control characters, mojibake markers, and high-density literal `?`. If it fails, discard and rebuild the damaged working text from immutable evidence; never convert it to HTML.
 

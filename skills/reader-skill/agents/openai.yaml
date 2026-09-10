@@ -1,4 +1,4 @@
 interface:
-  display_name: "Reader HTML Converter"
-  short_description: "Convert nature-reader Markdown to bilingual HTML"
-  default_prompt: "Use $reader-skill to convert this nature-reader paper.md bundle into a standalone Chinese-English HTML reader."
+  display_name: "Resumable Paper Reader"
+  short_description: "Build resumable, audited bilingual paper HTML"
+  default_prompt: "Use $reader-skill to resume a selected PDF batch and deliver adversarially audited bilingual reader HTML."

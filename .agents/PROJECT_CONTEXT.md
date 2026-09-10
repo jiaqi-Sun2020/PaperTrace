@@ -1,7 +1,7 @@
 # Project Context
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-16
+- Last reviewed: 2026-08-11
 
 ## Summary
 
@@ -17,12 +17,11 @@ Reader/news feedback imports and Visible Wiki projection are shared downstream w
 The implementation skill chain is:
 
 1. `nature-reader` creates the internal source-grounded bilingual evidence/bundle stage from papers. Its `extract_pdf_bundle.py` bootstrap writes immutable source evidence and automatically materializes a UTF-8 working `paper.md` with stable anchors and explicit completion markers. Legacy raw bundles can be repaired with `materialize_reader_markdown.py` without mutating `source_map.json`. The `**中文:**` field must ultimately contain faithful translation, not placeholders, paraphrase, summary, or reading scaffold, and `**注释:**` should carry block-specific logic, knowledge-point, formula, figure, and reading guidance. `audit_reader_text.py` and the completion pass reject replacement characters, controls, mojibake, and question-mark corruption. This stage is not the Pipeline 1 deliverable.
-2. `reader-skill` converts completed internal bundles into the terminal `reader_interactive.html` and rejects draft/paraphrase Chinese columns by default. A source-anchored paper summary, synchronized original-page pane, protected-width article, independently collapsible/resizable Contents, and non-covering annotation workspace are part of the formal reader contract. Incomplete bundles must be fixed before HTML generation, and HTML is not complete until the publishing adversarial audit passes.
+2. `reader-skill` freezes the selected PDF scope in generated `.papertrace_jobs/` workflow state, persists bounded authoring packets and heartbeats, freezes source-object identities before semantic records, and converts completed internal bundles into the terminal `reader_interactive.html`. Its production continuation guard keeps ordinary incomplete checkpoints tool-safe without permitting a final response. A source-anchored paper summary, synchronized original-page pane, protected-width article, independently collapsible/resizable Contents, and non-covering annotation workspace are part of the formal reader contract. HTML is not complete until the publishing adversarial audit passes.
 3. `reader-learner` imports user feedback from HTML or natural language, updates `.agents/reader-learner/knowledge_profile.json`, and projects every stable profile record into the persistent `.agents/wiki/` Obsidian vault.
 4. `ai-quantum-news-briefing` creates source-grounded AI/quantum daily or multi-day briefings, ranks eligible candidates before Delta compaction, preserves the ranking ledger through publication, and can import explicit news-reading feedback into the same learner profile.
 5. `chat-knowledge-profile` imports local ChatGPT/GPT/Claude/Deepseek conversation exports through a staged `collect -> extract -> propose -> apply` workflow. It writes bounded evidence events, `conversation_summaries.json`, profile candidates, and strict `reader-learner` handoff patches so prior conversations can initialize or extend the learner/person profile without unreviewed mutation.
 6. `demo-skill` turns verified README/AGENTS contracts into structurally equivalent Chinese and English project pages centered on four pipelines. The bundled PaperTrace pages use static semantic HTML with GSAP + ScrollTrigger/Lenis progressive enhancement and reduced-motion fallback.
-7. `neat-freak` reconciles stable code/release facts across README, `.agents/`, skill contracts, and bilingual demos, while keeping dated release history in `CHANGES.md` instead of the agent rule layer.
 
 The learner profile exists and uses schema v2, which separates stable concept profiles from raw feedback events, source metadata, and the review queue. Its content evolves through guarded imports; project documentation must describe the schema and owner, not snapshot individual profile concepts.
 
@@ -46,7 +45,6 @@ The learner profile exists and uses schema v2, which separates stable concept pr
 - `skills/utils/chat-knowledge-profile/scripts/init_knowledge_profile.py`
 - `skills/utils/demo-skill/SKILL.md`
 - `skills/utils/demo-skill/scripts/create_demo.py`
-- `skills/utils/neat-freak/SKILL.md`
 - `demo.html`
 - `demo-en.html`
 - `.agents/reader-learner/knowledge_profile.json`

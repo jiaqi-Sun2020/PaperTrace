@@ -1,7 +1,7 @@
 # Runbook
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-31
+- Last reviewed: 2026-08-11
 
 ## Choose One Primary Pipeline
 
@@ -70,6 +70,28 @@ Root HTML is ignored by `/*.html`. To publish only the reviewed pages, use the e
 Do not add `.design/`, screenshots, browser profiles, QA scratch logs, credentials, or unrelated working-tree changes.
 
 ## Generate Interactive HTML From A Reader Bundle
+
+For a natural-language folder request, run the persistent formal controller
+first from `D:\AI\PaperTrace`. Use `--max-papers N` when the request explicitly
+limits the deterministic prefix:
+
+```powershell
+python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "<reader-root>" --max-papers 2 --resume --agent-continuation
+```
+
+The controller freezes the selected PDF paths/hashes in
+`<reader-root>/.papertrace_jobs/<job-id>/orchestration_state.json`, records a
+heartbeat and exact next command, persists the bounded active record IDs in
+`reader_wiki/next_authoring_packet.json`, and invokes the continuation guard in
+the production path. `action_required` exits 0 in interactive mode; it still
+forbids a final response. Use `--strict-exit` only when CI requires nonzero for
+incomplete work. Resume with the emitted `next_command`; do not rediscover or
+expand the frozen scope manually.
+
+Before completion records are seeded, register every figure/table/algorithm
+identity and allow the controller to write `reader_wiki/source_map_lock.json`.
+After that lock exists, crop/compile the registered objects without changing
+`source_map.json`. A lock-hash mismatch is repair work and must not be bypassed.
 
 The PDF bootstrap now materializes a UTF-8 working `paper.md` automatically. For a legacy raw bundle that has `source_map.json` but no `paper.md`, run from `D:\AI\PaperTrace`:
 
@@ -349,16 +371,6 @@ python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py news-fe
 ```
 
 The reader/news commands first invoke the existing strict importer (which backs up the profile) and only sync the visible wiki after a successful import. Open `D:\AI\PaperTrace\.agents\wiki` as its own Obsidian vault. Use `maps/Profile Coverage.md` to confirm the projection and `maps/Evidence Map.md` for claim-to-source navigation.
-
-## Regenerate Project Agent Context
-
-Use this only when project structure or workflow changes:
-
-```powershell
-python D:\AI\skill\S_paper_skills\util_skills\project-agent-generator-skill\scripts\generate_project_agents.py D:\AI\PaperTrace --out-dir .agents --force
-```
-
-After running the generator, manually revise `.agents/*.md`; the generator's first pass is intentionally conservative. It should not overwrite `.agents/reader-learner/`, but verify outputs before and after running it.
 
 ## Risky Operations
 

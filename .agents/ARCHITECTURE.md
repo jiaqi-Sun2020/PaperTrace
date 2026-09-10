@@ -34,8 +34,7 @@ skills/
 `-- utils/
     |-- chat-knowledge-profile/
     |-- demo-skill/
-    |-- lean-html-skill/
-    `-- neat-freak/
+    `-- lean-html-skill/
 ```
 
 ## Four Primary Pipeline Boundaries
@@ -55,7 +54,6 @@ Visible Wiki sync consumes outputs around these boundaries but does not replace 
 - `utils/lean-html-skill`: shared standalone HTML shell, reusable HTML components, feedback UI, browser-memory/localStorage behavior, and feedback2 export layer for domain skills, including future reader HTML output work.
 - `utils/chat-knowledge-profile`: reviewable chat-session import layer for initializing or extending `knowledge_profile.json` from exported ChatGPT/GPT/Claude/Deepseek conversations through sources, bounded evidence events, `conversation_summaries.json`, candidates, strict `reader-learner` handoffs, and patches.
 - `utils/demo-skill`: source-traceable bilingual project-demo layer. It stores the current PaperTrace Chinese/English four-pipeline HTML templates and a deterministic no-overwrite materializer; copied pages must be reconciled with the target repository's README/AGENTS contracts before publication.
-- `utils/neat-freak`: documentation-governance layer. It audits size, dead references, rule drift, release/document consistency, and bilingual demo parity; it does not own any of the four business pipelines.
 
 ## Agent Data
 
@@ -89,6 +87,15 @@ Visible Wiki sync consumes outputs around these boundaries but does not replace 
 |   |-- table*.png
 |   `-- source_pages/
 ```
+
+Each reader root may also contain generated, Git-ignored workflow state at
+`.papertrace_jobs/<job-id>/`. `orchestration_state.json` freezes the selected
+PDF paths/hashes and records heartbeat, phase, active paper, next command, and
+last guard result; `last_batch_report.json` preserves the exact latest
+controller contract. This state contains no paper prose or learner-profile
+payload. Per-reader `source_map_lock.json` freezes object identities before
+completion records, while `next_authoring_packet.json` stores only the bounded
+record IDs and gate diagnostics for the next primary-model pass.
 
 ## Generated Daily Release Shape
 
@@ -125,7 +132,6 @@ Candidate config enters `news-ranker-v1` first. Eligible academic and social ite
 - `lean-html-skill` owns reusable HTML shell/post-processing, shared feedback UI, browser-memory/localStorage behavior, and feedback2 export controls; domain skills should call it instead of embedding new shared HTML UI logic.
 - `chat-knowledge-profile` owns chat conversation import staging. It generates strict concept-status handoff feedback for `reader-learner`, including `source_anchor`, `concept_type`, and bounded evidence; it should not silently overwrite the learner/person profile without a reviewable patch and backup.
 - `demo-skill` owns project-presentation templates and their content/interaction audit. It does not own reader generation, profile mutation, news publication, or shared application data contracts.
-- `neat-freak` owns documentation reconciliation only. Dated milestones belong in `.agents/CHANGES.md`; durable hard boundaries remain in `AGENTS.md`, commands in `RUNBOOK.md`, and data contracts in `CONFIG_SPEC.md`.
 - Keep news knowledge-map layout out of `knowledge_profile.json`; store evidence/status in the profile, and render layout only in HTML reports.
 - News feedback and paper reader feedback share `.agents/reader-learner/knowledge_profile.json`; do not create a separate long-term news memory file unless the user changes the architecture.
 - Project-level README and `.agents/*.md` document workflows; they should not duplicate full paper contents.

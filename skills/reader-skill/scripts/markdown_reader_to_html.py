@@ -928,6 +928,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     for label, path in (
         ("source_map", base_dir / "source_map.json"),
         ("completion_ledger", wiki / "completion_ledger.json"),
+        ("completion_run_state", wiki / "completion_run_state.json"),
         ("reader_manifest", wiki / "reader_manifest.json"),
         ("structure_validation_report", wiki / "structure_validation_report.json"),
     ):

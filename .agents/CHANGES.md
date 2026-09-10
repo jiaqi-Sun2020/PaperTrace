@@ -5,6 +5,17 @@
 
 This file records dated implementation and local-release milestones. Durable boundaries belong in `AGENTS.md`, commands in `RUNBOOK.md`, data contracts in `CONFIG_SPEC.md`, and architecture/ownership in `ARCHITECTURE.md`.
 
+## 2026-08-11
+
+### Persistent formal-reader liveness
+
+- Replaced ephemeral continuation-only output with atomic `.papertrace_jobs/<job-id>/orchestration_state.json` and `last_batch_report.json`, preserving the selected PDF hashes, heartbeat, phase, bounded next work, exact resume command, and production guard result across process boundaries.
+- Added `--max-papers N` for user-limited deterministic prefixes and kept the frozen selection stable when the source folder later changes.
+- Integrated `reader_continuation_guard.py` into the production controller and made ordinary interactive `action_required` checkpoints exit 0; strict CI retains a nonzero incomplete-work option.
+- Added `source_map_lock.json` after pre-semantic object discovery plus bounded `next_authoring_packet.json` work packets; post-freeze source-object mutations fail closed.
+- Added restart tests at synthetic `60/114` and `74/114` checkpoints, persistent-scope/heartbeat tests, tool-safe versus strict guard tests, and source-map mutation attacks.
+- Resumed `Advantage of quantum machine learning from general computational advantages` without losing its completed records and verified 116/116 formal records, two figures, the final HTML, JavaScript runtime behavior, and the adversarial HTML audit.
+
 ## 2026-07-31
 
 ### Layout-stable annotation saves

@@ -737,7 +737,10 @@ def algorithm_ledger(reader_dir: Path, markdown: str, source_map: dict[str, Any]
     for block_id, segment in segments.items():
         if not block_id:
             continue
-        if block_id.startswith("A") or ALGORITHM_RE.search(segment):
+        # Prose commonly cites "Algorithm N".  A source-bound algorithm card
+        # must either use an Axxx anchor or contain both a numbered Algorithm
+        # heading and actual numbered pseudocode statements.
+        if block_id.startswith("A") or (ALGORITHM_RE.search(segment) and ALGORITHM_LINE_RE.search(segment)):
             if block_id not in source_algorithm_rows:
                 errors.append(f"{block_id}: algorithm card has no matching immutable source_map row")
             tex_value, rest = extract_label(
@@ -1166,10 +1169,12 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
         "completion_blocks": "reader_wiki/completion_blocks",
         "object_inventory": "reader_wiki/object_inventory.json",
         "preflight_manifest": "reader_wiki/preflight_manifest.json",
+        "source_map_lock": "reader_wiki/source_map_lock.json",
         "source_map_sha256": sha256_file(source_map_path),
         "canonical_reader_sha256": sha256_file(md_path) if md_path.exists() else "",
         "object_inventory_sha256": sha256_file(reader_dir / "reader_wiki" / "object_inventory.json") if (reader_dir / "reader_wiki" / "object_inventory.json").exists() else "",
         "preflight_manifest_sha256": sha256_file(reader_dir / "reader_wiki" / "preflight_manifest.json") if (reader_dir / "reader_wiki" / "preflight_manifest.json").exists() else "",
+        "source_map_lock_sha256": sha256_file(reader_dir / "reader_wiki" / "source_map_lock.json") if (reader_dir / "reader_wiki" / "source_map_lock.json").exists() else "",
         "raw_sources_immutable": True,
     }
     normalization_path = reader_dir / "reader_wiki" / "original_normalization_ledger.json"

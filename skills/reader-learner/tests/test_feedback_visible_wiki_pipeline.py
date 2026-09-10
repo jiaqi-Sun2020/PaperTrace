@@ -69,6 +69,44 @@ def news_feedback() -> dict[str, object]:
     }
 
 
+def chat_patch() -> dict[str, object]:
+    return {
+        "patch_version": 1,
+        "generated_from": "chat-knowledge-profile",
+        "review_required": True,
+        "operations": [],
+        "reader_feedback_handoff": {
+            "source_kind": "chat_session",
+            "generated_from": "chat-knowledge-profile",
+            "conversation_import_version": 1,
+            "items": [
+                {
+                    "feedback_id": "chat-mastered::ladder-operators",
+                    "concept": "Ladder operators",
+                    "concept_id": "ladder-operators",
+                    "canonical_concept_id": "ladder-operators",
+                    "concept_type": "math_object",
+                    "status": "mastered",
+                    "annotation_kind": "concept",
+                    "source_anchor": "chat-event-1",
+                    "block_id": "chat-event-1",
+                    "bilingual_block_id": "chat-event-1",
+                    "source": "chat_exports/quantum-mechanics-learning.json",
+                    "source_title": "Quantum mechanics learning",
+                    "source_url": "chatgpt-conversation://test-conversation",
+                    "source_excerpt": "How do ladder operators generate oscillator states?",
+                    "original_context": "The user explicitly confirmed mastery after reviewing the chat.",
+                    "selected_language": "chat_session",
+                    "category": "chat_session",
+                    "source_kind": "chat_session",
+                    "needs_explanation": False,
+                    "action": "chat_feedback_user_confirmed_mastery",
+                }
+            ],
+        },
+    }
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="feedback_visible_wiki_", dir=ROOT) as temp:
         root = Path(temp)
@@ -120,6 +158,65 @@ def main() -> int:
         concept_data = news_profile_data["concepts"].get("quantum-error-correction")
         if not isinstance(concept_data, dict) or concept_data.get("status") != "unknown":
             raise AssertionError("news feedback did not preserve its explicit knowledge status")
+        chat_profile = root / "chat_knowledge_profile.json"
+        chat_patch_path = root / "chat_profile_patch.json"
+        chat_wiki = root / "chat_wiki"
+        save_json(chat_profile, empty_profile_v2())
+        chat_patch_path.write_text(json.dumps(chat_patch(), ensure_ascii=False), encoding="utf-8")
+        chat_code = pipeline_main([
+            "chat-feedback",
+            "--profile", str(chat_profile),
+            "--feedback", str(chat_patch_path),
+            "--wiki", str(chat_wiki),
+        ])
+        if chat_code != 0:
+            raise AssertionError(f"chat-feedback pipeline failed with {chat_code}")
+        chat_findings = lint(chat_profile, chat_wiki, require_profile_coverage=True)
+        if chat_findings:
+            raise AssertionError(chat_findings)
+        chat_profile_data = json.loads(chat_profile.read_text(encoding="utf-8"))
+        chat_concept = chat_profile_data["concepts"].get("ladder-operators")
+        if not isinstance(chat_concept, dict) or chat_concept.get("status") != "mastered":
+            raise AssertionError("chat feedback did not preserve explicit user-confirmed mastery")
+        sources = list(chat_profile_data.get("sources", {}).values())
+        if not sources or sources[0].get("source_kind") != "chat_session":
+            raise AssertionError("chat feedback did not preserve chat_session provenance")
+        if not list(root.glob("chat_knowledge_profile.*.json.bak")):
+            raise AssertionError("chat feedback import did not create a profile backup")
+        first_chat_snapshot = chat_profile.read_text(encoding="utf-8")
+        first_backup_count = len(list(root.glob("chat_knowledge_profile.*.json.bak")))
+        repeated_chat_code = pipeline_main([
+            "chat-feedback",
+            "--profile", str(chat_profile),
+            "--feedback", str(chat_patch_path),
+            "--wiki", str(chat_wiki),
+        ])
+        if repeated_chat_code != 0:
+            raise AssertionError(f"idempotent chat-feedback rerun failed with {repeated_chat_code}")
+        if chat_profile.read_text(encoding="utf-8") != first_chat_snapshot:
+            raise AssertionError("idempotent chat-feedback rerun mutated the profile")
+        if len(list(root.glob("chat_knowledge_profile.*.json.bak"))) != first_backup_count:
+            raise AssertionError("idempotent chat-feedback rerun wrote an unnecessary backup")
+        unsafe_profile = root / "unsafe_chat_profile.json"
+        unsafe_patch_path = root / "unsafe_chat_patch.json"
+        save_json(unsafe_profile, empty_profile_v2())
+        unsafe_patch = chat_patch()
+        unsafe_patch["reader_feedback_handoff"]["source_kind"] = "reader_bundle"  # type: ignore[index]
+        unsafe_patch["reader_feedback_handoff"]["reader_feedback_version"] = 2  # type: ignore[index]
+        unsafe_patch_path.write_text(json.dumps(unsafe_patch, ensure_ascii=False), encoding="utf-8")
+        unsafe_code = pipeline_main([
+            "chat-feedback",
+            "--profile", str(unsafe_profile),
+            "--feedback", str(unsafe_patch_path),
+            "--wiki", str(root / "unsafe_chat_wiki"),
+        ])
+        if unsafe_code == 0:
+            raise AssertionError("chat-feedback accepted a patch impersonating reader feedback")
+        unsafe_data = json.loads(unsafe_profile.read_text(encoding="utf-8"))
+        if unsafe_data.get("concepts") or unsafe_data.get("events"):
+            raise AssertionError("rejected chat patch mutated the profile")
+        if list(root.glob("unsafe_chat_profile.*.json.bak")):
+            raise AssertionError("rejected chat patch wrote a backup before validation")
     print("feedback-to-visible-wiki pipeline test: pass")
     return 0
 

@@ -38,8 +38,6 @@ local chat exports
 
 `sources.jsonl`, `events.jsonl`, `conversation_summaries.json`, `profile_candidates.json`, and an unapplied `profile_patch.json` are review intermediates. Do not report profile mutation as complete before human review and successful `apply --backup`; do not auto-apply merely because candidate extraction succeeded.
 
-`sources.jsonl`, `events.jsonl`, `conversation_summaries.json`, `profile_candidates.json`, and an unapplied `profile_patch.json` are review intermediates. Do not report profile mutation as complete before human review and successful `apply --backup`; do not auto-apply merely because candidate extraction succeeded.
-
 Use local files only. Save share URLs as `.txt`, `.md`, `.html`, or `.json` first.
 
 ## Commands
@@ -68,11 +66,27 @@ Propose a patch against the existing profile:
 python D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py propose --profile D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json --candidates D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions\profile_candidates.json --output D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions\profile_patch.json
 ```
 
+When the user explicitly confirms one status for every reviewed concept, record that authority while proposing the patch:
+
+```powershell
+python D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py propose --profile D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json --candidates <profile_candidates.json> --events <events.jsonl> --output <profile_patch.json> --confirmed-concept-status mastered --status-authority-note "用户明确声明：可以默认其中的知识点我全都掌握！"
+```
+
+This flag applies only to the already reviewed concept candidates; it does not invent concepts from assistant text or expand the chat scope.
+
 Apply only after review:
 
 ```powershell
 python D:\AI\PaperTrace\skills\utils\chat-knowledge-profile\scripts\init_knowledge_profile.py apply --profile D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json --patch D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions\profile_patch.json --backup
 ```
+
+Apply a reviewed patch and then project/lint the Visible Wiki through the safe `chat-feedback` entry:
+
+```powershell
+python D:\AI\PaperTrace\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py chat-feedback --feedback D:\AI\PaperTrace\.agents\reader-learner\imports\chat_sessions\profile_patch.json
+```
+
+The entry accepts only `patch_version: 1`, `generated_from: chat-knowledge-profile`, `review_required: true`, a `chat_session` handoff, and the fixed allowlist of person-profile operations. It rejects Reader-bundle provenance fields. Topic grounding and status authority are separate: concepts must be traceable to bounded chat evidence, while `known`/`mastered` requires explicit user-authored evidence or a current explicit user declaration that authorizes that status for the reviewed scope.
 
 ## Inputs
 

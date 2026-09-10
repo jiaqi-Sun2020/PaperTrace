@@ -43,14 +43,29 @@ def main() -> int:
         snapshot = builder.build_input_snapshot(source_root, rows)
         if snapshot["expected_count"] != 2 or snapshot["papers"] != rows:
             raise AssertionError("directory input snapshot does not preserve exact paths/hashes/order")
-        if (output_root / ".reader_pipeline_runs").exists() or (output_root / "reader_batch_state.json").exists():
-            raise AssertionError("input discovery persisted forbidden batch metadata")
+        selected, job, state_path, report_path = builder.load_or_create_job(
+            pdf_dir=source_root, reader_root=output_root, discovered=rows, max_papers=1, resume=False,
+        )
+        if [row["filename"] for row in selected] != ["Alpha.PDF"]:
+            raise AssertionError("max-papers did not freeze the deterministic directory prefix")
+        if not state_path.is_file() or report_path.exists() or job.get("status") != "active":
+            raise AssertionError("directory selection did not persist a valid resumable job state")
+        try:
+            state_path.relative_to(output_root / builder.JOB_DIR_NAME)
+        except ValueError as exc:
+            raise AssertionError("job state escaped the generated reader-root job directory") from exc
 
         (source / "zeta.pdf").write_bytes(b"zeta-v2")
         changed_rows = builder.discover_pdfs(source_root)
         changed_snapshot = builder.build_input_snapshot(source_root, changed_rows)
         if snapshot["source_set_sha256"] == changed_snapshot["source_set_sha256"]:
             raise AssertionError("changed PDF hash did not change the in-memory source-set identity")
+
+        resumed, resumed_job, _, _ = builder.load_or_create_job(
+            pdf_dir=source_root, reader_root=output_root, discovered=changed_rows, max_papers=1, resume=True,
+        )
+        if resumed[0]["sha256"] != selected[0]["sha256"] or resumed_job.get("attempts") != 2:
+            raise AssertionError("resume did not preserve and heartbeat the frozen selected PDF")
 
         nested = source / "nested"
         nested.mkdir()

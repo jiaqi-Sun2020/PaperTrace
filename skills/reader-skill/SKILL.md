@@ -21,8 +21,12 @@ This section supersedes older references in this document to a monolithic
 `completion_ledger.json` or `paper.md` as formal source of truth.
 
 - Use one explicit `--pdf-dir` as the batch input authority. Its immediate
-  PDF children are deterministically sorted and hash-snapshotted before any
-  reader work begins; nested `*_reader` folders are never inferred as input.
+  PDF children are deterministically sorted before any reader work begins.
+  Freeze the selected paths and hashes under
+  `<reader-root>/.papertrace_jobs/<job-id>/orchestration_state.json`; nested
+  `*_reader` folders are never inferred as input. Use `--max-papers N` when
+  the user requests only the first N papers. A resumed job keeps its frozen
+  selection even if the source folder later gains other PDFs.
 - The canonical state is `reader_wiki/completion_blocks/<stable-id>.json`, one
   atomic, schema-validated record per source block, formula, figure, table,
   algorithm, and reference segment. `completion_run_state.json` is a derived
@@ -38,6 +42,13 @@ This section supersedes older references in this document to a monolithic
   its source hash, v3 state, or audit is absent. A stale marker invalidates the
   prior HTML; only a later v3 compile/render/adversarial-audit sequence can
   supersede it.
+- Register every figure/table/algorithm identity before writing
+  `reader_wiki/source_map_lock.json` or seeding completion records. After that
+  lock, asset crops and semantic representations may be completed, but
+  `source_map.json` must not change silently.
+- Persist the next bounded unit in `reader_wiki/next_authoring_packet.json`.
+  It contains source-bound record IDs and gate diagnostics only; the current
+  primary model still authors every translation, note, and LaTeX field.
 
 For an end-to-end natural-language trigger, treat the request as explicit
 persistent execution: when Codex goal tools are available, create or resume an
@@ -54,15 +65,16 @@ Run the only formal batch entry point from `D:\AI\PaperTrace`:
 python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "D:\AI\PaperTrace\2026\7" --resume --agent-continuation
 ```
 
-It emits the exact discovered paths, order, hashes, and embedded
-`agent_continuation_contract` as JSON on standard output; it creates no
-`.reader_pipeline_runs`, `reader_batch_state.json`, or other batch-history/state
-artifact. It activates at most one incomplete paper. Expected incomplete work
-is `status: action_required` with a successful default exit, because it is a
-current-session authorship checkpoint rather than a terminal command error.
-`--strict-exit` restores exit code 1 for CI. The agent must continue while
-`final_response_allowed` is false and may report the complete request only when
-every selected reader reaches formal pass.
+It emits the exact selected paths, order, hashes, and embedded
+`agent_continuation_contract` as JSON on standard output, atomically updates
+the job heartbeat/phase/next command, writes the bounded authoring packet, and
+invokes `reader_continuation_guard.py` in the production path. It activates at
+most one incomplete paper. Expected incomplete work is
+`status: action_required` with exit code 0 in interactive/tool-safe mode so a
+normal checkpoint is never mislabeled as a command failure; `--strict-exit`
+returns 1 for CI. The agent must continue while `final_response_allowed` is
+false and may report the complete request only when every selected reader
+reaches formal pass.
 
 ## LLM-Wiki Compile Layer
 

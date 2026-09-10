@@ -116,8 +116,7 @@ Use the script interface below only when you need recovery, diagnostics, or CI i
     |   +-- utils/
     |       |-- chat-knowledge-profile/
     |       |-- demo-skill/
-    |       |-- lean-html-skill/
-    |       +-- neat-freak/
+    |       +-- lean-html-skill/
     |-- .agents/                      # project context and local learner state
     +-- README.md                     # English default
     +-- README.zh-CN.md               # Chinese edition
@@ -161,7 +160,6 @@ For one-step imports, use <code>reader-feedback</code> or <code>news-feedback</c
 | <code>ai-quantum-news-briefing</code> | Sourced AI/quantum briefings, candidate ranking, briefing feedback artifacts, and news-feedback normalization. | Treating mere exposure as knowledge. |
 | <code>lean-html-skill</code> | Shared HTML shell, feedback UI, export controls, and visual design layer. | Domain interpretation or profile mutation. |
 | <code>chat-knowledge-profile</code> | Staged local conversation extraction and reviewable profile handoffs. | Share-URL scraping or direct profile overwrite. |
-| <code>neat-freak</code> | Reconciles documentation, rules, and durable release facts. | Adding business skills or turning agent rules into a changelog. |
 
 <a id="paper-reader"></a>
 
@@ -182,9 +180,9 @@ The materializer does not overwrite an existing <code>paper.md</code> by default
 
 Formal state is stored as atomic records under <code>reader_wiki/completion_blocks/</code>; derived <code>canonical_reader.md</code> is the only input allowed to formal HTML compilation. Start or resume the controller from <code>D:\AI\PaperTrace</code>:
 
-    python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "D:\AI\PaperTrace\2026\7" --agent-continuation
+    python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "D:\AI\PaperTrace\2026\7" --resume --agent-continuation
 
-The command considers only the immediate PDFs in the requested folder, records their stable order and hashes, completes one paper at a time, and leaves later papers untouched until earlier ones are formal. Its JSON contains an <code>agent_continuation_contract</code>. A pending/invalid record is repair work, not a successful result.
+The command freezes the selected immediate PDFs and hashes under <code>&lt;reader-root&gt;/.papertrace_jobs/</code>, completes one paper at a time, persists a bounded <code>next_authoring_packet.json</code>, and leaves later papers untouched until earlier ones are formal. Use <code>--max-papers 2</code> for “先生成两篇”. A resumed job keeps the same selection even if the folder later changes. Its JSON contains both the continuation contract and the production guard result. Pending work exits successfully in interactive mode so it is not misreported as a failed command; use <code>--strict-exit</code> only for CI.
 
 A completed reader must include:
 

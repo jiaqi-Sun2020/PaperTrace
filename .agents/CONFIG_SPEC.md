@@ -97,6 +97,37 @@ Do not import suspected credential files. Do not apply unreviewed patches.
 
 ## Reader-Skill CLI
 
+Formal directory controller:
+
+```text
+skills/reader-skill/scripts/build_formal_reader_batch.py
+```
+
+| Option | Meaning |
+|---|---|
+| `--pdf-dir <path>` | Discover immediate PDFs; the first run freezes the selected paths and hashes. |
+| `--reader-root <path>` | Store reader bundles and generated `.papertrace_jobs/` workflow state under this project root. |
+| `--max-papers N` | Select only the deterministic first N PDFs; required when the user limits the batch. |
+| `--resume` | Resume the exact frozen selection and increment its heartbeat/attempt count. |
+| `--work-packet-size N` | Bound `next_authoring_packet.json` to N source record IDs. |
+| `--agent-continuation` | Persist and enforce the continuation guard with tool-safe exit 0 for ordinary incomplete work. |
+| `--strict-exit` | Return 1 for ordinary incomplete work in CI; mutually exclusive with `--agent-continuation`. |
+
+The controller stores `orchestration_state.json` and
+`last_batch_report.json` under
+`<reader-root>/.papertrace_jobs/<job-id>/`. The state schema contains workflow
+metadata only: selected PDF identity/hash, attempts, heartbeat, active phase,
+active paper, next command, last guard, and terminal blocker. It must not
+contain source prose, translations, feedback, profile data, credentials, or a
+second semantic ledger.
+
+`reader_wiki/source_map_lock.json` binds the source-map and source-PDF hashes
+after all figure/table/algorithm identities have been registered. After this
+lock, object assets may be completed but source identities cannot change.
+`reader_wiki/next_authoring_packet.json` contains a bounded ordered list of
+pending/invalid stable IDs plus preflight/formal diagnostics; it never authors
+semantic content.
+
 Script:
 
 ```text

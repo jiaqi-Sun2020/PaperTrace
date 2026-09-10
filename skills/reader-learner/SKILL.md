@@ -176,6 +176,12 @@ Import a validated adaptive teaching handoff and sync visible Wiki:
 python <skill-dir>/scripts/feedback_visible_wiki_pipeline.py teaching-feedback --feedback <teaching_feedback.json>
 ```
 
+Import a reviewed local-chat patch and sync Visible Wiki:
+
+```bash
+python <skill-dir>/scripts/feedback_visible_wiki_pipeline.py chat-feedback --feedback <profile_patch.json>
+```
+
 Export the current profile to Obsidian without importing new feedback:
 
 ```bash
@@ -292,6 +298,7 @@ python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync --
 python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync
 python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py reader-feedback --feedback <reader_feedback.json>
 python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>
+python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py chat-feedback --feedback <profile_patch.json>
 python .\skills\reader-learner\scripts\lint_visible_wiki.py --profile .\.agents\reader-learner\knowledge_profile.json --wiki .\.agents\wiki --strict --require-profile-coverage
 ```
 

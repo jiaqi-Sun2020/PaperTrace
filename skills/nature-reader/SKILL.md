@@ -65,6 +65,14 @@ translation/object content. Use the explicit-directory batch entry point in
 `reader-skill` for formal rendering; it snapshots the selected directory's
 current PDF paths and hashes under the D: output root.
 
+Object discovery precedes semantic completion. Register stable figure, table,
+and algorithm identities in `source_map.json`, run the discovery preflight,
+then let `reader-skill` freeze `reader_wiki/source_map_lock.json` before it
+seeds completion records. After the lock exists, crop or compile the registered
+objects without adding, removing, or renumbering source identities. If an old
+bundle lacks objects, repair those identities before the first locked resume;
+never mutate a frozen source map from an ad-hoc authoring script.
+
 The `paper.md` body must preserve source order and use stable source anchors:
 
 ```markdown

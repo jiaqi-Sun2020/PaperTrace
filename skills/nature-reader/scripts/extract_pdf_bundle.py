@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -28,11 +29,19 @@ from materialize_reader_markdown import materialize_reader_markdown
 
 
 CAPTION_RE = re.compile(
-    r"^(?:(?:fig(?:ure)?\.?(?:\s|\u00a0)*)?\d+\s*\||fig(?:ure)?\.?(?:\s|\u00a0)*\d+|table\s+[ivxlcdm\d]+)\b",
+    r"^(?:(?:(?i:fig(?:ure)?\.?)(?:\s|\u00a0)*)?\d+\s*\|"
+    r"|(?i:fig(?:ure)?\.?)(?:\s|\u00a0)*\d+(?:\b|(?=[A-Z][a-z]))"
+    r"|(?i:table)\s+[IVXLCDMivxlcdm\d]+(?:\b|(?=[A-Z][a-z])))",
+)
+CAPTION_LINE_RE = re.compile(
+    r"^(?:(?i:FIG(?:URE)?\.?)\s*\d+|(?i:TABLE)\s+[IVXLCDMivxlcdm\d]+)"
+    r"(?:\s*[|:.]|\s*(?=[A-Z][a-z]))",
+)
+PSEUDOCODE_HEADER_RE = re.compile(
+    r"(?m)^\s*(?:algorithm|procedure|pseudocode)\s*(?:\d+|:)\b",
     re.I,
 )
-CAPTION_LINE_RE = re.compile(r"^(?:FIG(?:URE)?\.?\s*\d+|TABLE\s+[IVXLCDM\d]+)\s*[|:.]", re.I)
-PSEUDOCODE_RE = re.compile(r"\b(?:algorithm|procedure|pseudocode)\s*(?:\d+|:)", re.I)
+PSEUDOCODE_STEP_RE = re.compile(r"(?m)^\s*\d+\s*:")
 REFERENCE_HEADING_RE = re.compile(r"^(?:references|bibliography)\s*$", re.I)
 REFERENCE_ENTRY_RE = re.compile(r"^(?:\[\d+\]|\d+\.)\s+")
 POST_REFERENCE_HEADING_RE = re.compile(
@@ -49,6 +58,20 @@ PDF_LIGATURES = str.maketrans({
     "\ufb04": "ffl",
 })
 POPPLER_MOJIBAKE_HINTS = ("铿", "鈥", "螖", "蟺", "脼", "忖")
+
+
+def repair_math_accent_replacements(value: str) -> str:
+    """Repair a narrow PDF font-map failure for a tilde over a math glyph.
+
+    Some vector figures encode the tilde accent as a glyph with no ToUnicode
+    mapping. Both Poppler and pypdf then emit U+FFFD immediately before the
+    Unicode mathematical letter. Preserve the accent as an inspectable ASCII
+    tilde, but fail closed for replacement characters in every other context.
+    """
+    value = re.sub(r"\ufffd(?=[\U0001D400-\U0001D7FF])", "~", value)
+    if "\ufffd" in value:
+        raise RuntimeError("PDF extraction contains unrepaired Unicode replacement characters")
+    return value
 
 
 def utc_now() -> str:
@@ -121,9 +144,7 @@ def extract_reading_order_pages(pdf_path: Path, page_count: int) -> list[str]:
     ]
     if len(pages) != page_count or any(not page.strip() for page in pages):
         raise RuntimeError(f"pypdf returned {len(pages)} non-empty pages; expected {page_count}")
-    if any("\ufffd" in page for page in pages):
-        raise RuntimeError("pypdf extraction contains Unicode replacement characters")
-    return pages
+    return [repair_math_accent_replacements(page) for page in pages]
 
 
 def clean_line(value: str) -> str:
@@ -133,6 +154,15 @@ def clean_line(value: str) -> str:
 
 
 def split_page_blocks(page_text: str) -> list[str]:
+    # Algorithm captions are frequently not separated from surrounding prose
+    # by a blank line in PDF text extraction.  Split at line-leading captions
+    # before paragraph classification so prose such as "Algorithm 3 assembles"
+    # cannot absorb the actual numbered algorithm that follows it.
+    page_text = re.sub(
+        r"(?im)^(\s*(?:algorithm|procedure|pseudocode)\s*(?:\d+|:)\b)",
+        r"\n\n\1",
+        page_text,
+    )
     page_text = re.sub(
         r"(?im)^(References|Bibliography|Acknowledgements?|Author contributions?|Funding|"
         r"Competing interests?|Additional information|Data availability|Methods)\s*$",
@@ -163,7 +193,11 @@ def split_page_blocks(page_text: str) -> list[str]:
 
 
 def classify_block(text: str) -> str:
-    if PSEUDOCODE_RE.search(text):
+    # A reference to an algorithm is prose, not an algorithm object.  The
+    # formal reader contract requires a compiled representation with at least
+    # two source-numbered states, so only register evidence that can satisfy
+    # that contract without inventing steps.
+    if PSEUDOCODE_HEADER_RE.search(text) and len(PSEUDOCODE_STEP_RE.findall(text)) >= 2:
         return "algorithm"
     if CAPTION_RE.match(text):
         return "caption"
@@ -193,6 +227,10 @@ def discover_caption_lines(page_text: str) -> list[str]:
             continue
         parts = [line]
         cursor = index + 1
+        if line.endswith("."):
+            captions.append(line)
+            index += 1
+            continue
         while cursor < len(lines) and len(parts) < 6:
             candidate = lines[cursor]
             if not candidate or CAPTION_LINE_RE.match(candidate) or re.match(r"^(?:Appendix|[IVX]+\.|[A-Z]\.)\s", candidate):
@@ -212,23 +250,29 @@ def source_page_paths(reader_dir: Path, pdf_path: Path, page_count: int) -> list
     pdftocairo = require_executable("pdftocairo")
     output_dir = reader_dir / "assets" / "source_pages"
     output_dir.mkdir(parents=True, exist_ok=True)
-    prefix = output_dir / "render"
-    run([pdftocairo, "-png", "-r", "144", str(pdf_path), str(prefix)])
+    # Some Windows Poppler builds can read a Unicode PDF path but cannot create
+    # outputs below a directory containing typographic punctuation (for example
+    # the right single quotation mark in ``Shor’s``). Render in an ASCII-only
+    # system temp directory, then move the immutable page evidence into place.
     pages: list[dict[str, str | int]] = []
-    for page_no in range(1, page_count + 1):
-        candidates = [output_dir / f"render-{page_no}.png", output_dir / f"render-{page_no:02d}.png"]
-        source = next((candidate for candidate in candidates if candidate.exists()), None)
-        if source is None:
-            raise RuntimeError(f"missing rendered page {page_no} after pdftocairo")
-        target = output_dir / f"page-{page_no:02d}.png"
-        if target.exists():
-            target.unlink()
-        source.replace(target)
-        pages.append({
-            "page": page_no,
-            "source_page_image": target.relative_to(reader_dir).as_posix(),
-            "sha256": sha256_file(target),
-        })
+    with tempfile.TemporaryDirectory(prefix="papertrace_render_") as temp_dir:
+        temp_output_dir = Path(temp_dir)
+        prefix = temp_output_dir / "render"
+        run([pdftocairo, "-png", "-r", "144", str(pdf_path), str(prefix)])
+        for page_no in range(1, page_count + 1):
+            candidates = [temp_output_dir / f"render-{page_no}.png", temp_output_dir / f"render-{page_no:02d}.png"]
+            source = next((candidate for candidate in candidates if candidate.exists()), None)
+            if source is None:
+                raise RuntimeError(f"missing rendered page {page_no} after pdftocairo")
+            target = output_dir / f"page-{page_no:02d}.png"
+            if target.exists():
+                target.unlink()
+            shutil.move(str(source), str(target))
+            pages.append({
+                "page": page_no,
+                "source_page_image": target.relative_to(reader_dir).as_posix(),
+                "sha256": sha256_file(target),
+            })
     return pages
 
 

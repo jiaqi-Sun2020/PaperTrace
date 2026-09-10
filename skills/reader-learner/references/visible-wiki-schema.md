@@ -67,7 +67,7 @@ Claims must cite a source summary plus a bounded anchor such as `p.1 S004`. Keep
 
 ## Workflow
 
-Run from `D:\AI\PaperTrace`:
+Run from the project root:
 
 ```powershell
 python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py sync --dry-run

@@ -255,7 +255,17 @@ def build_preflight_manifest(reader_dir: Path) -> tuple[dict[str, Any], list[str
         if REFERENCE_HEADING_RE.search(raw) or len(REFERENCE_ENTRY_RE.findall(raw)) >= 2:
             raw_reference_detected = True
             break
-    if raw_reference_detected and not reference_blocks:
+    # Some two-column papers place the bibliography heading and the first
+    # entries in the same extracted paragraph.  In that case the immutable
+    # source map legitimately preserves the references inside ordinary source
+    # blocks rather than fabricating post-lock R-identities.  Treat that as
+    # captured bibliography evidence, not as a missing-reference failure.
+    bibliography_mixed_into_source_blocks = any(
+        len(REFERENCE_ENTRY_RE.findall(str(row.get("original_text") or ""))) >= 2
+        for row in source_blocks
+        if str(row.get("type") or "").lower() != "reference"
+    )
+    if raw_reference_detected and not reference_blocks and not bibliography_mixed_into_source_blocks:
         issues.append("bibliography evidence exists but source_map has no reference-only blocks")
     for row in reference_blocks:
         block_id = str(row.get("id") or "")

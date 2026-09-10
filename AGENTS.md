@@ -33,18 +33,24 @@ The request authorizes creating and completing reader bundles inside this reposi
 4. Never report a materialized draft, a failed completion ledger, or a preview HTML as the requested result. Bootstrap markers, rotated text, missing figure crops, and absent third-party translation tooling are direct Codex completion work, not terminal blockers.
 5. Stop only for an unreadable/unavailable source, an ambiguous overwrite of an existing completed bundle, or a validation failure that cannot be repaired from PDF evidence; report the exact paper and failed gate.
 
-The batch controller creates no batch-history or root-level state file. After
-every checkpoint, read the `agent_continuation_contract` embedded in its JSON
-standard output and treat it as a fail-closed response boundary:
+The batch controller atomically persists only workflow metadata under
+`<reader-root>/.papertrace_jobs/<job-id>/`: the frozen PDF selection, heartbeat,
+active phase, bounded authoring packet, last guard result, and exact resume
+command. It must not store paper prose or profile data there. After every
+checkpoint, read the `agent_continuation_contract` and production
+`enforced_guard` embedded in its JSON standard output and treat them as a
+fail-closed response boundary:
 
 - The first implementation command must be
-  `build_formal_reader_batch.py --agent-continuation`; do not begin by editing
+  `build_formal_reader_batch.py --resume --agent-continuation`; do not begin by editing
   `paper.md` directly. If the current turn has not observed a controller
   contract, a final response is forbidden.
 
 - If `final_response_allowed` is `false`, do not end the user turn, do not ask
   for “continue”, and do not report `reader_progress.html`; complete the named
-  `active_paper` and rerun `next_command` in the same task.
+  `active_paper` from `next_authoring_packet.json` and rerun `next_command` in
+  the same task. A normal `action_required` checkpoint exits 0 in interactive
+  mode; nonzero exits are reserved for strict CI or real failures.
 - `pending`, `invalid`, missing crops, missing concepts, and failed formal
   validation are repair work and must have `terminal_blocker: null`.
 - Only `status: complete` with `final_response_allowed: true`, or one of the
@@ -52,6 +58,12 @@ standard output and treat it as a fail-closed response boundary:
 - Formal readers must be a deterministic prefix, followed by at most one
   active paper and untouched `queued` papers. Never initialize or modify a
   later paper while an earlier paper is incomplete.
+- If the user requests only the first N papers, pass `--max-papers N`; the
+  persisted job keeps that exact selection across resumes even if the source
+  directory changes. Do not silently expand the goal to every PDF.
+- Register all figure/table/algorithm identities before the controller writes
+  `reader_wiki/source_map_lock.json`. After the lock, complete assets without
+  mutating or renumbering the frozen source map.
 
 For idempotent reruns: skip a same-source reader bundle only when its `reader_interactive.html` and adversarial audit already pass; resume an incomplete bundle in place; ask only when the existing bundle's immutable source evidence belongs to a different PDF.
 

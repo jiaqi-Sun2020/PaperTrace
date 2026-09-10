@@ -120,8 +120,7 @@ D:\AI\PaperTrace
 |   `-- utils/
 |       |-- chat-knowledge-profile/
 |       |-- demo-skill/
-|       |-- lean-html-skill/
-|       `-- neat-freak/           # 文档、规则和记忆层的同步审计
+|       `-- lean-html-skill/
 |-- .agents/                      # 项目 agent 上下文和长期学习画像
 |   `-- wiki/                     # 持久的人工可见 Obsidian 知识层
 |-- README.md                      # 英文默认入口
@@ -178,7 +177,6 @@ Open `D:\AI\PaperTrace\.agents\wiki` as the Obsidian vault. Start at `Home.md`, 
 | `skills/utils/lean-html-skill` | 共享 HTML shell、反馈面板、copy/download 导出控件、Cosmic Sci-Fi 视觉层和背景切换控件。 | 不做领域解释，不写 profile，不改变业务数据结构。 |
 | `skills/utils/chat-knowledge-profile` | 从本地 ChatGPT/GPT/Claude/Deepseek 导出记录提炼会话摘要、概念状态候选、学习/研究/工作流偏好，并生成严格 `reader-learner` handoff。 | 不抓取分享 URL，不把助手曝光当作掌握证据，不绕过补丁审核直接覆盖 profile。 |
 | `skills/utils/demo-skill` | 从经过核验的 README/AGENTS/source contract 生成结构等价的中文、英文四-pipeline 项目 demo，并负责模板物化与发布前审核。 | 不臆造 pipeline，不改业务数据，不把截图、浏览器 profile 或 QA 临时文件作为默认发布物。 |
-| `skills/utils/neat-freak` | 对照代码、规则和发布产物同步 README、`.agents/` 与项目说明，清理重复、死引用和过期事实。 | 不把变更流水账塞进规则文件，不手改机器生成的 Codex memory，不新建业务 skill。 |
 
 <a id="paper-reader"></a>
 
@@ -209,17 +207,19 @@ input that may be compiled into formal HTML.
 Run from `D:\AI\PaperTrace`:
 
 ```powershell
-python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "D:\AI\PaperTrace\2026\7" --agent-continuation
+python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "D:\AI\PaperTrace\2026\7" --resume --agent-continuation
 ```
 
-The specified directory is the complete input set. The command sorts only its
-immediate PDFs and emits their exact paths and SHA-256 values in its JSON
-standard output. It creates no batch-history or root-level state file. It validates any
-formal-pass prefix and activates only the first incomplete paper; every later
-paper remains `queued` and untouched. While any record or preflight check is
-pending/invalid, it writes only `reader_progress.html` with an `INCOMPLETE / NOT
-FORMAL` banner for that active paper. It must not write or report
-`reader_interactive.html` as formal.
+The specified directory is the input authority. The command freezes the sorted
+immediate-PDF selection, exact paths, and SHA-256 values under
+`<reader-root>/.papertrace_jobs/`; `--max-papers N` limits that frozen selection
+to a deterministic prefix. A resume keeps the same scope even if the source
+folder later changes. The controller validates any formal-pass prefix and
+activates only the first incomplete paper; every later paper remains `queued`
+and untouched. While any record or preflight check is pending/invalid, it
+persists a bounded `next_authoring_packet.json` and may write only
+`reader_progress.html` with an `INCOMPLETE / NOT FORMAL` banner for that active
+paper. It must not write or report `reader_interactive.html` as formal.
 
 Every checkpoint embeds `agent_continuation_contract` in the same JSON standard
 output. The default command exits successfully with `status: action_required` for expected
@@ -234,7 +234,7 @@ render, and adversarial audit pass.
 Audit the batch response boundary from `D:\AI\PaperTrace` with:
 
 ```powershell
-python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "D:\AI\PaperTrace\2026\7" --agent-continuation | python .\skills\reader-skill\tests\adversarial_batch_audit.py -
+python .\skills\reader-skill\scripts\build_formal_reader_batch.py --pdf-dir "<PDF-folder>" --reader-root "D:\AI\PaperTrace\2026\7" --resume --agent-continuation | python .\skills\reader-skill\tests\adversarial_batch_audit.py -
 ```
 
 `nature-reader` 负责把 PDF 变成内部 source-grounded evidence/bundle。当前会话的主大模型按 skill contract 直接完成中文、块级注释与 LaTeX 重建；相关脚本只负责抽取、校验、编译与渲染。该阶段生成或修复同名 `*_reader/` 工作目录，并写出：
@@ -585,13 +585,11 @@ GitHub 发布只包含可复现的代码、公开文档、测试与有意维护�
 
 - [Yuan1z0825/nature-skills](https://github.com/Yuan1z0825/nature-skills)：`nature-reader` 思路，尤其是 source-grounded 全文阅读、图表位置保留、术语表和 Markdown bundle 输出结构。
 - [AI HOT skill](https://aihot.virxact.com/aihot-skill/) 和 [AI HOT feed.xml](https://aihot.virxact.com/feed.xml)：作为 AI 日报候选池与中文精选资讯发现机制的参考。当前项目只把它作为候选源，最终日报仍需要核实原始来源。
-- [KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills/tree/main)：感谢其公开的 `aihot` 候选发现与 `neat-freak` 文档治理思路；本项目将前者限制在发现层，并将后者用于 README、`.agents/`、技能契约和双语说明的同步维护。
+- [KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills/tree/main)：感谢其公开的 `aihot` 候选发现与 `neat-freak` 文档治理思路；本项目将前者限制在发现层，后者仅作为 README、`.agents/`、技能契约和双语说明的外部治理参考，不作为仓库内置技能发布。
 - [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill)：作为 HTML/product taste、控件协调性、可读性优先和设计审计思路的参考。
 - OpenAI Product Design workflow：用于明确“Design System Layer 只改变视觉，不改变核心功能和信息架构”的产品设计约束。
 - [greg-asher/codex-obsidian](https://github.com/greg-asher/codex-obsidian)：用于理解 Codex 与 Obsidian、本地仓库之间的衔接方式，启发 `.agents/reader-learner/obsidian-vault` 的同步和诊断脚本设计。
 - [ar9av/obsidian-wiki](https://github.com/ar9av/obsidian-wiki)：用于借鉴 wiki 式知识组织、MOC、知识点页面和图谱表达方式。
 - [Eden-Eldith/ChatInsights](https://github.com/Eden-Eldith/ChatInsights)：用于借鉴多平台聊天导出解析、概念跟踪、Obsidian-ready 会话组织和训练对抽取思路；本项目仅吸收架构原则，不复用其 GPL 代码。
 - [ygivenx/gpt-obsidian](https://github.com/ygivenx/gpt-obsidian)：用于借鉴增量导入、每会话笔记、topic tags/backlinks、月度索引和导入报告思路，并适配为 `chat-knowledge-profile` 的可审核画像候选流程。
-- `D:\AI\skill\S_paper_skills\util_skills\project-agent-generator-skill`：用于生成和维护 `.agents` 项目上下文，帮助后续 Codex 会话快速理解项目边界、命令、数据位置和安全规则。
-
 上述来源提供的是架构、交互、候选池和设计参考；本仓库中的个人画像、反馈导入、论文 reader 生成、日报学术检索策略和知识边界迭代逻辑均按本地需求重新组织实现。

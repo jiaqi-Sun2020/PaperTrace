@@ -147,6 +147,7 @@ def write_formal_manifest(reader_dir: Path, status: str, issues: list[str], summ
     artifacts: dict[str, dict[str, str]] = {}
     for label, path in (
         ("source_map", reader_dir / "source_map.json"),
+        ("source_map_lock", wiki / "source_map_lock.json"),
         ("completion_run_state", run_state_path(reader_dir)),
         ("canonical_reader", canonical_path(reader_dir)),
         ("object_inventory", wiki / "object_inventory.json"),
@@ -224,16 +225,27 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         "completion_blocks": "reader_wiki/completion_blocks",
         "object_inventory": "reader_wiki/object_inventory.json",
         "preflight_manifest": "reader_wiki/preflight_manifest.json",
+        "source_map_lock": "reader_wiki/source_map_lock.json",
     }
     for key, value in expected_sources.items():
         if source_of_truth.get(key) != value:
             fail(f"reader_manifest source of truth is wrong for {key}", issues)
     if source_of_truth.get("source_map_sha256") != source_hash:
         fail("reader_manifest source map hash is stale", issues)
+    lock_manifest_path = wiki / "source_map_lock.json"
+    if lock_manifest_path.is_file() and source_of_truth.get("source_map_lock_sha256") != sha256_file(lock_manifest_path):
+        fail("reader_manifest source map lock hash is stale", issues)
     if source_of_truth.get("canonical_reader_sha256") != sha256_file(canonical_path(reader_dir)):
         fail("reader_manifest canonical reader hash is stale", issues)
     summary_path = wiki / "paper_summary.json"
     if full_paper:
+        lock_path = wiki / "source_map_lock.json"
+        if not lock_path.is_file():
+            fail("full formal reader lacks reader_wiki/source_map_lock.json", issues)
+        else:
+            source_lock = read_json(lock_path)
+            if source_lock.get("status") != "frozen" or source_lock.get("source_map_sha256") != source_hash:
+                fail("source map lock is missing, stale, or not frozen", issues)
         if not summary_path.is_file():
             fail("full formal reader lacks reader_wiki/paper_summary.json", issues)
         else:

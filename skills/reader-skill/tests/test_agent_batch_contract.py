@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import hashlib
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -77,6 +78,12 @@ def main() -> int:
         if len(contract["reportable_formal_html"]) != 1:
             raise AssertionError("formal-prefix artifact was not isolated from pending/queued readers")
 
+        complete_contract = builder.build_agent_contract(
+            pdf_dir=Path("C:/source"), reader_root=root, results=[results[0]],
+        )
+        if complete_contract["status"] != "complete" or complete_contract.get("next_command") is not None:
+            raise AssertionError("completed scope retained a misleading continuation command")
+
         snapshot = {"source_set_sha256": "fixture-set", "papers": papers()}
         state = {
             "schema_version": 3, "status": "action_required", "final_response_allowed": False,
@@ -85,6 +92,20 @@ def main() -> int:
             "input_snapshot": snapshot, "agent_continuation_contract": contract,
             "formal_artifact_manifest": None,
         }
+        orchestration_path = root / ".papertrace_jobs" / "fixture" / "orchestration_state.json"
+        orchestration_path.parent.mkdir(parents=True)
+        orchestration_path.write_text(
+            json.dumps({
+                "schema_version": 1,
+                "status": "active",
+                "selected_papers": papers(),
+                "source_set_sha256": "fixture-set",
+                "next_command": contract["next_command"],
+                "active_paper": {"paper_id": "paper-2"},
+            }),
+            encoding="utf-8",
+        )
+        state["orchestration_state_path"] = str(orchestration_path)
         formal_reader = root / "Paper 1_reader"
         formal_wiki = formal_reader / "reader_wiki"
         formal_wiki.mkdir(parents=True)
@@ -108,6 +129,18 @@ def main() -> int:
             raise AssertionError("continuation guard allowed the persistent goal to end")
         if guard_payload.get("active_paper", {}).get("paper_id") != "paper-2":
             raise AssertionError("continuation guard lost the active-paper identity")
+        report_fixture = root / "must_continue_report.json"
+        report_fixture.write_text(json.dumps(state), encoding="utf-8")
+        tool_safe = subprocess.run(
+            [sys.executable, str(SCRIPTS / "reader_continuation_guard.py"), str(report_fixture)],
+            cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+        )
+        strict_guard = subprocess.run(
+            [sys.executable, str(SCRIPTS / "reader_continuation_guard.py"), str(report_fixture), "--strict-exit"],
+            cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+        )
+        if tool_safe.returncode != 0 or strict_guard.returncode != guard.MUST_CONTINUE_EXIT:
+            raise AssertionError("guard CLI does not separate tool-safe checkpoints from strict CI exits")
 
         bad = json.loads(json.dumps(contract))
         bad["final_response_allowed"] = True
@@ -163,8 +196,19 @@ def main() -> int:
             "results": blocked_results,
             "reader_root": str(root), "source_set_sha256": "fixture-set",
             "input_snapshot": snapshot, "agent_continuation_contract": blocked_contract,
-            "formal_artifact_manifest": None,
+            "formal_artifact_manifest": None, "orchestration_state_path": str(orchestration_path),
         }
+        orchestration_path.write_text(
+            json.dumps({
+                "schema_version": 1,
+                "status": "blocked",
+                "selected_papers": papers(),
+                "source_set_sha256": "fixture-set",
+                "next_command": blocked_contract["next_command"],
+                "active_paper": {"paper_id": "paper-2"},
+            }),
+            encoding="utf-8",
+        )
         blocked_issues = auditor.audit_batch_report(blocked_state, run_reader_audits=False)
         blocked_structural = [issue for issue in blocked_issues if "formal result HTML is missing" not in issue]
         if blocked_structural:
@@ -173,8 +217,91 @@ def main() -> int:
         if blocked_code != 3 or blocked_payload.get("status") != "blocked":
             raise AssertionError("continuation guard did not preserve an authorized terminal blocker")
 
-        if (root / ".reader_pipeline_runs").exists() or (root / "reader_batch_state.json").exists():
-            raise AssertionError("controller contract tests created forbidden batch state artifacts")
+        # Liveness: the selected scope and next work packet survive process
+        # boundaries. A newly inserted earlier PDF must not change a resumed
+        # two-paper job.
+        source_dir = root / "source"
+        reader_root = root / "readers"
+        source_dir.mkdir()
+        reader_root.mkdir()
+        for name in ("B.pdf", "C.pdf", "D.pdf"):
+            (source_dir / name).write_bytes(("fixture:" + name).encode("utf-8"))
+        discovered = builder.discover_pdfs(source_dir)
+        selected, job, state_path, report_path = builder.load_or_create_job(
+            pdf_dir=source_dir.resolve(), reader_root=reader_root.resolve(), discovered=discovered,
+            max_papers=2, resume=False,
+        )
+        if [row["filename"] for row in selected] != ["B.pdf", "C.pdf"]:
+            raise AssertionError("max-papers did not freeze the deterministic prefix")
+        if not state_path.exists() or report_path.exists() or job.get("attempts") != 1:
+            raise AssertionError("initial persistent orchestration state is incomplete")
+        (source_dir / "A.pdf").write_bytes(b"inserted later")
+        resumed, resumed_job, same_state_path, _ = builder.load_or_create_job(
+            pdf_dir=source_dir.resolve(), reader_root=reader_root.resolve(),
+            discovered=builder.discover_pdfs(source_dir), max_papers=2, resume=True,
+        )
+        if [row["filename"] for row in resumed] != ["B.pdf", "C.pdf"]:
+            raise AssertionError("resume silently changed the frozen PDF scope")
+        if same_state_path != state_path or resumed_job.get("attempts") != 2:
+            raise AssertionError("resume did not update the same persistent heartbeat")
+
+        packet_reader = reader_root / "B_reader"
+        (packet_reader / "reader_wiki").mkdir(parents=True)
+        pending = {
+            "paper_id": "paper-b", "filename": "B.pdf", "reader_dir": str(packet_reader),
+            "status": "pending", "failure_gate": "completion records",
+            "pending_record_ids": ["block:S001", "block:S002", "block:S003"],
+            "invalid_record_ids": [], "preflight_issues": [], "reasons": [],
+        }
+        packet = builder.write_authoring_packet(pending, packet_size=2)
+        if packet is None or packet.get("record_ids") != ["block:S001", "block:S002"]:
+            raise AssertionError("bounded authoring packet did not preserve the next resumable unit")
+        if not (packet_reader / "reader_wiki" / "next_authoring_packet.json").is_file():
+            raise AssertionError("authoring packet was not persisted")
+        completed = dict(pending)
+        completed["status"] = "formal_pass"
+        complete_packet = builder.write_authoring_packet(completed, packet_size=2)
+        if complete_packet is None or complete_packet.get("status") != "complete":
+            raise AssertionError("completed reader did not close its persisted authoring packet")
+        if complete_packet.get("record_ids") or complete_packet.get("remaining_record_count") != 0:
+            raise AssertionError("completed authoring packet still advertises unfinished work")
+
+        interrupted_at_60 = dict(pending)
+        interrupted_at_60["pending_record_ids"] = [f"block:S{index:03d}" for index in range(61, 115)]
+        packet_60 = builder.write_authoring_packet(interrupted_at_60, packet_size=12)
+        if packet_60 is None or packet_60["record_ids"][0] != "block:S061" or len(packet_60["record_ids"]) != 12:
+            raise AssertionError("60/114 interruption did not resume at the first unfinished record")
+        interrupted_at_74 = dict(pending)
+        interrupted_at_74["pending_record_ids"] = [f"block:S{index:03d}" for index in range(75, 115)]
+        packet_74 = builder.write_authoring_packet(interrupted_at_74, packet_size=12)
+        if packet_74 is None or packet_74["record_ids"][0] != "block:S075":
+            raise AssertionError("74/114 interruption did not resume at the first unfinished record")
+        _, third_job, third_state_path, _ = builder.load_or_create_job(
+            pdf_dir=source_dir.resolve(), reader_root=reader_root.resolve(),
+            discovered=builder.discover_pdfs(source_dir), max_papers=2, resume=True,
+        )
+        if third_state_path != state_path or third_job.get("attempts") != 3:
+            raise AssertionError("second process restart did not retain the same job heartbeat")
+
+        freeze_reader = reader_root / "freeze_reader"
+        (freeze_reader / "reader_wiki").mkdir(parents=True)
+        source_map = {
+            "paper": {"source_pdf_sha256": "a" * 64}, "blocks": [],
+            "figures": [], "tables": [], "algorithms": [],
+        }
+        (freeze_reader / "source_map.json").write_text(json.dumps(source_map), encoding="utf-8")
+        frozen, reason = builder.ensure_source_map_lock(freeze_reader)
+        if not frozen or reason or not (freeze_reader / "reader_wiki" / "source_map_lock.json").is_file():
+            raise AssertionError("source map was not frozen before completion work")
+        source_map["figures"] = [{"id": "F001", "page": 1}]
+        (freeze_reader / "source_map.json").write_text(json.dumps(source_map), encoding="utf-8")
+        frozen, reason = builder.ensure_source_map_lock(freeze_reader)
+        if frozen or "changed after" not in reason:
+            raise AssertionError("post-freeze source-map mutation was not rejected")
+
+        controller_source = (SCRIPTS / "build_formal_reader_batch.py").read_text(encoding="utf-8")
+        if "from reader_continuation_guard import guard as enforce_continuation_guard" not in controller_source:
+            raise AssertionError("continuation guard is not integrated into the production controller")
 
     print("agent batch continuation contract tests passed")
     return 0

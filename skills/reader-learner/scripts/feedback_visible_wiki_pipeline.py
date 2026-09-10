@@ -25,14 +25,18 @@ DEFAULT_WIKI = PROJECT_ROOT / ".agents" / "wiki"
 READER_IMPORTER = PROJECT_ROOT / "skills" / "reader-learner" / "scripts" / "import_reader_feedback.py"
 NEWS_IMPORTER = PROJECT_ROOT / "skills" / "ai-quantum-news-briefing" / "scripts" / "import_news_feedback.py"
 TEACHING_IMPORTER = PROJECT_ROOT / "skills" / "reader-learner" / "scripts" / "import_teaching_feedback.py"
+CHAT_IMPORTER = PROJECT_ROOT / "skills" / "utils" / "chat-knowledge-profile" / "scripts" / "init_knowledge_profile.py"
 
 
 def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["sync", "reader-feedback", "news-feedback", "teaching-feedback"])
+    parser.add_argument(
+        "command",
+        choices=["sync", "reader-feedback", "news-feedback", "teaching-feedback", "chat-feedback"],
+    )
     parser.add_argument("--profile", default=str(DEFAULT_PROFILE), help="Schema-v2 learner profile")
     parser.add_argument("--wiki", default=str(DEFAULT_WIKI), help="Persistent visible wiki root")
-    parser.add_argument("--feedback", help="Reader or news feedback JSON for an import command")
+    parser.add_argument("--feedback", help="Feedback JSON, or a reviewed chat profile_patch.json")
     parser.add_argument(
         "--no-bootstrap",
         action="store_true",
@@ -53,9 +57,20 @@ def run_import(command: str, profile: Path, feedback: Path) -> int:
     elif command == "news-feedback":
         importer = NEWS_IMPORTER
         args = ["--feedback", str(feedback), "--profile", str(profile)]
-    else:
+    elif command == "teaching-feedback":
         importer = TEACHING_IMPORTER
         args = ["--feedback", str(feedback), "--profile", str(profile)]
+    elif command == "chat-feedback":
+        importer = CHAT_IMPORTER
+        args = [
+            "apply",
+            "--profile", str(profile),
+            "--patch", str(feedback),
+            "--project-root", str(PROJECT_ROOT),
+            "--backup",
+        ]
+    else:
+        raise ValueError(f"Unsupported feedback command: {command}")
     if not importer.exists():
         raise FileNotFoundError(f"Required importer is missing: {importer}")
     completed = subprocess.run(

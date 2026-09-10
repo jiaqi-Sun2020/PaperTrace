@@ -18,6 +18,13 @@ from typing import Any, Iterable
 
 VALID_STATUSES = {"mastered", "known", "learning", "unknown", "unrated"}
 STATUS_ORDER = {"unrated": 0, "unknown": 1, "learning": 2, "known": 3, "mastered": 4}
+PERSON_PROFILE_SECTIONS = {
+    "learning_preferences",
+    "research_interests",
+    "workflow_preferences",
+    "project_rules",
+    "writing_style",
+}
 TEXT_EXTS = {".txt", ".md", ".markdown", ".html", ".htm", ".json"}
 SENSITIVE_RE = re.compile(
     r"(\.env|secret|secrets|credential|credentials|token|password|passwd|apikey|api_key|private_key|id_rsa|\.pem|\.p12|\.pfx|cookie|session)",
@@ -604,20 +611,29 @@ def load_source_lookup(events_path: Path | None, candidates: dict[str, Any]) -> 
     return lookup
 
 
-def candidate_to_feedback_item(candidate: dict[str, Any], event_lookup: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def candidate_to_feedback_item(
+    candidate: dict[str, Any],
+    event_lookup: dict[str, dict[str, Any]],
+    confirmed_status: str = "",
+    status_authority_note: str = "",
+) -> dict[str, Any]:
     event_id = (candidate.get("evidence_event_ids") or [""])[0]
     event = event_lookup.get(event_id, {})
-    return {
+    status = confirmed_status or candidate.get("status", "unrated")
+    note_parts = [part for part in (candidate.get("notes") or [candidate.get("note", "")]) if part]
+    if status_authority_note:
+        note_parts.append(f"Status authority: {status_authority_note}")
+    item = {
         "feedback_id": candidate.get("candidate_id", ""),
         "concept": candidate.get("label", ""),
-        "concept_id": concept_id_from_label(candidate.get("label", "")),
-        "concept_type": "term",
-        "status": candidate.get("status", "unrated"),
+        "concept_id": candidate.get("canonical_concept_id") or concept_id_from_label(candidate.get("label", "")),
+        "concept_type": candidate.get("concept_type") or "term",
+        "status": status,
         "annotation_kind": "concept",
-        "confusion_type": "term_definition" if candidate.get("status") in {"unknown", "learning"} else "",
+        "confusion_type": "term_definition" if status in {"unknown", "learning"} else "",
         "explanation_style": "paper_context",
-        "user_question": "" if candidate.get("status") not in {"unknown", "learning"} else candidate.get("note", ""),
-        "note": "; ".join(candidate.get("notes") or [candidate.get("note", "")]),
+        "user_question": "" if status not in {"unknown", "learning"} else candidate.get("note", ""),
+        "note": "; ".join(note_parts),
         "selected_text": "",
         "selected_language": "chat_session",
         "source": clean_text(event.get("source_path"), 1000),
@@ -628,12 +644,16 @@ def candidate_to_feedback_item(candidate: dict[str, Any], event_lookup: dict[str
         "source_anchor": event_id or candidate.get("candidate_id", ""),
         "bilingual_block_id": event_id,
         "source_title": event.get("source_title", ""),
-        "source_url": "",
+        "source_url": candidate.get("source_url") or event.get("source_url", ""),
         "category": "chat_session",
         "source_kind": "chat_session",
         "needs_explanation": candidate.get("status") in {"unknown", "learning"},
-        "action": "chat_knowledge_profile_candidate",
+        "action": "chat_feedback_user_confirmed_status" if confirmed_status else "chat_knowledge_profile_candidate",
     }
+    canonical_concept_id = clean_text(candidate.get("canonical_concept_id"), 160)
+    if canonical_concept_id:
+        item["canonical_concept_id"] = canonical_concept_id
+    return item
 
 
 def cmd_propose(args: argparse.Namespace) -> int:
@@ -642,6 +662,10 @@ def cmd_propose(args: argparse.Namespace) -> int:
     candidates = read_json(Path(args.candidates).expanduser().resolve())
     events_path = Path(args.events).expanduser().resolve() if args.events else Path(args.candidates).expanduser().resolve().parent / "events.jsonl"
     event_lookup = load_source_lookup(events_path, candidates)
+    confirmed_status = clean_text(args.confirmed_concept_status, 80).lower()
+    status_authority_note = clean_text(args.status_authority_note, 1000)
+    if confirmed_status and not status_authority_note:
+        raise ValueError("--status-authority-note is required with --confirmed-concept-status")
     operations: list[dict[str, Any]] = []
     feedback_items: list[dict[str, Any]] = []
 
@@ -649,7 +673,9 @@ def cmd_propose(args: argparse.Namespace) -> int:
     for item in candidates.get("items", []):
         kind = item.get("type")
         if kind == "concept_status":
-            feedback_items.append(candidate_to_feedback_item(item, event_lookup))
+            feedback_items.append(
+                candidate_to_feedback_item(item, event_lookup, confirmed_status, status_authority_note)
+            )
             continue
         section = {
             "learning_preference": "learning_preferences",
@@ -690,6 +716,13 @@ def cmd_propose(args: argparse.Namespace) -> int:
             "items": feedback_items,
         },
     }
+    if confirmed_status:
+        patch["status_authority"] = {
+            "kind": "explicit_user_declaration",
+            "scope": "all_reviewed_concepts",
+            "status": confirmed_status,
+            "note": status_authority_note,
+        }
     write_json(Path(args.output).expanduser().resolve(), patch)
     print(f"Wrote {Path(args.output).expanduser().resolve()}")
     print(f"Person-profile operations: {len(operations)}")
@@ -703,6 +736,40 @@ def import_concept_feedback(profile: dict[str, Any], feedback: dict[str, Any], p
     from profile_v2 import import_feedback  # type: ignore
 
     return import_feedback(profile, feedback)
+
+
+def validate_concept_feedback(feedback: dict[str, Any], project_root: Path) -> None:
+    scripts_dir = project_root / "skills" / "reader-learner" / "scripts"
+    sys.path.insert(0, str(scripts_dir))
+    from profile_v2 import validate_feedback_payload  # type: ignore
+
+    validate_feedback_payload(feedback)
+
+
+def concept_handoff_already_applied(profile: dict[str, Any], feedback: dict[str, Any]) -> bool:
+    """Recognize an exact prior chat handoff without trusting mutable timestamps."""
+    items = feedback.get("items") if isinstance(feedback.get("items"), list) else []
+    if not items:
+        return True
+    expected = {
+        (
+            clean_text(item.get("source_anchor"), 160),
+            clean_text(item.get("status"), 80).lower(),
+            clean_text(item.get("concept"), 1000),
+        )
+        for item in items
+        if isinstance(item, dict)
+    }
+    observed = {
+        (
+            clean_text(event.get("source_anchor"), 160),
+            clean_text(event.get("status"), 80).lower(),
+            clean_text(event.get("raw_concept"), 1000),
+        )
+        for event in profile.get("events", [])
+        if isinstance(event, dict) and event.get("event_type") == "chat_session"
+    }
+    return len(expected) == len(items) and expected.issubset(observed)
 
 
 def apply_person_operation(profile: dict[str, Any], operation: dict[str, Any]) -> None:
@@ -733,21 +800,85 @@ def apply_person_operation(profile: dict[str, Any], operation: dict[str, Any]) -
     entry["last_seen_at"] = now
 
 
+def validate_patch_for_apply(patch: Any) -> dict[str, Any]:
+    """Fail closed unless this is a reviewed, chat-scoped patch produced by this skill."""
+    if not isinstance(patch, dict):
+        raise ValueError("Chat patch must be a JSON object")
+    if patch.get("patch_version") != 1:
+        raise ValueError("Unsupported chat patch_version; expected 1")
+    if patch.get("generated_from") != "chat-knowledge-profile":
+        raise ValueError("Chat patch generated_from must be 'chat-knowledge-profile'")
+    if patch.get("review_required") is not True:
+        raise ValueError("Chat patch must retain review_required=true")
+
+    operations = patch.get("operations")
+    if not isinstance(operations, list):
+        raise ValueError("Chat patch operations must be a list")
+    for index, operation in enumerate(operations):
+        if not isinstance(operation, dict):
+            raise ValueError(f"Chat patch operation {index} must be an object")
+        if operation.get("op") != "upsert_person_profile_signal":
+            raise ValueError(f"Chat patch operation {index} uses an unsupported op")
+        if operation.get("section") not in PERSON_PROFILE_SECTIONS:
+            raise ValueError(f"Chat patch operation {index} uses an unsupported person-profile section")
+        if not clean_text(operation.get("key"), 120):
+            raise ValueError(f"Chat patch operation {index} is missing a key")
+        if not isinstance(operation.get("value"), dict):
+            raise ValueError(f"Chat patch operation {index} value must be an object")
+
+    handoff = patch.get("reader_feedback_handoff")
+    if not isinstance(handoff, dict):
+        raise ValueError("Chat patch must contain reader_feedback_handoff")
+    if handoff.get("source_kind") != "chat_session":
+        raise ValueError("Chat handoff source_kind must be 'chat_session'")
+    if handoff.get("generated_from") != "chat-knowledge-profile":
+        raise ValueError("Chat handoff generated_from must be 'chat-knowledge-profile'")
+    if handoff.get("conversation_import_version") != 1:
+        raise ValueError("Unsupported conversation_import_version; expected 1")
+    if any(field in handoff for field in ("reader_feedback_version", "reader_path", "bundle_provenance")):
+        raise ValueError("Chat handoff must not impersonate reader-bundle provenance")
+    if not isinstance(handoff.get("items"), list):
+        raise ValueError("Chat handoff items must be a list")
+    status_authority = patch.get("status_authority")
+    if status_authority is not None:
+        if not isinstance(status_authority, dict):
+            raise ValueError("Chat patch status_authority must be an object")
+        if status_authority.get("kind") != "explicit_user_declaration":
+            raise ValueError("Chat patch status_authority.kind must be explicit_user_declaration")
+        if status_authority.get("scope") != "all_reviewed_concepts":
+            raise ValueError("Chat patch status_authority.scope must be all_reviewed_concepts")
+        authority_status = clean_text(status_authority.get("status"), 80).lower()
+        if authority_status not in {"known", "mastered"}:
+            raise ValueError("Chat patch status_authority.status must be known or mastered")
+        if not clean_text(status_authority.get("note"), 1000):
+            raise ValueError("Chat patch status_authority.note is required")
+        for index, item in enumerate(handoff["items"]):
+            if not isinstance(item, dict) or clean_text(item.get("status"), 80).lower() != authority_status:
+                raise ValueError(f"Chat handoff item {index} does not match blanket status authority")
+    return patch
+
+
 def cmd_apply(args: argparse.Namespace) -> int:
     profile_path = Path(args.profile).expanduser().resolve()
     patch_path = Path(args.patch).expanduser().resolve()
     project_root = Path(args.project_root).expanduser().resolve() if args.project_root else profile_path.parents[2]
     profile = load_profile(profile_path)
-    patch = read_json(patch_path)
+    patch = validate_patch_for_apply(read_json(patch_path))
+    feedback = patch["reader_feedback_handoff"]
+    validate_concept_feedback(feedback, project_root)
+    if not patch["operations"] and concept_handoff_already_applied(profile, feedback):
+        print(f"Profile: {profile_path}")
+        print("Chat patch already applied; no profile write or backup was needed")
+        return 0
+    changed = 0
+    if feedback.get("items"):
+        # Validate and materialize the full profile change in memory before
+        # creating a backup or writing any file.
+        profile, changed = import_concept_feedback(profile, feedback, project_root)
     if args.backup:
         backup = profile_path.with_name(profile_path.stem + "." + datetime.now().strftime("%Y%m%d-%H%M%S") + profile_path.suffix + ".bak")
         shutil.copy2(profile_path, backup)
         print(f"Backup: {backup}")
-
-    feedback = patch.get("reader_feedback_handoff") if isinstance(patch.get("reader_feedback_handoff"), dict) else {}
-    changed = 0
-    if feedback.get("items"):
-        profile, changed = import_concept_feedback(profile, feedback, project_root)
 
     applied_person = 0
     for operation in patch.get("operations", []) or []:
@@ -791,6 +922,15 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     propose.add_argument("--candidates", required=True, help="profile_candidates.json.")
     propose.add_argument("--events", help="events.jsonl. Defaults to the candidates directory.")
     propose.add_argument("--output", required=True, help="Output profile_patch.json.")
+    propose.add_argument(
+        "--confirmed-concept-status",
+        choices=["known", "mastered"],
+        help="Apply an explicit user-confirmed status to every reviewed concept candidate.",
+    )
+    propose.add_argument(
+        "--status-authority-note",
+        help="Required evidence note for --confirmed-concept-status (for example, the user's declaration).",
+    )
     propose.set_defaults(func=cmd_propose)
 
     apply = sub.add_parser("apply", help="Apply a reviewed profile patch.")
@@ -804,7 +944,11 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except (OSError, ValueError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

@@ -18,13 +18,53 @@ from completion_state import atomic_write_json, load_record, read_json, record_p
 from formula_contract import bilingual_math_issues, canonical_math_signature, math_components  # noqa: E402
 
 
+PHYSICAL_NEWLINE_SENTINEL = "__PAPERTRACE_JSON_STRING_NEWLINE__"
+
+
+def escape_newlines_inside_json_strings(value: str) -> str:
+    """Make reviewed multiline string literals valid JSON without touching layout."""
+
+    output: list[str] = []
+    in_string = False
+    escaped = False
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if in_string and char in "\r\n":
+            if char == "\r" and index + 1 < len(value) and value[index + 1] == "\n":
+                index += 1
+            # Use a sentinel until natural-LaTeX escaping is complete.  If a
+            # JSON ``\n`` is immediately followed by prose, the LaTeX pass can
+            # otherwise mistake it for a command beginning with ``\n``.
+            output.append(PHYSICAL_NEWLINE_SENTINEL)
+        else:
+            output.append(char)
+            if char == '"' and not escaped:
+                in_string = not in_string
+            if char == "\\" and not escaped:
+                escaped = True
+                index += 1
+                if index < len(value):
+                    output.append(value[index])
+                escaped = False
+                index += 1
+                continue
+        index += 1
+    return "".join(output)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("reader_dir", type=Path)
     parser.add_argument("overrides_json", type=Path)
     args = parser.parse_args()
     reader_dir = args.reader_dir.resolve()
-    raw_overrides = args.overrides_json.read_text(encoding="utf-8")
+    raw_overrides = args.overrides_json.read_text(encoding="utf-8-sig")
+    raw_overrides = escape_newlines_inside_json_strings(raw_overrides)
+    # Protect explicit JSON paragraph escapes too.  Without this step the
+    # second ``\n`` in ``\n\nProse`` can be mistaken for a natural TeX command
+    # beginning with n and doubled by the LaTeX repair regex below.
+    raw_overrides = raw_overrides.replace(r"\n\n", PHYSICAL_NEWLINE_SENTINEL * 2)
     # Review files may use natural single-backslash LaTeX.  They use physical
     # line structure rather than JSON control escapes, so preserve every
     # command/delimiter before parsing.
@@ -32,7 +72,16 @@ def main() -> int:
     # single-backslash LaTeX command such as ``\frac`` needs escaping before
     # JSON parsing; rewriting every backslash turns paragraph breaks into the
     # visible two-character sequence ``\\n``.
-    raw_overrides = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu])', r'\\\\', raw_overrides)
+    # Preserve actual JSON escapes, but do not mistake LaTeX commands such as
+    # ``\beta``, ``\frac``, ``\rho``, ``\tag`` or ``\nabla`` for the
+    # one-character JSON escapes \b, \f, \r, \t or \n.  A valid Unicode
+    # escape is kept only when it has all four hexadecimal digits.
+    raw_overrides = re.sub(
+        r'(?<!\\)\\(?!["\\/]|[bfnrt](?![A-Za-z])|u[0-9a-fA-F]{4})',
+        r'\\\\',
+        raw_overrides,
+    )
+    raw_overrides = raw_overrides.replace(PHYSICAL_NEWLINE_SENTINEL, r"\n")
     overrides = json.loads(raw_overrides)
     override_sha256 = hashlib.sha256(args.overrides_json.read_bytes()).hexdigest()
     source_map = json.loads((reader_dir / "source_map.json").read_text(encoding="utf-8"))
@@ -54,7 +103,10 @@ def main() -> int:
             record["original"] = str(row.get("original_text") or row.get("original") or row.get("text") or "")
         for key in ("original", "zh", "notes"):
             if key in authored:
-                record[key] = authored[key]
+                # Some review packets contain literal ``\n\n`` paragraph
+                # escapes after JSON decoding. Convert those boundaries while
+                # preserving TeX commands that start with n, such as ``\nu``.
+                record[key] = str(authored[key]).replace(r"\n\n", "\n\n")
         field_replacements = dict(authored.get("field_replacements") or {})
         if authored.get("original_replacements"):
             field_replacements.setdefault("original", []).extend(authored["original_replacements"])
@@ -64,8 +116,8 @@ def main() -> int:
             for replacement in replacements or []:
                 if not isinstance(replacement, list) or len(replacement) != 2:
                     raise ValueError(f"{stable_id}: {field} replacements must be [old, new]")
-                old = str(replacement[0]).replace(r"\n", "\n")
-                new = str(replacement[1]).replace(r"\n", "\n")
+                old = str(replacement[0]).replace(r"\n\n", "\n\n")
+                new = str(replacement[1]).replace(r"\n\n", "\n\n")
                 value = str(record.get(field) or "")
                 if old not in value:
                     if new in value:

@@ -498,13 +498,16 @@ def record_feedback_item(profile: dict[str, Any], feedback: dict[str, Any], item
 
     raw_concept = normalize_safe_text(item.get("concept"), "concept", 1000)
     if raw_concept and raw_concept != label and len(raw_concept) <= 120:
-        validate_concept_label(raw_concept, "concept")
-        add_unique(concept.setdefault("aliases", []), raw_concept)
-        raw_en, raw_zh = split_aliases_by_language([raw_concept])
-        for alias in raw_en:
-            add_unique(concept.setdefault("aliases_en", []), alias)
-        for alias in raw_zh:
-            add_unique(concept.setdefault("aliases_zh", []), alias)
+        # Long/sentence-like selections are valid event evidence, but must
+        # not be copied into the stable concept alias set or concept keys.
+        if not is_long_or_sentence(raw_concept):
+            validate_concept_label(raw_concept, "concept")
+            add_unique(concept.setdefault("aliases", []), raw_concept)
+            raw_en, raw_zh = split_aliases_by_language([raw_concept])
+            for alias in raw_en:
+                add_unique(concept.setdefault("aliases_en", []), alias)
+            for alias in raw_zh:
+                add_unique(concept.setdefault("aliases_zh", []), alias)
 
     status = valid_status(item.get("status"))
     current = valid_status(concept.get("status"))
@@ -766,7 +769,17 @@ def validate_feedback_payload(feedback: dict[str, Any]) -> None:
         provenance = feedback.get("bundle_provenance")
         if not isinstance(provenance, dict):
             raise ValueError("reader feedback bundle_provenance is required")
-        for key in ("source_map", "completion_ledger", "reader_manifest", "structure_validation_report"):
+        # Reader v3 replaced the monolithic completion ledger with the
+        # resumable completion_run_state.json. Keep accepting the legacy
+        # ledger so existing v2 handoffs remain importable, while requiring
+        # one of the two real completion artifacts for v3 readers.
+        completion_key = "completion_ledger" if "completion_ledger" in provenance else "completion_run_state"
+        if completion_key not in provenance:
+            raise ValueError(
+                "reader feedback bundle_provenance.completion_ledger or "
+                "bundle_provenance.completion_run_state is required"
+            )
+        for key in ("source_map", completion_key, "reader_manifest", "structure_validation_report"):
             entry = provenance.get(key)
             if not isinstance(entry, dict):
                 raise ValueError(f"reader feedback bundle_provenance.{key} is required")

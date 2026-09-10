@@ -61,12 +61,19 @@ def guard(report: dict[str, Any]) -> tuple[int, dict[str, Any]]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("report", nargs="?", default="-", help="controller JSON file, or - for standard input")
+    parser.add_argument(
+        "--strict-exit",
+        action="store_true",
+        help=f"Return {MUST_CONTINUE_EXIT} for must_continue; default CLI use is tool-safe exit 0",
+    )
     args = parser.parse_args()
     try:
         code, payload = guard(read_report(args.report))
     except Exception as exc:
         code, payload = 2, {"status": "invalid_report", "final_response_allowed": False, "issues": [str(exc)]}
     print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if code == MUST_CONTINUE_EXIT and not args.strict_exit:
+        return 0
     return code
 
 
