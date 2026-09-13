@@ -94,3 +94,4 @@ id_rsa*
 *private_key*
 *cookie*
 *session*
+.agents/memory/

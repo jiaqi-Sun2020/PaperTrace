@@ -1,0 +1,7 @@
+interface:
+  display_name: "Allegory Teach"
+  short_description: "Teach one advanced concept through a causal fable and logic chain."
+  default_prompt: "Use $allegory-teach to explain one profile-relevant concept as a causal fable, then map its logic chain back to facts."
+
+policy:
+  allow_implicit_invocation: true

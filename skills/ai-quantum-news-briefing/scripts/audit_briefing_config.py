@@ -501,6 +501,15 @@ def audit(config: dict[str, Any]) -> dict[str, Any]:
     academic_item_count = 0
     requires_chinese_analysis = clean_text(config.get("analysis_language"), 40).lower() in {"zh", "zh-cn", "chinese"}
 
+    opening_story = config.get("opening_story") or {}
+    if opening_story and requires_chinese_analysis:
+        story_text = " ".join(str(value) for value in opening_story.get("paragraphs", []))
+        if not contains_cjk(story_text):
+            failures.append("opening_story.paragraphs must include Chinese narrative text")
+        for field in ("concept_definition", "logic_chain", "analogy_boundary", "misleading_risk"):
+            if not contains_cjk(opening_story.get(field)):
+                failures.append(f"opening_story.{field} must include Chinese analysis text")
+
     for section, item in iter_items(config):
         item_count += 1
         label = clean_text(item.get("id") or item.get("title"), 160)

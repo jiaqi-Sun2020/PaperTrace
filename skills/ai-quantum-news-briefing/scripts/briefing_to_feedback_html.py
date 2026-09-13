@@ -152,6 +152,30 @@ def render_item(item: dict[str, Any]) -> str:
 """
 
 
+def render_opening_story(config: dict[str, Any]) -> str:
+    story = config.get("opening_story") or {}
+    if not isinstance(story, dict) or not story:
+        return ""
+    paragraphs = "".join(
+        f"<p>{esc(paragraph)}</p>"
+        for paragraph in story.get("paragraphs", [])
+        if clean_text(paragraph)
+    )
+    return f"""
+<section class="opening-story" data-opening-story="true">
+  <div class="story-kicker">在读今日信号之前</div>
+  <h2>{esc(story.get('title') or '开篇寓言')}</h2>
+  <div class="story-narrative">{paragraphs}</div>
+  <div class="story-debrief">
+    <p><strong>揭晓：</strong>{esc(story.get('concept_name'))}——{esc(story.get('concept_definition'))}</p>
+    <p><strong>逻辑链：</strong>{esc(story.get('logic_chain'))}</p>
+    <p><strong>类比边界：</strong>{esc(story.get('analogy_boundary'))}</p>
+    <p><strong>避免误读：</strong>{esc(story.get('misleading_risk'))}</p>
+  </div>
+</section>
+"""
+
+
 def render_html(config: dict[str, Any]) -> str:
     # The canonical briefing contract intentionally stores items under sections.
     # The browser needs a flat lookup table for feedback chips, so derive it here
@@ -170,6 +194,7 @@ def render_html(config: dict[str, Any]) -> str:
         sections_html.append(
             f'<section class="briefing-section"><h2>{esc(section["title"])}</h2>{items_html}</section>'
         )
+    opening_story_html = render_opening_story(config)
     html_doc = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -239,6 +264,37 @@ def render_html(config: dict[str, Any]) -> str:
       background: #eef7f6;
       border-radius: 8px;
       margin-bottom: 18px;
+    }}
+    .opening-story {{
+      padding: 22px;
+      border: 1px solid rgba(124, 58, 237, 0.24);
+      background: linear-gradient(145deg, #ffffff 0%, #f5f3ff 100%);
+      border-radius: 12px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 28px rgba(76, 29, 149, 0.08);
+    }}
+    .story-kicker {{
+      color: var(--accent-2);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }}
+    .story-narrative {{
+      font-family: Georgia, "Microsoft YaHei", serif;
+      font-size: 16px;
+      line-height: 1.85;
+    }}
+    .story-debrief {{
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-left: 3px solid var(--accent-2);
+      background: rgba(255, 255, 255, 0.72);
+      border-radius: 0 8px 8px 0;
+    }}
+    .briefing-body > h2 {{
+      margin: 0 0 14px;
+      padding-top: 2px;
     }}
     .briefing-section {{
       margin-bottom: 24px;
@@ -474,8 +530,12 @@ def render_html(config: dict[str, Any]) -> str:
   </header>
   <main class="layout">
     <div>
-      {f'<div class="summary"><strong>一句话：</strong>{esc(config["summary"])}</div>' if config.get("summary") else ""}
-      {''.join(sections_html)}
+      {opening_story_html}
+      <div class="briefing-body" data-briefing-body="true">
+        <h2>日报正文</h2>
+        {f'<div class="summary"><strong>一句话：</strong>{esc(config["summary"])}</div>' if config.get("summary") else ""}
+        {''.join(sections_html)}
+      </div>
     </div>
     <aside class="feedback-panel" aria-label="Feedback panel">
       <div class="panel-title">

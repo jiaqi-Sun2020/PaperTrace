@@ -368,7 +368,12 @@ def process_paper(paper: dict[str, Any], reader_root: Path, *, resume: bool) -> 
         needs_initialization = True
         mode = "external_legacy_discovered" if legacy_source is not None else "new_bundle_object_discovery"
     elif not source_map_path.exists():
-        raise ValueError(f"existing reader has no immutable source_map.json: {reader_dir}")
+        if not resume:
+            raise ValueError(f"existing reader has no immutable source_map.json: {reader_dir}")
+        create_bundle(pdf_path, reader_dir, resume_incomplete=True)
+        legacy_source = external_legacy_paper(pdf_path)
+        needs_initialization = True
+        mode = "resumed_incomplete_extraction"
     else:
         source_map = read_json(source_map_path)
         existing_hash = str((source_map.get("paper") or {}).get("source_pdf_sha256") or "").lower()

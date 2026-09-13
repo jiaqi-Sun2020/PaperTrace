@@ -14,7 +14,10 @@ Final HTML acceptance checks include UTF-8 metadata, a successful round trip, ze
 
 ## Purpose
 
-The HTML page is the feedback collection layer. It should not write `.agents` directly. It lets the user:
+The HTML page begins with one compact concept-teaching fable and then presents
+the briefing body. The story is not a feedback item. The page remains the
+feedback collection layer and should not write `.agents` directly. It lets the
+user:
 
 - click news concepts;
 - select arbitrary text and create a free-form annotation;
@@ -40,6 +43,23 @@ Build HTML from a config file:
   "briefing_title": "AI + Quantum News Briefing - 2026-07-04",
   "date_range": "2026-07-04",
   "summary": "One-sentence summary.",
+  "story_delivery": {"required": true, "position": "before_briefing"},
+  "opening_story": {
+    "version": 1,
+    "title": "开篇寓言",
+    "paragraphs": [
+      "山谷里的两座钟塔每天从同一声钟响出发，却沿着不同齿轮缓慢传递回声。守钟人只能在城门关闭前观察有限时间，再判断声音来自哪座塔。",
+      "当两种最难区分的节拍越来越接近，守钟人就必须等待更久；决定等待时间的不是单个齿轮的速度，而是最相近两种节拍之间留下的距离。"
+    ],
+    "concept_name": "Canonical concept name",
+    "concept_aliases": ["standard acronym"],
+    "concept_definition": "一句有适用范围的机制定义。",
+    "logic_chain": "已知锚点 → 缺失桥梁 → 机制 → 后果",
+    "analogy_boundary": "类比没有覆盖的条件或尺度。",
+    "misleading_risk": "按字面理解会得到的错误推论及修正。",
+    "grounding_kind": "learner_profile",
+    "source_story_ids": []
+  },
   "sections": [
     {
       "title": "Top Signals",
@@ -104,6 +124,10 @@ Only `new` and evidence-backed `material_update` items should be fully expanded.
 
 ## Boundary
 
+- `daily_pipeline.py run` requires exactly one valid opening story and renders it before `日报正文` in Markdown and HTML.
+- The story's concept name and aliases must not appear in its title or narrative paragraphs; the visible debrief performs the reveal.
+- `grounding_kind=briefing_items` requires `source_story_ids` that survive ranking and appear in the published delta config. `learner_profile` must not copy private profile evidence or status into the report.
+- Opening-story concepts are excluded from automatic feedback unless they independently occur in a news item's configured `concepts` list.
 - Full-concept HTML export is automatic from `news_feedback_config.json`: `Download JSON` must include all default concepts plus user edits.
 - The canonical config is section-based. Derive the browser item lookup table from `sections`; never require a legacy top-level `items` field.
 - On load, every automatic concept is already in browser state as `unrated`. `Save mark` edits that baseline and deleting an automatic concept restores its baseline. Only a freeform annotation may be removed entirely.

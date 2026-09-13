@@ -29,9 +29,10 @@ PaperTrace 是一个本地论文阅读、AI + 量子资讯日报与个人知识�
 | 你想完成什么 | 从哪里开始 | 最终交付 |
 |---|---|---|
 | 把一篇论文变成可读、可标注的中文交互页面 | [论文 Reader](#paper-reader) | 经过对抗审计的 `reader_interactive.html` |
-| 追踪 AI 与量子领域的当日重要变化 | [日报流水线](#daily-briefing) | HTML 日报、反馈 JSON、manifest 与索引 |
+| 追踪 AI 与量子领域的当日重要变化 | [日报流水线](#daily-briefing) | 开篇故事、HTML 日报、反馈 JSON、manifest 与索引 |
 | 将本地聊天记录转成可审核的画像候选 | [知识画像](#knowledge-profile) | 经人工审核、带备份的 profile patch |
 | 用已有证据选择下一次短课与复习 | [Adaptive Teach](#adaptive-teach) | 单主题课程与受控 feedback handoff |
+| 用故事建立一个高阶机制的直觉 | [Allegory Teach](#allegory-teach) | 寓言、事实定义、边界、误导风险与映射 |
 
 <a id="pipelines"></a>
 
@@ -94,11 +95,13 @@ Codex 会核验来源和日期，应用排名与 Delta 规则，并仅在严格�
 ## 当前能力
 
 - `ai-quantum-news-briefing` 可从 AI HOT API 或 `feed.xml` 拉取每日精编候选；AI HOT 只作为候选源，不作为最终证据源。
+- 每次新日报都会先呈现一则经过契约校验的因果寓言和事实回扣，再进入日报正文；故事曝光不会成为学习证据。
 - 日报学术源覆盖 APS PRL/PRA/PRX、Nature、Science、OpenReview/ICLR、CVF/CVPR、PMLR/ICML、NeurIPS、ACL Anthology、Quantum Journal 和 arXiv；arXiv 条目标注为 preprint。
 - 日报 HTML 生成时写出全量 `news_feedback.json`，所有知识点默认 `unrated`，用户编辑状态后可直接下载反馈 JSON。
 - `academic_venue_sweep.py`、`aihot_candidates.py`、`config_to_news_feedback.py` 和 `audit_briefing_config.py` 分别支持候选池、学术检索审计、全量反馈导出和对抗性审核。
 - `lean-html-skill` 的 Cosmic Sci-Fi Product Design System Layer 只控制视觉风格，不改变功能和信息架构；默认白色背景，可切换 Cosmic 深空背景。
 - `reader-learner` 通过知识库重建、审计和安全测试，阻止噪声、乱码或未评级曝光被误写为已掌握知识。
+- `allegory-teach` 将一个选定的高阶概念压缩成带先修桥梁的最小因果寓言，并在结尾明确给出逻辑链、定义、类比边界、可能误导和故事—现实映射；它不改变任何知识状态。
 - `chat-knowledge-profile` 把本地 ChatGPT/GPT/Claude/Deepseek 会话提炼为可审核候选、会话摘要和严格的 `reader-learner` feedback handoff。
 - `demo-skill` 把 README/AGENTS 契约提炼为四条 pipeline 的中英文项目展示页，并复用 GSAP + ScrollTrigger 双语模板与无覆盖生成脚本。
 - 日报加入可审计的 `news-ranker-v1`：先做证据准入，再按学术/社会两套分数和 MMR 多样性约束筛选；正式发布包含 7–8 篇学术论文和至少 10 条社会新闻，并保留分项得分、配额、选择轨迹与淘汰原因。
@@ -116,6 +119,7 @@ D:\AI\PaperTrace
 |   |-- reader-skill/
 |   |-- reader-learner/
 |   |-- adaptive-teach/
+|   |-- allegory-teach/
 |   |-- ai-quantum-news-briefing/
 |   `-- utils/
 |       |-- chat-knowledge-profile/
@@ -147,6 +151,14 @@ python .\skills\adaptive-teach\scripts\adaptive_teach.py import-feedback --feedb
 
 Generating/viewing a lesson never changes the profile or queue. Only actual performance becomes a validated teaching handoff, imported through `feedback_visible_wiki_pipeline.py teaching-feedback`; that path performs backup, atomic update, and optional Visible Wiki sync.
 
+<a id="allegory-teach"></a>
+
+## 寓言教学
+
+`skills/allegory-teach` 是自适应教学的可选“直觉优先”说明层，也是日报开篇故事的只读创作依赖。它只选择或接收一个高阶概念，先用不揭示名称的中文寓言展示因果规则和后果，再回到事实定义、类比边界、可能误导和完整映射。日报 pipeline 单独负责校验与发布这个 handoff；该 skill 不能采集新闻、改变排名、写反馈或更新学习画像。
+
+> 使用 `$allegory-teach` 从我的当前研究边界选择一个概念；先不要说名称，而是用寓言讲清因果关系，最后按 1 → 3 → 4 → 2 给出事实回扣。
+
 ## 持久可见 Wiki
 
 `.agents/wiki/` is a curated Obsidian vault for stable concepts, entities, themes, questions, syntheses, claims, source summaries, and knowledge-boundary maps. It is separate from the disposable profile projection at `.agents/reader-learner/obsidian-vault`.
@@ -173,6 +185,7 @@ Open `D:\AI\PaperTrace\.agents\wiki` as the Obsidian vault. Start at `Home.md`, 
 | `skills/reader-skill` | 把 reader bundle 转成正式 `reader_interactive.html`，负责双语块、source anchors、概念标注、公式和图表结构。 | 不写 `.agents`，不直接修改画像。 |
 | `skills/reader-learner` | 导入 reader/news feedback，维护 `.agents/reader-learner/knowledge_profile.json`，导出 Obsidian vault，审计知识库。 | 不生成论文 HTML，不生成教学课程。 |
 | `skills/adaptive-teach` | 读取唯一 learner profile，区分薄弱/证据不足/到期复习，选择单一下一主题，生成诊断、短课、复习策略和 teaching-feedback handoff。 | 不维护 profile schema、normalization、atomic write、PDF/news、Visible Wiki 或通用 HTML shell。 |
+| `skills/allegory-teach` | 为一个选定的高阶概念生成因果寓言及事实回扣，保留日报来源上下文。 | 不拥有选题/会话状态，不改 profile/Wiki/feedback，不采集或发布日报。 |
 | `skills/ai-quantum-news-briefing` | 生成 source-grounded AI + 量子日报/多日报告，接入 AI HOT 候选池，生成日报反馈 HTML/JSON，导入新闻反馈。 | 不因为新闻“出现过”就自动判定用户已经掌握。 |
 | `skills/utils/lean-html-skill` | 共享 HTML shell、反馈面板、copy/download 导出控件、Cosmic Sci-Fi 视觉层和背景切换控件。 | 不做领域解释，不写 profile，不改变业务数据结构。 |
 | `skills/utils/chat-knowledge-profile` | 从本地 ChatGPT/GPT/Claude/Deepseek 导出记录提炼会话摘要、概念状态候选、学习/研究/工作流偏好，并生成严格 `reader-learner` handoff。 | 不抓取分享 URL，不把助手曝光当作掌握证据，不绕过补丁审核直接覆盖 profile。 |
@@ -376,7 +389,7 @@ python .\skills\reader-skill\tests\adversarial_html_audit.py "<reader-dir>"
 
 ## AI + Quantum 日报流水线
 
-**End-to-end target:** the daily briefing pipeline is not complete at candidate collection, Markdown, or config generation. The final reader-facing artifact must be an interactive HTML reader plus its full default-`unrated` feedback JSON. Use `D:\AI\PaperTrace\news\2026-07-07_to_2026-07-09` as the canonical multi-day sample structure: Markdown briefing, HTML reader, feedback config, `news_feedback.json`, academic search ledger, and manifest live together in the same output directory.
+**End-to-end target:** 日报不能停在候选收集、Markdown 或 config。最终阅读产物必须先呈现一则经校验的知识寓言和事实回扣，再进入交互式 HTML 日报正文，并带完整的默认 `unrated` feedback JSON。Use `D:\AI\PaperTrace\news\2026-07-07_to_2026-07-09` as the canonical multi-day sample structure: Markdown briefing, HTML reader, feedback config, `news_feedback.json`, academic search ledger, and manifest live together in the same output directory.
 
 For a daily run, the expected final files are:
 
@@ -401,6 +414,8 @@ python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-
 ```
 
 `daily_pipeline.py run` 会先执行 `news-ranker-v1`，再做 Delta 压缩。排名器先拒绝缺失/不安全证据、候选页、无效日期和重复身份，再分别计算学术与社会新闻分数，并用来源、主题和机构多样性约束选择最终条目。正式日报必须包含 7–8 篇学术论文和 10–14 条社会新闻（目标 12），同时把 `ranking_policy`、逐条 `ranking`、选择轨迹和淘汰原因保留到最终 delta config。
+
+每次 `run` 都强制要求 `opening_story`。若故事缺失、提前暴露概念名称、缺少定义/逻辑链/边界/误读修正，或引用了排名后未发布的新闻 `story_id`，流水线会在建立 staging 之前失败。故事之后才是 `日报正文`，故事概念本身不会自动进入 feedback。
 
 最终日报还必须满足共享 `sections/items` contract、HTTPS 来源、HTML/feedback identity 集合一致、默认全 `unrated`、无 feedback2、light 默认且 Cosmic 可选。学术 venue sweep 只有在官方 HTTPS endpoint 产生 HTTP 状态、最终 URL、时间戳、结果数和 response hash 后才算 evidence；搜索链接本身不算已检查。
 

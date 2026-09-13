@@ -20,7 +20,7 @@ from briefing_to_feedback_html import render_html
 from config_to_news_feedback import export_feedback
 from daily_pipeline import cmd_finalize, cmd_run, verify_artifacts
 from lean_html import apply_design_system
-from news_delta import transform_config, upsert_index
+from news_delta import render_markdown, transform_config, upsert_index
 from rank_briefing_candidates import DEFAULT_RANKING_POLICY, rank_briefing_config
 
 
@@ -40,10 +40,31 @@ def item(item_id: str = "N001", *, concept: str = "QSVT", url: str = "https://ex
     }
 
 
+def opening_story() -> dict:
+    return {
+        "version": 1,
+        "title": "两座钟塔",
+        "paragraphs": [
+            "山谷里有两座钟塔。北塔的齿轮转得快，南塔的齿轮转得慢；守钟人每晚都要让两边从同一声钟响开始，各自沿着固定的槽道传递力气。",
+            "起初两座塔还能彼此分辨节拍，后来最慢的回声越来越接近最快的回声，村民便要等更久才能判断钟声究竟来自哪一座塔。守钟人发现，决定等待时间的不是某个齿轮有多快，而是两种最难区分的节拍之间还隔着多少距离。",
+        ],
+        "concept_name": "spectral gap",
+        "concept_aliases": ["谱隙"],
+        "concept_definition": "谱隙是指定算符相邻关键特征值之间的差，它控制某些动力学或算法区分、混合与收敛所需的尺度。",
+        "logic_chain": "特征值间隔缩小 → 模态更难区分 → 相位或概率差积累更慢 → 所需演化时间增长。",
+        "analogy_boundary": "钟塔把模态画成了独立声源，但现实中的特征向量、简并和耦合结构可能共同影响动力学。",
+        "misleading_risk": "不能据此认为谱隙越大一切算法都越快；结论依赖具体算符、初态、观测量和复杂度模型。",
+        "grounding_kind": "learner_profile",
+        "source_story_ids": [],
+    }
+
+
 def config(items: list[dict] | None = None) -> dict:
     return {
         "briefing_title": "Test briefing",
         "date_range": "2026-07-10",
+        "story_delivery": {"required": True, "position": "before_briefing"},
+        "opening_story": opening_story(),
         "sections": [{"title": "Today", "items": items or [item()]}],
         "academic_delivery": {"required": False, "no_signal_reason": "non-academic unit-test fixture"},
         "analysis_language": "en",
@@ -120,6 +141,8 @@ def ranking_fixture() -> tuple[dict, list[dict]]:
     raw = {
         "briefing_title": "Ranked daily briefing",
         "date_range": "2026-07-10",
+        "story_delivery": {"required": True, "position": "before_briefing"},
+        "opening_story": opening_story(),
         "sections": [
             {"title": "Academic research", "items": academic},
             {"title": "Social news", "items": social},
@@ -189,6 +212,44 @@ def ranking_fixture() -> tuple[dict, list[dict]]:
 
 
 class DailyPipelineTests(unittest.TestCase):
+    def test_daily_pipeline_requires_an_opening_story_before_creating_staging(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            raw = config()
+            raw.pop("opening_story")
+            input_path = root / "candidate.json"
+            input_path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+            args = Namespace(
+                config=str(input_path), output_dir=str(root / "news" / "2026-07-10"), index=str(root / "story_index.jsonl"), date="2026-07-10",
+                days=7, continuing_mode="one-line", design_system="cosmic", background_mode="light",
+            )
+            with self.assertRaisesRegex(ValueError, "requires opening_story"):
+                cmd_run(args)
+            self.assertFalse((root / "news" / "2026-07-10" / ".staging").exists())
+
+    def test_story_cannot_reveal_concept_before_the_debrief(self) -> None:
+        raw = config()
+        raw["opening_story"]["paragraphs"][0] += " This is the spectral gap."
+        with self.assertRaisesRegex(ValueError, "reveals the concept"):
+            normalize_briefing_config(raw, require_source_url=True)
+
+    def test_story_renders_before_briefing_in_html_and_markdown(self) -> None:
+        canonical = normalize_briefing_config(config(), require_source_url=True)
+        feedback = export_feedback(canonical, Path("config.json"), "unrated", "none")
+        html = render_html({**canonical, "default_status": "unrated", "initial_feedback_items": feedback["items"]})
+        markdown = render_markdown(canonical)
+        self.assertLess(html.index('data-opening-story="true"'), html.index('data-briefing-body="true"'))
+        self.assertLess(markdown.index("## 开篇故事"), markdown.index("## 日报正文"))
+        self.assertEqual(len(feedback["items"]), 1)
+        self.assertFalse(any(entry["concept"] == "spectral gap" for entry in feedback["items"]))
+
+    def test_briefing_grounded_story_must_reference_a_published_story(self) -> None:
+        raw = config()
+        raw["opening_story"]["grounding_kind"] = "briefing_items"
+        raw["opening_story"]["source_story_ids"] = ["not-published"]
+        with self.assertRaisesRegex(ValueError, "unpublished story IDs"):
+            normalize_briefing_config(raw, require_source_url=True)
+
     def test_ranker_selects_eight_academic_and_twelve_social_items_deterministically(self) -> None:
         raw, prior = ranking_fixture()
         ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)

@@ -14,6 +14,16 @@ from urllib.parse import urlsplit, urlunsplit
 
 VALID_STATUSES = {"mastered", "known", "learning", "unknown", "unrated"}
 VALID_NOVELTY = {"new", "material_update", "continuing", "duplicate"}
+VALID_STORY_GROUNDING = {"learner_profile", "briefing_items"}
+OPENING_STORY_FIELDS = (
+    "title",
+    "concept_name",
+    "concept_definition",
+    "logic_chain",
+    "analogy_boundary",
+    "misleading_risk",
+    "grounding_kind",
+)
 TEXT_FIELDS = (
     "briefing_title",
     "date_range",
@@ -67,6 +77,18 @@ def assert_config_text_integrity(config: dict[str, Any]) -> None:
     assert_lossless_text(config.get("briefing_title"), "briefing_title")
     assert_lossless_text(config.get("date_range"), "date_range")
     assert_lossless_text(config.get("summary"), "summary")
+    opening_story = config.get("opening_story")
+    if opening_story is not None:
+        if not isinstance(opening_story, dict):
+            raise ValueError("opening_story must be an object")
+        for field in OPENING_STORY_FIELDS:
+            assert_lossless_text(opening_story.get(field), f"opening_story.{field}")
+        for field in ("paragraphs", "concept_aliases", "source_story_ids"):
+            values = opening_story.get(field) or []
+            if not isinstance(values, list):
+                raise ValueError(f"opening_story.{field} must be a list")
+            for index, value in enumerate(values, start=1):
+                assert_lossless_text(value, f"opening_story.{field}[{index}]")
     sections = config.get("sections") or []
     if not isinstance(sections, list):
         return
@@ -120,6 +142,100 @@ def normalize_concepts(values: Any) -> list[str]:
             result.append(concept)
             seen.add(key)
     return result
+
+
+def normalize_text_list(values: Any, *, limit: int, field: str) -> list[str]:
+    if values is None:
+        return []
+    if not isinstance(values, list):
+        raise ValueError(f"{field} must be a list")
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = clean_text(value, limit)
+        key = text.casefold()
+        if text and key not in seen:
+            result.append(text)
+            seen.add(key)
+    return result
+
+
+def normalize_opening_story(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("opening_story must be an object")
+    if not value:
+        return {}
+    return {
+        "version": 1,
+        "title": clean_text(value.get("title") or "开篇寓言", 160),
+        "paragraphs": normalize_text_list(
+            value.get("paragraphs"), limit=900, field="opening_story.paragraphs"
+        ),
+        "concept_name": clean_text(value.get("concept_name"), 240),
+        "concept_aliases": normalize_text_list(
+            value.get("concept_aliases"), limit=120, field="opening_story.concept_aliases"
+        ),
+        "concept_definition": clean_text(value.get("concept_definition"), 800),
+        "logic_chain": clean_text(value.get("logic_chain"), 800),
+        "analogy_boundary": clean_text(value.get("analogy_boundary"), 800),
+        "misleading_risk": clean_text(value.get("misleading_risk"), 800),
+        "grounding_kind": clean_text(value.get("grounding_kind"), 80),
+        "source_story_ids": normalize_text_list(
+            value.get("source_story_ids"), limit=180, field="opening_story.source_story_ids"
+        ),
+    }
+
+
+def assert_opening_story_contract(
+    story: dict[str, Any],
+    *,
+    required: bool,
+    available_story_ids: set[str] | None = None,
+) -> None:
+    if not story:
+        if required:
+            raise ValueError("daily briefing requires opening_story before the briefing body")
+        return
+    required_fields = (
+        "title",
+        "concept_name",
+        "concept_definition",
+        "logic_chain",
+        "analogy_boundary",
+        "misleading_risk",
+        "grounding_kind",
+    )
+    missing = [field for field in required_fields if not clean_text(story.get(field))]
+    if missing:
+        raise ValueError("opening_story missing required fields: " + ", ".join(missing))
+    paragraphs = story.get("paragraphs") or []
+    if not isinstance(paragraphs, list) or not (2 <= len(paragraphs) <= 6):
+        raise ValueError("opening_story.paragraphs must contain 2-6 story paragraphs")
+    story_text = " ".join(clean_text(paragraph, 900) for paragraph in paragraphs)
+    if len(story_text) < 120:
+        raise ValueError("opening_story must contain at least 120 characters of narrative")
+    hidden_terms = [story.get("concept_name"), *(story.get("concept_aliases") or [])]
+    concealed_text = f"{clean_text(story.get('title'))} {story_text}".casefold()
+    leaked = [
+        clean_text(term, 240)
+        for term in hidden_terms
+        if len(clean_text(term, 240)) >= 2
+        and clean_text(term, 240).casefold() in concealed_text
+    ]
+    if leaked:
+        raise ValueError("opening_story reveals the concept before the factual debrief: " + ", ".join(leaked))
+    grounding_kind = clean_text(story.get("grounding_kind"), 80)
+    if grounding_kind not in VALID_STORY_GROUNDING:
+        raise ValueError("opening_story.grounding_kind must be learner_profile or briefing_items")
+    source_story_ids = set(story.get("source_story_ids") or [])
+    if grounding_kind == "briefing_items" and not source_story_ids:
+        raise ValueError("opening_story grounded in briefing_items requires source_story_ids")
+    if available_story_ids is not None:
+        missing_ids = sorted(source_story_ids - available_story_ids)
+        if missing_ids:
+            raise ValueError("opening_story references unpublished story IDs: " + ", ".join(missing_ids))
 
 
 def story_id_for_item(item: dict[str, Any]) -> str:
@@ -195,6 +311,18 @@ def normalize_briefing_config(
     assert_config_text_integrity(config)
     title = clean_text(config.get("briefing_title") or config.get("title") or "AI + Quantum News Briefing", 500)
     date_range = clean_text(config.get("date_range") or config.get("date"), 240)
+    raw_story_delivery = config.get("story_delivery") or {}
+    if not isinstance(raw_story_delivery, dict):
+        raise ValueError("story_delivery must be an object")
+    if "required" in raw_story_delivery and not isinstance(raw_story_delivery.get("required"), bool):
+        raise ValueError("story_delivery.required must be a boolean")
+    story_delivery = {
+        "required": raw_story_delivery.get("required") is True,
+        "position": clean_text(raw_story_delivery.get("position") or "before_briefing", 80),
+    }
+    if story_delivery["position"] != "before_briefing":
+        raise ValueError("story_delivery.position must be before_briefing")
+    opening_story = normalize_opening_story(config.get("opening_story"))
     normalized_sections: list[dict[str, Any]] = []
     all_ids: set[str] = set()
     for section_title, raw_item in iter_sections(config):
@@ -247,6 +375,8 @@ def normalize_briefing_config(
         "date_range": date_range,
         "briefing_path": clean_text(config.get("briefing_path") or str(config_path or ""), 1200),
         "summary": clean_text(config.get("summary"), 1600),
+        "story_delivery": story_delivery,
+        "opening_story": opening_story,
         "sections": normalized_sections,
         "academic_search": config.get("academic_search") or config.get("academic_venue_sweep") or {},
         "academic_delivery": config.get("academic_delivery") or {},
@@ -258,6 +388,17 @@ def normalize_briefing_config(
         "analysis_language": clean_text(config.get("analysis_language"), 40),
         "profile_path": clean_text(config.get("profile_path"), 1200),
     }
+    published_story_ids = {
+        item["story_id"]
+        for section in normalized_sections
+        for item in section["items"]
+        if item.get("story_id")
+    }
+    assert_opening_story_contract(
+        opening_story,
+        required=story_delivery["required"],
+        available_story_ids=published_story_ids,
+    )
     normalized["config_fingerprint"] = config_fingerprint(normalized)
     return normalized
 

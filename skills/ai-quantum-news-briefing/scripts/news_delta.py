@@ -513,6 +513,29 @@ def render_markdown(config: dict[str, Any]) -> str:
     lines.append("")
     if config.get("date_range"):
         lines.append(f"- 覆盖窗口：{clean_text(config.get('date_range'), 500)}")
+    lines.append("")
+    opening_story = config.get("opening_story") or {}
+    if isinstance(opening_story, dict) and opening_story:
+        lines.append("## 开篇故事")
+        lines.append("")
+        lines.append(f"### {clean_text(opening_story.get('title') or '开篇寓言', 160)}")
+        lines.append("")
+        for paragraph in opening_story.get("paragraphs", []):
+            text = clean_text(paragraph, 900)
+            if text:
+                lines.append(text)
+                lines.append("")
+        lines.append(
+            f"- **揭晓：**{clean_text(opening_story.get('concept_name'), 240)}——"
+            f"{clean_text(opening_story.get('concept_definition'), 800)}"
+        )
+        lines.append(f"- **逻辑链：**{clean_text(opening_story.get('logic_chain'), 800)}")
+        lines.append(f"- **类比边界：**{clean_text(opening_story.get('analogy_boundary'), 800)}")
+        lines.append(f"- **避免误读：**{clean_text(opening_story.get('misleading_risk'), 800)}")
+        lines.append("")
+
+    lines.append("## 日报正文")
+    lines.append("")
     policy = config.get("delta_policy")
     if isinstance(policy, dict):
         lines.append(

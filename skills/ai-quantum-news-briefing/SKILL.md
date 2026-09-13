@@ -1,6 +1,6 @@
 ---
 name: ai-quantum-news-briefing
-description: Create concise, source-grounded AI and quantum technology briefings, turn briefings into interactive HTML pages with automatic unrated full-concept feedback JSON export plus optional concept/freeform feedback, and optionally update the user's learner profile from explicit news-reading feedback. Use for requests such as "今日资讯", "今日快报", "近三天资讯", "近4天快报", "AI+量子快报", company AI reports, research blogs, safety frameworks, model releases, policy updates, industry news, arXiv/Nature papers, quantum physics or quantum computing progress, requests to generate a briefing HTML reader, or when the user says to record daily briefing concepts as unrated/known/unknown/learning in `.agents/reader-learner/knowledge_profile.json`.
+description: Create concise, source-grounded AI and quantum technology briefings that open with a concept-teaching fable, turn them into interactive HTML pages with automatic unrated full-concept feedback JSON export plus optional concept/freeform feedback, and optionally update the user's learner profile from explicit news-reading feedback. Use for requests such as "今日资讯", "今日快报", "近三天资讯", "近4天快报", "AI+量子快报", company AI reports, research blogs, safety frameworks, model releases, policy updates, industry news, arXiv/Nature papers, quantum physics or quantum computing progress, requests to generate a briefing HTML reader, or when the user says to record daily briefing concepts as unrated/known/unknown/learning in `.agents/reader-learner/knowledge_profile.json`.
 ---
 
 # AI + Quantum News Briefing
@@ -11,7 +11,7 @@ Use this skill to produce the user's recurring Chinese news briefings on AI, fro
 
 This skill owns **Primary Pipeline 2: AI + Quantum Daily Briefing Release**. It is distinct from Pipeline 1 paper PDF-to-HTML, Pipeline 3 local chat-to-profile import, and Pipeline 4 adaptive teaching decisions/evidence return.
 
-For a daily or multi-day briefing request, candidate pools, venue ledgers, Markdown, and `news_feedback_config.json` are internal artifacts. The pipeline completes only after `daily_pipeline.py run -> verify -> finalize -> verify` succeeds and the published directory contains the interactive briefing HTML, full default-`unrated` `news_feedback.json`, Markdown briefing, normalized delta config, release manifest, and atomically updated story index. The primary reader-facing artifact is the briefing HTML; do not report candidate/config generation as completion.
+For a daily or multi-day briefing request, candidate pools, venue ledgers, Markdown, and `news_feedback_config.json` are internal artifacts. The pipeline completes only after `daily_pipeline.py run -> verify -> finalize -> verify` succeeds and the published directory contains the interactive briefing HTML, full default-`unrated` `news_feedback.json`, Markdown briefing, normalized delta config, release manifest, and atomically updated story index. Every new run requires a validated `opening_story`, rendered before the briefing body in both HTML and Markdown. The primary reader-facing artifact is the briefing HTML; do not report candidate/config generation as completion.
 
 Optional news-feedback import is a downstream learner-profile handoff. It does not replace or weaken the daily publication gate.
 
@@ -55,6 +55,7 @@ python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\news_delta.py co
    - Use stable `story_id` when known; otherwise the helper derives one from source URL/title/concepts.
 
 4. Build the briefing in this order unless the user asks otherwise:
+   - 开篇故事：一则隐藏概念名称的因果寓言、揭晓和精简事实回扣
    - 今日新增
    - 重大更新
    - 持续跟踪，一句话
@@ -97,6 +98,37 @@ The final delta config must retain both required sections: the academic research
 
 For daily and multi-day briefings, set `analysis_language` to `zh-CN` unless the user explicitly requests another language. Every published item must contain Chinese prose in `facts`, `judgment`, and `relevance`; retain paper titles, source titles, model names, DOI, arXiv IDs, and other proper nouns in their precise original form where translation would lose meaning. Treat missing or English-only analysis fields as a configuration-audit failure, not a presentation preference.
 
+### Mandatory Opening Story
+
+After deterministic ranking has identified the publishable concepts, but before
+`daily_pipeline.py run`, author exactly one compact opening fable. Read
+`skills/allegory-teach/SKILL.md`, its story-output contract, and its daily
+briefing interface. Prefer a near-doctoral concept at the intersection of the
+learner's read-only knowledge boundary and the final briefing. If no supported
+intersection exists, use one source-grounded final briefing concept and retain
+its neutral `unrated` status.
+
+Use `rank_briefing_candidates.py` output as a read-only authoring preview. Add
+the resulting `opening_story` to the original full candidate config, then pass
+that full config to `daily_pipeline.py run`; the deterministic rerun should pick
+the same referenced `story_id` while preserving rejected candidates and their
+exclusion reasons in the ranking ledger.
+
+The candidate config must contain `story_delivery.required=true`,
+`story_delivery.position="before_briefing"`, and an `opening_story` with 2-6
+Chinese narrative paragraphs plus `concept_name`, `concept_definition`,
+`logic_chain`, `analogy_boundary`, `misleading_risk`, `grounding_kind`, and
+`source_story_ids`. Keep the concept name and aliases out of the title and
+narrative; reveal them only in the factual debrief. Use `briefing_items` with
+published `story_id` references when the story comes from current news, or
+`learner_profile` without copying profile status, raw events, or private notes
+into the briefing.
+
+The opening story is a presentation artifact, not a news item or learning
+event. It cannot satisfy academic/social quotas, enter candidate ranking, create
+concept feedback, or update the learner profile. `daily_pipeline.py run` fails
+before staging when it is missing or malformed.
+
 5. Distinguish fact from interpretation.
    - Use "事实:" for source-supported events when useful.
    - Use "判断:" or "对你的启发:" for analysis.
@@ -129,7 +161,7 @@ Use this when the user wants to read a briefing like a lightweight reader page a
 Read `references/news-html-feedback.md` before changing the HTML config or feedback export format.
 
 Workflow:
-1. Create a source-grounded `news_feedback_config.json` with briefing sections, items, concepts, source title/URL, source excerpt, and date range.
+1. Create a source-grounded `news_feedback_config.json` with the required opening story, briefing sections, items, concepts, source title/URL, source excerpt, and date range.
 2. Generate the interactive HTML. The page embeds every extracted concept as a saved feedback item with default `unrated`, and also writes the same full-concept `news_feedback.json` beside the HTML:
 
 ```powershell
@@ -249,6 +281,7 @@ Avoid overclaiming direct relevance. Use "可借鉴", "方向相关", or "概念
 Write in Chinese by default.
 
 Keep the briefing compact but complete:
+- Place the opening story and its compact factual debrief before `日报正文`.
 - For "今日资讯": 7–8 academic papers plus 10–14 social-news items after ranking.
 - For "近三天/近4天": 8-14 main items.
 - For "只要重点": 3-5 items.
@@ -259,6 +292,7 @@ Use clear section headings. Avoid padding. If there is no reliable news in a sec
 
 Before finalizing:
 - Verify the exact date range.
+- Verify one opening story appears before the briefing in both Markdown and HTML, conceals its concept until the debrief, and never creates learner feedback by exposure.
 - Remove stale items outside the requested window unless labeled as context.
 - Remove unsourced claims.
 - Separate company self-promotion from independently verified results.

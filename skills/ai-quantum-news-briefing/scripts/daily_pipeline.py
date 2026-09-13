@@ -143,6 +143,7 @@ def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
         config = load_json(paths["delta_config"])
         feedback = load_json(paths["feedback"])
         html_text = paths["html"].read_text(encoding="utf-8-sig")
+        markdown_text = paths["markdown"].read_text(encoding="utf-8-sig")
         if "\ufffd" in html_text:
             failures.append("HTML contains the Unicode replacement character")
         visible_text = re.sub(r"<(script|style)\b.*?</\1>", "", html_text, flags=re.I | re.S)
@@ -187,6 +188,22 @@ def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
         for marker in required_html:
             if marker not in html_text:
                 failures.append(f"HTML contract marker missing: {marker}")
+        story_required = bool((config.get("story_delivery") or {}).get("required"))
+        if story_required:
+            story_marker = 'data-opening-story="true"'
+            briefing_marker = 'data-briefing-body="true"'
+            if story_marker not in html_text:
+                failures.append("HTML opening story is missing")
+            if briefing_marker not in html_text:
+                failures.append("HTML briefing body marker is missing")
+            if story_marker in html_text and briefing_marker in html_text and html_text.index(story_marker) > html_text.index(briefing_marker):
+                failures.append("HTML opening story must appear before the briefing body")
+            if "## 开篇故事" not in markdown_text or "## 日报正文" not in markdown_text:
+                failures.append("Markdown opening story or briefing body heading is missing")
+            elif markdown_text.index("## 开篇故事") > markdown_text.index("## 日报正文"):
+                failures.append("Markdown opening story must appear before the briefing body")
+            if manifest.get("opening_story_present") is not True:
+                failures.append("manifest does not confirm the opening story")
         if manifest.get("design_system", "cosmic") == "cosmic":
             failures.extend(design_audit_issues(html_text))
         manifest_hashes = manifest.get("artifact_sha256") or {}
@@ -210,8 +227,16 @@ def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
 def cmd_run(args: argparse.Namespace) -> int:
     config_path = Path(args.config).expanduser().resolve()
     raw_config = load_json(config_path)
+    raw_story_delivery = raw_config.get("story_delivery") or {}
+    if not isinstance(raw_story_delivery, dict):
+        raise ValueError("story_delivery must be an object")
+    raw_config = dict(raw_config)
+    raw_config["story_delivery"] = {
+        **raw_story_delivery,
+        "required": True,
+        "position": "before_briefing",
+    }
     if "analysis_language" not in raw_config:
-        raw_config = dict(raw_config)
         raw_config["analysis_language"] = "zh-CN"
     if "academic_delivery" not in raw_config:
         raw_config = dict(raw_config)
@@ -273,6 +298,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         ranking_policy["social"] = {**ranking_policy["social"], **{key: social_delivery[key] for key in DEFAULT_RANKING_POLICY["social"] if key in social_delivery}}
         raw_config["ranking_policy"] = ranking_policy
     assert_config_text_integrity(raw_config)
+    normalize_briefing_config(raw_config, config_path, require_source_url=True)
     run_date = infer_date(raw_config, args.date).isoformat()
     output_root = Path(args.output_dir or (config_path.parents[2] / "news" / run_date)).expanduser().resolve()
     run_id = f"{run_date}-{uuid.uuid4().hex[:12]}"
@@ -322,6 +348,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         "default_status": "unrated",
         "design_system": args.design_system,
         "background_mode": args.background_mode,
+        "opening_story_present": bool(canonical.get("opening_story")),
         "artifacts": {key: path.name for key, path in names.items()},
         "artifact_sha256": {key: sha256_file(path) for key, path in names.items() if key != "manifest"},
         "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",

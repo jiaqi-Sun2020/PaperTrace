@@ -280,8 +280,17 @@ def extract_embedded_images(reader_dir: Path, pdf_path: Path) -> list[dict[str, 
     pdfimages = require_executable("pdfimages")
     output_dir = reader_dir / "assets" / "image_objects"
     output_dir.mkdir(parents=True, exist_ok=True)
-    prefix = output_dir / "image"
-    run([pdfimages, "-png", str(pdf_path), str(prefix)])
+    # Several Windows Poppler builds accept a Unicode input path but fail when
+    # their output prefix contains typographic punctuation (for example the
+    # en dash in a paper title).  Extract under an ASCII-only system temp path
+    # and copy the resulting immutable image objects into the reader bundle.
+    with tempfile.TemporaryDirectory(prefix="papertrace_images_") as temp_dir:
+        temp_output_dir = Path(temp_dir)
+        prefix = temp_output_dir / "image"
+        run([pdfimages, "-png", str(pdf_path), str(prefix)])
+        for source in sorted(temp_output_dir.glob("*")):
+            if source.is_file():
+                shutil.copy2(source, output_dir / source.name)
     return [
         {"path": image.relative_to(reader_dir).as_posix(), "sha256": sha256_file(image)}
         for image in sorted(output_dir.glob("*"))
@@ -417,10 +426,17 @@ def create_source_map(pdf_path: Path, reader_dir: Path) -> tuple[dict[str, Any],
     return source_map, pages
 
 
-def create_bundle(pdf_path: Path, reader_dir: Path) -> dict[str, Any]:
-    if reader_dir.exists():
+def create_bundle(
+    pdf_path: Path,
+    reader_dir: Path,
+    *,
+    resume_incomplete: bool = False,
+) -> dict[str, Any]:
+    if reader_dir.exists() and not resume_incomplete:
         raise FileExistsError(f"reader directory already exists: {reader_dir}")
-    reader_dir.mkdir(parents=True)
+    if reader_dir.exists() and (reader_dir / "source_map.json").exists():
+        raise FileExistsError(f"reader already has immutable source evidence: {reader_dir}")
+    reader_dir.mkdir(parents=True, exist_ok=resume_incomplete)
     try:
         source_map, pages = create_source_map(pdf_path, reader_dir)
         atomic_write_json(reader_dir / "source_map.json", source_map)
