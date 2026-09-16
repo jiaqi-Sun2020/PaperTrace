@@ -509,6 +509,34 @@ def audit(config: dict[str, Any]) -> dict[str, Any]:
         for field in ("concept_definition", "logic_chain", "analogy_boundary", "misleading_risk"):
             if not contains_cjk(opening_story.get(field)):
                 failures.append(f"opening_story.{field} must include Chinese analysis text")
+        worked_example = opening_story.get("worked_example") or {}
+        if worked_example:
+            for field in ("title", "question", "result", "interpretation", "non_conclusion"):
+                if not contains_cjk(worked_example.get(field)):
+                    failures.append(
+                        f"opening_story.worked_example.{field} must include Chinese analysis text"
+                    )
+            for field in ("assumptions", "checks"):
+                for index, value in enumerate(worked_example.get(field, []), start=1):
+                    if not contains_cjk(value):
+                        failures.append(
+                            f"opening_story.worked_example.{field}[{index}] must include Chinese analysis text"
+                        )
+            for index, value in enumerate(worked_example.get("objects", []), start=1):
+                object_explanation = f"{value.get('kind', '')} {value.get('role', '')}"
+                if not contains_cjk(object_explanation):
+                    failures.append(
+                        f"opening_story.worked_example.objects[{index}] must explain type and role in Chinese"
+                    )
+            for index, value in enumerate(worked_example.get("steps", []), start=1):
+                step_explanation = " ".join(
+                    str(value.get(field) or "")
+                    for field in ("action", "rule", "explanation")
+                )
+                if not contains_cjk(step_explanation):
+                    failures.append(
+                        f"opening_story.worked_example.steps[{index}] must explain the transition in Chinese"
+                    )
 
     for section, item in iter_items(config):
         item_count += 1

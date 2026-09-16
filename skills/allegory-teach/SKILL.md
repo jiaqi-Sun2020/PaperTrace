@@ -1,6 +1,6 @@
 ---
 name: allegory-teach
-description: Teach one advanced, profile-relevant technical concept through a Chinese fable that withholds the concept name until the end, then maps the analogy back to facts. Use when the user asks for an allegory, intuition-first explanation, or a story selected from their PaperTrace learning boundary; do not use it to mutate learner knowledge or to create a daily briefing.
+description: Teach one advanced, profile-relevant technical concept through a Chinese fable that withholds the concept name until the end, then maps the analogy back to facts and works one complete example. Use when the user asks for an allegory, intuition-first explanation, or a story selected from their PaperTrace learning boundary; do not use it to mutate learner knowledge or to create a daily briefing.
 ---
 
 # Allegory Teach
@@ -25,6 +25,8 @@ replacement for an `adaptive-teach` decision:
 - choose a concept whose mechanism has enough causal structure to merit a
   near-doctoral explanation, rather than choosing an obscure label for its own
   sake;
+- do not prefer a concept merely because it admits a formula. Select for
+  relevance, causal value, source support, and the learner's missing bridge;
 - keep a user-specified domain, paper, or news item as the authority when one
   is supplied.
 
@@ -71,6 +73,13 @@ For the post-story explanation, read
 Use its smallest applicable analysis pattern; preserve a strict fable request's
 required `1 -> 3 -> 4 -> 2` section order.
 
+Read [references/worked-example-contract.md](references/worked-example-contract.md)
+before constructing the required example. Match the example to the concept:
+mathematical, numerical, operational, causal, experimental, or comparative.
+Only use formulas when the concept and evidence genuinely require them. When a
+formula is used, expose every meaningful transition and never invent a formula
+to satisfy an output shape.
+
 ## Return from intuition to fact
 
 After the story, use the four factual sections in the user's requested order:
@@ -78,7 +87,9 @@ After the story, use the four factual sections in the user's requested order:
 concept. State what the analogy omits and how it could lead to a wrong technical
 inference. In the mapping, expose the technical causal chain, the relevant
 object/operation distinction, and any information that is preserved, changed,
-or discarded. Do not claim that understanding the story demonstrates mastery.
+or discarded. Complete section 2 with one worked example whose form follows the
+concept rather than forcing every concept into a derivation. Do not claim that
+understanding the story or example demonstrates mastery.
 
 When the user requests an interactive explanation rather than the strict fable
 format, end with one small prediction, comparison, or paraphrase check. Do not
@@ -103,10 +114,10 @@ feedback file, or promote exposure into a learner status.
 - `reader-learner` is the sole profile mutator and Visible Wiki projector.
 - `ai-quantum-news-briefing` owns news evidence, ranking, release, and
   news-feedback normalization.
-- This skill owns only the final narrative explanation and its explicit factual
-  debrief.
+- This skill owns only the final narrative explanation, its explicit factual
+  debrief, and the concept-appropriate worked example.
 
-Finish by reporting the story and four factual sections. If the user later
-supplies actual answers or an application attempt, route that evidence through
-the existing `adaptive-teach` / `reader-learner` feedback path rather than
-writing the profile directly.
+Finish by reporting the story and four factual sections, including the worked
+example inside section 2. If the user later supplies actual answers or an
+application attempt, route that evidence through the existing `adaptive-teach`
+/ `reader-learner` feedback path rather than writing the profile directly.

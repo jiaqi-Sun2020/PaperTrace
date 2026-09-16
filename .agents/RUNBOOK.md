@@ -1,7 +1,7 @@
 # Runbook
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-08-11
+- Last reviewed: 2026-09-15
 
 ## Choose One Primary Pipeline
 
@@ -41,7 +41,21 @@ python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-
 
 Before running, ensure the candidate config is UTF-8. Do not construct Chinese JSON through a default PowerShell/code-page pipeline. If normalization reports `encoding-corrupted` or `U+FFFD`, regenerate the config from the original source record; do not delete or globally replace `?`.
 
+The candidate config must include `story_delivery.required=true`,
+`story_delivery.worked_example_required=true`, and one complete
+`opening_story.worked_example`. Select the story topic for relevance and causal
+value, not for equation availability. Use a mathematical/numerical derivation
+only when it belongs to the mechanism; otherwise provide a complete operational,
+causal, experimental, or comparative case without a formula. Read
+`skills/allegory-teach/references/worked-example-contract.md` before authoring
+the handoff.
+
 The final verify must report visible HTML `?=0`, replacement-character `=0`, Chinese UI markers, concept/feedback identity equality, all default statuses `unrated`, light default/Cosmic option, and no feedback2 panel. A failed encoding check blocks finalize and therefore blocks story-index updates.
+
+It also verifies that the native worked-example `details` control is closed by
+default and ordered between the opening-story debrief and `日报正文`;
+formula-bearing examples must retain the MathJax marker. A failed worked-example
+check blocks finalize and therefore blocks story-index updates.
 
 ## Build The Bilingual Project Demo
 
@@ -353,6 +367,8 @@ python D:\AI\PaperTrace\skills\reader-skill\tests\test_reader_e2e.py
 ```powershell
 python "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\reader-skill
 python "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\reader-learner
+python -X utf8 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\adaptive-teach
+python -X utf8 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\allegory-teach
 python -X utf8 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\ai-quantum-news-briefing
 python -X utf8 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\utils\chat-knowledge-profile
 python -X utf8 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" D:\AI\PaperTrace\skills\utils\demo-skill

@@ -19,7 +19,7 @@ from briefing_contract import concept_identity, normalize_briefing_config
 from briefing_to_feedback_html import render_html
 from config_to_news_feedback import export_feedback
 from daily_pipeline import cmd_finalize, cmd_run, verify_artifacts
-from lean_html import apply_design_system
+from lean_html import apply_design_system, design_audit_issues
 from news_delta import render_markdown, transform_config, upsert_index
 from rank_briefing_candidates import DEFAULT_RANKING_POLICY, rank_briefing_config
 
@@ -42,7 +42,7 @@ def item(item_id: str = "N001", *, concept: str = "QSVT", url: str = "https://ex
 
 def opening_story() -> dict:
     return {
-        "version": 1,
+        "version": 2,
         "title": "两座钟塔",
         "paragraphs": [
             "山谷里有两座钟塔。北塔的齿轮转得快，南塔的齿轮转得慢；守钟人每晚都要让两边从同一声钟响开始，各自沿着固定的槽道传递力气。",
@@ -54,8 +54,78 @@ def opening_story() -> dict:
         "logic_chain": "特征值间隔缩小 → 模态更难区分 → 相位或概率差积累更慢 → 所需演化时间增长。",
         "analogy_boundary": "钟塔把模态画成了独立声源，但现实中的特征向量、简并和耦合结构可能共同影响动力学。",
         "misleading_risk": "不能据此认为谱隙越大一切算法都越快；结论依赖具体算符、初态、观测量和复杂度模型。",
+        "worked_example": mathematical_worked_example(),
         "grounding_kind": "learner_profile",
         "source_story_ids": [],
+    }
+
+
+def mathematical_worked_example() -> dict:
+    return {
+        "kind": "mathematical",
+        "title": "两能级系统中的相位分辨",
+        "question": "为什么较小的能级差需要更长时间才能积累可分辨的相对相位？",
+        "assumptions": ["哈密顿量不随时间变化，初态在两个正交本征态上具有非零振幅。"],
+        "objects": [
+            {"name": "H", "kind": "厄米算符", "role": "生成系统的时间演化", "units": "energy"},
+            {"name": "Δ", "kind": "实数标量", "role": "两个相关本征值之差", "units": "energy"},
+            {"name": "t", "kind": "实数标量", "role": "系统演化时间", "units": "time"},
+        ],
+        "steps": [
+            {
+                "action": "让两个本征态分量在同一哈密顿量下演化。",
+                "formula": "|\\psi(t)\\rangle=e^{-iHt/\\hbar}|\\psi(0)\\rangle",
+                "rule": "时间无关薛定谔演化",
+                "explanation": "每个本征态保持方向，并按自己的本征值积累相位。",
+            },
+            {
+                "action": "消去共同的全局相位，只保留两分量之间的相对相位。",
+                "formula": "\\phi(t)=\\Delta t/\\hbar",
+                "rule": "全局相位不改变测量概率",
+                "explanation": "两个相位指数相除后，公共能量项抵消，只剩本征值差。",
+            },
+            {
+                "action": "要求相对相位达到一个数量级为一的分辨阈值。",
+                "formula": "t_{\\mathrm{resolve}}\\sim\\hbar/\\Delta",
+                "rule": "由 |\\phi|\\sim1 解出演化时间尺度",
+                "explanation": "相位积累速率为 Δ/ℏ，因此较小的 Δ 需要更长时间。",
+            },
+        ],
+        "result": "在这个两能级相位分辨模型中，特征时间尺度与谱隙成反比。",
+        "interpretation": "谱隙缩小时两个模态的相位速率更接近，需要更长观察时间才能区分。",
+        "checks": ["ℏ/Δ 的量纲是时间；Δ 加倍时达到相同相位所需时间减半。"],
+        "non_conclusion": "不能由此断言所有含谱隙的算法运行时间都严格等于 ℏ/Δ。",
+    }
+
+
+def operational_worked_example() -> dict:
+    return {
+        "kind": "operational",
+        "title": "双人审批队列",
+        "question": "为什么增加独立复核会改变错误进入发布阶段的路径？",
+        "assumptions": ["提交者与复核者独立工作，只有通过复核的记录才能发布。"],
+        "objects": [
+            {"name": "候选记录", "kind": "待验证对象", "role": "携带尚未确认的声明", "units": ""},
+            {"name": "复核者", "kind": "独立检查角色", "role": "检查来源与声明是否一致", "units": ""},
+        ],
+        "steps": [
+            {
+                "action": "提交者写入候选记录，但记录仍停留在候选队列。",
+                "formula": "",
+                "rule": "候选状态不能直接发布",
+                "explanation": "首次提交只建立待检对象，并不提供独立确认。",
+            },
+            {
+                "action": "复核者对照来源；不一致的记录被退回，一致的记录进入发布队列。",
+                "formula": "",
+                "rule": "独立复核门槛",
+                "explanation": "第二条独立检查路径改变了错误记录能够到达的状态。",
+            },
+        ],
+        "result": "未经独立复核的候选记录不能成为发布事实。",
+        "interpretation": "关键机制是状态门槛和独立检查，而不是增加形式化步骤本身。",
+        "checks": ["移除复核门槛后，同一错误可以从候选队列直接进入发布队列。"],
+        "non_conclusion": "双人复核不能保证零错误，也不能替代高质量来源。",
     }
 
 
@@ -63,7 +133,11 @@ def config(items: list[dict] | None = None) -> dict:
     return {
         "briefing_title": "Test briefing",
         "date_range": "2026-07-10",
-        "story_delivery": {"required": True, "position": "before_briefing"},
+        "story_delivery": {
+            "required": True,
+            "worked_example_required": True,
+            "position": "before_briefing",
+        },
         "opening_story": opening_story(),
         "sections": [{"title": "Today", "items": items or [item()]}],
         "academic_delivery": {"required": False, "no_signal_reason": "non-academic unit-test fixture"},
@@ -141,7 +215,11 @@ def ranking_fixture() -> tuple[dict, list[dict]]:
     raw = {
         "briefing_title": "Ranked daily briefing",
         "date_range": "2026-07-10",
-        "story_delivery": {"required": True, "position": "before_briefing"},
+        "story_delivery": {
+            "required": True,
+            "worked_example_required": True,
+            "position": "before_briefing",
+        },
         "opening_story": opening_story(),
         "sections": [
             {"title": "Academic research", "items": academic},
@@ -233,15 +311,130 @@ class DailyPipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reveals the concept"):
             normalize_briefing_config(raw, require_source_url=True)
 
+    def test_daily_pipeline_requires_a_worked_example_before_creating_staging(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            raw = config()
+            raw["opening_story"].pop("worked_example")
+            input_path = root / "candidate.json"
+            input_path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+            args = Namespace(
+                config=str(input_path), output_dir=str(root / "news" / "2026-07-10"), index=str(root / "story_index.jsonl"), date="2026-07-10",
+                days=7, continuing_mode="one-line", design_system="cosmic", background_mode="light",
+            )
+            with self.assertRaisesRegex(ValueError, "requires worked_example"):
+                cmd_run(args)
+            self.assertFalse((root / "news" / "2026-07-10" / ".staging").exists())
+
+    def test_nonmathematical_worked_example_requires_no_formula(self) -> None:
+        raw = config()
+        raw["opening_story"]["worked_example"] = operational_worked_example()
+        canonical = normalize_briefing_config(raw, require_source_url=True)
+        example = canonical["opening_story"]["worked_example"]
+        self.assertEqual(example["kind"], "operational")
+        self.assertFalse(any(step["formula"] for step in example["steps"]))
+        html = render_html(canonical)
+        self.assertIn("展开完整例子", html)
+        self.assertNotIn('id="MathJax-script"', html)
+
+    def test_legacy_story_without_example_remains_readable_outside_new_daily_contract(self) -> None:
+        raw = config()
+        raw["story_delivery"].pop("worked_example_required")
+        raw["opening_story"].pop("worked_example")
+        canonical = normalize_briefing_config(raw, require_source_url=True)
+        self.assertEqual(canonical["opening_story"]["version"], 1)
+        self.assertEqual(canonical["opening_story"]["worked_example"], {})
+        self.assertNotIn('data-story-example="true"', render_html(canonical))
+
+    def test_mathematical_worked_example_requires_a_formula_step(self) -> None:
+        raw = config()
+        for step in raw["opening_story"]["worked_example"]["steps"]:
+            step["formula"] = ""
+        with self.assertRaisesRegex(ValueError, "requires at least one formula step"):
+            normalize_briefing_config(raw, require_source_url=True)
+
+    def test_worked_example_step_requires_rule_and_explanation(self) -> None:
+        raw = config()
+        raw["opening_story"]["worked_example"]["steps"][0]["explanation"] = ""
+        with self.assertRaisesRegex(ValueError, "missing required field: explanation"):
+            normalize_briefing_config(raw, require_source_url=True)
+
     def test_story_renders_before_briefing_in_html_and_markdown(self) -> None:
         canonical = normalize_briefing_config(config(), require_source_url=True)
         feedback = export_feedback(canonical, Path("config.json"), "unrated", "none")
         html = render_html({**canonical, "default_status": "unrated", "initial_feedback_items": feedback["items"]})
         markdown = render_markdown(canonical)
         self.assertLess(html.index('data-opening-story="true"'), html.index('data-briefing-body="true"'))
+        self.assertLess(html.index('data-opening-story="true"'), html.index('data-story-example="true"'))
+        self.assertLess(html.index('data-story-example="true"'), html.index('data-briefing-body="true"'))
+        details_tag = html[html.index('<details class="story-worked-example"'):html.index(">", html.index('<details class="story-worked-example"'))]
+        self.assertNotIn(" open", details_tag)
+        self.assertIn("展开完整例子与公式推导", html)
+        self.assertIn('id="MathJax-script"', html)
         self.assertLess(markdown.index("## 开篇故事"), markdown.index("## 日报正文"))
+        self.assertLess(markdown.index("### 完整例子"), markdown.index("## 日报正文"))
+        self.assertIn("t_{\\mathrm{resolve}}\\sim\\hbar/\\Delta", markdown)
         self.assertEqual(len(feedback["items"]), 1)
         self.assertFalse(any(entry["concept"] == "spectral gap" for entry in feedback["items"]))
+
+    def test_story_and_example_surfaces_use_theme_tokens(self) -> None:
+        canonical = normalize_briefing_config(config(), require_source_url=True)
+        html = render_html(canonical)
+        required_declarations = (
+            "background: var(--story-surface);",
+            "background: var(--story-panel);",
+            "background: var(--story-subtle);",
+            "background: var(--story-warning-surface);",
+            "background: var(--table-surface);",
+            "color: var(--ink);",
+        )
+        for declaration in required_declarations:
+            self.assertIn(declaration, html)
+        story_css = html[html.index(".opening-story {"):html.index(".briefing-body > h2 {")]
+        for fixed_surface in (
+            "background: rgba(255, 255, 255, 0.72);",
+            "background: rgba(255, 255, 255, 0.78);",
+            "background: rgba(238, 247, 246, 0.76);",
+            "background: #fff;",
+        ):
+            self.assertNotIn(fixed_surface, story_css)
+
+    def test_story_palette_and_component_contract_passes_design_audit(self) -> None:
+        canonical = normalize_briefing_config(config(), require_source_url=True)
+        html = apply_design_system(render_html(canonical), "cosmic", "light")
+        self.assertEqual(design_audit_issues(html), [])
+        self.assertIn(
+            'html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(table)',
+            html,
+        )
+
+    def test_design_audit_rejects_low_contrast_or_fixed_story_surfaces(self) -> None:
+        canonical = normalize_briefing_config(config(), require_source_url=True)
+        html = apply_design_system(render_html(canonical), "cosmic", "light")
+        low_contrast = html.replace("--story-panel:#101A35;", "--story-panel:#FFFFFF;", 1)
+        self.assertTrue(
+            any("cosmic story contrast --ink/--story-panel" in issue for issue in design_audit_issues(low_contrast))
+        )
+        fixed_surface = html.replace(
+            "background: var(--story-warning-surface);",
+            "background: #fff7ed;",
+            1,
+        )
+        self.assertTrue(
+            any(".example-non-conclusion" in issue for issue in design_audit_issues(fixed_surface))
+        )
+
+    def test_worked_example_content_is_html_escaped(self) -> None:
+        raw = config()
+        raw["opening_story"]["worked_example"]["steps"][0]["action"] = '<img src=x onerror="alert(1)">'
+        canonical = normalize_briefing_config(raw, require_source_url=True)
+        html = render_html(canonical)
+        example_html = html[
+            html.index('<details class="story-worked-example"'):
+            html.index("</details>", html.index('<details class="story-worked-example"'))
+        ]
+        self.assertNotIn('<img src=x onerror="alert(1)">', example_html)
+        self.assertIn("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;", example_html)
 
     def test_briefing_grounded_story_must_reference_a_published_story(self) -> None:
         raw = config()

@@ -1,7 +1,7 @@
 # Decisions
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-17
+- Last reviewed: 2026-09-15
 
 ## Current Decisions
 
@@ -15,6 +15,7 @@
 | Reserve `reader_interactive.html` for completed translated readers. | active | User clarified that the target artifact is a translated paper with logic and knowledge-point guidance plus interactivity. Extraction-only bundles, placeholders, summaries, or reading scaffolds are incomplete intermediate states and must not produce HTML. |
 | Treat the current-session primary model as the paper content author. | active | The rule is product-neutral: the active primary model directly authors Chinese blocks, block-specific notes, and LaTeX reconstruction. Offline translators, APIs, local/secondary models, and scripts are not formal content authors; missing external tooling is not a blocker. |
 | Keep exactly four primary pipelines with distinct terminal gates. | active | Paper Reader HTML ends at audited `reader_interactive.html`; AI + Quantum Daily Briefing Release ends after `run -> verify -> finalize -> verify`; Local Chat-to-Profile Import ends after reviewed backed-up apply; Adaptive Teaching Decision & Evidence Loop ends a lesson request at a validated single-topic session and completes profile return only from actual performance through strict teaching-feedback import. |
+| Keep `allegory-teach` as a read-only explanation layer, not a fifth pipeline, and require one concept-appropriate worked example in every new daily opening story. | active | The story establishes intuition and the factual debrief/example returns it to inspectable evidence. Topic selection follows learner relevance and causal value rather than equation availability; non-mathematical examples need no formula, and formula-bearing examples must expose real assumptions, rules, transitions, checks, and limits. `ai-quantum-news-briefing` alone validates, renders, and publishes the handoff. |
 | Treat figures, tables, formulas, and block-specific notes as required final-reader structure. | active | User identified that missing figure/table cards, non-LaTeX formula noise, and generic `逻辑位置` / `标注建议` scaffolds make a reader invalid even when text is translated. |
 | Add `chat-knowledge-profile` for chat conversation imports. | active | User wants many chat conversation sessions to contribute to the long-term learner/person profile. The durable design is staged and reviewable: collect local exports, create `conversation_summaries.json`, extract candidates, propose a strict `reader-learner` handoff patch, then apply with backup. The design borrows ideas from ChatInsights and gpt-obsidian, but does not copy their code. |
 | Keep bilingual project demos in `skills/utils/demo-skill`. | active | The user requested the current Chinese/English four-pipeline PaperTrace demo as a reusable skill. The bundled templates remain editable visual references; verified README/AGENTS contracts own the facts, generation refuses accidental overwrite, and QA/design scratch artifacts stay out of normal publication. |

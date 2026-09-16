@@ -21,6 +21,18 @@ Choose the analysis move from the actual question:
 | What does it mean physically or operationally? | Name the actors, state before, operation, state after, and observable outcome. |
 | How does it differ from a nearby idea? | Contrast object type, operation, preserved information, changed information, and invalid interchange. |
 
+Choose the worked-example form independently of topic selection. A concept is
+not more suitable merely because it has equations:
+
+| Concept structure | Worked-example form |
+|---|---|
+| Mathematical or theoretical | A source-backed derivation or numerical case, only when the formula carries the mechanism. |
+| Algorithmic or systemic | Input, operations, intermediate states, output, and failure case. |
+| Causal or statistical | Intervention or changed condition, counterfactual comparison, and bounded conclusion. |
+| Experimental | Preparation, controls, measurement, observation, and what the observation rules out. |
+| Engineering or product | Concrete constraint, decision, state transition, consequence, and trade-off. |
+| Philosophical or methodological | Minimal case, nearby counterexample, scope, and invalid inference. |
+
 ## Keep technical claims inspectable
 
 Before using notation or a formula, state what every object is, what role it
@@ -38,6 +50,12 @@ Say whether a step is a definition, assumption, identity, approximation, or
 derived conclusion. If a claimed necessity is actually a convention or
 compatibility choice, say so. Test units, normalization, a limiting case, or a
 small numerical example when it can invalidate a mistaken inference.
+
+Do not create notation for a non-mathematical concept merely to fill a formula
+slot. When mathematics is intrinsic, follow the complete chain `goal ->
+premises -> symbols -> derivation -> result -> interpretation -> check ->
+non-conclusion`. When it is not intrinsic, use the corresponding operational or
+causal chain and omit formulas without apology.
 
 ## Correct without replacing the learner's model wholesale
 

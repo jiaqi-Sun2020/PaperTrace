@@ -1,14 +1,14 @@
 # Agent Context Index
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-08-11
+- Last reviewed: 2026-09-15
 
 This directory combines project-agent context and learner memory.
 
 Canonical four-pipeline taxonomy:
 
 1. **Paper Reader HTML:** PDF/source paper -> internal bundle/`reader_wiki` -> adversarially audited `reader_interactive.html`.
-2. **AI + Quantum Daily Briefing Release:** current sources -> evidence/config/staging -> `run -> verify -> finalize -> verify` -> briefing HTML plus required feedback/manifest/index artifacts.
+2. **AI + Quantum Daily Briefing Release:** current sources -> ranked evidence -> concealed-name opening story plus concept-appropriate worked example -> staging -> `run -> verify -> finalize -> verify` -> briefing HTML plus required feedback/manifest/index artifacts.
 3. **Local Chat-to-Profile Import:** local chat exports -> collect/extract/propose -> human review -> backed-up strict apply.
 4. **Adaptive Teaching Decision & Evidence Loop:** explicit teaching request -> profile-backed analysis -> one concept/mode -> short lesson -> actual performance -> validated teaching-feedback import.
 
@@ -23,6 +23,7 @@ Directory roles:
 - `skills/ai-quantum-news-briefing`: AI/quantum briefing skill that can generate source-grounded briefings, render briefing feedback HTML, and normalize explicit news feedback into the same learner profile.
 - `skills/utils/chat-knowledge-profile`: staged chat conversation import skill for turning local ChatGPT/GPT/Claude/Deepseek exports into bounded evidence events, conversation summaries, candidate profile signals, strict reader-learner handoffs, reviewable patches, and optional profile updates.
 - `skills/adaptive-teach`: explicit-invocation, profile-backed teaching decision skill. It reads the profile, selects a diagnostic/teach/review/prerequisite/transfer session, generates short lessons, and delegates validated teaching feedback to `reader-learner`.
+- `skills/allegory-teach`: optional read-only narrative layer for one selected advanced concept and the Pipeline 2 opening-story handoff. It writes a concealed-name causal fable, factual debrief, and one concept-appropriate worked example without changing ranking, feedback, or learner state.
 - `skills/utils/demo-skill`: bilingual project-demo skill that verifies README/AGENTS contracts, materializes the bundled Chinese/English four-pipeline templates, and audits the intended Git upload scope.
 
 Recommended reading order:
@@ -71,7 +72,7 @@ Visual/math note: final reader HTML also requires figure/table cards or semantic
 
 Credential rule: except for permitted learner-profile reads/updates, do not open, print, copy, summarize, upload, or modify any suspected key/password/token/credential file.
 
-Daily AI/quantum briefing note: `skills/ai-quantum-news-briefing` runs `news-ranker-v1` before Delta compaction, then publishes 7–8 academic papers and 10–14 social-news items (target 12) with auditable score components, quotas, selection trace, and exclusions. It renders feedback HTML with concept chips and freeform annotations and converts explicit news feedback into the same learner profile through `scripts/import_news_feedback.py`. News exposure alone should be imported as `unrated`; do not infer `known`, `unknown`, `learning`, or `mastered` without explicit user feedback. The end-to-end briefing contract finishes only after `daily_pipeline.py run -> verify -> finalize -> verify`; index mutation is forbidden before final verification. The verified 2026-07-16 local release and its 8+12 result are recorded in `CHANGES.md`.
+Daily AI/quantum briefing note: `skills/ai-quantum-news-briefing` runs `news-ranker-v1` before Delta compaction, then publishes 7–8 academic papers and 10–14 social-news items (target 12) with auditable score components, quotas, selection trace, and exclusions. Every new run also requires a concealed-name causal opening story and one concept-appropriate worked example; selection must not favor equation-friendly topics, HTML keeps the example collapsed by default, and formulas appear only when the mechanism genuinely requires them. It renders feedback HTML with concept chips and freeform annotations and converts explicit news feedback into the same learner profile through `scripts/import_news_feedback.py`. Story, example, and news exposure alone remain `unrated`; do not infer `known`, `unknown`, `learning`, or `mastered` without explicit user feedback. The end-to-end briefing contract finishes only after `daily_pipeline.py run -> verify -> finalize -> verify`; index mutation is forbidden before final verification. The verified 2026-07-16 local release and its 8+12 result are recorded in `CHANGES.md`.
 
 Chat conversation import note: use `skills/utils/chat-knowledge-profile` only with local `.txt`, `.md`, `.html`, or `.json` ChatGPT/GPT/Claude/Deepseek exports. The pipeline is `collect -> extract -> propose -> apply`; `collect` also writes `conversation_summaries.json`. Review `profile_patch.json` before applying, and use `--backup` when mutating `knowledge_profile.json`. Share URLs should be copied or exported locally first.
 

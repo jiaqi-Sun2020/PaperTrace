@@ -31,7 +31,7 @@ from briefing_contract import (
     is_lossless_text,
     normalize_briefing_config,
 )
-from briefing_to_feedback_html import render_html
+from briefing_to_feedback_html import render_html, worked_example_has_formula
 from config_to_news_feedback import export_feedback
 from lean_html import apply_design_system, design_audit_issues
 from news_delta import (
@@ -188,7 +188,9 @@ def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
         for marker in required_html:
             if marker not in html_text:
                 failures.append(f"HTML contract marker missing: {marker}")
-        story_required = bool((config.get("story_delivery") or {}).get("required"))
+        story_delivery = config.get("story_delivery") or {}
+        story_required = bool(story_delivery.get("required"))
+        worked_example_required = bool(story_delivery.get("worked_example_required"))
         if story_required:
             story_marker = 'data-opening-story="true"'
             briefing_marker = 'data-briefing-body="true"'
@@ -204,6 +206,40 @@ def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
                 failures.append("Markdown opening story must appear before the briefing body")
             if manifest.get("opening_story_present") is not True:
                 failures.append("manifest does not confirm the opening story")
+        if worked_example_required:
+            example_marker = 'data-story-example="true"'
+            story_marker = 'data-opening-story="true"'
+            briefing_marker = 'data-briefing-body="true"'
+            if example_marker not in html_text:
+                failures.append("HTML opening-story worked example is missing")
+            else:
+                details_match = re.search(
+                    r'<details\b[^>]*data-story-example="true"[^>]*>',
+                    html_text,
+                    flags=re.I,
+                )
+                if details_match is None:
+                    failures.append("HTML worked example must use a native details control")
+                elif re.search(r"\sopen(?:\s|=|>)", details_match.group(0), flags=re.I):
+                    failures.append("HTML worked example must be collapsed by default")
+            if all(marker in html_text for marker in (story_marker, example_marker, briefing_marker)):
+                if not (
+                    html_text.index(story_marker)
+                    < html_text.index(example_marker)
+                    < html_text.index(briefing_marker)
+                ):
+                    failures.append(
+                        "HTML worked example must appear after the opening story and before the briefing body"
+                    )
+            if "### 完整例子" not in markdown_text:
+                failures.append("Markdown opening-story worked example is missing")
+            elif "## 日报正文" in markdown_text and markdown_text.index("### 完整例子") > markdown_text.index("## 日报正文"):
+                failures.append("Markdown worked example must appear before the briefing body")
+            if manifest.get("opening_story_example_present") is not True:
+                failures.append("manifest does not confirm the opening-story worked example")
+            example = ((config.get("opening_story") or {}).get("worked_example") or {})
+            if worked_example_has_formula(example) and 'id="MathJax-script"' not in html_text:
+                failures.append("formula-bearing worked example requires MathJax with a TeX fallback")
         if manifest.get("design_system", "cosmic") == "cosmic":
             failures.extend(design_audit_issues(html_text))
         manifest_hashes = manifest.get("artifact_sha256") or {}
@@ -234,6 +270,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     raw_config["story_delivery"] = {
         **raw_story_delivery,
         "required": True,
+        "worked_example_required": True,
         "position": "before_briefing",
     }
     if "analysis_language" not in raw_config:
@@ -349,6 +386,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         "design_system": args.design_system,
         "background_mode": args.background_mode,
         "opening_story_present": bool(canonical.get("opening_story")),
+        "opening_story_example_present": bool(
+            (canonical.get("opening_story") or {}).get("worked_example")
+        ),
         "artifacts": {key: path.name for key, path in names.items()},
         "artifact_sha256": {key: sha256_file(path) for key, path in names.items() if key != "manifest"},
         "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",

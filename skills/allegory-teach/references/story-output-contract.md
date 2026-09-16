@@ -42,11 +42,17 @@ the last paragraph of the story.
 | 故事元素 | 对应的现实对象（类型/作用） | 对应操作或约束 | 信息的保留/变化/丢弃（如适用） | 因果作用 |
 |---|---|---|---|---|
 | ... | ... | ... | ... | ... |
+
+### 完整例子
+
+<one worked example whose mathematical, numerical, operational, causal,
+experimental, or comparative form matches the concept>
 ```
 
 Keep the requested `1 -> 3 -> 4 -> 2` order even though the labels are not
 numeric order. The final table must cover every causal element that carries the
-story; decorative details need not be mapped.
+story; decorative details need not be mapped. Keep the worked example inside
+section 2 so it does not create a fifth numbered section.
 
 ## Truth conditions
 
@@ -58,6 +64,16 @@ story; decorative details need not be mapped.
   analogy.
 - The misleading section names at least one wrong prediction that a literal
   reading of the story would invite.
+- The worked example starts from an explicit question or initial state, exposes
+  the governing rules and meaningful transitions, reaches a bounded result,
+  and states what that result does not establish.
+- Mathematical notation is conditional, not preferred. If the concept does not
+  need mathematics, use the smallest complete operational, causal,
+  experimental, or comparative case without decorative formulas.
+- If formulas are used, define every object and symbol before manipulation,
+  name the rule at each meaningful transition, and include a relevant units,
+  normalization, limiting-case, counterexample, or numerical check. Never
+  invent a formula to make the response look rigorous.
 - Cite supplied source anchors, paper blocks, or briefing titles when they are
   available, without copying raw feedback or long excerpts into the response.
 
@@ -76,7 +92,8 @@ those sections rather than adding a new numbered section:
   that exposes the difference.
 - **2:** Map each story element to the real object and its type/role, the
   corresponding operation or constraint, and what information is preserved,
-  changed, or discarded. Finish the section with a compact chain:
+  changed, or discarded. Then give the worked example and finish the section
+  with a compact chain:
   `known anchor -> missing bridge -> mechanism -> consequence`.
 
 When formulas are needed after the story, define every symbol and its object

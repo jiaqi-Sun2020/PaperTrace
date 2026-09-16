@@ -1,7 +1,7 @@
 # Config Spec
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-16
+- Last reviewed: 2026-09-15
 
 ## Primary Pipeline Selection
 
@@ -290,6 +290,38 @@ News briefing configs are UTF-8 data contracts. Human-readable fields must survi
 The shared normalizer blocks `U+FFFD` and high-density literal `?` in titles, facts, judgments, relevance, source excerpts, section titles, and concepts. URL query delimiters are not human-text corruption. If the check fails, regenerate from the original candidate/source; never strip `?` or rewrite a damaged string heuristically.
 
 `story_index.jsonl` is historical input, not trusted prose. Delta compaction must omit a corrupt prior summary and mark the omission rather than copying mojibake into current Markdown/HTML. Final `daily_pipeline.py verify --strict` audits visible HTML text as well as the config.
+
+## Daily Opening Story And Worked Example
+
+Every new `daily_pipeline.py run` forces:
+
+```json
+"story_delivery": {
+  "required": true,
+  "worked_example_required": true,
+  "position": "before_briefing"
+}
+```
+
+`opening_story.version=2` adds one `worked_example` after the concealed-name
+narrative and factual debrief. Its `kind` is one of `mathematical`, `numerical`,
+`operational`, `causal`, `experimental`, or `comparative`. All kinds require a
+question, explicit assumptions, named objects/roles, ordered steps, a result,
+interpretation, at least one check, and a `non_conclusion`. Each step requires a
+named rule, an explanation, and at least one of `action` or `formula`.
+
+Topic selection is independent of mathematical form. Non-mathematical examples
+may omit every formula. `kind=mathematical` requires at least one genuine TeX
+formula step; any formula-bearing example must define its objects and include a
+check capable of exposing a bad derivation. Formula bodies omit display
+delimiters because the renderer owns `\[...\]`. Do not invent a quantitative law
+or decorative equation to satisfy the schema.
+
+HTML renders the worked example in a native `details` element closed by default,
+between the debrief and `data-briefing-body`. MathJax is loaded only when a
+formula is present, with escaped TeX left readable if loading fails. Markdown
+retains the full example for audit. Story/example content never creates feedback
+identities, changes ranking, or mutates the learner profile.
 
 ## Academic Delivery Contract
 

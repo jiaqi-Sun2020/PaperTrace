@@ -43,9 +43,13 @@ Build HTML from a config file:
   "briefing_title": "AI + Quantum News Briefing - 2026-07-04",
   "date_range": "2026-07-04",
   "summary": "One-sentence summary.",
-  "story_delivery": {"required": true, "position": "before_briefing"},
+  "story_delivery": {
+    "required": true,
+    "worked_example_required": true,
+    "position": "before_briefing"
+  },
   "opening_story": {
-    "version": 1,
+    "version": 2,
     "title": "开篇寓言",
     "paragraphs": [
       "山谷里的两座钟塔每天从同一声钟响出发，却沿着不同齿轮缓慢传递回声。守钟人只能在城门关闭前观察有限时间，再判断声音来自哪座塔。",
@@ -57,6 +61,22 @@ Build HTML from a config file:
     "logic_chain": "已知锚点 → 缺失桥梁 → 机制 → 后果",
     "analogy_boundary": "类比没有覆盖的条件或尺度。",
     "misleading_risk": "按字面理解会得到的错误推论及修正。",
+    "worked_example": {
+      "kind": "operational",
+      "title": "完整例子",
+      "question": "这个例子要回答什么？",
+      "assumptions": ["适用条件或约束。"],
+      "objects": [
+        {"name": "对象", "kind": "现实角色或数学类型", "role": "在机制中的作用", "units": ""}
+      ],
+      "steps": [
+        {"action": "操作或状态变化。", "formula": "", "rule": "使用的规则。", "explanation": "为什么得到下一状态。"}
+      ],
+      "result": "例子的直接结果。",
+      "interpretation": "结果的现实、物理或操作含义。",
+      "checks": ["改变一个条件，检查结果是否按机制变化。"],
+      "non_conclusion": "这个例子不能支持的更强结论。"
+    },
     "grounding_kind": "learner_profile",
     "source_story_ids": []
   },
@@ -124,8 +144,10 @@ Only `new` and evidence-backed `material_update` items should be fully expanded.
 
 ## Boundary
 
-- `daily_pipeline.py run` requires exactly one valid opening story and renders it before `日报正文` in Markdown and HTML.
+- `daily_pipeline.py run` requires exactly one valid opening story and one complete worked example, then renders both before `日报正文` in Markdown and HTML. HTML uses a native `details` control closed by default for the example.
+- The HTML story/example subtree must bind its narrative, debrief, steps, formula, warning, and object/role table to the shared semantic story surfaces. Light, Cosmic, and print palettes must pass the shared `4.5:1` normal-text contrast audit; fixed light story surfaces are publication failures.
 - The story's concept name and aliases must not appear in its title or narrative paragraphs; the visible debrief performs the reveal.
+- Select the concept independently of whether it has equations. Use a mathematical derivation only when the mechanism genuinely requires one; otherwise use a complete numerical, operational, causal, experimental, or comparative example without fabricated formulas.
 - `grounding_kind=briefing_items` requires `source_story_ids` that survive ranking and appear in the published delta config. `learner_profile` must not copy private profile evidence or status into the report.
 - Opening-story concepts are excluded from automatic feedback unless they independently occur in a news item's configured `concepts` list.
 - Full-concept HTML export is automatic from `news_feedback_config.json`: `Download JSON` must include all default concepts plus user edits.

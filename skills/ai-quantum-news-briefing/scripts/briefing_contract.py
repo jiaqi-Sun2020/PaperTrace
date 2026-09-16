@@ -15,6 +15,14 @@ from urllib.parse import urlsplit, urlunsplit
 VALID_STATUSES = {"mastered", "known", "learning", "unknown", "unrated"}
 VALID_NOVELTY = {"new", "material_update", "continuing", "duplicate"}
 VALID_STORY_GROUNDING = {"learner_profile", "briefing_items"}
+VALID_WORKED_EXAMPLE_KINDS = {
+    "mathematical",
+    "numerical",
+    "operational",
+    "causal",
+    "experimental",
+    "comparative",
+}
 OPENING_STORY_FIELDS = (
     "title",
     "concept_name",
@@ -89,6 +97,41 @@ def assert_config_text_integrity(config: dict[str, Any]) -> None:
                 raise ValueError(f"opening_story.{field} must be a list")
             for index, value in enumerate(values, start=1):
                 assert_lossless_text(value, f"opening_story.{field}[{index}]")
+        worked_example = opening_story.get("worked_example")
+        if worked_example is not None:
+            if not isinstance(worked_example, dict):
+                raise ValueError("opening_story.worked_example must be an object")
+            for field in ("kind", "title", "question", "result", "interpretation", "non_conclusion"):
+                assert_lossless_text(
+                    worked_example.get(field),
+                    f"opening_story.worked_example.{field}",
+                )
+            for field in ("assumptions", "checks"):
+                values = worked_example.get(field) or []
+                if not isinstance(values, list):
+                    raise ValueError(f"opening_story.worked_example.{field} must be a list")
+                for index, value in enumerate(values, start=1):
+                    assert_lossless_text(
+                        value,
+                        f"opening_story.worked_example.{field}[{index}]",
+                    )
+            for field, record_fields in (
+                ("objects", ("name", "kind", "role", "units")),
+                ("steps", ("action", "formula", "rule", "explanation")),
+            ):
+                values = worked_example.get(field) or []
+                if not isinstance(values, list):
+                    raise ValueError(f"opening_story.worked_example.{field} must be a list")
+                for index, value in enumerate(values, start=1):
+                    if not isinstance(value, dict):
+                        raise ValueError(
+                            f"opening_story.worked_example.{field}[{index}] must be an object"
+                        )
+                    for record_field in record_fields:
+                        assert_lossless_text(
+                            value.get(record_field),
+                            f"opening_story.worked_example.{field}[{index}].{record_field}",
+                        )
     sections = config.get("sections") or []
     if not isinstance(sections, list):
         return
@@ -160,6 +203,123 @@ def normalize_text_list(values: Any, *, limit: int, field: str) -> list[str]:
     return result
 
 
+def normalize_worked_example(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("opening_story.worked_example must be an object")
+    if not value:
+        return {}
+
+    raw_objects = value.get("objects") or []
+    if not isinstance(raw_objects, list):
+        raise ValueError("opening_story.worked_example.objects must be a list")
+    objects: list[dict[str, str]] = []
+    for index, item in enumerate(raw_objects, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"opening_story.worked_example.objects[{index}] must be an object")
+        objects.append(
+            {
+                "name": clean_text(item.get("name"), 240),
+                "kind": clean_text(item.get("kind"), 240),
+                "role": clean_text(item.get("role"), 800),
+                "units": clean_text(item.get("units"), 160),
+            }
+        )
+
+    raw_steps = value.get("steps") or []
+    if not isinstance(raw_steps, list):
+        raise ValueError("opening_story.worked_example.steps must be a list")
+    steps: list[dict[str, str]] = []
+    for index, item in enumerate(raw_steps, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"opening_story.worked_example.steps[{index}] must be an object")
+        steps.append(
+            {
+                "action": clean_text(item.get("action"), 1200),
+                "formula": clean_text(item.get("formula"), 1600),
+                "rule": clean_text(item.get("rule"), 600),
+                "explanation": clean_text(item.get("explanation"), 1600),
+            }
+        )
+
+    return {
+        "kind": clean_text(value.get("kind"), 80),
+        "title": clean_text(value.get("title") or "完整例子", 200),
+        "question": clean_text(value.get("question"), 1200),
+        "assumptions": normalize_text_list(
+            value.get("assumptions"),
+            limit=1000,
+            field="opening_story.worked_example.assumptions",
+        ),
+        "objects": objects,
+        "steps": steps,
+        "result": clean_text(value.get("result"), 1600),
+        "interpretation": clean_text(value.get("interpretation"), 1600),
+        "checks": normalize_text_list(
+            value.get("checks"),
+            limit=1200,
+            field="opening_story.worked_example.checks",
+        ),
+        "non_conclusion": clean_text(value.get("non_conclusion"), 1600),
+    }
+
+
+def assert_worked_example_contract(example: dict[str, Any], *, required: bool) -> None:
+    if not example:
+        if required:
+            raise ValueError("daily briefing opening_story requires worked_example")
+        return
+
+    kind = clean_text(example.get("kind"), 80)
+    if kind not in VALID_WORKED_EXAMPLE_KINDS:
+        raise ValueError(
+            "opening_story.worked_example.kind must be mathematical, numerical, "
+            "operational, causal, experimental, or comparative"
+        )
+    required_fields = ("title", "question", "result", "interpretation", "non_conclusion")
+    missing = [field for field in required_fields if not clean_text(example.get(field))]
+    if missing:
+        raise ValueError(
+            "opening_story.worked_example missing required fields: " + ", ".join(missing)
+        )
+    for field in ("assumptions", "objects", "steps", "checks"):
+        values = example.get(field)
+        if not isinstance(values, list) or not values:
+            raise ValueError(f"opening_story.worked_example.{field} must be a non-empty list")
+
+    for index, item in enumerate(example["objects"], start=1):
+        missing_object_fields = [
+            field for field in ("name", "kind", "role") if not clean_text(item.get(field))
+        ]
+        if missing_object_fields:
+            raise ValueError(
+                f"opening_story.worked_example.objects[{index}] missing required fields: "
+                + ", ".join(missing_object_fields)
+            )
+
+    has_formula = False
+    for index, item in enumerate(example["steps"], start=1):
+        action = clean_text(item.get("action"))
+        formula = clean_text(item.get("formula"))
+        if not action and not formula:
+            raise ValueError(
+                f"opening_story.worked_example.steps[{index}] requires action or formula"
+            )
+        for field in ("rule", "explanation"):
+            if not clean_text(item.get(field)):
+                raise ValueError(
+                    f"opening_story.worked_example.steps[{index}] missing required field: {field}"
+                )
+        has_formula = has_formula or bool(formula)
+
+    if kind == "mathematical" and not has_formula:
+        raise ValueError(
+            "opening_story.worked_example.kind mathematical requires at least one formula step; "
+            "the authoring contract forbids fabricated formulas"
+        )
+
+
 def normalize_opening_story(value: Any) -> dict[str, Any]:
     if value is None:
         return {}
@@ -167,8 +327,9 @@ def normalize_opening_story(value: Any) -> dict[str, Any]:
         raise ValueError("opening_story must be an object")
     if not value:
         return {}
+    worked_example = normalize_worked_example(value.get("worked_example"))
     return {
-        "version": 1,
+        "version": 2 if worked_example else 1,
         "title": clean_text(value.get("title") or "开篇寓言", 160),
         "paragraphs": normalize_text_list(
             value.get("paragraphs"), limit=900, field="opening_story.paragraphs"
@@ -181,6 +342,7 @@ def normalize_opening_story(value: Any) -> dict[str, Any]:
         "logic_chain": clean_text(value.get("logic_chain"), 800),
         "analogy_boundary": clean_text(value.get("analogy_boundary"), 800),
         "misleading_risk": clean_text(value.get("misleading_risk"), 800),
+        "worked_example": worked_example,
         "grounding_kind": clean_text(value.get("grounding_kind"), 80),
         "source_story_ids": normalize_text_list(
             value.get("source_story_ids"), limit=180, field="opening_story.source_story_ids"
@@ -192,6 +354,7 @@ def assert_opening_story_contract(
     story: dict[str, Any],
     *,
     required: bool,
+    worked_example_required: bool = False,
     available_story_ids: set[str] | None = None,
 ) -> None:
     if not story:
@@ -226,6 +389,10 @@ def assert_opening_story_contract(
     ]
     if leaked:
         raise ValueError("opening_story reveals the concept before the factual debrief: " + ", ".join(leaked))
+    assert_worked_example_contract(
+        story.get("worked_example") or {},
+        required=worked_example_required,
+    )
     grounding_kind = clean_text(story.get("grounding_kind"), 80)
     if grounding_kind not in VALID_STORY_GROUNDING:
         raise ValueError("opening_story.grounding_kind must be learner_profile or briefing_items")
@@ -316,8 +483,13 @@ def normalize_briefing_config(
         raise ValueError("story_delivery must be an object")
     if "required" in raw_story_delivery and not isinstance(raw_story_delivery.get("required"), bool):
         raise ValueError("story_delivery.required must be a boolean")
+    if "worked_example_required" in raw_story_delivery and not isinstance(
+        raw_story_delivery.get("worked_example_required"), bool
+    ):
+        raise ValueError("story_delivery.worked_example_required must be a boolean")
     story_delivery = {
         "required": raw_story_delivery.get("required") is True,
+        "worked_example_required": raw_story_delivery.get("worked_example_required") is True,
         "position": clean_text(raw_story_delivery.get("position") or "before_briefing", 80),
     }
     if story_delivery["position"] != "before_briefing":
@@ -397,6 +569,7 @@ def normalize_briefing_config(
     assert_opening_story_contract(
         opening_story,
         required=story_delivery["required"],
+        worked_example_required=story_delivery["worked_example_required"],
         available_story_ids=published_story_ids,
     )
     normalized["config_fingerprint"] = config_fingerprint(normalized)

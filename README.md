@@ -29,10 +29,10 @@ PaperTrace is a local workspace for paper reading, AI + quantum briefings, and a
 | What you want to do | Start here | Final deliverable |
 |---|---|---|
 | Turn a paper into an annotatable Chinese interactive reader | [Paper Reader](#paper-reader) | An adversarially audited <code>reader_interactive.html</code> |
-| Track meaningful current AI and quantum developments | [Briefing pipeline](#daily-briefing) | Opening story, briefing HTML, feedback JSON, manifest, and index |
+| Track meaningful current AI and quantum developments | [Briefing pipeline](#daily-briefing) | Opening story with a collapsed worked example, briefing HTML, feedback JSON, manifest, and index |
 | Turn local chat exports into reviewable profile candidates | [Knowledge Profile](#knowledge-profile) | A human-reviewed, backed-up profile patch |
 | Choose a focused next lesson or review from existing evidence | [Adaptive Teach](#adaptive-teach) | A one-topic lesson and controlled feedback handoff |
-| Build intuition for one advanced, profile-relevant mechanism | [Allegory Teach](#allegory-teach) | A causal fable plus factual mapping and limits |
+| Build intuition for one advanced, profile-relevant mechanism | [Allegory Teach](#allegory-teach) | A causal fable, factual mapping, limits, and one worked example |
 
 <a id="pipelines"></a>
 
@@ -67,7 +67,7 @@ Codex processes the PDFs in order, continues automatically after each pass, and 
 
 ### 2. Release a sourced AI + Quantum briefing
 
-> Read the README and <code>.agents</code> in the current project. Using current, source-verifiable information for <code>&lt;date or date-range&gt;</code>, produce the AI + Quantum Daily Briefing Release. Build the evidence-backed candidate config, then complete <code>run → verify → finalize → verify</code>. Deliver the interactive briefing HTML, feedback JSON, manifest, and index; do not treat a candidate list or staging output as final.
+> Read the README and <code>.agents</code> in the current project. Using current, source-verifiable information for <code>&lt;date or date-range&gt;</code>, produce the AI + Quantum Daily Briefing Release. Build the evidence-backed candidate config with a concealed-name opening story and one concept-appropriate worked example, then complete <code>run → verify → finalize → verify</code>. Deliver the interactive briefing HTML, feedback JSON, manifest, and index; do not treat a candidate list or staging output as final.
 
 Codex verifies sources and dates, applies the ranking and Delta rules, then publishes only after the strict release sequence succeeds. Concepts in the exported feedback start as <code>unrated</code>.
 
@@ -95,13 +95,13 @@ Use the script interface below only when you need recovery, diagnostics, or CI i
 ## Current capabilities
 
 - <code>ai-quantum-news-briefing</code> gathers daily candidate signals from AI HOT API or <code>feed.xml</code>; AI HOT is discovery only, never final evidence.
-- Every new daily briefing opens with one validated causal fable and factual debrief before the news body; story exposure never becomes learner evidence.
+- Every new daily briefing opens with one validated causal fable, factual debrief, and a default-collapsed worked example before the news body; story/example exposure never becomes learner evidence.
 - Briefing research sources cover APS journals, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv. arXiv-only records are labeled as preprints.
 - Reader and briefing HTML export full feedback JSON. Concepts default to <code>unrated</code> until the user explicitly provides a learning judgment.
 - <code>news-ranker-v1</code> first applies an evidence gate, then uses separate academic/social scoring and diversity constraints. The published config retains item scores, quotas, selection trace, and exclusions.
-- <code>lean-html-skill</code> controls only visual presentation. It keeps the light theme as default and can add a Cosmic visual layer without changing behavior or data structure.
+- <code>lean-html-skill</code> controls only visual presentation. It keeps the light theme as default, provides a Cosmic option, pairs component foreground/surface tokens across Light, Cosmic, and print modes, and blocks low-contrast story/table output without changing behavior or data structure.
 - <code>reader-learner</code> validates, normalizes, and atomically updates the profile while blocking encoding corruption, HTML remnants, and exposure-only overclaims.
-- <code>allegory-teach</code> converts one selected advanced concept into a prerequisite-aware causal fable, then traces its logic chain, definition, analogy boundary, likely misconception, and story-to-reality mapping without changing learner status.
+- <code>allegory-teach</code> converts one selected advanced concept into a prerequisite-aware causal fable, traces its logic chain, definition, analogy boundary, likely misconception, and story-to-reality mapping, then works one concept-appropriate example without changing learner status. Mathematics is used only when the mechanism genuinely requires it.
 
 ## Directory layout
 
@@ -145,9 +145,9 @@ Generating or viewing a lesson never changes the profile or review queue. Only a
 
 ## Allegory Teach
 
-<code>skills/allegory-teach</code> is the optional intuition-first companion to Adaptive Teach and the read-only authoring dependency for the daily briefing's opening story. It selects or receives one advanced concept, tells a Chinese fable without naming the concept until the reveal, then returns the definition, analogy limits, likely misleading inference, and a complete mapping table. The briefing pipeline alone validates and publishes this handoff; the skill cannot collect news, alter ranking, write feedback, or update the learner profile.
+<code>skills/allegory-teach</code> is the optional intuition-first companion to Adaptive Teach and the read-only authoring dependency for the daily briefing's opening story. It selects or receives one advanced concept, tells a Chinese fable without naming the concept until the reveal, returns the definition, analogy limits, likely misleading inference, and mapping, then works one mathematical, numerical, operational, causal, experimental, or comparative example. Concept selection never favors equation-friendly topics; formulas appear only when the mechanism genuinely needs them and every meaningful transition can be justified. The briefing pipeline alone validates and publishes this handoff; the skill cannot collect news, alter ranking, write feedback, or update the learner profile.
 
-> Use <code>$allegory-teach</code> to choose one concept near my current research boundary, explain it first as a fable without naming it, then return the definition, limits, misconceptions, and mapping in the order 1 → 3 → 4 → 2.
+> Use <code>$allegory-teach</code> to choose one concept near my current research boundary, explain it first as a fable without naming it, then return the definition, limits, misconceptions, mapping, and one complete concept-appropriate example in the order 1 → 3 → 4 → 2.
 
 ## Persistent Visible Wiki
 
@@ -169,7 +169,7 @@ For one-step imports, use <code>reader-feedback</code> or <code>news-feedback</c
 | <code>reader-skill</code> | Formal reader normalization, source anchors, HTML generation, concept marks, and structural/audit gates. | Direct profile mutation. |
 | <code>reader-learner</code> | Feedback import, schema-v2 profile validation, backup/atomic mutation, and Visible Wiki projection. | PDF reader generation or teaching decisions. |
 | <code>adaptive-teach</code> | Profile-backed teaching decisions, sessions, lessons, and teaching-feedback handoff. | Profile schema, direct profile writes, PDFs/news collection, or shared HTML shell. |
-| <code>allegory-teach</code> | A source-aware causal fable and factual debrief for one selected advanced concept. | Topic-ranking/session ownership, profile mutation, news collection, or daily-release changes. |
+| <code>allegory-teach</code> | A source-aware causal fable, factual debrief, and concept-appropriate worked example for one selected advanced concept. | Topic-ranking/session ownership, profile mutation, news collection, or daily-release changes. |
 | <code>ai-quantum-news-briefing</code> | Sourced AI/quantum briefings, candidate ranking, briefing feedback artifacts, and news-feedback normalization. | Treating mere exposure as knowledge. |
 | <code>lean-html-skill</code> | Shared HTML shell, feedback UI, export controls, and visual design layer. | Domain interpretation or profile mutation. |
 | <code>chat-knowledge-profile</code> | Staged local conversation extraction and reviewable profile handoffs. | Share-URL scraping or direct profile overwrite. |
@@ -251,7 +251,7 @@ The importer validates feedback, backs up and atomically updates the profile, th
 
 ## AI + Quantum News Briefing pipeline
 
-The briefing is not complete at candidate collection, Markdown, or config generation. The terminal deliverable opens with a validated concept fable and factual debrief, followed by the interactive HTML briefing, with default-<code>unrated</code> feedback JSON, manifest, and updated story index.
+The briefing is not complete at candidate collection, Markdown, or config generation. The terminal deliverable opens with a validated concept fable, factual debrief, and default-collapsed concept-appropriate worked example, followed by the interactive HTML briefing, with default-<code>unrated</code> feedback JSON, manifest, and updated story index.
 
 Expected daily artifacts:
 
@@ -280,7 +280,7 @@ Optional discovery and evidence tools:
 
 Key rules:
 
-- Every run requires <code>opening_story</code>; validation fails before staging if the story is absent, reveals its concept early, lacks its factual debrief, or cites a briefing story removed by ranking.
+- Every run requires <code>opening_story</code> and one complete worked example; validation fails before staging if either is absent or malformed, the story reveals its concept early, or it cites a briefing story removed by ranking. HTML keeps the example collapsed by default, and formulas are conditional rather than a topic-selection preference.
 - AI HOT is a candidate source, never final evidence.
 - <code>news-ranker-v1</code> runs before Delta compaction; AI HOT scores cannot replace it.
 - Publish 7–8 academic records and 10–14 social-news records (target 12), preserving source, topic, and organization diversity.

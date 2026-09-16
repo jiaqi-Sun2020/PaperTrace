@@ -47,6 +47,21 @@ Default pages should use a white/light background for readability. Provide a vis
 
 When applying the layer to an existing HTML page, override both Cosmic tokens and legacy page tokens. Many PaperTrace HTML pages use variables such as `--bg`, `--panel`, `--ink`, `--muted`, `--line`, `--accent`, and `--shadow`; the Cosmic layer must redefine these so existing components cannot keep white panels or low-contrast text.
 
+Background-selectable component families must define surfaces as a set, not as
+one-off selector overrides. The daily opening-story family uses:
+
+- `--story-surface`: outer narrative surface;
+- `--story-panel`: debrief, worked-example, formula, and table-row surface;
+- `--story-subtle`: step, table-heading, and restrained alternating-row surface;
+- `--story-warning-surface`: non-conclusion/warning surface;
+- `--story-border` and `--story-accent`: structural and interactive emphasis;
+- `--table-surface`: table container surface.
+
+Define the complete set for Light, Cosmic, and print. Reuse the active `--ink`,
+`--line`, `--accent`, and `--warn` tokens for foregrounds and boundaries. Avoid
+broad `section`/`article` rules that can silently override component borders,
+and never leave fixed white or pale surfaces active under Cosmic text colors.
+
 Use one coordinated accent family per page:
 
 - primary action/accent: Quantum Cyan
@@ -134,7 +149,7 @@ Respect `prefers-reduced-motion`. Avoid fast flashes, large rotation, game-like 
 
 - Preserve visible labels and keyboard-accessible controls.
 - Keep focus states visible.
-- Keep text contrast high on dark surfaces.
+- Keep normal text contrast at WCAG AA `4.5:1` or better on every Light, Cosmic, and print surface; validate declared pairs rather than relying on a single screenshot.
 - Do not hide source links or feedback export controls behind purely decorative UI.
 - Print styles should remain usable and should remove heavy background effects.
 - Audit primary buttons so text is dark on cyan or light on dark; never white text on pale cyan.

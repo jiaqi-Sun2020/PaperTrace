@@ -11,7 +11,7 @@ Use this skill to produce the user's recurring Chinese news briefings on AI, fro
 
 This skill owns **Primary Pipeline 2: AI + Quantum Daily Briefing Release**. It is distinct from Pipeline 1 paper PDF-to-HTML, Pipeline 3 local chat-to-profile import, and Pipeline 4 adaptive teaching decisions/evidence return.
 
-For a daily or multi-day briefing request, candidate pools, venue ledgers, Markdown, and `news_feedback_config.json` are internal artifacts. The pipeline completes only after `daily_pipeline.py run -> verify -> finalize -> verify` succeeds and the published directory contains the interactive briefing HTML, full default-`unrated` `news_feedback.json`, Markdown briefing, normalized delta config, release manifest, and atomically updated story index. Every new run requires a validated `opening_story`, rendered before the briefing body in both HTML and Markdown. The primary reader-facing artifact is the briefing HTML; do not report candidate/config generation as completion.
+For a daily or multi-day briefing request, candidate pools, venue ledgers, Markdown, and `news_feedback_config.json` are internal artifacts. The pipeline completes only after `daily_pipeline.py run -> verify -> finalize -> verify` succeeds and the published directory contains the interactive briefing HTML, full default-`unrated` `news_feedback.json`, Markdown briefing, normalized delta config, release manifest, and atomically updated story index. Every new run requires a validated `opening_story` plus one complete concept-appropriate example, rendered before the briefing body in both HTML and Markdown; HTML keeps the example collapsed by default. The primary reader-facing artifact is the briefing HTML; do not report candidate/config generation as completion.
 
 Optional news-feedback import is a downstream learner-profile handoff. It does not replace or weaken the daily publication gate.
 
@@ -55,7 +55,7 @@ python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\news_delta.py co
    - Use stable `story_id` when known; otherwise the helper derives one from source URL/title/concepts.
 
 4. Build the briefing in this order unless the user asks otherwise:
-   - 开篇故事：一则隐藏概念名称的因果寓言、揭晓和精简事实回扣
+   - 开篇故事：一则隐藏概念名称的因果寓言、揭晓、精简事实回扣，以及默认折叠的完整例子
    - 今日新增
    - 重大更新
    - 持续跟踪，一句话
@@ -115,19 +115,30 @@ the same referenced `story_id` while preserving rejected candidates and their
 exclusion reasons in the ranking ledger.
 
 The candidate config must contain `story_delivery.required=true`,
+`story_delivery.worked_example_required=true`,
 `story_delivery.position="before_briefing"`, and an `opening_story` with 2-6
 Chinese narrative paragraphs plus `concept_name`, `concept_definition`,
 `logic_chain`, `analogy_boundary`, `misleading_risk`, `grounding_kind`, and
-`source_story_ids`. Keep the concept name and aliases out of the title and
-narrative; reveal them only in the factual debrief. Use `briefing_items` with
-published `story_id` references when the story comes from current news, or
-`learner_profile` without copying profile status, raw events, or private notes
-into the briefing.
+`source_story_ids`, followed by one structured `worked_example`. Keep the
+concept name and aliases out of the title and narrative; reveal them only in the
+factual debrief. Use `briefing_items` with published `story_id` references when
+the story comes from current news, or `learner_profile` without copying profile
+status, raw events, or private notes into the briefing.
 
-The opening story is a presentation artifact, not a news item or learning
-event. It cannot satisfy academic/social quotas, enter candidate ranking, create
-concept feedback, or update the learner profile. `daily_pipeline.py run` fails
-before staging when it is missing or malformed.
+Select the concept for relevance, causal value, source support, and the
+learner's missing bridge—not for whether it admits equations. Choose the worked
+example independently as mathematical, numerical, operational, causal,
+experimental, or comparative. A non-mathematical example needs no formula. If
+the mechanism genuinely uses mathematics, define the objects and symbols,
+expose every meaningful transition, and add a check that can falsify a bad
+derivation; never invent a formula to satisfy the format. Read
+`skills/allegory-teach/references/worked-example-contract.md` before authoring
+the handoff.
+
+The opening story and worked example are presentation artifacts, not news items
+or learning events. They cannot satisfy academic/social quotas, enter candidate
+ranking, create concept feedback, or update the learner profile.
+`daily_pipeline.py run` fails before staging when either is missing or malformed.
 
 5. Distinguish fact from interpretation.
    - Use "事实:" for source-supported events when useful.
@@ -281,7 +292,8 @@ Avoid overclaiming direct relevance. Use "可借鉴", "方向相关", or "概念
 Write in Chinese by default.
 
 Keep the briefing compact but complete:
-- Place the opening story and its compact factual debrief before `日报正文`.
+- Place the opening story, compact factual debrief, and default-collapsed worked
+  example before `日报正文`.
 - For "今日资讯": 7–8 academic papers plus 10–14 social-news items after ranking.
 - For "近三天/近4天": 8-14 main items.
 - For "只要重点": 3-5 items.
@@ -292,7 +304,7 @@ Use clear section headings. Avoid padding. If there is no reliable news in a sec
 
 Before finalizing:
 - Verify the exact date range.
-- Verify one opening story appears before the briefing in both Markdown and HTML, conceals its concept until the debrief, and never creates learner feedback by exposure.
+- Verify one opening story appears before the briefing in both Markdown and HTML, conceals its concept until the debrief, and is followed by one complete worked example. In HTML the example must use a native `details` control that is closed by default; neither story nor example creates learner feedback by exposure.
 - Remove stale items outside the requested window unless labeled as context.
 - Remove unsourced claims.
 - Separate company self-promotion from independently verified results.

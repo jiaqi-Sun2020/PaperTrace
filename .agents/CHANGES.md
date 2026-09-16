@@ -1,9 +1,18 @@
 # Changes
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-07-31
+- Last reviewed: 2026-09-15
 
 This file records dated implementation and local-release milestones. Durable boundaries belong in `AGENTS.md`, commands in `RUNBOOK.md`, data contracts in `CONFIG_SPEC.md`, and architecture/ownership in `ARCHITECTURE.md`.
+
+## 2026-09-15
+
+### Adaptive worked examples for opening allegories
+
+- Extended `allegory-teach` with one complete worked example after the required `1 -> 3 -> 4 -> 2` factual return, while keeping topic selection independent of whether a concept admits equations.
+- Added mathematical, numerical, operational, causal, experimental, and comparative example modes. Mathematical notation is conditional; genuine formula branches require defined objects, named rules, explicit transitions, and a falsifying check, while non-mathematical examples require no formula.
+- Added `opening_story.version=2`, the structured `worked_example` contract, conditional MathJax rendering, and a native default-collapsed `details` control before `日报正文` in briefing HTML. Markdown keeps the complete example inspectable.
+- Extended the daily release guard and manifest so missing/malformed examples, expanded-by-default controls, invalid placement, missing conditional MathJax, and formula-free mathematical examples fail before publication without changing ranking or feedback identities.
 
 ## 2026-08-11
 

@@ -1,27 +1,31 @@
 # Project Context
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-08-11
+- Last reviewed: 2026-09-15
 
 ## Summary
 
 `PaperTrace` is a local academic-paper workspace with four distinct primary pipelines:
 
 1. **Paper Reader HTML:** source paper -> internal reader evidence/bundle -> normalized `reader_wiki` -> audited `reader_interactive.html`. The audited HTML is the terminal artifact; the bundle is not.
-2. **AI + Quantum Daily Briefing Release:** current evidence -> candidate/venue ledgers -> `news-ranker-v1` evidence gate and deterministic quota/diversity selection -> Delta config/staging -> `run -> verify -> finalize -> verify` -> published briefing HTML plus the required feedback/manifest/index release set.
+2. **AI + Quantum Daily Briefing Release:** current evidence -> candidate/venue ledgers -> `news-ranker-v1` evidence gate and deterministic quota/diversity selection -> concealed-name opening story plus a concept-appropriate worked example -> Delta config/staging -> `run -> verify -> finalize -> verify` -> published briefing HTML plus the required feedback/manifest/index release set.
 3. **Local Chat-to-Profile Import:** local conversation exports -> collect -> extract -> propose -> human review -> `apply --backup` through `reader-learner`.
 4. **Adaptive Teaching Decision & Evidence Loop:** explicit request -> validate profile/Mission -> analyze -> choose one stable concept and mode -> diagnose/lesson -> actual performance -> validated teaching feedback -> backed-up atomic import through `reader-learner`.
 
 Reader/news feedback imports and Visible Wiki projection are shared downstream workflows. Pipeline 4 remains explicit-invocation only; generating or viewing a lesson is not learner evidence, and its profile-return phase cannot proceed without actual performance.
+
+`allegory-teach` is an optional read-only narrative layer inside Pipeline 4 and an authoring dependency for the Pipeline 2 opening story. It does not create a fifth primary pipeline, choose topics for `adaptive-teach`, publish briefings, or mutate the learner profile.
 
 The implementation skill chain is:
 
 1. `nature-reader` creates the internal source-grounded bilingual evidence/bundle stage from papers. Its `extract_pdf_bundle.py` bootstrap writes immutable source evidence and automatically materializes a UTF-8 working `paper.md` with stable anchors and explicit completion markers. Legacy raw bundles can be repaired with `materialize_reader_markdown.py` without mutating `source_map.json`. The `**中文:**` field must ultimately contain faithful translation, not placeholders, paraphrase, summary, or reading scaffold, and `**注释:**` should carry block-specific logic, knowledge-point, formula, figure, and reading guidance. `audit_reader_text.py` and the completion pass reject replacement characters, controls, mojibake, and question-mark corruption. This stage is not the Pipeline 1 deliverable.
 2. `reader-skill` freezes the selected PDF scope in generated `.papertrace_jobs/` workflow state, persists bounded authoring packets and heartbeats, freezes source-object identities before semantic records, and converts completed internal bundles into the terminal `reader_interactive.html`. Its production continuation guard keeps ordinary incomplete checkpoints tool-safe without permitting a final response. A source-anchored paper summary, synchronized original-page pane, protected-width article, independently collapsible/resizable Contents, and non-covering annotation workspace are part of the formal reader contract. HTML is not complete until the publishing adversarial audit passes.
 3. `reader-learner` imports user feedback from HTML or natural language, updates `.agents/reader-learner/knowledge_profile.json`, and projects every stable profile record into the persistent `.agents/wiki/` Obsidian vault.
-4. `ai-quantum-news-briefing` creates source-grounded AI/quantum daily or multi-day briefings, ranks eligible candidates before Delta compaction, preserves the ranking ledger through publication, and can import explicit news-reading feedback into the same learner profile.
-5. `chat-knowledge-profile` imports local ChatGPT/GPT/Claude/Deepseek conversation exports through a staged `collect -> extract -> propose -> apply` workflow. It writes bounded evidence events, `conversation_summaries.json`, profile candidates, and strict `reader-learner` handoff patches so prior conversations can initialize or extend the learner/person profile without unreviewed mutation.
-6. `demo-skill` turns verified README/AGENTS contracts into structurally equivalent Chinese and English project pages centered on four pipelines. The bundled PaperTrace pages use static semantic HTML with GSAP + ScrollTrigger/Lenis progressive enhancement and reduced-motion fallback.
+4. `adaptive-teach` analyzes the schema-v2 profile for weakness, evidence gaps, and due reviews; selects one topic and teaching mode; writes private session/lesson artifacts; and returns actual learner performance through a validated `reader-learner` handoff rather than mutating the profile itself.
+5. `allegory-teach` turns one selected, profile- or source-grounded concept into a concealed-name causal fable, factual debrief, and one concept-appropriate worked example. Topic selection is independent of equation availability; formulas are allowed only when the mechanism genuinely requires them.
+6. `ai-quantum-news-briefing` creates source-grounded AI/quantum daily or multi-day briefings, ranks eligible candidates before Delta compaction, validates and renders the opening-story handoff, preserves the ranking ledger through publication, and can import explicit news-reading feedback into the same learner profile.
+7. `chat-knowledge-profile` imports local ChatGPT/GPT/Claude/Deepseek conversation exports through a staged `collect -> extract -> propose -> apply` workflow. It writes bounded evidence events, `conversation_summaries.json`, profile candidates, and strict `reader-learner` handoff patches so prior conversations can initialize or extend the learner/person profile without unreviewed mutation.
+8. `demo-skill` turns verified README/AGENTS contracts into structurally equivalent Chinese and English project pages centered on four pipelines. The bundled PaperTrace pages use static semantic HTML with GSAP + ScrollTrigger/Lenis progressive enhancement and reduced-motion fallback.
 
 The learner profile exists and uses schema v2, which separates stable concept profiles from raw feedback events, source metadata, and the review queue. Its content evolves through guarded imports; project documentation must describe the schema and owner, not snapshot individual profile concepts.
 
@@ -39,6 +43,8 @@ The learner profile exists and uses schema v2, which separates stable concept pr
 - `skills/nature-reader/SKILL.md`
 - `skills/reader-skill/SKILL.md`
 - `skills/reader-learner/SKILL.md`
+- `skills/adaptive-teach/SKILL.md`
+- `skills/allegory-teach/SKILL.md`
 - `skills/ai-quantum-news-briefing/SKILL.md`
 - `skills/ai-quantum-news-briefing/scripts/rank_briefing_candidates.py`
 - `skills/utils/chat-knowledge-profile/SKILL.md`
@@ -70,9 +76,10 @@ The learner profile exists and uses schema v2, which separates stable concept pr
 3. Save durable briefing artifacts under `news/<date-range>/` when producing files.
 4. Require direct HTTPS evidence, dates, evidence fingerprints, Chinese fact/judgment/relevance fields, and an audited academic venue sweep; candidate-only AI HOT records never pass the evidence gate.
 5. Run `news-ranker-v1` before Delta compaction. Publish 7–8 academic papers and 10–14 social-news items (target 12) under the quotas in `CONFIG_SPEC.md`; retain item rankings, the selection trace, and every exclusion reason.
-6. Treat candidate config, Markdown, and staging output as internal. Publish through `daily_pipeline.py run -> verify --strict -> finalize --strict -> verify --strict`; Pipeline 2 completes only with the verified briefing HTML and required release set.
-7. The user clicks concept chips or freeform annotations, clicks `Save mark`, then exports with `Download JSON` or `Copy for Codex`.
-8. Import exported `news_feedback.json` with `skills/reader-learner/scripts/feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>`; it retains the news normalizer and strict profile import before synchronizing the visible wiki.
+6. Author one concealed-name causal opening story and one complete worked example from the ranked source set or stable learner boundary. Select the concept for relevance and explanatory value, not equation availability; use formulas only when the mechanism genuinely requires them.
+7. Treat candidate config, Markdown, and staging output as internal. Publish through `daily_pipeline.py run -> verify --strict -> finalize --strict -> verify --strict`; Pipeline 2 completes only with the verified briefing HTML, the default-collapsed HTML example, and the required release set.
+8. The user clicks concept chips or freeform annotations, clicks `Save mark`, then exports with `Download JSON` or `Copy for Codex`.
+9. Import exported `news_feedback.json` with `skills/reader-learner/scripts/feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>`; it retains the news normalizer and strict profile import before synchronizing the visible wiki.
 
 ## Chat Conversation Import Workflow
 

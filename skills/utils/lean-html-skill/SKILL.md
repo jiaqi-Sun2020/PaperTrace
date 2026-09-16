@@ -32,6 +32,8 @@ Design layer rules:
 
 - Keep functionality, information architecture, data schema, source links, annotation behavior, copy/download JSON controls, and import boundaries unchanged.
 - Use design tokens, semantic HTML, responsive CSS, accessible labels, and readable contrast. When post-processing existing pages, override legacy tokens such as `--bg`, `--panel`, `--ink`, `--muted`, `--line`, `--accent`, and `--shadow` so white surfaces cannot leak through.
+- Treat every background-selectable component as a paired foreground/surface contract. Daily story and worked-example components use `--story-surface`, `--story-panel`, `--story-subtle`, `--story-warning-surface`, `--story-border`, `--story-accent`, and `--table-surface`; define them for Light, Cosmic, and print rather than patching individual screenshots.
+- Keep normal text at WCAG AA `4.5:1` or better. `audit-design` must fail when a story/table binding is missing, a palette color cannot be audited, or a foreground/surface pair falls below the threshold.
 - Prefer deep-space backgrounds, quantum glass panels, restrained cyan/purple accents, command-center density, and subtle motion.
 - Default page background is `light`/white for readability. Inject a background control so the reader can switch to the Cosmic deep-space background when desired; persist that preference in browser localStorage.
 - Avoid game HUDs, cheap cyberpunk, excessive neon, heavy canvas particles, and visual changes that reduce readability.

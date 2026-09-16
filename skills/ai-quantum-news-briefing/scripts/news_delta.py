@@ -506,6 +506,58 @@ def transform_config(
     return transformed, manifest, index_updates
 
 
+def render_worked_example_markdown(example: dict[str, Any]) -> list[str]:
+    if not isinstance(example, dict) or not example:
+        return []
+    lines = ["### 完整例子", "", f"#### {clean_text(example.get('title') or '完整例子', 200)}", ""]
+    lines.append(f"- **问题：**{clean_text(example.get('question'), 1200)}")
+    lines.append(f"- **类型：**{clean_text(example.get('kind'), 80)}")
+    lines.append("")
+    lines.append("**前提与约束**")
+    lines.append("")
+    for value in example.get("assumptions", []):
+        lines.append(f"- {clean_text(value, 1000)}")
+    lines.append("")
+    lines.append("**对象与角色**")
+    lines.append("")
+    lines.append("| 对象 | 类型 | 作用 | 单位 |")
+    lines.append("|---|---|---|---|")
+    for item in example.get("objects", []):
+        if not isinstance(item, dict):
+            continue
+        values = [
+            clean_text(item.get("name"), 240),
+            clean_text(item.get("kind"), 240),
+            clean_text(item.get("role"), 800),
+            clean_text(item.get("units") or "—", 160),
+        ]
+        lines.append("| " + " | ".join(value.replace("|", "\\|") for value in values) + " |")
+    lines.append("")
+    lines.append("**推演步骤**")
+    lines.append("")
+    for index, step in enumerate(example.get("steps", []), start=1):
+        if not isinstance(step, dict):
+            continue
+        lines.append(f"{index}. **步骤 {index}**")
+        action = clean_text(step.get("action"), 1200)
+        if action:
+            lines.append(f"   - 操作或状态变化：{action}")
+        formula = clean_text(step.get("formula"), 1600)
+        if formula:
+            lines.extend(["", "   \\[", f"   {formula}", "   \\]", ""])
+        lines.append(f"   - 依据：{clean_text(step.get('rule'), 600)}")
+        lines.append(f"   - 为什么成立：{clean_text(step.get('explanation'), 1600)}")
+    lines.append("")
+    lines.append(f"- **结果：**{clean_text(example.get('result'), 1600)}")
+    lines.append(f"- **现实／物理含义：**{clean_text(example.get('interpretation'), 1600)}")
+    lines.append("- **检查：**")
+    for value in example.get("checks", []):
+        lines.append(f"  - {clean_text(value, 1200)}")
+    lines.append(f"- **不能推出：**{clean_text(example.get('non_conclusion'), 1600)}")
+    lines.append("")
+    return lines
+
+
 def render_markdown(config: dict[str, Any]) -> str:
     lines: list[str] = []
     title = clean_text(config.get("briefing_title") or config.get("title") or "AI + Quantum 日报")
@@ -533,6 +585,7 @@ def render_markdown(config: dict[str, Any]) -> str:
         lines.append(f"- **类比边界：**{clean_text(opening_story.get('analogy_boundary'), 800)}")
         lines.append(f"- **避免误读：**{clean_text(opening_story.get('misleading_risk'), 800)}")
         lines.append("")
+        lines.extend(render_worked_example_markdown(opening_story.get("worked_example") or {}))
 
     lines.append("## 日报正文")
     lines.append("")

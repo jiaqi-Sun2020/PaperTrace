@@ -143,13 +143,20 @@ def cosmic_design_css() -> str:
   --bad:#FF6B8A;
   --good:#7CFFB2;
   --shadow:0 18px 44px rgba(0,0,0,.34),0 0 30px rgba(0,245,255,.12);
+  --story-surface:#0D1C3A;
+  --story-panel:#101A35;
+  --story-subtle:#102C3B;
+  --story-warning-surface:#322812;
+  --story-border:#7A63C7;
+  --story-accent:#C7B7FF;
+  --table-surface:#0D1730;
 }
 html[data-lean-design-system="cosmic"]{
   color-scheme:dark;
 }
 html[data-lean-design-system="cosmic"] body{
   min-height:100vh;
-  color:var(--cosmic-ink);
+  color:var(--ink);
   background:
     radial-gradient(circle at 12% 8%,rgba(139,92,255,.25),transparent 32rem),
     radial-gradient(circle at 88% 18%,rgba(0,245,255,.18),transparent 28rem),
@@ -163,10 +170,10 @@ html[data-lean-design-system="cosmic"] header{
   box-shadow:0 10px 32px rgba(0,0,0,.28);
 }
 html[data-lean-design-system="cosmic"] :where(p,li,td,dd){
-  color:#D6E7FF;
+  color:var(--ink);
 }
 html[data-lean-design-system="cosmic"] :where(strong,b){
-  color:#F5FBFF;
+  color:var(--ink);
 }
 html[data-lean-design-system="cosmic"] body::before{
   content:"";
@@ -182,15 +189,15 @@ html[data-lean-design-system="cosmic"] body::before{
   mask-image:linear-gradient(to bottom,rgba(0,0,0,.9),rgba(0,0,0,.25));
 }
 html[data-lean-design-system="cosmic"] :where(h1,h2,h3,.report-title,.section-title){
-  color:#F5FBFF;
+  color:var(--ink);
   font-family:var(--cosmic-font-display);
   letter-spacing:.02em;
 }
 html[data-lean-design-system="cosmic"] :where(.date-range,.muted,.meta,.caption,small,.source-line,label){
   color:var(--cosmic-muted);
 }
-html[data-lean-design-system="cosmic"] :where(main,article,section,.card,.panel,.report-card,.item-card,.news-card,.lang-panel){
-  border-color:var(--cosmic-line);
+html[data-lean-design-system="cosmic"] :where(.card,.panel,.report-card,.item-card,.news-card,.lang-panel){
+  border-color:var(--line);
 }
 html[data-lean-design-system="cosmic"] :where(.card,.panel,.report-card,.item-card,.news-card,.lang-panel,.summary,aside.feedback-panel,.saved-item){
   background:
@@ -253,11 +260,11 @@ html[data-lean-design-system="cosmic"] :where(input:focus,select:focus,textarea:
   border-color:rgba(0,245,255,.68);
 }
 html[data-lean-design-system="cosmic"] :where(table){
-  background:rgba(10,20,40,.56);
-  border-color:var(--cosmic-line);
+  background:var(--table-surface);
+  border-color:var(--line);
 }
 html[data-lean-design-system="cosmic"] :where(th){
-  color:var(--quantum);
+  color:var(--ink);
 }
 html[data-lean-design-system="cosmic"] :where(.source-id,.category,.evidence,.saved-badge){
   background:rgba(8,27,51,.76);
@@ -298,7 +305,7 @@ html[data-lean-design-system="cosmic"] :where(details.saved-list,#savedItems){
   border-color:rgba(0,245,255,.16);
 }
 html[data-lean-design-system="cosmic"] :where(.saved-item){
-  color:#D6E7FF;
+  color:var(--ink);
 }
 @media (prefers-reduced-motion:no-preference){
   html[data-lean-design-system="cosmic"] :where(.card,.panel,.report-card,.item-card,.news-card,.lang-panel,.lean-html-dock){
@@ -311,6 +318,18 @@ html[data-lean-design-system="cosmic"] :where(.saved-item){
 @keyframes leanCosmicFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes leanCosmicGlow{0%,100%{text-shadow:0 0 18px rgba(0,245,255,.08)}50%{text-shadow:0 0 24px rgba(0,245,255,.2)}}
 @media print{
+  html[data-lean-design-system="cosmic"]{
+    --ink:#111827;
+    --muted:#4B5563;
+    --line:#CBD5E1;
+    --story-surface:#FFFFFF;
+    --story-panel:#FFFFFF;
+    --story-subtle:#F3F4F6;
+    --story-warning-surface:#FFF7ED;
+    --story-border:#CBD5E1;
+    --story-accent:#4338CA;
+    --table-surface:#FFFFFF;
+  }
   html[data-lean-design-system="cosmic"] body{background:#fff;color:#111}
   html[data-lean-design-system="cosmic"] body::before{display:none}
 }
@@ -327,10 +346,17 @@ html[data-lean-design-system="cosmic"][data-lean-bg="light"]{
   --bad:#b42318;
   --good:#166534;
   --shadow:0 12px 30px rgba(32,42,64,.10);
+  --story-surface:#F7F5FF;
+  --story-panel:#FFFFFF;
+  --story-subtle:#EEF7F6;
+  --story-warning-surface:#FFF7ED;
+  --story-border:#D8D2F2;
+  --story-accent:#5B50D6;
+  --table-surface:#FFFFFF;
 }
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] body{
   color:var(--ink);
-  background:#ffffff;
+  background:var(--bg);
 }
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] body::before{
   display:none;
@@ -341,13 +367,13 @@ html[data-lean-design-system="cosmic"][data-lean-bg="light"] header{
   box-shadow:none;
 }
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(h1,h2,h3,.report-title,.section-title,strong,b){
-  color:#172033;
+  color:var(--ink);
 }
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(p,li,td,dd){
-  color:#263244;
+  color:var(--ink);
 }
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(.date-range,.muted,.meta,.caption,small,.source-line,label){
-  color:#607086;
+  color:var(--muted);
 }
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(.card,.panel,.report-card,.item-card,.news-card,.lang-panel,.summary,aside.feedback-panel,.saved-item){
   background:#ffffff;
@@ -357,6 +383,10 @@ html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(.card,.panel
 }
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(.summary){
   background:#eef7f6;
+}
+html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(table){
+  background:var(--table-surface);
+  border-color:var(--line);
 }
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(a){
   color:#0b5cad;
@@ -375,7 +405,7 @@ html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(.primary,.ac
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(.secondary,.action-btn.secondary){
   background:#f8fafc;
   border-color:var(--line);
-  color:#172033;
+  color:var(--ink);
 }
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(.danger,.action-btn.danger){
   background:#fff5f5;
@@ -385,7 +415,7 @@ html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(.danger,.act
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(input,select,textarea){
   background:#ffffff;
   border-color:var(--line);
-  color:#111827;
+  color:var(--ink);
 }
 html[data-lean-design-system="cosmic"][data-lean-bg="light"] :where(input::placeholder,textarea::placeholder){
   color:#8794a8;
@@ -946,6 +976,112 @@ def cmd_apply_design(args: argparse.Namespace) -> int:
     return 0
 
 
+def _css_declarations(block: str) -> dict[str, str]:
+    return {
+        match.group("name").strip().lower(): match.group("value").strip()
+        for match in re.finditer(
+            r"(?P<name>--[\w-]+|[\w-]+)\s*:\s*(?P<value>[^;{}]+);",
+            block,
+        )
+    }
+
+
+def _css_rule_declarations(css_text: str, selector: str) -> dict[str, str]:
+    matches = list(
+        re.finditer(
+            re.escape(selector) + r"\s*\{(?P<body>[^{}]*)\}",
+            css_text,
+            re.I | re.DOTALL,
+        )
+    )
+    return _css_declarations(matches[-1].group("body")) if matches else {}
+
+
+def _resolve_hex_color(value: str, properties: dict[str, str]) -> str | None:
+    current = value.strip()
+    visited: set[str] = set()
+    while True:
+        variable = re.fullmatch(r"var\((--[\w-]+)\)", current, re.I)
+        if not variable:
+            break
+        name = variable.group(1).lower()
+        if name in visited or name not in properties:
+            return None
+        visited.add(name)
+        current = properties[name].strip()
+    match = re.fullmatch(r"#([0-9a-f]{3}|[0-9a-f]{6})", current, re.I)
+    if not match:
+        return None
+    digits = match.group(1).lower()
+    if len(digits) == 3:
+        digits = "".join(char * 2 for char in digits)
+    return f"#{digits}"
+
+
+def _relative_luminance(hex_color: str) -> float:
+    channels = [int(hex_color[index:index + 2], 16) / 255 for index in (1, 3, 5)]
+    linear = [
+        channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+        for channel in channels
+    ]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _contrast_ratio(foreground: str, background: str) -> float:
+    first = _relative_luminance(foreground)
+    second = _relative_luminance(background)
+    return (max(first, second) + 0.05) / (min(first, second) + 0.05)
+
+
+def _story_palette_issues(css: str) -> list[str]:
+    issues: list[str] = []
+    cosmic_match = re.search(r":root\s*\{(?P<body>.*?)\}", css, re.I | re.DOTALL)
+    light_match = re.search(
+        r'html\[data-lean-design-system="cosmic"\]\[data-lean-bg="light"\]\s*\{(?P<body>.*?)\}',
+        css,
+        re.I | re.DOTALL,
+    )
+    print_match = re.search(
+        r'@media\s+print\s*\{\s*html\[data-lean-design-system="cosmic"\]\s*\{(?P<body>.*?)\}',
+        css,
+        re.I | re.DOTALL,
+    )
+    if not cosmic_match or not light_match or not print_match:
+        return ["cannot inspect complete cosmic/light/print story palettes"]
+
+    cosmic = _css_declarations(cosmic_match.group("body"))
+    light = {**cosmic, **_css_declarations(light_match.group("body"))}
+    print_palette = {**cosmic, **_css_declarations(print_match.group("body"))}
+    required_surfaces = (
+        "--story-surface",
+        "--story-panel",
+        "--story-subtle",
+        "--story-warning-surface",
+        "--table-surface",
+    )
+    for mode, properties in (("cosmic", cosmic), ("light", light), ("print", print_palette)):
+        foregrounds = {
+            "--ink": required_surfaces,
+            "--story-accent": ("--story-surface", "--story-panel"),
+        }
+        for foreground_name, background_names in foregrounds.items():
+            foreground = _resolve_hex_color(properties.get(foreground_name, ""), properties)
+            if foreground is None:
+                issues.append(f"{mode} story palette has no auditable hex color for {foreground_name}")
+                continue
+            for background_name in background_names:
+                background = _resolve_hex_color(properties.get(background_name, ""), properties)
+                if background is None:
+                    issues.append(f"{mode} story palette has no auditable hex color for {background_name}")
+                    continue
+                ratio = _contrast_ratio(foreground, background)
+                if ratio < 4.5:
+                    issues.append(
+                        f"{mode} story contrast {foreground_name}/{background_name} is {ratio:.2f}:1; requires 4.5:1"
+                    )
+    return issues
+
+
 def design_audit_issues(html_text: str) -> list[str]:
     issues: list[str] = []
     if 'data-lean-design-system="cosmic"' not in html_text:
@@ -977,6 +1113,12 @@ def design_audit_issues(html_text: str) -> list[str]:
         "category badge differentiation": ".category",
         "evidence badge differentiation": ".evidence",
         "form focus state": "focus-visible",
+        "story surface token": "--story-surface:",
+        "story panel token": "--story-panel:",
+        "story subtle token": "--story-subtle:",
+        "story warning surface token": "--story-warning-surface:",
+        "story accent token": "--story-accent:",
+        "table surface token": "--table-surface:",
     }
     for label, fragment in required_fragments.items():
         target = html_text if label in {"background control script"} else css
@@ -996,6 +1138,44 @@ def design_audit_issues(html_text: str) -> list[str]:
         if forbidden in screen_css.lower():
             if '[data-lean-bg="light"]' not in screen_css:
                 issues.append(f"unscoped white background token without light mode: {forbidden}")
+    issues.extend(_story_palette_issues(css))
+    if 'data-opening-story="true"' in html_text:
+        story_rules = {
+            ".opening-story": {
+                "background": "var(--story-surface)",
+                "border": "1pxsolidvar(--story-border)",
+                "color": "var(--ink)",
+            },
+            ".story-debrief": {
+                "background": "var(--story-panel)",
+                "border-left": "3pxsolidvar(--story-accent)",
+            },
+            ".story-worked-example": {
+                "background": "var(--story-panel)",
+                "border": "1pxsolidvar(--story-border)",
+            },
+            ".example-object-table": {"background": "var(--table-surface)", "color": "var(--ink)"},
+            ".example-object-table th": {"background": "var(--story-subtle)"},
+            ".example-object-table td": {"background": "var(--story-panel)", "color": "var(--ink)"},
+            ".example-object-table tbody tr:nth-child(even) td": {"background": "var(--story-subtle)"},
+            ".example-step": {
+                "background": "var(--story-subtle)",
+                "border-left": "3pxsolidvar(--accent)",
+            },
+            ".example-formula": {"background": "var(--story-panel)"},
+            ".example-non-conclusion": {"background": "var(--story-warning-surface)"},
+        }
+        for selector, expected in story_rules.items():
+            declarations = _css_rule_declarations(html_text, selector)
+            if not declarations:
+                issues.append(f"missing themed story rule: {selector}")
+                continue
+            for property_name, expected_value in expected.items():
+                actual = re.sub(r"\s+", "", declarations.get(property_name, "")).lower()
+                if actual != expected_value:
+                    issues.append(
+                        f"story rule {selector} must set {property_name}:{expected_value}; got {actual or 'missing'}"
+                    )
     if "Download JSON" in html_text and "download" not in html_text:
         issues.append("download control text exists but download implementation marker is missing")
     return issues

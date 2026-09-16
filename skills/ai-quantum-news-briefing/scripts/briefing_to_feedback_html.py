@@ -21,6 +21,9 @@ from briefing_contract import normalize_briefing_config
 from config_to_news_feedback import export_feedback, write_json
 
 
+DEFAULT_MATHJAX_URL = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 if hasattr(sys.stderr, "reconfigure"):
@@ -152,6 +155,87 @@ def render_item(item: dict[str, Any]) -> str:
 """
 
 
+def worked_example_has_formula(example: Any) -> bool:
+    if not isinstance(example, dict):
+        return False
+    return any(
+        clean_text(step.get("formula"))
+        for step in example.get("steps", [])
+        if isinstance(step, dict)
+    )
+
+
+def render_worked_example(story: dict[str, Any]) -> str:
+    example = story.get("worked_example") or {}
+    if not isinstance(example, dict) or not example:
+        return ""
+
+    assumptions = "".join(f"<li>{esc(value)}</li>" for value in example.get("assumptions", []))
+    checks = "".join(f"<li>{esc(value)}</li>" for value in example.get("checks", []))
+    object_rows = "".join(
+        "<tr>"
+        f"<td>{esc(item.get('name'))}</td>"
+        f"<td>{esc(item.get('kind'))}</td>"
+        f"<td>{esc(item.get('role'))}</td>"
+        f"<td>{esc(item.get('units') or '—')}</td>"
+        "</tr>"
+        for item in example.get("objects", [])
+        if isinstance(item, dict)
+    )
+    step_cards: list[str] = []
+    for index, step in enumerate(example.get("steps", []), start=1):
+        if not isinstance(step, dict):
+            continue
+        action = (
+            f'<p><strong>操作或状态变化：</strong>{esc(step.get("action"))}</p>'
+            if clean_text(step.get("action"))
+            else ""
+        )
+        formula = (
+            f'<div class="example-formula" data-formula="true">\\[{esc(step.get("formula"))}\\]</div>'
+            if clean_text(step.get("formula"))
+            else ""
+        )
+        step_cards.append(
+            f"""
+<section class="example-step">
+  <h4>步骤 {index}</h4>
+  {action}
+  {formula}
+  <p><strong>依据：</strong>{esc(step.get('rule'))}</p>
+  <p><strong>为什么成立：</strong>{esc(step.get('explanation'))}</p>
+</section>
+"""
+        )
+
+    has_formula = worked_example_has_formula(example)
+    summary = "展开完整例子与公式推导" if has_formula else "展开完整例子"
+    return f"""
+<details class="story-worked-example" data-story-example="true" data-story-example-kind="{esc(example.get('kind'))}">
+  <summary>{summary}</summary>
+  <div class="worked-example-body">
+    <h3>{esc(example.get('title') or '完整例子')}</h3>
+    <p><strong>问题：</strong>{esc(example.get('question'))}</p>
+    <h4>前提与约束</h4>
+    <ul>{assumptions}</ul>
+    <h4>对象与角色</h4>
+    <div class="example-table-wrap">
+      <table class="example-object-table">
+        <thead><tr><th>对象</th><th>类型</th><th>作用</th><th>单位</th></tr></thead>
+        <tbody>{object_rows}</tbody>
+      </table>
+    </div>
+    <div class="example-steps">{''.join(step_cards)}</div>
+    <p><strong>结果：</strong>{esc(example.get('result'))}</p>
+    <p><strong>现实／物理含义：</strong>{esc(example.get('interpretation'))}</p>
+    <h4>检查</h4>
+    <ul>{checks}</ul>
+    <p class="example-non-conclusion"><strong>不能推出：</strong>{esc(example.get('non_conclusion'))}</p>
+  </div>
+</details>
+"""
+
+
 def render_opening_story(config: dict[str, Any]) -> str:
     story = config.get("opening_story") or {}
     if not isinstance(story, dict) or not story:
@@ -161,6 +245,7 @@ def render_opening_story(config: dict[str, Any]) -> str:
         for paragraph in story.get("paragraphs", [])
         if clean_text(paragraph)
     )
+    worked_example = render_worked_example(story)
     return f"""
 <section class="opening-story" data-opening-story="true">
   <div class="story-kicker">在读今日信号之前</div>
@@ -172,6 +257,7 @@ def render_opening_story(config: dict[str, Any]) -> str:
     <p><strong>类比边界：</strong>{esc(story.get('analogy_boundary'))}</p>
     <p><strong>避免误读：</strong>{esc(story.get('misleading_risk'))}</p>
   </div>
+  {worked_example}
 </section>
 """
 
@@ -195,12 +281,31 @@ def render_html(config: dict[str, Any]) -> str:
             f'<section class="briefing-section"><h2>{esc(section["title"])}</h2>{items_html}</section>'
         )
     opening_story_html = render_opening_story(config)
+    opening_example = (config.get("opening_story") or {}).get("worked_example") or {}
+    needs_mathjax = worked_example_has_formula(opening_example)
+    mathjax_head = ""
+    if needs_mathjax:
+        mathjax_head = f"""
+  <script>
+    window.MathJax = {{
+      tex: {{ inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\[', '\\\\]']] }},
+      startup: {{
+        pageReady: () => MathJax.startup.defaultPageReady().then(() => {{
+          document.documentElement.setAttribute('data-math-status', 'pass');
+        }})
+      }}
+    }};
+  </script>
+  <script defer id="MathJax-script" src="{esc(DEFAULT_MATHJAX_URL)}" onerror="document.documentElement.setAttribute('data-math-status','load-error')"></script>
+"""
+    math_status = "pending" if needs_mathjax else "not-required"
     html_doc = f"""<!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-math-status="{math_status}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{esc(config['briefing_title'])}</title>
+  {mathjax_head}
   <style>
     :root {{
       --bg: #f7f8fb;
@@ -214,6 +319,13 @@ def render_html(config: dict[str, Any]) -> str:
       --bad: #b91c1c;
       --good: #166534;
       --shadow: 0 12px 30px rgba(32, 42, 64, 0.10);
+      --story-surface: #f7f5ff;
+      --story-panel: #ffffff;
+      --story-subtle: #eef7f6;
+      --story-warning-surface: #fff7ed;
+      --story-border: #d8d2f2;
+      --story-accent: #5b50d6;
+      --table-surface: #ffffff;
     }}
     * {{ box-sizing: border-box; }}
     body {{
@@ -267,14 +379,15 @@ def render_html(config: dict[str, Any]) -> str:
     }}
     .opening-story {{
       padding: 22px;
-      border: 1px solid rgba(124, 58, 237, 0.24);
-      background: linear-gradient(145deg, #ffffff 0%, #f5f3ff 100%);
+      border: 1px solid var(--story-border);
+      background: var(--story-surface);
+      color: var(--ink);
       border-radius: 12px;
       margin-bottom: 24px;
-      box-shadow: 0 10px 28px rgba(76, 29, 149, 0.08);
+      box-shadow: var(--shadow);
     }}
     .story-kicker {{
-      color: var(--accent-2);
+      color: var(--story-accent);
       font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.08em;
@@ -288,9 +401,89 @@ def render_html(config: dict[str, Any]) -> str:
     .story-debrief {{
       margin-top: 16px;
       padding: 12px 14px;
-      border-left: 3px solid var(--accent-2);
-      background: rgba(255, 255, 255, 0.72);
+      border-left: 3px solid var(--story-accent);
+      background: var(--story-panel);
       border-radius: 0 8px 8px 0;
+    }}
+    .story-worked-example {{
+      margin-top: 16px;
+      border: 1px solid var(--story-border);
+      border-radius: 10px;
+      background: var(--story-panel);
+      overflow: hidden;
+    }}
+    .story-worked-example > summary {{
+      cursor: pointer;
+      padding: 12px 14px;
+      color: var(--story-accent);
+      font-weight: 700;
+      user-select: none;
+    }}
+    .story-worked-example > summary:focus-visible {{
+      outline: 3px solid var(--story-accent);
+      outline-offset: -3px;
+    }}
+    .worked-example-body {{
+      padding: 4px 14px 16px;
+      border-top: 1px solid var(--story-border);
+    }}
+    .worked-example-body h3,
+    .worked-example-body h4 {{
+      margin: 16px 0 8px;
+    }}
+    .example-table-wrap,
+    .example-formula {{
+      max-width: 100%;
+      overflow-x: auto;
+    }}
+    .example-object-table {{
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 560px;
+      font-size: 13px;
+      background: var(--table-surface);
+      color: var(--ink);
+    }}
+    .example-object-table th,
+    .example-object-table td {{
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      color: var(--ink);
+    }}
+    .example-object-table th {{
+      background: var(--story-subtle);
+      font-weight: 700;
+    }}
+    .example-object-table td {{
+      background: var(--story-panel);
+      color: var(--ink);
+    }}
+    .example-object-table tbody tr:nth-child(even) td {{
+      background: var(--story-subtle);
+    }}
+    .example-step {{
+      margin: 12px 0;
+      padding: 12px 14px;
+      border-left: 3px solid var(--accent);
+      background: var(--story-subtle);
+      border-radius: 0 8px 8px 0;
+    }}
+    .example-step p {{
+      margin: 7px 0;
+    }}
+    .example-formula {{
+      margin: 10px 0;
+      padding: 10px 12px;
+      background: var(--story-panel);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+    }}
+    .example-non-conclusion {{
+      padding: 10px 12px;
+      border-left: 3px solid var(--warn);
+      background: var(--story-warning-surface);
     }}
     .briefing-body > h2 {{
       margin: 0 0 14px;

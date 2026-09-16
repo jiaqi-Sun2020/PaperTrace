@@ -32,7 +32,7 @@ published files directly:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "title": "开篇寓言",
   "paragraphs": ["...", "..."],
   "concept_name": "...",
@@ -41,6 +41,22 @@ published files directly:
   "logic_chain": "已知锚点 → 缺失桥梁 → 机制 → 后果",
   "analogy_boundary": "...",
   "misleading_risk": "...",
+  "worked_example": {
+    "kind": "mathematical|numerical|operational|causal|experimental|comparative",
+    "title": "...",
+    "question": "...",
+    "assumptions": ["..."],
+    "objects": [
+      {"name": "...", "kind": "...", "role": "...", "units": "..."}
+    ],
+    "steps": [
+      {"action": "...", "formula": "", "rule": "...", "explanation": "..."}
+    ],
+    "result": "...",
+    "interpretation": "...",
+    "checks": ["..."],
+    "non_conclusion": "..."
+  },
   "grounding_kind": "learner_profile|briefing_items",
   "source_story_ids": []
 }
@@ -50,7 +66,17 @@ Use 2-6 narrative paragraphs totaling at least 120 characters. The title and
 paragraphs must not contain the canonical concept name or its aliases. When
 `grounding_kind` is `briefing_items`, reference at least one `story_id` that
 survives into the published selection. The pipeline renders the story first,
-then its compact factual debrief, then `日报正文`.
+then its compact factual debrief, then a collapsed worked example, then
+`日报正文`.
+
+The worked example is required for a new daily run, but its form follows the
+concept. Do not prefer mathematical concepts during selection. Use `formula`
+only when the selected concept and evidence genuinely require mathematics; a
+complete operational, causal, experimental, or comparative example may contain
+no formula. When any formula is present, define its objects, expose every
+meaningful transition, and include a check that can reveal an invalid
+derivation. Read [worked-example-contract.md](worked-example-contract.md) for
+the full contract and mathematical branch example.
 
 ## Post-release explanation handoff
 
