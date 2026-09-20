@@ -32,7 +32,7 @@ PaperTrace is a local workspace for paper reading, AI + quantum briefings, and a
 | Track meaningful current AI and quantum developments | [Briefing pipeline](#daily-briefing) | Opening story with a collapsed worked example, briefing HTML, feedback JSON, manifest, and index |
 | Turn local chat exports into reviewable profile candidates | [Knowledge Profile](#knowledge-profile) | A human-reviewed, backed-up profile patch |
 | Choose a focused next lesson or review from existing evidence | [Adaptive Teach](#adaptive-teach) | A one-topic lesson and controlled feedback handoff |
-| Build intuition for one advanced, profile-relevant mechanism | [Allegory Teach](#allegory-teach) | A causal fable, factual mapping, limits, and one worked example |
+| Understand one advanced, profile-relevant mechanism | [Allegory Teach](#allegory-teach) | A bridge-first explanation by default, or an explicit concealed-name fable, plus one worked example |
 
 <a id="pipelines"></a>
 
@@ -101,7 +101,7 @@ Use the script interface below only when you need recovery, diagnostics, or CI i
 - <code>news-ranker-v1</code> first applies an evidence gate, then uses separate academic/social scoring and diversity constraints. The published config retains item scores, quotas, selection trace, and exclusions.
 - <code>lean-html-skill</code> controls only visual presentation. It keeps the light theme as default, provides a Cosmic option, pairs component foreground/surface tokens across Light, Cosmic, and print modes, and blocks low-contrast story/table output without changing behavior or data structure.
 - <code>reader-learner</code> validates, normalizes, and atomically updates the profile while blocking encoding corruption, HTML remnants, and exposure-only overclaims.
-- <code>allegory-teach</code> minimizes first-contact understanding cost: it converts one difficult concept into a causally faithful fable, traces its definition, boundary, misconception, and story-to-reality mapping, then works one bounded scenario with named inputs and an observable result. Mathematics is used only when the mechanism genuinely requires it.
+- <code>allegory-teach</code> minimizes first-contact understanding cost with two modes. Direct teaching defaults to a disclosed technical problem, minimum concrete case, one local mapped analogy, and an immediate return to formal language. An explicit allegory request or daily opening story uses a concealed-name fable followed by the same factual reconstruction. Mathematics is used only when the mechanism genuinely requires it.
 
 ## Directory layout
 
@@ -145,9 +145,9 @@ Generating or viewing a lesson never changes the profile or review queue. Only a
 
 ## Allegory Teach
 
-<code>skills/allegory-teach</code> is the optional beginner-first companion to Adaptive Teach and the read-only authoring dependency for the daily briefing's opening story. Accuracy and explicit logic take precedence over literary style. It tells a Chinese fable without naming the concept until the reveal, returns the definition, analogy limits, likely misleading inference, and mapping, then works one mathematical, numerical, operational, causal, experimental, or comparative instance with a concrete scenario, named inputs/states, and an observable. Concept selection never favors equation-friendly topics; formulas appear only when the mechanism genuinely needs them. For daily briefings, the rank-1 academic paper is the default story source unless an explicit override reason is recorded. The briefing pipeline alone validates and publishes this handoff.
+<code>skills/allegory-teach</code> is the optional beginner-first companion to Adaptive Teach and the read-only authoring dependency for the daily briefing's opening story. Accuracy and explicit logic take precedence over literary style. Bridge Mode is the ordinary first-contact path: disclose the real problem, run a minimum concrete case, use one local analogy for one relation, map it explicitly, and return to technical language. Fable Mode is reserved for an explicit story/delayed-reveal request and for daily openings; it keeps the concealed-name narrative and the factual <code>1 → 3 → 4 → 2</code> return. Both modes require a bounded worked example, analogy limits, and exact-versus-approximate distinctions when relevant. For daily briefings, the rank-1 academic paper remains the default story source unless an explicit override reason is recorded.
 
-> Use <code>$allegory-teach</code> to choose one concept near my current research boundary, explain it first as a fable without naming it, then return the definition, limits, misconceptions, mapping, and one complete concept-appropriate example in the order 1 → 3 → 4 → 2.
+> Use <code>$allegory-teach</code> to explain one concept near my current research boundary bridge-first with a minimum concrete case and one mapped local analogy. If I explicitly ask for a fable, conceal the name until the reveal and then return the factual sections in the order 1 → 3 → 4 → 2.
 
 ## Persistent Visible Wiki
 
@@ -169,7 +169,7 @@ For one-step imports, use <code>reader-feedback</code> or <code>news-feedback</c
 | <code>reader-skill</code> | Formal reader normalization, source anchors, HTML generation, concept marks, and structural/audit gates. | Direct profile mutation. |
 | <code>reader-learner</code> | Feedback import, schema-v2 profile validation, backup/atomic mutation, and Visible Wiki projection. | PDF reader generation or teaching decisions. |
 | <code>adaptive-teach</code> | Profile-backed teaching decisions, sessions, lessons, and teaching-feedback handoff. | Profile schema, direct profile writes, PDFs/news collection, or shared HTML shell. |
-| <code>allegory-teach</code> | A source-aware causal fable, factual debrief, and concept-appropriate worked example for one selected advanced concept. | Topic-ranking/session ownership, profile mutation, news collection, or daily-release changes. |
+| <code>allegory-teach</code> | A bridge-first direct explanation or explicit source-aware fable, factual return, and concept-appropriate worked example for one selected advanced concept. | Topic-ranking/session ownership, profile mutation, news collection, or daily-release changes. |
 | <code>ai-quantum-news-briefing</code> | Sourced AI/quantum briefings, candidate ranking, briefing feedback artifacts, and news-feedback normalization. | Treating mere exposure as knowledge. |
 | <code>lean-html-skill</code> | Shared HTML shell, feedback UI, export controls, and visual design layer. | Domain interpretation or profile mutation. |
 | <code>chat-knowledge-profile</code> | Staged local conversation extraction and reviewable profile handoffs. | Share-URL scraping or direct profile overwrite. |

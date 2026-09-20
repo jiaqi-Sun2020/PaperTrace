@@ -32,7 +32,7 @@ PaperTrace 是一个本地论文阅读、AI + 量子资讯日报与个人知识�
 | 追踪 AI 与量子领域的当日重要变化 | [日报流水线](#daily-briefing) | 带折叠例子的开篇故事、HTML 日报、反馈 JSON、manifest 与索引 |
 | 将本地聊天记录转成可审核的画像候选 | [知识画像](#knowledge-profile) | 经人工审核、带备份的 profile patch |
 | 用已有证据选择下一次短课与复习 | [Adaptive Teach](#adaptive-teach) | 单主题课程与受控 feedback handoff |
-| 用故事建立一个高阶机制的直觉 | [Allegory Teach](#allegory-teach) | 寓言、事实定义、边界、误导风险、映射与完整例子 |
+| 理解一个研究边界附近的高阶机制 | [Allegory Teach](#allegory-teach) | 默认逐桥解释，或显式要求的结尾揭名寓言，以及一个具体实例 |
 
 <a id="pipelines"></a>
 
@@ -101,7 +101,7 @@ Codex 会核验来源和日期，应用排名与 Delta 规则，并仅在严格�
 - `academic_venue_sweep.py`、`aihot_candidates.py`、`config_to_news_feedback.py` 和 `audit_briefing_config.py` 分别支持候选池、学术检索审计、全量反馈导出和对抗性审核。
 - `lean-html-skill` 的 Cosmic Sci-Fi Product Design System Layer 只控制视觉风格，不改变功能和信息架构；默认白色背景，可切换 Cosmic 深空背景，并通过成对的前景/表面变量及发布审计阻止寓言、公式和表格出现低对比度。
 - `reader-learner` 通过知识库重建、审计和安全测试，阻止噪声、乱码或未评级曝光被误写为已掌握知识。
-- `allegory-teach` 的首要目标是降低初次接触者的理解成本：把一个困难概念压缩成忠实保留因果结构的寓言，再给出定义、边界、误导风险、映射，以及包含具体场景、实际输入/状态和可观察结果的完整实例；只有机制确实需要数学时才使用公式。
+- `allegory-teach` 的首要目标是降低初次接触者的理解成本，并采用双模式分流：普通教学先公开真实技术问题、运行最小实例、加入一个局部映射类比并立即回到正式语言；只有显式寓言请求和日报开篇才使用结尾揭名的 Fable Mode。两种模式都必须给出具体实例，只有机制确实需要数学时才使用公式。
 - `chat-knowledge-profile` 把本地 ChatGPT/GPT/Claude/Deepseek 会话提炼为可审核候选、会话摘要和严格的 `reader-learner` feedback handoff。
 - `demo-skill` 把 README/AGENTS 契约提炼为四条 pipeline 的中英文项目展示页，并复用 GSAP + ScrollTrigger 双语模板与无覆盖生成脚本。
 - 日报加入可审计的 `news-ranker-v1`：先做证据准入，再按学术/社会两套分数和 MMR 多样性约束筛选；正式发布包含 7–8 篇学术论文和至少 10 条社会新闻，并保留分项得分、配额、选择轨迹与淘汰原因。
@@ -155,9 +155,9 @@ Generating/viewing a lesson never changes the profile or queue. Only actual perf
 
 ## 寓言教学
 
-`skills/allegory-teach` 是自适应教学的可选“初学者优先”说明层，也是日报开篇故事的只读创作依赖。准确性和显式逻辑高于文学性；故事必须保留真实机制中事件顺序、信息载体和状态变化。事实回扣后必须给出一个包含具体场景、实际输入/状态与可观察结果的数学、数值、操作、因果、实验或对比例子。日报默认使用综合影响排名第 1 的学术论文作为故事来源，只有记录显式覆盖理由时才能改选。选题不偏向容易写公式的概念；日报 pipeline 单独负责校验与发布这个 handoff。
+`skills/allegory-teach` 是自适应教学的可选“初学者优先”说明层，也是日报开篇故事的只读创作依赖。Bridge Mode 是普通首次教学入口：先说明真实问题、困难项和目标，运行最小实例，再用一个局部类比解释一个关系，并立刻映射回正式机制。Fable Mode 只用于显式寓言／延迟揭晓请求与日报开篇，继续保留结尾揭名和 `1 → 3 → 4 → 2` 事实回扣。两种模式都要求具体场景、实际输入／状态、可观察结果、类比边界，并在相关时区分精确关系与有限近似。日报默认使用综合影响排名第 1 的学术论文作为故事来源，只有记录显式覆盖理由时才能改选。
 
-> 使用 `$allegory-teach` 从我的当前研究边界选择一个概念；先不要说名称，而是用寓言讲清因果关系，最后按 1 → 3 → 4 → 2 给出事实回扣和一个适合该概念的完整例子。
+> 使用 `$allegory-teach` 从我的当前研究边界选择一个概念，默认先给真实技术骨架和最小实例，再用一个局部类比补齐缺失桥梁；如果我明确要求寓言，则把名称隐藏到故事结尾，并按 1 → 3 → 4 → 2 给出事实回扣。
 
 ## 持久可见 Wiki
 
@@ -185,7 +185,7 @@ Open `D:\AI\PaperTrace\.agents\wiki` as the Obsidian vault. Start at `Home.md`, 
 | `skills/reader-skill` | 把 reader bundle 转成正式 `reader_interactive.html`，负责双语块、source anchors、概念标注、公式和图表结构。 | 不写 `.agents`，不直接修改画像。 |
 | `skills/reader-learner` | 导入 reader/news feedback，维护 `.agents/reader-learner/knowledge_profile.json`，导出 Obsidian vault，审计知识库。 | 不生成论文 HTML，不生成教学课程。 |
 | `skills/adaptive-teach` | 读取唯一 learner profile，区分薄弱/证据不足/到期复习，选择单一下一主题，生成诊断、短课、复习策略和 teaching-feedback handoff。 | 不维护 profile schema、normalization、atomic write、PDF/news、Visible Wiki 或通用 HTML shell。 |
-| `skills/allegory-teach` | 为一个选定的高阶概念生成因果寓言、事实回扣和适配概念类型的完整例子，保留日报来源上下文。 | 不拥有选题/会话状态，不改 profile/Wiki/feedback，不采集或发布日报。 |
+| `skills/allegory-teach` | 为一个选定的高阶概念生成默认逐桥解释或显式因果寓言、事实回扣和适配概念类型的完整例子，保留日报来源上下文。 | 不拥有选题/会话状态，不改 profile/Wiki/feedback，不采集或发布日报。 |
 | `skills/ai-quantum-news-briefing` | 生成 source-grounded AI + 量子日报/多日报告，接入 AI HOT 候选池，生成日报反馈 HTML/JSON，导入新闻反馈。 | 不因为新闻“出现过”就自动判定用户已经掌握。 |
 | `skills/utils/lean-html-skill` | 共享 HTML shell、反馈面板、copy/download 导出控件、Cosmic Sci-Fi 视觉层和背景切换控件。 | 不做领域解释，不写 profile，不改变业务数据结构。 |
 | `skills/utils/chat-knowledge-profile` | 从本地 ChatGPT/GPT/Claude/Deepseek 导出记录提炼会话摘要、概念状态候选、学习/研究/工作流偏好，并生成严格 `reader-learner` handoff。 | 不抓取分享 URL，不把助手曝光当作掌握证据，不绕过补丁审核直接覆盖 profile。 |

@@ -1,8 +1,9 @@
 # Logic-Chain Explanation Guidance
 
-Use this guide after the fable when the learner needs an explanation or
-analysis, not merely a literary reveal. It adapts the project-local
-`logic-chain-tutor` approach to this skill's constrained output contract.
+Use this shared guide for the technical layer in both modes. Bridge Mode applies
+it before and around each local analogy; Fable Mode applies it after the reveal.
+It adapts the project-local `logic-chain-tutor` approach to this skill's two
+output contracts.
 
 ## Diagnose the smallest missing bridge
 
@@ -44,6 +45,11 @@ inputs and produce the stated result. A paragraph that only repeats the causal
 chain, even accurately, remains an explanation and does not satisfy the example
 contract.
 
+In Bridge Mode, the minimum case appears before the analogy. In Fable Mode, it
+is prepared before story drafting and appears in the factual debrief so the
+delayed reveal remains intact. In either mode, generalize only after the minimum
+case has visibly run once.
+
 ## Keep technical claims inspectable
 
 Before using notation or a formula, state what every object is, what role it
@@ -67,6 +73,18 @@ slot. When mathematics is intrinsic, follow the complete chain `goal ->
 premises -> symbols -> derivation -> result -> interpretation -> check ->
 non-conclusion`. When it is not intrinsic, use the corresponding operational or
 causal chain and omit formulas without apology.
+
+For truncation, discretization, estimation, or modelling, label every relevant
+statement as an exact identity, theoretical limit, finite implementation,
+approximation, or empirical conclusion. Name the approximation's error source.
+Do not say a nonlinear system “became” a finite exact linear system when the
+implementation discarded higher-order terms.
+
+Only when making a performance claim, name the real governing parameters. These
+may include input or state dimension, truncation order, time horizon, step size,
+condition number, target error, sample count, or number of requested
+observables. Do not list irrelevant symbols merely to make the answer look
+complete.
 
 ## Correct without replacing the learner's model wholesale
 
@@ -98,4 +116,6 @@ long-range quantum correlation or entanglement.
 For an interactive teaching request, invite one prediction, comparison, or
 plain-language paraphrase. Use the answer to choose the next explanation move.
 For the strict fable response, do not add a separate quiz or recap section: the
-compact logic chain belongs at the end of section 2.
+compact logic chain belongs at the end of section 2. The chain must identify the
+previous step, the bridge just repaired, the next step, and the capability or
+consequence that follows.

@@ -1,9 +1,15 @@
 # Worked Example Contract
 
 Every complete `allegory-teach` explanation includes one worked example after
-the story-to-reality mapping in section 2. Topic selection and example-form
-selection are separate decisions: never prefer a concept merely because it is
-easy to express with equations.
+the relevant technical setup. In Bridge Mode, run the minimum example before
+the local analogy, then reuse its objects in the mapping and formal return. In
+Fable Mode, place the example after the story-to-reality mapping in section 2.
+Topic selection and example-form selection are separate decisions: never prefer
+a concept merely because it is easy to express with equations.
+
+In Bridge Mode, the minimum case normally is the required worked example. Reuse
+it through the local analogy and formal return instead of inventing a second
+case that increases cognitive load without testing a different necessary link.
 
 The example must instantiate the mechanism. A second abstract explanation,
 generic workflow, or list of implications is not an example. Name one bounded
@@ -30,7 +36,8 @@ Choose the smallest form that makes the target mechanism testable:
 A non-mathematical example is complete without a formula. Never invent an
 equation, coefficient, probability model, or quantitative law to make it look
 formal. If the selected mechanism is genuinely mathematical, use the
-mathematical branch below and keep every meaningful transition inspectable.
+mathematical branch below, calculate the smallest useful instance before the
+general form, and keep every meaningful transition inspectable.
 
 ## Common structure
 

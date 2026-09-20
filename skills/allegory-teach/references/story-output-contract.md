@@ -1,6 +1,24 @@
-# Story Output Contract
+# Fable Mode Output Contract
 
-Use this contract for every `allegory-teach` response.
+Use this contract only when the user explicitly asks for an allegory, story, or
+delayed reveal, or when authoring a daily-briefing opening story. Ordinary
+first-contact explanations use
+[bridge-mode-contract.md](bridge-mode-contract.md) instead.
+
+## Private technical preflight
+
+Before drafting the story, privately write the real skeleton:
+
+```text
+technical problem -> difficult term or operation -> immediate goal
+known anchor -> missing bridge -> target mechanism
+```
+
+Select one core relation from that skeleton. If the subject contains several
+mechanisms, the fable may carry only the selected relation; later mechanisms
+must be taught as separate bridges with a technical-language return between
+them. The preflight is not shown before the story because Fable Mode preserves
+the user's requested delayed reveal.
 
 ## Narrative gate
 
@@ -19,8 +37,10 @@ changed state, and the observable consequence before compressing them into a
 general rule. A reader should not need prior field vocabulary to decode what
 the characters actually did.
 
-Use three to five named story elements when possible. One element may represent
-more than one technical detail only when the final mapping says so explicitly.
+Use three to five named story elements when possible. Give each important
+element one primary technical counterpart. If limited reuse is unavoidable,
+the final mapping must list every counterpart and explain where the analogy
+stops; otherwise reject the draft.
 Do not state the concept name, standard acronym, or defining equation before
 the last paragraph of the story.
 
@@ -40,6 +60,15 @@ structure. Before output, verify all of the following:
 - after removing the story vocabulary, the real mechanism can be reconstructed
   without adding a hidden step.
 
+The preflight must also answer two hard questions:
+
+1. Why does this correspondence make the selected technical transition easier
+   to understand?
+2. After removing the story vocabulary, can the real sequence be stated with
+   its actual objects, operations, state changes, prerequisites, and result?
+
+Reject or narrow the story when either answer is missing.
+
 For quantum explanations involving measurement, explicitly separate the
 pre-measurement quantum state, measurement back-action, the classical outcome,
 classical communication, and any conditional quantum operation. Classical
@@ -57,6 +86,8 @@ entanglement or enable controllable faster-than-light signalling.
 
 <canonical name>：<one scope-bounded, mechanism-level definition>。
 
+<真实问题 -> 困难项或操作 -> 目标 -> 机制主链>
+
 ## 3. 这个类比没有覆盖的边界
 
 - <missing condition, scale, formal assumption, or competing mechanism>
@@ -70,6 +101,8 @@ entanglement or enable controllable faster-than-light signalling.
 | 故事元素 | 对应的现实对象（类型/作用） | 对应操作或约束 | 信息的保留/变化/丢弃（如适用） | 因果作用 |
 |---|---|---|---|---|
 | ... | ... | ... | ... | ... |
+
+<为什么这个对应关系让缺失的技术步骤变得可见>
 
 ### 完整例子
 
@@ -113,8 +146,9 @@ Keep the outer section order unchanged. Apply the following analysis within
 those sections rather than adding a new numbered section:
 
 - **1:** Give the canonical name and one scope-bounded, mechanism-level definition.
-  Then state the problem or counterfactual that motivates the mechanism in one
-  short sentence when it clarifies why the concept exists.
+  Immediately expose the technical skeleton prepared before the story:
+  `problem -> difficult term/operation -> goal -> mechanism spine`. The story
+  cannot remain the only explanation.
 - **3:** Separate a model assumption, a formal identity, an approximation, and
   an empirical conclusion whenever the analogy might blur them.
 - **4:** Preserve the reader's useful intuition, identify the first invalid
@@ -122,11 +156,18 @@ those sections rather than adding a new numbered section:
   that exposes the difference.
 - **2:** Map each story element to the real object and its type/role, the
   corresponding operation or constraint, and what information is preserved,
-  changed, or discarded. Then give the worked example and finish the section
-  with a compact chain:
-  `known anchor -> missing bridge -> mechanism -> consequence`.
+  changed, or discarded. State why the correspondence makes the missing bridge
+  visible, then give the worked example and finish with:
+  `previous step -> current bridge -> next step -> resulting capability`.
 
 When formulas are needed after the story, define every symbol and its object
 type before manipulation. Name the rule used at each meaningful transition and
 distinguish definitions, assumptions, identities, approximations, and derived
 conclusions. Prefer the smallest complete case before generalizing.
+
+When the subject involves truncation, discretization, estimation, or modelling,
+state which relation is exact, which construction is only theoretical or
+infinite, what the finite implementation approximates, and where error enters.
+When the response claims that something is faster, cheaper, harder, scalable,
+or advantageous, name the real parameters that govern that claim rather than
+letting the story carry the performance conclusion.

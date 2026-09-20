@@ -5,6 +5,13 @@ it may author the opening-story handoff after deterministic ranking and source
 audit, or explain a concept from an already published briefing. It never owns
 collection, ranking, feedback, or publication.
 
+Daily opening stories always use Fable Mode because this product contract asks
+for a concealed-name narrative before the briefing. The routing decision is not
+serialized into the handoff: keep `opening_story.version=3`, the existing
+`1 -> 3 -> 4 -> 2` factual return, and the current worked-example schema. Do not
+add an `explanation_mode` field. Bridge Mode remains the default only for
+ordinary direct teaching outside this opening-story contract.
+
 ## Accepted upstream context
 
 For an opening story before publication, use only a deterministically ranked
