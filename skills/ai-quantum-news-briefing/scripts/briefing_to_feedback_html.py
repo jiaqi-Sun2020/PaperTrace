@@ -172,6 +172,15 @@ def render_worked_example(story: dict[str, Any]) -> str:
 
     assumptions = "".join(f"<li>{esc(value)}</li>" for value in example.get("assumptions", []))
     checks = "".join(f"<li>{esc(value)}</li>" for value in example.get("checks", []))
+    input_rows = "".join(
+        "<tr>"
+        f"<td>{esc(item.get('name'))}</td>"
+        f"<td>{esc(item.get('value'))}</td>"
+        f"<td>{esc(item.get('role'))}</td>"
+        "</tr>"
+        for item in example.get("inputs", [])
+        if isinstance(item, dict)
+    )
     object_rows = "".join(
         "<tr>"
         f"<td>{esc(item.get('name'))}</td>"
@@ -216,6 +225,15 @@ def render_worked_example(story: dict[str, Any]) -> str:
   <div class="worked-example-body">
     <h3>{esc(example.get('title') or '完整例子')}</h3>
     <p><strong>问题：</strong>{esc(example.get('question'))}</p>
+    <p class="example-scenario"><strong>具体场景：</strong>{esc(example.get('scenario'))}</p>
+    <h4>本例输入</h4>
+    <div class="example-table-wrap">
+      <table class="example-input-table">
+        <thead><tr><th>输入</th><th>本例取值／状态</th><th>为什么需要它</th></tr></thead>
+        <tbody>{input_rows}</tbody>
+      </table>
+    </div>
+    <p class="example-observable"><strong>要观察什么：</strong>{esc(example.get('observable'))}</p>
     <h4>前提与约束</h4>
     <ul>{assumptions}</ul>
     <h4>对象与角色</h4>
@@ -436,7 +454,8 @@ def render_html(config: dict[str, Any]) -> str:
       max-width: 100%;
       overflow-x: auto;
     }}
-    .example-object-table {{
+    .example-object-table,
+    .example-input-table {{
       width: 100%;
       border-collapse: collapse;
       min-width: 560px;
@@ -445,24 +464,49 @@ def render_html(config: dict[str, Any]) -> str:
       color: var(--ink);
     }}
     .example-object-table th,
-    .example-object-table td {{
+    .example-object-table td,
+    .example-input-table th,
+    .example-input-table td {{
       padding: 8px 10px;
       border: 1px solid var(--line);
       text-align: left;
       vertical-align: top;
       color: var(--ink);
     }}
-    .example-object-table th {{
+    .example-object-table th,
+    .example-input-table th {{
       background: var(--story-subtle);
       font-weight: 700;
     }}
+    .example-object-table td,
+    .example-input-table td {{
+      background: var(--story-panel);
+      color: var(--ink);
+    }}
+    .example-object-table tbody tr:nth-child(even) td,
+    .example-input-table tbody tr:nth-child(even) td {{
+      background: var(--story-subtle);
+    }}
+    .example-object-table {{
+      background: var(--table-surface);
+      color: var(--ink);
+    }}
+    .example-input-table {{
+      background: var(--table-surface);
+      color: var(--ink);
+    }}
+    .example-object-table th {{ background: var(--story-subtle); }}
+    .example-input-table th {{ background: var(--story-subtle); }}
     .example-object-table td {{
       background: var(--story-panel);
       color: var(--ink);
     }}
-    .example-object-table tbody tr:nth-child(even) td {{
-      background: var(--story-subtle);
+    .example-input-table td {{
+      background: var(--story-panel);
+      color: var(--ink);
     }}
+    .example-object-table tbody tr:nth-child(even) td {{ background: var(--story-subtle); }}
+    .example-input-table tbody tr:nth-child(even) td {{ background: var(--story-subtle); }}
     .example-step {{
       margin: 12px 0;
       padding: 12px 14px;

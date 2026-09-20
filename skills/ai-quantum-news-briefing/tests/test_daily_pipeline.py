@@ -42,7 +42,7 @@ def item(item_id: str = "N001", *, concept: str = "QSVT", url: str = "https://ex
 
 def opening_story() -> dict:
     return {
-        "version": 2,
+        "version": 3,
         "title": "两座钟塔",
         "paragraphs": [
             "山谷里有两座钟塔。北塔的齿轮转得快，南塔的齿轮转得慢；守钟人每晚都要让两边从同一声钟响开始，各自沿着固定的槽道传递力气。",
@@ -65,6 +65,13 @@ def mathematical_worked_example() -> dict:
         "kind": "mathematical",
         "title": "两能级系统中的相位分辨",
         "question": "为什么较小的能级差需要更长时间才能积累可分辨的相对相位？",
+        "scenario": "制备一个两能级系统，取能级差 Δ=0.2 meV，并把可分辨阈值固定为相对相位达到 1 rad。",
+        "inputs": [
+            {"name": "能级差 Δ", "value": "0.2 meV", "role": "决定两个分量积累相对相位的速率"},
+            {"name": "约化普朗克常数 ℏ", "value": "0.658 meV·ps", "role": "把能量差换算成时间尺度"},
+            {"name": "分辨阈值", "value": "1 rad", "role": "给出本例要达到的可观察判据"},
+        ],
+        "observable": "记录相对相位首次达到 1 rad 所需的演化时间，并与 Δ 加倍后的时间比较。",
         "assumptions": ["哈密顿量不随时间变化，初态在两个正交本征态上具有非零振幅。"],
         "objects": [
             {"name": "H", "kind": "厄米算符", "role": "生成系统的时间演化", "units": "energy"},
@@ -86,12 +93,12 @@ def mathematical_worked_example() -> dict:
             },
             {
                 "action": "要求相对相位达到一个数量级为一的分辨阈值。",
-                "formula": "t_{\\mathrm{resolve}}\\sim\\hbar/\\Delta",
+                "formula": "t_{\\mathrm{resolve}}=\\hbar/\\Delta=0.658/0.2\\;\\mathrm{ps}=3.29\\;\\mathrm{ps}",
                 "rule": "由 |\\phi|\\sim1 解出演化时间尺度",
                 "explanation": "相位积累速率为 Δ/ℏ，因此较小的 Δ 需要更长时间。",
             },
         ],
-        "result": "在这个两能级相位分辨模型中，特征时间尺度与谱隙成反比。",
+        "result": "本例达到 1 rad 相对相位需要约 3.29 ps；若 Δ 加倍为 0.4 meV，时间缩短为约 1.65 ps。",
         "interpretation": "谱隙缩小时两个模态的相位速率更接近，需要更长观察时间才能区分。",
         "checks": ["ℏ/Δ 的量纲是时间；Δ 加倍时达到相同相位所需时间减半。"],
         "non_conclusion": "不能由此断言所有含谱隙的算法运行时间都严格等于 ℏ/Δ。",
@@ -103,6 +110,12 @@ def operational_worked_example() -> dict:
         "kind": "operational",
         "title": "双人审批队列",
         "question": "为什么增加独立复核会改变错误进入发布阶段的路径？",
+        "scenario": "候选记录 Claim-17 声称模型准确率为 92%，但原始报告只写了 82%；系统必须决定它能否进入今日发布队列。",
+        "inputs": [
+            {"name": "候选记录 Claim-17", "value": "准确率 92%", "role": "提供待验证且可能错误的声明"},
+            {"name": "原始报告", "value": "准确率 82%", "role": "作为独立复核时的事实基准"},
+        ],
+        "observable": "观察 Claim-17 最终停留在哪个队列，以及系统记录的退回原因。",
         "assumptions": ["提交者与复核者独立工作，只有通过复核的记录才能发布。"],
         "objects": [
             {"name": "候选记录", "kind": "待验证对象", "role": "携带尚未确认的声明", "units": ""},
@@ -122,7 +135,7 @@ def operational_worked_example() -> dict:
                 "explanation": "第二条独立检查路径改变了错误记录能够到达的状态。",
             },
         ],
-        "result": "未经独立复核的候选记录不能成为发布事实。",
+        "result": "复核者发现 92% 与原始报告的 82% 不一致，Claim-17 被退回候选队列，未进入发布队列。",
         "interpretation": "关键机制是状态门槛和独立检查，而不是增加形式化步骤本身。",
         "checks": ["移除复核门槛后，同一错误可以从候选队列直接进入发布队列。"],
         "non_conclusion": "双人复核不能保证零错误，也不能替代高质量来源。",
@@ -192,15 +205,20 @@ def ranking_fixture() -> tuple[dict, list[dict]]:
         else:
             url = f"https://arxiv.org/abs/2607.{14000 + index}"
             source_class = "arxiv_preprint"
-        academic.append(
-            ranked_candidate(
-                f"A{index:03d}",
-                url=url,
-                source_class=source_class,
-                organization="",
-                topic=f"academic-topic-{index % 5}",
-            )
+        candidate = ranked_candidate(
+            f"A{index:03d}",
+            url=url,
+            source_class=source_class,
+            organization="",
+            topic=f"academic-topic-{index % 5}",
         )
+        candidate["ranking_signals"] = {
+            "technical_contribution": 1.0 if index == 1 else 0.45,
+            "specificity": 1.0 if index == 1 else 0.55,
+            "relevance": 1.0 if index == 1 else 0.60,
+            "reproducibility": 1.0 if index == 1 else 0.40,
+        }
+        academic.append(candidate)
     social_classes = ["reputable_media"] * 4 + ["official_primary"] * 4 + ["official_company_social"] * 6
     social = [
         ranked_candidate(
@@ -220,7 +238,11 @@ def ranking_fixture() -> tuple[dict, list[dict]]:
             "worked_example_required": True,
             "position": "before_briefing",
         },
-        "opening_story": opening_story(),
+        "opening_story": {
+            **opening_story(),
+            "grounding_kind": "briefing_items",
+            "source_story_ids": ["a001"],
+        },
         "sections": [
             {"title": "Academic research", "items": academic},
             {"title": "Social news", "items": social},
@@ -359,6 +381,26 @@ class DailyPipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing required field: explanation"):
             normalize_briefing_config(raw, require_source_url=True)
 
+    def test_worked_example_rejects_logic_only_without_a_concrete_case(self) -> None:
+        for missing_field in ("scenario", "inputs", "observable"):
+            with self.subTest(missing_field=missing_field):
+                raw = config()
+                raw["opening_story"]["worked_example"].pop(missing_field)
+                with self.assertRaisesRegex(ValueError, f"worked_example.*{missing_field}"):
+                    normalize_briefing_config(raw, require_source_url=True)
+
+    def test_worked_example_rejects_an_abstract_scenario_label(self) -> None:
+        raw = config()
+        raw["opening_story"]["worked_example"]["scenario"] = "一般情况"
+        with self.assertRaisesRegex(ValueError, "bounded concrete case"):
+            normalize_briefing_config(raw, require_source_url=True)
+
+    def test_worked_example_rejects_placeholder_input_values(self) -> None:
+        raw = config()
+        raw["opening_story"]["worked_example"]["inputs"][0]["value"] = "待填写"
+        with self.assertRaisesRegex(ValueError, "actual value, state, label, or condition"):
+            normalize_briefing_config(raw, require_source_url=True)
+
     def test_story_renders_before_briefing_in_html_and_markdown(self) -> None:
         canonical = normalize_briefing_config(config(), require_source_url=True)
         feedback = export_feedback(canonical, Path("config.json"), "unrated", "none")
@@ -371,9 +413,14 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertNotIn(" open", details_tag)
         self.assertIn("展开完整例子与公式推导", html)
         self.assertIn('id="MathJax-script"', html)
+        self.assertIn('class="example-scenario"', html)
+        self.assertIn('class="example-input-table"', html)
+        self.assertIn('class="example-observable"', html)
         self.assertLess(markdown.index("## 开篇故事"), markdown.index("## 日报正文"))
         self.assertLess(markdown.index("### 完整例子"), markdown.index("## 日报正文"))
-        self.assertIn("t_{\\mathrm{resolve}}\\sim\\hbar/\\Delta", markdown)
+        self.assertIn("t_{\\mathrm{resolve}}=\\hbar/\\Delta", markdown)
+        self.assertIn("**具体场景：**", markdown)
+        self.assertIn("**本例输入**", markdown)
         self.assertEqual(len(feedback["items"]), 1)
         self.assertFalse(any(entry["concept"] == "spectral gap" for entry in feedback["items"]))
 
@@ -435,6 +482,8 @@ class DailyPipelineTests(unittest.TestCase):
         ]
         self.assertNotIn('<img src=x onerror="alert(1)">', example_html)
         self.assertIn("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;", example_html)
+        self.assertIn("具体场景", example_html)
+        self.assertIn("本例输入", example_html)
 
     def test_briefing_grounded_story_must_reference_a_published_story(self) -> None:
         raw = config()
@@ -450,7 +499,72 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertEqual(ranked["ranking_manifest"], repeated["ranking_manifest"])
         self.assertEqual(ranked["ranking_manifest"]["selected_counts"], {"academic": 8, "social": 12})
         self.assertEqual([len(section["items"]) for section in ranked["sections"]], [8, 12])
+        academic_items = ranked["sections"][0]["items"]
+        self.assertEqual(
+            [item["ranking"]["rank"] for item in academic_items],
+            list(range(1, len(academic_items) + 1)),
+        )
+        self.assertEqual(
+            [item["ranking"]["base_score"] for item in academic_items],
+            sorted((item["ranking"]["base_score"] for item in academic_items), reverse=True),
+        )
+        canonical = normalize_briefing_config(ranked, require_source_url=True)
+        self.assertEqual(
+            canonical["opening_story"]["source_story_ids"][0],
+            academic_items[0]["story_id"],
+        )
         self.assertEqual(audit_ranking_delivery(ranked), [])
+
+    def test_ranked_daily_story_rejects_a_non_top_academic_default(self) -> None:
+        raw, prior = ranking_fixture()
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        ranked["opening_story"]["source_story_ids"] = [ranked["sections"][0]["items"][1]["story_id"]]
+        with self.assertRaisesRegex(ValueError, "rank-1 highest-impact academic story_id"):
+            normalize_briefing_config(ranked, require_source_url=True)
+
+    def test_ranked_daily_story_accepts_custom_academic_source_classes(self) -> None:
+        raw, prior = ranking_fixture()
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        for item in ranked["sections"][0]["items"]:
+            item["source_class"] = "peer_reviewed"
+            item["ranking"]["source_class"] = "peer_reviewed"
+        canonical = normalize_briefing_config(ranked, require_source_url=True)
+        self.assertEqual(
+            canonical["opening_story"]["source_story_ids"][0],
+            ranked["sections"][0]["items"][0]["story_id"],
+        )
+
+    def test_ranked_daily_story_allows_an_explicit_auditable_override(self) -> None:
+        raw, prior = ranking_fixture()
+        raw["story_delivery"]["selection_basis"] = "explicit_override"
+        raw["story_delivery"]["override_reason"] = "用户明确要求沿用上一期的谱隙学习主题。"
+        raw["opening_story"]["grounding_kind"] = "learner_profile"
+        raw["opening_story"]["source_story_ids"] = []
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        canonical = normalize_briefing_config(ranked, require_source_url=True)
+        self.assertEqual(canonical["story_delivery"]["selection_basis"], "explicit_override")
+
+    def test_explicit_story_override_requires_a_reason(self) -> None:
+        raw = config()
+        raw["story_delivery"]["selection_basis"] = "explicit_override"
+        with self.assertRaisesRegex(ValueError, "explicit_override requires override_reason"):
+            normalize_briefing_config(raw, require_source_url=True)
+
+    def test_ranking_audit_rejects_academic_display_order_tampering(self) -> None:
+        raw, prior = ranking_fixture()
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        ranked["sections"][0]["items"] = list(reversed(ranked["sections"][0]["items"]))
+        failures = audit_ranking_delivery(ranked)
+        self.assertIn("academic section must be displayed in rank order", failures)
+        self.assertIn("academic section must be ordered by descending impact score", failures)
+
+    def test_ranking_audit_reports_an_invalid_rank_without_crashing(self) -> None:
+        raw, prior = ranking_fixture()
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        ranked["sections"][0]["items"][0]["ranking"]["rank"] = "invalid"
+        failures = audit_ranking_delivery(ranked)
+        self.assertTrue(any("ranking score or rank is invalid" in failure for failure in failures))
+        self.assertIn("academic ranking must use contiguous ranks starting at 1", failures)
 
     def test_strict_audit_rejects_attempts_to_weaken_delivery_quotas(self) -> None:
         raw, prior = ranking_fixture()

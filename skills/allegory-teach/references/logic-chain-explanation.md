@@ -11,6 +11,11 @@ context. Identify the nearest known anchor and the single missing relation that
 makes the target mechanism intelligible. Do not restart the whole subject when
 one bridge is enough; do not manufacture a knowledge-state claim from exposure.
 
+Assume the reader is encountering the target topic for the first time. When the
+missing bridge involves a process, begin with the smallest numbered or named
+instance and make each state transition visible. Generalize only after the
+reader can answer “what changed in this particular case?”
+
 Choose the analysis move from the actual question:
 
 | Learner need | Smallest useful move |
@@ -32,6 +37,12 @@ not more suitable merely because it has equations:
 | Experimental | Preparation, controls, measurement, observation, and what the observation rules out. |
 | Engineering or product | Concrete constraint, decision, state transition, consequence, and trade-off. |
 | Philosophical or methodological | Minimal case, nearby counterexample, scope, and invalid inference. |
+
+Every worked example must identify a concrete scenario, its actual inputs or
+initial states, and the observable to inspect. The steps must consume those
+inputs and produce the stated result. A paragraph that only repeats the causal
+chain, even accurately, remains an explanation and does not satisfy the example
+contract.
 
 ## Keep technical claims inspectable
 
@@ -69,6 +80,18 @@ When a plausible interpretation is wrong, respond in this order:
 An analogy is an entry point, not proof. Its final mapping must identify the
 model assumptions it hides and at least one conclusion that a literal story
 reading would wrongly suggest.
+
+Perform a carrier audit when the subject involves information or state:
+
+```text
+carrier before -> operation and side effect -> carrier after -> transmission
+or control step -> observable consequence
+```
+
+Do not silently preserve a carrier that the operation consumes or changes. In
+quantum cases, keep quantum state, measurement outcome, classical message, and
+feed-forward action distinct; shared classical control is not automatically
+long-range quantum correlation or entanglement.
 
 ## Close proportionally
 

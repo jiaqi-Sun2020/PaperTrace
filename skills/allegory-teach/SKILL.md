@@ -1,12 +1,20 @@
 ---
 name: allegory-teach
-description: Teach one advanced, profile-relevant technical concept through a Chinese fable that withholds the concept name until the end, then maps the analogy back to facts and works one complete example. Use when the user asks for an allegory, intuition-first explanation, or a story selected from their PaperTrace learning boundary; do not use it to mutate learner knowledge or to create a daily briefing.
+description: Explain one complex, abstract, professional, or difficult concept so a first-time learner can follow its causal logic, using a Chinese fable that withholds the concept name until the end, maps the analogy back to facts, and works one concrete example. Use for allegories, intuition-first explanations, or a story selected from a PaperTrace learning boundary; do not use it to mutate learner knowledge or publish a daily briefing.
 ---
 
 # Allegory Teach
 
-Turn one concept into a memorable causal model without letting the story replace
-the underlying technical claim. This is a narrative explanation layer around
+Turn one concept into a low-friction causal model without letting the story
+replace the underlying technical claim. The first success criterion is that a
+reader meeting the topic for the first time can reconstruct what happens and
+why; literary elegance is secondary. Use this priority order:
+
+```text
+mechanism accuracy > explicit logic > beginner comprehension > memorability > literary style
+```
+
+This is a narrative explanation layer around
 Pipeline 4, not a new learner-memory owner or teaching-decision system.
 
 ## Select the subject
@@ -54,6 +62,13 @@ Use the fewest characters, rules, and events that preserve that spine. Each
 important story element must have one intended technical counterpart. Do not
 smuggle in a second advanced concept just to make the fable dramatic.
 
+When a mechanism concerns propagation, layers, depth, state changes, or
+information flow, show the smallest concrete case before stating the general
+rule: what one step changes, what two steps change, and only then what fixed
+`d` steps imply. Distinguish carriers that the real mechanism distinguishes.
+An observation, measurement, compression, deletion, or projection that changes
+state must never appear as cost-free inspection in the story.
+
 The story must:
 
 - open without the concept name, its standard acronym, or an identifying
@@ -64,6 +79,11 @@ The story must:
   the final paragraph or immediately after the story;
 - remain a story, not a disguised lecture. Keep technical terms out until the
   requested factual return.
+
+Before returning it, remove the metaphor mentally and reconstruct the real
+process. Reject the draft if the real sequence, actor, carrier, changed state,
+preserved state, discarded information, prerequisite, or bounded conclusion
+cannot be recovered without guessing.
 
 Read [references/story-output-contract.md](references/story-output-contract.md)
 before writing the response.
@@ -78,7 +98,10 @@ before constructing the required example. Match the example to the concept:
 mathematical, numerical, operational, causal, experimental, or comparative.
 Only use formulas when the concept and evidence genuinely require them. When a
 formula is used, expose every meaningful transition and never invent a formula
-to satisfy an output shape.
+to satisfy an output shape. A worked example is not another explanation of the
+general mechanism: it must instantiate one bounded scenario with named inputs
+or initial states, trace those particular values/states through the rules, and
+state a concrete observable result.
 
 ## Return from intuition to fact
 
@@ -101,7 +124,10 @@ When authoring the required opening story for an AI + quantum briefing, or when
 the subject comes from an already published briefing, read
 [references/daily-briefing-interface.md](references/daily-briefing-interface.md)
 before using it. For pre-publication authoring, consume only the source-audited,
-deterministically ranked selection; for later explanation, consume finalized,
+deterministically ranked selection. By default, ground the story in the
+rank-1 academic item after the academic section has been ordered by descending
+impact score; use another source only through an explicit, documented override.
+For later explanation, consume finalized,
 source-grounded briefing context or a user-provided feedback export. Return the
 opening-story handoff to the briefing pipeline, which alone validates, renders,
 and publishes it. This skill does not collect news, alter ranking, write a

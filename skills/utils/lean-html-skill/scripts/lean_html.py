@@ -1155,9 +1155,13 @@ def design_audit_issues(html_text: str) -> list[str]:
                 "border": "1pxsolidvar(--story-border)",
             },
             ".example-object-table": {"background": "var(--table-surface)", "color": "var(--ink)"},
+            ".example-input-table": {"background": "var(--table-surface)", "color": "var(--ink)"},
             ".example-object-table th": {"background": "var(--story-subtle)"},
+            ".example-input-table th": {"background": "var(--story-subtle)"},
             ".example-object-table td": {"background": "var(--story-panel)", "color": "var(--ink)"},
+            ".example-input-table td": {"background": "var(--story-panel)", "color": "var(--ink)"},
             ".example-object-table tbody tr:nth-child(even) td": {"background": "var(--story-subtle)"},
+            ".example-input-table tbody tr:nth-child(even) td": {"background": "var(--story-subtle)"},
             ".example-step": {
                 "background": "var(--story-subtle)",
                 "border-left": "3pxsolidvar(--accent)",

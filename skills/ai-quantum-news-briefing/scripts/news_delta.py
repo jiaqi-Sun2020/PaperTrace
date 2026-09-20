@@ -512,6 +512,22 @@ def render_worked_example_markdown(example: dict[str, Any]) -> list[str]:
     lines = ["### 完整例子", "", f"#### {clean_text(example.get('title') or '完整例子', 200)}", ""]
     lines.append(f"- **问题：**{clean_text(example.get('question'), 1200)}")
     lines.append(f"- **类型：**{clean_text(example.get('kind'), 80)}")
+    lines.append(f"- **具体场景：**{clean_text(example.get('scenario'), 1600)}")
+    lines.append(f"- **要观察什么：**{clean_text(example.get('observable'), 1200)}")
+    lines.append("")
+    lines.append("**本例输入**")
+    lines.append("")
+    lines.append("| 输入 | 本例取值／状态 | 为什么需要它 |")
+    lines.append("|---|---|---|")
+    for item in example.get("inputs", []):
+        if not isinstance(item, dict):
+            continue
+        values = [
+            clean_text(item.get("name"), 240),
+            clean_text(item.get("value"), 800),
+            clean_text(item.get("role"), 800),
+        ]
+        lines.append("| " + " | ".join(value.replace("|", "\\|") for value in values) + " |")
     lines.append("")
     lines.append("**前提与约束**")
     lines.append("")

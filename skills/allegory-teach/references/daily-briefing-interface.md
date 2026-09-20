@@ -14,6 +14,14 @@ story-index summary as primary evidence. If the story instead comes from the
 learner boundary, read only the stable concept facts needed to choose it; do not
 copy status, raw events, private notes, or profile paths into the report.
 
+The academic section is displayed by descending `ranking.base_score`, the
+pipeline's evidence-backed impact/importance proxy. The default story source is
+the rank-1 academic item, and its `story_id` must be the first entry in
+`source_story_ids`. Use a different briefing item or learner-profile concept
+only when `story_delivery.selection_basis="explicit_override"` and
+`story_delivery.override_reason` states the concrete reason. The override is an
+exception, not an alternative default.
+
 For a later explanation, use one of the following only after its source
 pipeline has passed its release gate:
 
@@ -32,7 +40,7 @@ published files directly:
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "title": "开篇寓言",
   "paragraphs": ["...", "..."],
   "concept_name": "...",
@@ -45,6 +53,11 @@ published files directly:
     "kind": "mathematical|numerical|operational|causal|experimental|comparative",
     "title": "...",
     "question": "...",
+    "scenario": "一个具体对象、初态、条件与目标组成的本例场景",
+    "inputs": [
+      {"name": "...", "value": "本例实际值或状态", "role": "如何进入步骤"}
+    ],
+    "observable": "本例结束后具体观察、比较或计算什么",
     "assumptions": ["..."],
     "objects": [
       {"name": "...", "kind": "...", "role": "...", "units": "..."}
@@ -65,7 +78,8 @@ published files directly:
 Use 2-6 narrative paragraphs totaling at least 120 characters. The title and
 paragraphs must not contain the canonical concept name or its aliases. When
 `grounding_kind` is `briefing_items`, reference at least one `story_id` that
-survives into the published selection. The pipeline renders the story first,
+survives into the published selection. Under the default daily selection policy,
+the first ID is the rank-1 academic item. The pipeline renders the story first,
 then its compact factual debrief, then a collapsed worked example, then
 `日报正文`.
 
@@ -73,7 +87,9 @@ The worked example is required for a new daily run, but its form follows the
 concept. Do not prefer mathematical concepts during selection. Use `formula`
 only when the selected concept and evidence genuinely require mathematics; a
 complete operational, causal, experimental, or comparative example may contain
-no formula. When any formula is present, define its objects, expose every
+no formula. Every kind still requires a bounded `scenario`, named `inputs`, and
+an `observable`; a generic explanation of the logic chain is rejected. When
+any formula is present, define its objects, expose every
 meaningful transition, and include a check that can reveal an invalid
 derivation. Read [worked-example-contract.md](worked-example-contract.md) for
 the full contract and mathematical branch example.

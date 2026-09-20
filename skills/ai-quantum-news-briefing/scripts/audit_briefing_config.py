@@ -428,6 +428,8 @@ def audit_ranking_delivery(config: dict[str, Any]) -> list[str]:
     try:
         if int(academic_policy.get("minimum_items", 0)) < 7 or int(academic_policy.get("maximum_items", 99)) > 8:
             failures.append("ranking_policy academic publication range must be 7-8 items")
+        if clean_text(academic_policy.get("ordering"), 120) != "base_score_desc":
+            failures.append("ranking_policy academic ordering must be base_score_desc")
         if int(social_policy.get("minimum_items", 0)) < 10:
             failures.append("ranking_policy social minimum must be at least 10 items")
     except (TypeError, ValueError):
@@ -459,9 +461,29 @@ def audit_ranking_delivery(config: dict[str, Any]) -> list[str]:
         ranked_items[kind].append(item)
 
     for kind, items in ranked_items.items():
-        ranks = sorted(int((item.get("ranking") or {}).get("rank", 0)) for item in items)
+        try:
+            ranks = sorted(int((item.get("ranking") or {}).get("rank", 0)) for item in items)
+        except (TypeError, ValueError):
+            ranks = []
         if ranks != list(range(1, len(items) + 1)):
             failures.append(f"{kind} ranking must use contiguous ranks starting at 1")
+    try:
+        academic_rank_sequence = [
+            int((item.get("ranking") or {}).get("rank", 0)) for item in ranked_items["academic"]
+        ]
+    except (TypeError, ValueError):
+        academic_rank_sequence = []
+    if academic_rank_sequence != list(range(1, len(academic_rank_sequence) + 1)):
+        failures.append("academic section must be displayed in rank order")
+    academic_scores: list[float] = []
+    for item in ranked_items["academic"]:
+        try:
+            academic_scores.append(float((item.get("ranking") or {}).get("base_score")))
+        except (TypeError, ValueError):
+            academic_scores = []
+            break
+    if academic_scores and academic_scores != sorted(academic_scores, reverse=True):
+        failures.append("academic section must be ordered by descending impact score")
     selected_counts = manifest.get("selected_counts") or {}
     for kind in ("academic", "social"):
         try:
@@ -511,7 +533,15 @@ def audit(config: dict[str, Any]) -> dict[str, Any]:
                 failures.append(f"opening_story.{field} must include Chinese analysis text")
         worked_example = opening_story.get("worked_example") or {}
         if worked_example:
-            for field in ("title", "question", "result", "interpretation", "non_conclusion"):
+            for field in (
+                "title",
+                "question",
+                "scenario",
+                "observable",
+                "result",
+                "interpretation",
+                "non_conclusion",
+            ):
                 if not contains_cjk(worked_example.get(field)):
                     failures.append(
                         f"opening_story.worked_example.{field} must include Chinese analysis text"
@@ -527,6 +557,12 @@ def audit(config: dict[str, Any]) -> dict[str, Any]:
                 if not contains_cjk(object_explanation):
                     failures.append(
                         f"opening_story.worked_example.objects[{index}] must explain type and role in Chinese"
+                    )
+            for index, value in enumerate(worked_example.get("inputs", []), start=1):
+                input_explanation = f"{value.get('name', '')} {value.get('role', '')}"
+                if not contains_cjk(input_explanation):
+                    failures.append(
+                        f"opening_story.worked_example.inputs[{index}] must name and explain the concrete input in Chinese"
                     )
             for index, value in enumerate(worked_example.get("steps", []), start=1):
                 step_explanation = " ".join(

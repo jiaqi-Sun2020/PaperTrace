@@ -51,6 +51,7 @@ DEFAULT_RANKING_POLICY: dict[str, Any] = {
         "minimum_non_arxiv_items": 2,
         "maximum_continuing_items": 3,
         "maximum_items_per_topic": 3,
+        "ordering": "base_score_desc",
     },
     "social": {
         "minimum_items": 10,
@@ -491,19 +492,40 @@ def rank_briefing_config(
     for kind in ("academic", "social"):
         selected_by_kind[kind], trace_by_kind[kind] = select_candidates(candidates[kind], kind, policy[kind])
 
+    selected_by_kind["academic"] = sorted(
+        selected_by_kind["academic"],
+        key=lambda row: (
+            row["score"]["base_score"],
+            clean_text(row["item"].get("published_at"), 100),
+            clean_text(row["item"].get("evidence_fingerprint"), 240),
+        ),
+        reverse=True,
+    )
+
     sections: list[dict[str, Any]] = []
     for kind, title in (("academic", "Academic research and venue evidence"), ("social", "社会新闻")):
         items: list[dict[str, Any]] = []
+        trace_by_story_id = {
+            clean_text(row.get("story_id"), 240): row for row in trace_by_kind[kind]
+        }
         for rank, candidate in enumerate(selected_by_kind[kind], start=1):
             item = dict(candidate["item"])
             item.pop("section_title", None)
+            selection_trace = trace_by_story_id.get(clean_text(item.get("story_id"), 240), {})
             item["ranking"] = {
                 **candidate["score"],
                 "eligible": True,
                 "selected": True,
                 "rank": rank,
-                "selection_score": trace_by_kind[kind][rank - 1]["selection_score"],
-                "selection_reason": "evidence gate passed; selected by deterministic score, quota, and diversity constraints",
+                "impact_rank": rank if kind == "academic" else None,
+                "selection_round": selection_trace.get("rank"),
+                "selection_score": selection_trace.get("selection_score"),
+                "selection_reason": (
+                    "evidence gate passed; selected by deterministic score, quota, and diversity constraints; "
+                    "academic display order is descending base_score"
+                    if kind == "academic"
+                    else "evidence gate passed; selected by deterministic score, quota, and diversity constraints"
+                ),
                 "exclusion_reasons": [],
             }
             items.append(item)
@@ -550,6 +572,7 @@ def rank_briefing_config(
         "selected_counts": {kind: len(rows) for kind, rows in selected_by_kind.items()},
         "metrics": {kind: selection_metrics(selected_by_kind[kind], kind) for kind in ("academic", "social")},
         "selection_trace": trace_by_kind,
+        "published_order": {"academic": "base_score_desc", "social": "selection_order"},
         "candidate_ledger": ledger,
     }
     return ranked

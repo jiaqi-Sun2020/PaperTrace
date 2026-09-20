@@ -15,6 +15,7 @@ from urllib.parse import urlsplit, urlunsplit
 VALID_STATUSES = {"mastered", "known", "learning", "unknown", "unrated"}
 VALID_NOVELTY = {"new", "material_update", "continuing", "duplicate"}
 VALID_STORY_GROUNDING = {"learner_profile", "briefing_items"}
+VALID_STORY_SELECTION = {"highest_impact_academic", "explicit_override"}
 VALID_WORKED_EXAMPLE_KINDS = {
     "mathematical",
     "numerical",
@@ -85,6 +86,16 @@ def assert_config_text_integrity(config: dict[str, Any]) -> None:
     assert_lossless_text(config.get("briefing_title"), "briefing_title")
     assert_lossless_text(config.get("date_range"), "date_range")
     assert_lossless_text(config.get("summary"), "summary")
+    story_delivery = config.get("story_delivery")
+    if isinstance(story_delivery, dict):
+        assert_lossless_text(
+            story_delivery.get("selection_basis"),
+            "story_delivery.selection_basis",
+        )
+        assert_lossless_text(
+            story_delivery.get("override_reason"),
+            "story_delivery.override_reason",
+        )
     opening_story = config.get("opening_story")
     if opening_story is not None:
         if not isinstance(opening_story, dict):
@@ -101,7 +112,16 @@ def assert_config_text_integrity(config: dict[str, Any]) -> None:
         if worked_example is not None:
             if not isinstance(worked_example, dict):
                 raise ValueError("opening_story.worked_example must be an object")
-            for field in ("kind", "title", "question", "result", "interpretation", "non_conclusion"):
+            for field in (
+                "kind",
+                "title",
+                "question",
+                "scenario",
+                "observable",
+                "result",
+                "interpretation",
+                "non_conclusion",
+            ):
                 assert_lossless_text(
                     worked_example.get(field),
                     f"opening_story.worked_example.{field}",
@@ -116,6 +136,7 @@ def assert_config_text_integrity(config: dict[str, Any]) -> None:
                         f"opening_story.worked_example.{field}[{index}]",
                     )
             for field, record_fields in (
+                ("inputs", ("name", "value", "role")),
                 ("objects", ("name", "kind", "role", "units")),
                 ("steps", ("action", "formula", "rule", "explanation")),
             ):
@@ -211,6 +232,21 @@ def normalize_worked_example(value: Any) -> dict[str, Any]:
     if not value:
         return {}
 
+    raw_inputs = value.get("inputs") or []
+    if not isinstance(raw_inputs, list):
+        raise ValueError("opening_story.worked_example.inputs must be a list")
+    inputs: list[dict[str, str]] = []
+    for index, item in enumerate(raw_inputs, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"opening_story.worked_example.inputs[{index}] must be an object")
+        inputs.append(
+            {
+                "name": clean_text(item.get("name"), 240),
+                "value": clean_text(item.get("value"), 800),
+                "role": clean_text(item.get("role"), 800),
+            }
+        )
+
     raw_objects = value.get("objects") or []
     if not isinstance(raw_objects, list):
         raise ValueError("opening_story.worked_example.objects must be a list")
@@ -247,6 +283,9 @@ def normalize_worked_example(value: Any) -> dict[str, Any]:
         "kind": clean_text(value.get("kind"), 80),
         "title": clean_text(value.get("title") or "完整例子", 200),
         "question": clean_text(value.get("question"), 1200),
+        "scenario": clean_text(value.get("scenario"), 1600),
+        "inputs": inputs,
+        "observable": clean_text(value.get("observable"), 1200),
         "assumptions": normalize_text_list(
             value.get("assumptions"),
             limit=1000,
@@ -277,16 +316,53 @@ def assert_worked_example_contract(example: dict[str, Any], *, required: bool) -
             "opening_story.worked_example.kind must be mathematical, numerical, "
             "operational, causal, experimental, or comparative"
         )
-    required_fields = ("title", "question", "result", "interpretation", "non_conclusion")
+    required_fields = (
+        "title",
+        "question",
+        "scenario",
+        "observable",
+        "result",
+        "interpretation",
+        "non_conclusion",
+    )
     missing = [field for field in required_fields if not clean_text(example.get(field))]
     if missing:
         raise ValueError(
             "opening_story.worked_example missing required fields: " + ", ".join(missing)
         )
-    for field in ("assumptions", "objects", "steps", "checks"):
+    if len(clean_text(example.get("scenario"))) < 20:
+        raise ValueError(
+            "opening_story.worked_example.scenario must describe one bounded concrete case, "
+            "not an abstract label"
+        )
+    for field in ("inputs", "assumptions", "objects", "steps", "checks"):
         values = example.get(field)
         if not isinstance(values, list) or not values:
             raise ValueError(f"opening_story.worked_example.{field} must be a non-empty list")
+
+    for index, item in enumerate(example["inputs"], start=1):
+        missing_input_fields = [
+            field for field in ("name", "value", "role") if not clean_text(item.get(field))
+        ]
+        if missing_input_fields:
+            raise ValueError(
+                f"opening_story.worked_example.inputs[{index}] missing required fields: "
+                + ", ".join(missing_input_fields)
+            )
+        if clean_text(item.get("value")).casefold() in {
+            "...",
+            "tbd",
+            "todo",
+            "n/a",
+            "待填写",
+            "某个值",
+            "某种状态",
+            "一般情况",
+        }:
+            raise ValueError(
+                f"opening_story.worked_example.inputs[{index}].value must contain the "
+                "actual value, state, label, or condition used by this example"
+            )
 
     for index, item in enumerate(example["objects"], start=1):
         missing_object_fields = [
@@ -329,7 +405,7 @@ def normalize_opening_story(value: Any) -> dict[str, Any]:
         return {}
     worked_example = normalize_worked_example(value.get("worked_example"))
     return {
-        "version": 2 if worked_example else 1,
+        "version": 3 if worked_example else 1,
         "title": clean_text(value.get("title") or "开篇寓言", 160),
         "paragraphs": normalize_text_list(
             value.get("paragraphs"), limit=900, field="opening_story.paragraphs"
@@ -459,6 +535,70 @@ def iter_sections(config: dict[str, Any]) -> Iterable[tuple[str, dict[str, Any]]
             yield title, item
 
 
+def assert_daily_story_source_contract(config: dict[str, Any]) -> None:
+    """Bind a ranked daily story to the highest-impact academic item by default."""
+    delivery = config.get("story_delivery") or {}
+    academic_delivery = config.get("academic_delivery") or {}
+    manifest = config.get("ranking_manifest") or {}
+    if not (
+        isinstance(delivery, dict)
+        and delivery.get("required")
+        and isinstance(academic_delivery, dict)
+        and academic_delivery.get("required")
+        and isinstance(manifest, dict)
+        and manifest.get("algorithm_version")
+    ):
+        return
+
+    academic_items: list[dict[str, Any]] = []
+    for section in config.get("sections", []):
+        if not isinstance(section, dict):
+            continue
+        section_title = clean_text(section.get("title"), 200).lower()
+        section_is_academic = any(
+            token in section_title for token in ("academic", "学术", "paper", "论文")
+        )
+        for item in section.get("items", []):
+            if not isinstance(item, dict):
+                continue
+            ranking = item.get("ranking") or {}
+            source_class = clean_text(ranking.get("source_class") or item.get("source_class"), 120)
+            has_academic_rank = isinstance(ranking, dict) and ranking.get("impact_rank") is not None
+            if (
+                section_is_academic
+                or has_academic_rank
+                or source_class in {"formal_academic", "arxiv_preprint"}
+            ):
+                academic_items.append(item)
+    if not academic_items:
+        raise ValueError("ranked daily briefing requires at least one academic item for story selection")
+
+    try:
+        top_item = min(academic_items, key=lambda item: int((item.get("ranking") or {}).get("rank")))
+    except (TypeError, ValueError):
+        raise ValueError("ranked academic items require integer ranks before story selection") from None
+
+    story = config.get("opening_story") or {}
+    basis = clean_text(delivery.get("selection_basis"), 80)
+    if basis == "explicit_override":
+        if not clean_text(delivery.get("override_reason"), 800):
+            raise ValueError("story_delivery explicit_override requires override_reason")
+        return
+
+    source_story_ids = story.get("source_story_ids") or []
+    top_story_id = clean_text(top_item.get("story_id"), 180)
+    if clean_text(story.get("grounding_kind"), 80) != "briefing_items":
+        raise ValueError(
+            "daily opening_story defaults to the highest-impact academic item and must use "
+            "grounding_kind=briefing_items"
+        )
+    if not source_story_ids or clean_text(source_story_ids[0], 180) != top_story_id:
+        raise ValueError(
+            "daily opening_story source_story_ids[0] must be the rank-1 highest-impact "
+            f"academic story_id: {top_story_id}"
+        )
+
+
 def normalize_briefing_config(
     config: dict[str, Any],
     config_path: Path | None = None,
@@ -491,9 +631,23 @@ def normalize_briefing_config(
         "required": raw_story_delivery.get("required") is True,
         "worked_example_required": raw_story_delivery.get("worked_example_required") is True,
         "position": clean_text(raw_story_delivery.get("position") or "before_briefing", 80),
+        "selection_basis": clean_text(
+            raw_story_delivery.get("selection_basis") or "highest_impact_academic",
+            80,
+        ),
+        "override_reason": clean_text(raw_story_delivery.get("override_reason"), 800),
     }
     if story_delivery["position"] != "before_briefing":
         raise ValueError("story_delivery.position must be before_briefing")
+    if story_delivery["selection_basis"] not in VALID_STORY_SELECTION:
+        raise ValueError(
+            "story_delivery.selection_basis must be highest_impact_academic or explicit_override"
+        )
+    if (
+        story_delivery["selection_basis"] == "explicit_override"
+        and not story_delivery["override_reason"]
+    ):
+        raise ValueError("story_delivery explicit_override requires override_reason")
     opening_story = normalize_opening_story(config.get("opening_story"))
     normalized_sections: list[dict[str, Any]] = []
     all_ids: set[str] = set()
@@ -572,6 +726,7 @@ def normalize_briefing_config(
         worked_example_required=story_delivery["worked_example_required"],
         available_story_ids=published_story_ids,
     )
+    assert_daily_story_source_contract(normalized)
     normalized["config_fingerprint"] = config_fingerprint(normalized)
     return normalized
 

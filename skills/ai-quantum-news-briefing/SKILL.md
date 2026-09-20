@@ -88,6 +88,12 @@ Every daily briefing must also contain a separate `Social news` / `社会新闻`
 
 Daily releases use `scripts/rank_briefing_candidates.py` and `news-ranker-v1` before delta compaction. The ranker first rejects missing/unsafe evidence, candidate-only AI HOT items, invalid dates, and duplicate story identities. It then computes separate academic and social component scores and selects with deterministic MMR-style source/topic/organization diversity constraints. `ranking`, `ranking_policy`, and `ranking_manifest` must survive normalization and publication. AI HOT scores are discovery priors only and never bypass primary-source verification.
 
+After quota/diversity selection, display the academic section in descending
+`ranking.base_score`. This is the pipeline's auditable impact/importance proxy
+across evidence strength, novelty, technical contribution, specificity,
+learner relevance, and reproducibility; do not present it as citation impact or
+an objective universal measure of scientific importance.
+
 Build the social-news candidate pool from AI HOT; reliable news media (for example Reuters, AP, FT, WSJ, Bloomberg, and relevant local outlets); official X and Instagram accounts of leading AI companies; and official posts by their named executives. Prioritize original company, government, regulator, or publisher pages for final evidence. X/Instagram may surface candidates and may be the primary source only for an attributable announcement from the verified official organization or executive account; label it as an official social post and never turn reposts, rumors, or engagement metrics into facts.
 
 Before curation, persist a `social_candidate_pool` object in the source config. It must record all four required source classes (`ai_hot`, `reputable_media`, `official_company_social`, `executive_social`), the collection timestamp, and the saved AI HOT candidate artifact when available. This records the breadth of discovery; it does not require a final item from every class. Every promoted social item must retain `source_title`, a direct `source_url`, `published_at`, `evidence_level`, and an `evidence_fingerprint`. The config audit treats a missing class, timestamp, dedicated section, or source-backed final item as a blocking delivery failure.
@@ -107,6 +113,14 @@ briefing interface. Prefer a near-doctoral concept at the intersection of the
 learner's read-only knowledge boundary and the final briefing. If no supported
 intersection exists, use one source-grounded final briefing concept and retain
 its neutral `unrated` status.
+
+For a daily briefing, default to the rank-1 academic item after the academic
+section is ordered by descending impact score. Set
+`story_delivery.selection_basis="highest_impact_academic"`, use
+`grounding_kind="briefing_items"`, and place that paper's `story_id` first in
+`source_story_ids`. Depart from this only with
+`selection_basis="explicit_override"` plus a concrete `override_reason` such as
+an explicitly user-selected paper; the override must remain auditable.
 
 Use `rank_briefing_candidates.py` output as a read-only authoring preview. Add
 the resulting `opening_story` to the original full candidate config, then pass
@@ -133,7 +147,10 @@ the mechanism genuinely uses mathematics, define the objects and symbols,
 expose every meaningful transition, and add a check that can falsify a bad
 derivation; never invent a formula to satisfy the format. Read
 `skills/allegory-teach/references/worked-example-contract.md` before authoring
-the handoff.
+the handoff. Every example kind must still provide one bounded `scenario`, a
+non-empty list of named `inputs` with actual values/states/conditions, and an
+`observable`. The steps must consume those inputs and reach a concrete result;
+repeating the general logic chain does not satisfy the example contract.
 
 The opening story and worked example are presentation artifacts, not news items
 or learning events. They cannot satisfy academic/social quotas, enter candidate
@@ -305,6 +322,8 @@ Use clear section headings. Avoid padding. If there is no reliable news in a sec
 Before finalizing:
 - Verify the exact date range.
 - Verify one opening story appears before the briefing in both Markdown and HTML, conceals its concept until the debrief, and is followed by one complete worked example. In HTML the example must use a native `details` control that is closed by default; neither story nor example creates learner feedback by exposure.
+- Verify academic items appear in descending `ranking.base_score`, and verify the default story's first `source_story_id` is the rank-1 academic paper unless an explicit override reason is present.
+- Reject a worked example that lacks a bounded concrete scenario, named actual inputs or states, or a specific observable, even when its general logic explanation is correct.
 - Remove stale items outside the requested window unless labeled as context.
 - Remove unsourced claims.
 - Separate company self-promotion from independently verified results.

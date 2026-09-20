@@ -46,10 +46,12 @@ Build HTML from a config file:
   "story_delivery": {
     "required": true,
     "worked_example_required": true,
-    "position": "before_briefing"
+    "position": "before_briefing",
+    "selection_basis": "highest_impact_academic",
+    "override_reason": ""
   },
   "opening_story": {
-    "version": 2,
+    "version": 3,
     "title": "开篇寓言",
     "paragraphs": [
       "山谷里的两座钟塔每天从同一声钟响出发，却沿着不同齿轮缓慢传递回声。守钟人只能在城门关闭前观察有限时间，再判断声音来自哪座塔。",
@@ -65,6 +67,11 @@ Build HTML from a config file:
       "kind": "operational",
       "title": "完整例子",
       "question": "这个例子要回答什么？",
+      "scenario": "一个带有明确对象、初态、条件和目标的具体实例。",
+      "inputs": [
+        {"name": "本例输入", "value": "实际数值、标签、状态或条件", "role": "如何进入后续步骤"}
+      ],
+      "observable": "步骤结束后具体观察、比较或计算什么。",
       "assumptions": ["适用条件或约束。"],
       "objects": [
         {"name": "对象", "kind": "现实角色或数学类型", "role": "在机制中的作用", "units": ""}
@@ -77,8 +84,8 @@ Build HTML from a config file:
       "checks": ["改变一个条件，检查结果是否按机制变化。"],
       "non_conclusion": "这个例子不能支持的更强结论。"
     },
-    "grounding_kind": "learner_profile",
-    "source_story_ids": []
+    "grounding_kind": "briefing_items",
+    "source_story_ids": ["rank-1-academic-story-id"]
   },
   "sections": [
     {

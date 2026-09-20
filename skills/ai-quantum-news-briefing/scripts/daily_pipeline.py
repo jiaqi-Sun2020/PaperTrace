@@ -222,6 +222,15 @@ def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
                     failures.append("HTML worked example must use a native details control")
                 elif re.search(r"\sopen(?:\s|=|>)", details_match.group(0), flags=re.I):
                     failures.append("HTML worked example must be collapsed by default")
+                for concrete_marker in (
+                    'class="example-scenario"',
+                    'class="example-input-table"',
+                    'class="example-observable"',
+                ):
+                    if concrete_marker not in html_text:
+                        failures.append(
+                            f"HTML worked example concrete-instance marker missing: {concrete_marker}"
+                        )
             if all(marker in html_text for marker in (story_marker, example_marker, briefing_marker)):
                 if not (
                     html_text.index(story_marker)
@@ -235,6 +244,11 @@ def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
                 failures.append("Markdown opening-story worked example is missing")
             elif "## 日报正文" in markdown_text and markdown_text.index("### 完整例子") > markdown_text.index("## 日报正文"):
                 failures.append("Markdown worked example must appear before the briefing body")
+            for concrete_marker in ("**具体场景：**", "**本例输入**", "**要观察什么：**"):
+                if concrete_marker not in markdown_text:
+                    failures.append(
+                        f"Markdown worked example concrete-instance marker missing: {concrete_marker}"
+                    )
             if manifest.get("opening_story_example_present") is not True:
                 failures.append("manifest does not confirm the opening-story worked example")
             example = ((config.get("opening_story") or {}).get("worked_example") or {})

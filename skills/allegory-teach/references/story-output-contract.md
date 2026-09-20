@@ -13,10 +13,38 @@ The story cannot paper over an unsupported transition: every consequence must
 follow from a stated rule, constraint, or action. Retain one known learner
 anchor when available, but do not present it as evidence of mastery.
 
+Optimize for a first encounter with the topic. Prefer an explicit small case
+over a polished abstraction: show the initial state, the first operation, the
+changed state, and the observable consequence before compressing them into a
+general rule. A reader should not need prior field vocabulary to decode what
+the characters actually did.
+
 Use three to five named story elements when possible. One element may represent
 more than one technical detail only when the final mapping says so explicitly.
 Do not state the concept name, standard acronym, or defining equation before
 the last paragraph of the story.
+
+## Causal-fidelity gate
+
+The analogy may rename objects but must preserve the mechanism's directed
+structure. Before output, verify all of the following:
+
+- the order of events and the actor for each operation are recoverable;
+- every important consequence has a visible rule or prerequisite;
+- destructive or state-changing operations are not portrayed as passive,
+  lossless observation;
+- different carriers are not collapsed into the vague word “information”;
+- the mapping states what is preserved, changed, and discarded;
+- correlation, coordinated action, and stronger domain-specific relations are
+  not treated as synonyms;
+- after removing the story vocabulary, the real mechanism can be reconstructed
+  without adding a hidden step.
+
+For quantum explanations involving measurement, explicitly separate the
+pre-measurement quantum state, measurement back-action, the classical outcome,
+classical communication, and any conditional quantum operation. Classical
+broadcast can coordinate distant actions; it does not by itself create
+entanglement or enable controllable faster-than-light signalling.
 
 ## Required response shape
 
@@ -65,8 +93,10 @@ section 2 so it does not create a fifth numbered section.
 - The misleading section names at least one wrong prediction that a literal
   reading of the story would invite.
 - The worked example starts from an explicit question or initial state, exposes
-  the governing rules and meaningful transitions, reaches a bounded result,
-  and states what that result does not establish.
+  one bounded concrete scenario, named input values or states, and an observable.
+  It traces those particular inputs through the governing rules and meaningful
+  transitions, reaches a bounded result, and states what that result does not
+  establish. Restating the general logic chain is not an example.
 - Mathematical notation is conditional, not preferred. If the concept does not
   need mathematics, use the smallest complete operational, causal,
   experimental, or comparative case without decorative formulas.

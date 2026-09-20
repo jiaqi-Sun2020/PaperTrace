@@ -95,13 +95,13 @@ Use the script interface below only when you need recovery, diagnostics, or CI i
 ## Current capabilities
 
 - <code>ai-quantum-news-briefing</code> gathers daily candidate signals from AI HOT API or <code>feed.xml</code>; AI HOT is discovery only, never final evidence.
-- Every new daily briefing opens with one validated causal fable, factual debrief, and a default-collapsed worked example before the news body; story/example exposure never becomes learner evidence.
+- Every new daily briefing orders academic papers by descending auditable impact score, grounds its opening fable in the rank-1 paper by default, and places a factual debrief plus a default-collapsed concrete worked example before the news body; story/example exposure never becomes learner evidence.
 - Briefing research sources cover APS journals, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv. arXiv-only records are labeled as preprints.
 - Reader and briefing HTML export full feedback JSON. Concepts default to <code>unrated</code> until the user explicitly provides a learning judgment.
 - <code>news-ranker-v1</code> first applies an evidence gate, then uses separate academic/social scoring and diversity constraints. The published config retains item scores, quotas, selection trace, and exclusions.
 - <code>lean-html-skill</code> controls only visual presentation. It keeps the light theme as default, provides a Cosmic option, pairs component foreground/surface tokens across Light, Cosmic, and print modes, and blocks low-contrast story/table output without changing behavior or data structure.
 - <code>reader-learner</code> validates, normalizes, and atomically updates the profile while blocking encoding corruption, HTML remnants, and exposure-only overclaims.
-- <code>allegory-teach</code> converts one selected advanced concept into a prerequisite-aware causal fable, traces its logic chain, definition, analogy boundary, likely misconception, and story-to-reality mapping, then works one concept-appropriate example without changing learner status. Mathematics is used only when the mechanism genuinely requires it.
+- <code>allegory-teach</code> minimizes first-contact understanding cost: it converts one difficult concept into a causally faithful fable, traces its definition, boundary, misconception, and story-to-reality mapping, then works one bounded scenario with named inputs and an observable result. Mathematics is used only when the mechanism genuinely requires it.
 
 ## Directory layout
 
@@ -145,7 +145,7 @@ Generating or viewing a lesson never changes the profile or review queue. Only a
 
 ## Allegory Teach
 
-<code>skills/allegory-teach</code> is the optional intuition-first companion to Adaptive Teach and the read-only authoring dependency for the daily briefing's opening story. It selects or receives one advanced concept, tells a Chinese fable without naming the concept until the reveal, returns the definition, analogy limits, likely misleading inference, and mapping, then works one mathematical, numerical, operational, causal, experimental, or comparative example. Concept selection never favors equation-friendly topics; formulas appear only when the mechanism genuinely needs them and every meaningful transition can be justified. The briefing pipeline alone validates and publishes this handoff; the skill cannot collect news, alter ranking, write feedback, or update the learner profile.
+<code>skills/allegory-teach</code> is the optional beginner-first companion to Adaptive Teach and the read-only authoring dependency for the daily briefing's opening story. Accuracy and explicit logic take precedence over literary style. It tells a Chinese fable without naming the concept until the reveal, returns the definition, analogy limits, likely misleading inference, and mapping, then works one mathematical, numerical, operational, causal, experimental, or comparative instance with a concrete scenario, named inputs/states, and an observable. Concept selection never favors equation-friendly topics; formulas appear only when the mechanism genuinely needs them. For daily briefings, the rank-1 academic paper is the default story source unless an explicit override reason is recorded. The briefing pipeline alone validates and publishes this handoff.
 
 > Use <code>$allegory-teach</code> to choose one concept near my current research boundary, explain it first as a fable without naming it, then return the definition, limits, misconceptions, mapping, and one complete concept-appropriate example in the order 1 → 3 → 4 → 2.
 
@@ -280,7 +280,7 @@ Optional discovery and evidence tools:
 
 Key rules:
 
-- Every run requires <code>opening_story</code> and one complete worked example; validation fails before staging if either is absent or malformed, the story reveals its concept early, or it cites a briefing story removed by ranking. HTML keeps the example collapsed by default, and formulas are conditional rather than a topic-selection preference.
+- Every run requires <code>opening_story</code> and one concrete worked example; validation fails before staging if the example lacks a bounded scenario, actual inputs/states, or an observable, if the story reveals its concept early, or if the default story does not cite the rank-1 academic paper. HTML keeps the example collapsed by default, and formulas are conditional rather than a topic-selection preference.
 - AI HOT is a candidate source, never final evidence.
 - <code>news-ranker-v1</code> runs before Delta compaction; AI HOT scores cannot replace it.
 - Publish 7–8 academic records and 10–14 social-news records (target 12), preserving source, topic, and organization diversity.

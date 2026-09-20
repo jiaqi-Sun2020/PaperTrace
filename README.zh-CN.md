@@ -95,13 +95,13 @@ Codex 会核验来源和日期，应用排名与 Delta 规则，并仅在严格�
 ## 当前能力
 
 - `ai-quantum-news-briefing` 可从 AI HOT API 或 `feed.xml` 拉取每日精编候选；AI HOT 只作为候选源，不作为最终证据源。
-- 每次新日报都会先呈现一则经过契约校验的因果寓言、事实回扣和默认折叠的完整例子，再进入日报正文；故事或例子的曝光都不会成为学习证据。
+- 每次新日报都会先按可审计的综合影响分降序排列学术论文，默认以排名第 1 的论文创作开篇寓言，再呈现事实回扣和默认折叠的具体例子；故事或例子的曝光都不会成为学习证据。
 - 日报学术源覆盖 APS PRL/PRA/PRX、Nature、Science、OpenReview/ICLR、CVF/CVPR、PMLR/ICML、NeurIPS、ACL Anthology、Quantum Journal 和 arXiv；arXiv 条目标注为 preprint。
 - 日报 HTML 生成时写出全量 `news_feedback.json`，所有知识点默认 `unrated`，用户编辑状态后可直接下载反馈 JSON。
 - `academic_venue_sweep.py`、`aihot_candidates.py`、`config_to_news_feedback.py` 和 `audit_briefing_config.py` 分别支持候选池、学术检索审计、全量反馈导出和对抗性审核。
 - `lean-html-skill` 的 Cosmic Sci-Fi Product Design System Layer 只控制视觉风格，不改变功能和信息架构；默认白色背景，可切换 Cosmic 深空背景，并通过成对的前景/表面变量及发布审计阻止寓言、公式和表格出现低对比度。
 - `reader-learner` 通过知识库重建、审计和安全测试，阻止噪声、乱码或未评级曝光被误写为已掌握知识。
-- `allegory-teach` 将一个选定的高阶概念压缩成带先修桥梁的最小因果寓言，在结尾给出逻辑链、定义、类比边界、可能误导和故事—现实映射，再提供一个适合该概念的完整例子；只有机制确实需要数学时才使用公式，它不改变任何知识状态。
+- `allegory-teach` 的首要目标是降低初次接触者的理解成本：把一个困难概念压缩成忠实保留因果结构的寓言，再给出定义、边界、误导风险、映射，以及包含具体场景、实际输入/状态和可观察结果的完整实例；只有机制确实需要数学时才使用公式。
 - `chat-knowledge-profile` 把本地 ChatGPT/GPT/Claude/Deepseek 会话提炼为可审核候选、会话摘要和严格的 `reader-learner` feedback handoff。
 - `demo-skill` 把 README/AGENTS 契约提炼为四条 pipeline 的中英文项目展示页，并复用 GSAP + ScrollTrigger 双语模板与无覆盖生成脚本。
 - 日报加入可审计的 `news-ranker-v1`：先做证据准入，再按学术/社会两套分数和 MMR 多样性约束筛选；正式发布包含 7–8 篇学术论文和至少 10 条社会新闻，并保留分项得分、配额、选择轨迹与淘汰原因。
@@ -155,7 +155,7 @@ Generating/viewing a lesson never changes the profile or queue. Only actual perf
 
 ## 寓言教学
 
-`skills/allegory-teach` 是自适应教学的可选“直觉优先”说明层，也是日报开篇故事的只读创作依赖。它只选择或接收一个高阶概念，先用不揭示名称的中文寓言展示因果规则和后果，再回到事实定义、类比边界、可能误导和完整映射，并给出一个数学、数值、操作、因果、实验或对比例子。选题不偏向容易写公式的概念；只有机制确实需要数学且每个关键过渡都能说明依据时才使用公式。日报 pipeline 单独负责校验与发布这个 handoff；该 skill 不能采集新闻、改变排名、写反馈或更新学习画像。
+`skills/allegory-teach` 是自适应教学的可选“初学者优先”说明层，也是日报开篇故事的只读创作依赖。准确性和显式逻辑高于文学性；故事必须保留真实机制中事件顺序、信息载体和状态变化。事实回扣后必须给出一个包含具体场景、实际输入/状态与可观察结果的数学、数值、操作、因果、实验或对比例子。日报默认使用综合影响排名第 1 的学术论文作为故事来源，只有记录显式覆盖理由时才能改选。选题不偏向容易写公式的概念；日报 pipeline 单独负责校验与发布这个 handoff。
 
 > 使用 `$allegory-teach` 从我的当前研究边界选择一个概念；先不要说名称，而是用寓言讲清因果关系，最后按 1 → 3 → 4 → 2 给出事实回扣和一个适合该概念的完整例子。
 
@@ -415,7 +415,7 @@ python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-
 
 `daily_pipeline.py run` 会先执行 `news-ranker-v1`，再做 Delta 压缩。排名器先拒绝缺失/不安全证据、候选页、无效日期和重复身份，再分别计算学术与社会新闻分数，并用来源、主题和机构多样性约束选择最终条目。正式日报必须包含 7–8 篇学术论文和 10–14 条社会新闻（目标 12），同时把 `ranking_policy`、逐条 `ranking`、选择轨迹和淘汰原因保留到最终 delta config。
 
-每次 `run` 都强制要求 `opening_story` 和一个完整例子。若任一部分缺失或结构不完整、故事提前暴露概念名称，或引用了排名后未发布的新闻 `story_id`，流水线会在建立 staging 之前失败。HTML 中的例子使用默认关闭的原生折叠控件，位于事实回扣和 `日报正文` 之间；选题不以能否写公式为标准，只有真实数学机制才进入公式推导。故事与例子都不会自动进入 feedback。
+每次 `run` 都强制要求 `opening_story` 和一个具体实例。学术部分按 `ranking.base_score` 降序排列，寓言默认引用排名第 1 的学术论文；改选必须记录显式覆盖理由。若例子缺少有边界的具体场景、实际输入/状态或明确可观察量，即使逻辑说明正确也会在 staging 前失败。HTML 中的例子使用默认关闭的原生折叠控件；选题不以能否写公式为标准，只有真实数学机制才进入公式推导。故事与例子都不会自动进入 feedback。
 
 最终日报还必须满足共享 `sections/items` contract、HTTPS 来源、HTML/feedback identity 集合一致、默认全 `unrated`、无 feedback2、light 默认且 Cosmic 可选。学术 venue sweep 只有在官方 HTTPS endpoint 产生 HTTP 状态、最终 URL、时间戳、结果数和 response hash 后才算 evidence；搜索链接本身不算已检查。
 
