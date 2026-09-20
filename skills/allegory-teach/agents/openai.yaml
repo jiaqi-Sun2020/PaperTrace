@@ -1,7 +1,7 @@
 interface:
   display_name: "Allegory Teach"
-  short_description: "Teach one difficult concept through a precise missing bridge."
-  default_prompt: "Use $allegory-teach to explain one difficult concept bridge-first with a minimum concrete case and a mapped local analogy, switching to a concealed-name fable only if I explicitly request it."
+  short_description: "Teach hard concepts with precise bridges or causal fables."
+  default_prompt: "Use $allegory-teach to explain one difficult concept bridge-first, switching to an adaptive-length concealed-name fable that runs a checkable in-story case only if I explicitly request it."
 
 policy:
   allow_implicit_invocation: true

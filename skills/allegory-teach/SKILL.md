@@ -1,6 +1,6 @@
 ---
 name: allegory-teach
-description: Explain one complex, abstract, professional, or difficult concept so a first-time learner can follow its causal logic. Default to a bridge-first technical explanation with a minimum concrete case and a local mapped analogy; use a concealed-name Chinese fable only when explicitly requested or for a daily-briefing opening story. Do not use it to mutate learner knowledge or publish a daily briefing.
+description: Explain one complex, abstract, professional, or difficult concept so a first-time learner can follow its causal logic. Default to a bridge-first technical explanation with a minimum concrete case and a local mapped analogy; use an immersive, causally necessary concealed-name Chinese fable only when explicitly requested or for a daily-briefing opening story. Do not use it to mutate learner knowledge or publish a daily briefing.
 ---
 
 # Allegory Teach
@@ -27,7 +27,10 @@ Select one mode before drafting. Do not blend both output structures.
   [references/bridge-mode-contract.md](references/bridge-mode-contract.md).
 - **Fable Mode is opt-in** when the user explicitly asks for an allegory, story,
   delayed reveal, or says not to name the concept at first. It is also mandatory
-  for the daily-briefing opening story. Read
+  for the daily-briefing opening story. It begins with at least two causally
+  necessary background paragraphs, usually two or three; add more only when an
+  essential goal, constraint, trigger, or stake cannot otherwise be understood.
+  Atmosphere alone is not background. Read
   [references/story-output-contract.md](references/story-output-contract.md).
 - An explicit requested format wins over the default. If a first-time learner
   explicitly requests a concealed-name fable, preserve the delayed reveal but
@@ -72,6 +75,19 @@ initial state -> rule or constraint -> local action -> consequence ->
 observable trade-off or failure mode
 ```
 
+For Fable Mode, turn that technical spine into this narrative spine before
+drafting:
+
+```text
+world state -> actor goal -> available capability and limit -> trigger ->
+observable stakes -> actor choice -> mechanism consequence
+```
+
+The background is part of the explanation. Each setup paragraph must make the
+later choice, consequence, or need for the mechanism more intelligible. If the
+paragraph can be removed without changing any of those, rewrite it instead of
+keeping it as decorative lore.
+
 Use a concept already known by the learner only as an anchor; do not pretend it
 proves mastery. Every causal transition must follow from a visible rule,
 constraint, or action. Do not hide a logical jump behind analogy language.
@@ -87,10 +103,30 @@ When a mechanism concerns propagation, layers, depth, state changes, or
 information flow, show the smallest concrete case before stating the general
 rule: what one step changes, what two steps change, and only then what fixed
 `d` steps imply. In Bridge Mode this case appears before the analogy. In Fable
-Mode it is prepared before drafting and shown in the factual debrief. Distinguish
-carriers that the real mechanism distinguishes. An observation, measurement,
-compression, deletion, or projection that changes state must never appear as
-cost-free inspection.
+Mode it is prepared before drafting, run with inspectable inputs and results in
+the story body, and then restated in formal language in the factual debrief.
+Distinguish carriers that the real mechanism distinguishes. An observation,
+measurement, compression, deletion, or projection that changes state must never
+appear as cost-free inspection.
+
+Do not impose a total paragraph limit on Fable Mode. Let each necessary state
+transition occupy its own paragraph when that lowers the reader's reconstruction
+cost, and delete any paragraph that contributes no causal information. A
+mathematical or numerical story must expose one complete in-story run:
+
+```text
+actual input -> explicit operation -> intermediate value -> result ->
+counterfactual result -> observable difference
+```
+
+Hide the concept name, standard acronym, and defining equation until the reveal;
+do not hide the operands, operation rule, intermediate values, or result. A
+non-mathematical story uses named objects, explicit state labels, an operation,
+and an observable failure or transition instead of decorative numbers. Reject
+undefined mechanism-bearing shorthand such as “some contribution,” “this initial
+value,” “higher-page effect,” or “now they match.” Each first occurrence must say
+what the object records, its current value or state, and how it enters the next
+step.
 
 Before returning any analogy, answer both questions:
 
@@ -114,7 +150,10 @@ formula is used, expose every meaningful transition and never invent a formula
 to satisfy an output shape. A worked example is not another explanation of the
 general mechanism: it must instantiate one bounded scenario with named inputs
 or initial states, trace those particular values/states through the rules, and
-state a concrete observable result.
+state a concrete observable result. In Fable Mode, the story body and
+`worked_example` must reuse the same inputs, operation direction, result, and
+comparison; the debrief may reveal formal notation and the general rule but may
+not silently substitute a cleaner case.
 
 ## Return every analogy to fact
 

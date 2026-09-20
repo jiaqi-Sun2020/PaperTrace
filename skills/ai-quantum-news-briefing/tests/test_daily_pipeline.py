@@ -45,8 +45,11 @@ def opening_story() -> dict:
         "version": 3,
         "title": "两座钟塔",
         "paragraphs": [
-            "山谷里有两座钟塔。北塔的齿轮转得快，南塔的齿轮转得慢；守钟人每晚都要让两边从同一声钟响开始，各自沿着固定的槽道传递力气。",
-            "起初两座塔还能彼此分辨节拍，后来最慢的回声越来越接近最快的回声，村民便要等更久才能判断钟声究竟来自哪一座塔。守钟人发现，决定等待时间的不是某个齿轮有多快，而是两种最难区分的节拍之间还隔着多少距离。",
+            "山谷里有两座钟塔。守钟人必须在巡夜结束前判断两路钟声是否已经错开 1 rad；若判断过早，两个仍然混在一起的节拍会让值夜人打开错误的山门。",
+            "校准册写着，两座塔对应的能量刻度相差 0.2 meV，而把这个刻度差换成等待时间时要使用 0.658 meV·ps 的换算尺。铜轮只能按册中的规则做除法并显示结果。",
+            "守钟人把 0.658 除以 0.2。铜轮先核对 0.2 乘以 3 等于 0.6，还剩 0.058；再核对 0.2 乘以 0.29 正好等于 0.058，因此把两段等待相加成 3.29 ps。到这一刻，两路钟声的相对错位才达到约定的 1 rad，山门上的判别灯第一次分开亮起。",
+            "为了核对原因，他把能量刻度差改为 0.4 meV，再做同一操作：0.658 除以 0.4，得到约 1.65 ps。若其余条件不变，刻度差加倍后，达到同一判别线所需的等待时间约减半。",
+            "两次记录放在一起后，守钟人才把可观察差异说清：0.2 meV 时要等约 3.29 ps，0.4 meV 时只需约 1.65 ps。决定等待尺度的是两种节拍之间的间距，而不是故事里某一座塔单独转得有多快。",
         ],
         "concept_name": "spectral gap",
         "concept_aliases": ["谱隙"],
@@ -102,6 +105,81 @@ def mathematical_worked_example() -> dict:
         "interpretation": "谱隙缩小时两个模态的相位速率更接近，需要更长观察时间才能区分。",
         "checks": ["ℏ/Δ 的量纲是时间；Δ 加倍时达到相同相位所需时间减半。"],
         "non_conclusion": "不能由此断言所有含谱隙的算法运行时间都严格等于 ℏ/Δ。",
+    }
+
+
+def carleman_truncation_story() -> dict:
+    return {
+        "version": 3,
+        "title": "封在第三页的来款",
+        "paragraphs": [
+            "山城必须在暮鼓前给出下一刻的河位变化率，守闸人只在预测误差小于闸门容许量时接收指令；少算的水势会在下一次水尺读数上直接暴露。",
+            "账房已有一架只会把页值乘以固定倍率再相加的铜轮机。长账本的第一页记当前水位，第二页记水位的平方，第三页记水位的立方；值夜桌可以封在第二页后，这个容量限制会让第三页无法参与运算。",
+            "暴雨到来时，第一页的当前值是 1/2。账房按同一水位写出第二页 1/4 和第三页 1/8，并把这三个数逐项报给守闸人核对，因而没有把“后页”当成一个未说明的暗语。",
+            "计算第二页的完整变化率时，掌柜先把第二页的 1/4 乘以 2，得到 1/2；再把第三页的 1/8 乘以 2，得到 1/4；最后把 1/2 与 1/4 相加，结果是 3/4。",
+            "若账本在第二页后封册，封口规则把第三页贡献当作 0，铜轮便只保留 2 乘以 1/4，得到 1/2。用未封册的 3/4 减去封册后的 1/2，可观察到遗漏量正好是 1/4。",
+            "守闸人因此不会再听到“少算了一笔”这种无法复核的说法：他能逐项看到输入 1/4 与 1/8、两次乘以 2、完整结果 3/4、封册结果 1/2，以及两者相差 1/4。",
+        ],
+        "concept_name": "Carleman linearization truncation",
+        "concept_aliases": ["Carleman 截断", "卡莱曼线性化截断"],
+        "concept_definition": "把无限升维线性系统限制到有限阶时，闭合规则会舍去高阶坐标对保留坐标的耦合，并由此引入可计算的截断误差。",
+        "logic_chain": "无限升维中的精确耦合 → 在第二页后采用零闭合 → 第三页贡献被设为零 → 第二页变化率少算 1/4。",
+        "analogy_boundary": "账页是同一标量状态的单项式坐标，不是新的独立河流；一次局部变化率差也不等同于完整时间区间的全局解误差。",
+        "misleading_risk": "不能把封掉的页理解为真实动力学中高阶项已经消失，也不能由多保留一页就断言误差必然按固定比例下降。",
+        "worked_example": carleman_truncation_worked_example(),
+        "grounding_kind": "learner_profile",
+        "source_story_ids": [],
+    }
+
+
+def carleman_truncation_worked_example() -> dict:
+    return {
+        "kind": "mathematical",
+        "title": "二阶零闭合遗漏的三阶贡献",
+        "question": "在 x=1/2 时，把升维系统截到第二页会在 z₂ 的变化率中遗漏多少？",
+        "scenario": "对标量模型 x'=x+x²，只检查 x=1/2 这一时刻，并比较完整三页局部关系与二阶零闭合。",
+        "inputs": [
+            {"name": "x", "value": "1/2", "role": "给出本例的当前标量状态"},
+            {"name": "z₂=x²", "value": "1/4", "role": "给出保留到二阶时的第二个升维坐标"},
+            {"name": "z₃=x³", "value": "1/8", "role": "给出被二阶零闭合舍去的三阶坐标"},
+        ],
+        "observable": "比较完整 z₂ 变化率、二阶零闭合变化率及二者差值。",
+        "assumptions": ["只比较当前时刻的局部变化率；二阶有限模型采用 z₃=0 的零闭合。"],
+        "objects": [
+            {"name": "x", "kind": "实数状态", "role": "原非线性系统的状态", "units": "dimensionless"},
+            {"name": "z₂", "kind": "单项式坐标", "role": "记录 x²", "units": "dimensionless"},
+            {"name": "z₃", "kind": "单项式坐标", "role": "记录 x³", "units": "dimensionless"},
+        ],
+        "steps": [
+            {
+                "action": "由同一个 x=1/2 计算第二、第三个单项式坐标。",
+                "formula": "z_2=x^2=1/4,\\quad z_3=x^3=1/8",
+                "rule": "升维坐标定义",
+                "explanation": "这些坐标由同一物理状态确定，不是新的独立自由度。",
+            },
+            {
+                "action": "保留第三阶耦合，计算第二坐标的完整局部变化率。",
+                "formula": "z_2'=2z_2+2z_3=2(1/4)+2(1/8)=3/4",
+                "rule": "对 z₂=x² 使用链式法则并代入 x'=x+x²",
+                "explanation": "第二页自身给出 1/2，第三页再给出 1/4。",
+            },
+            {
+                "action": "采用二阶零闭合，把 z₃ 的贡献设为零。",
+                "formula": "\\widehat z_2'=2z_2=2(1/4)=1/2",
+                "rule": "K=2 零闭合",
+                "explanation": "有限系统不再接收第三坐标的 1/4 贡献。",
+            },
+            {
+                "action": "用完整局部变化率减去截断后的局部变化率。",
+                "formula": "3/4-1/2=1/4",
+                "rule": "同一时刻、同一坐标的差值比较",
+                "explanation": "本例可直接复算的遗漏量是 1/4。",
+            },
+        ],
+        "result": "完整局部变化率为 3/4，二阶零闭合给出 1/2，因此当前时刻遗漏 1/4。",
+        "interpretation": "有限截断不是与无限升维系统精确等价；误差从被闭合掉的高阶耦合进入。",
+        "checks": ["2(1/4)+2(1/8)=3/4；3/4-1/2=1/4。"],
+        "non_conclusion": "这个局部差值不证明任意时间、任意初值或任意闭合下的全局误差都等于 1/4。",
     }
 
 
@@ -333,6 +411,95 @@ class DailyPipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reveals the concept"):
             normalize_briefing_config(raw, require_source_url=True)
 
+    def test_story_concept_leak_after_character_900_is_still_rejected(self) -> None:
+        raw = config()
+        original = raw["opening_story"]["paragraphs"]
+        raw["opening_story"]["paragraphs"] = [
+            "甲" * 950 + " spectral gap",
+            " ".join(original),
+        ]
+        with self.assertRaisesRegex(ValueError, "reveals the concept"):
+            normalize_briefing_config(raw, require_source_url=True)
+
+    def test_story_paragraph_count_has_no_upper_bound(self) -> None:
+        raw = config()
+        original = raw["opening_story"]["paragraphs"]
+        raw["opening_story"]["paragraphs"] = [
+            " ".join(original[:3]),
+            " ".join(original[3:]),
+        ]
+        canonical = normalize_briefing_config(raw, require_source_url=True)
+        self.assertEqual(len(canonical["opening_story"]["paragraphs"]), 2)
+
+        raw = config()
+        raw["opening_story"]["paragraphs"].extend(
+            [
+                "第六段只补充可观察的交付条件，不改变前述运算或引入第二个机制。",
+                "第七段记录复核者能够沿着同一组输入重新得到两个等待时间。",
+            ]
+        )
+        canonical = normalize_briefing_config(raw, require_source_url=True)
+        self.assertEqual(len(canonical["opening_story"]["paragraphs"]), 7)
+
+    def test_story_paragraph_normalization_does_not_drop_duplicates(self) -> None:
+        raw = config()
+        repeated = raw["opening_story"]["paragraphs"][-1]
+        raw["opening_story"]["paragraphs"].extend([repeated, repeated])
+        canonical = normalize_briefing_config(raw, require_source_url=True)
+        self.assertEqual(len(canonical["opening_story"]["paragraphs"]), 7)
+        self.assertEqual(canonical["opening_story"]["paragraphs"].count(repeated), 3)
+
+    def test_story_rejects_fewer_than_two_paragraphs(self) -> None:
+        raw = config()
+        raw["opening_story"]["paragraphs"] = [
+            " ".join(raw["opening_story"]["paragraphs"])
+        ]
+        with self.assertRaisesRegex(ValueError, "at least 2 story paragraphs"):
+            normalize_briefing_config(raw, require_source_url=True)
+
+    def test_story_paragraph_limit_is_fail_closed_without_truncation(self) -> None:
+        raw = config()
+        original = raw["opening_story"]["paragraphs"]
+        raw["opening_story"]["paragraphs"] = ["甲" * 2000, " ".join(original)]
+        canonical = normalize_briefing_config(raw, require_source_url=True)
+        self.assertEqual(len(canonical["opening_story"]["paragraphs"][0]), 2000)
+
+        raw = config()
+        overlong = "甲" * 2001
+        raw["opening_story"]["paragraphs"] = [overlong, " ".join(raw["opening_story"]["paragraphs"])]
+        with self.assertRaisesRegex(ValueError, "exceeds 2000 characters.*split"):
+            normalize_briefing_config(raw, require_source_url=True)
+        self.assertEqual(raw["opening_story"]["paragraphs"][0], overlong)
+
+    def test_carleman_story_runs_the_reproducible_truncation_case(self) -> None:
+        raw = config()
+        raw["opening_story"] = carleman_truncation_story()
+        canonical = normalize_briefing_config(raw, require_source_url=True)
+        story_text = " ".join(canonical["opening_story"]["paragraphs"])
+        for fragment in (
+            "1/2",
+            "1/4",
+            "1/8",
+            "2 乘以 1/4",
+            "3/4",
+            "3/4 减去封册后的 1/2",
+            "遗漏量正好是 1/4",
+        ):
+            self.assertIn(fragment, story_text)
+
+    def test_vague_carleman_story_without_values_fails(self) -> None:
+        raw = config()
+        raw["opening_story"] = carleman_truncation_story()
+        raw["opening_story"]["paragraphs"] = [
+            "山城必须在暮鼓前半小时决定河闸开度：开小了，水位会越过警戒线；开大了，下游船渠会在刻度尺上露出见底标记。守闸人因此只认一个可检查的目标——账房给出的半小时水位必须在允许误差内跟上河口水尺。",
+            "账房已有一架按固定倍率乘数、再把各页相加的铜轮机，也有一套逐页相连的长账本；只要所有相关页都摊开，机器就能沿着既定关系推进预测。但值夜桌最多同时压住两页，封在后面的页不会自动把数送回桌面，这是真实的容量限制。",
+            "暴雨越过北岭后，水尺从平缓上升转为越高涨得越快。前几日可以忽略的后页数额突然变大，双页预测开始在每次报时后落在实测刻度下方；若仍把差距当作抄写噪声，错误的闸门指令会在下一次报时被水尺直接揭穿。",
+            "掌柜于是先核对第二页的收支来源，发现它除了本页的固定减项，还应收到第三页传来的正项。若在第二页后封册，那笔正项并不会消失于河道，只会消失于预测；于是他把少算的第三页来款单独记成封口误差，再比较保留两页和多留一页时的报表。",
+            "双页账在这次初值下少算了一笔可量出的来款，预测因此下降得过快；把那笔来款补回，账面立刻与未封册的局部变化率一致。账房由此把封册位置当作精度与账本规模之间的选择，而不再把封掉的页误认为已经不存在。",
+        ]
+        with self.assertRaisesRegex(ValueError, "must reuse the worked-example input values"):
+            normalize_briefing_config(raw, require_source_url=True)
+
     def test_daily_pipeline_requires_a_worked_example_before_creating_staging(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -351,6 +518,11 @@ class DailyPipelineTests(unittest.TestCase):
     def test_nonmathematical_worked_example_requires_no_formula(self) -> None:
         raw = config()
         raw["opening_story"]["worked_example"] = operational_worked_example()
+        raw["opening_story"]["paragraphs"] = [
+            "发布站今晚只剩一个名额，记录 Claim-17 声称准确率为 92%。值班员必须在关站前决定它进入发布队列还是退回复核队列，错误发布会直接出现在明早的公开页面。",
+            "复核员打开原始报告，看到同一项结果写的是准确率 82%。规则要求来源数字与候选记录一致才能放行，因此他把候选的 92% 与原文的 82% 逐项比较，并把不一致标成可观察的失败状态。",
+            "Claim-17 最终没有进入发布队列，而是停在复核队列并记录“候选值 92% 与来源值 82% 不一致”。整个过程只使用对象、状态、比较和队列迁移，没有为装饰而加入公式。",
+        ]
         canonical = normalize_briefing_config(raw, require_source_url=True)
         example = canonical["opening_story"]["worked_example"]
         self.assertEqual(example["kind"], "operational")
@@ -421,8 +593,46 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertIn("t_{\\mathrm{resolve}}=\\hbar/\\Delta", markdown)
         self.assertIn("**具体场景：**", markdown)
         self.assertIn("**本例输入**", markdown)
+        debrief_labels = [
+            "1. 概念名称与一句话定义",
+            "3. 这个类比没有覆盖的边界",
+            "4. 它可能误导你的地方",
+            "2. 故事元素与现实对应",
+        ]
+        self.assertEqual(
+            [label for _, label in sorted((html.index(label), label) for label in debrief_labels)],
+            debrief_labels,
+        )
+        self.assertEqual(
+            [label for _, label in sorted((markdown.index(label), label) for label in debrief_labels)],
+            debrief_labels,
+        )
         self.assertEqual(len(feedback["items"]), 1)
         self.assertFalse(any(entry["concept"] == "spectral gap" for entry in feedback["items"]))
+
+    def test_html_and_markdown_preserve_more_than_six_story_paragraphs_in_order(self) -> None:
+        raw = config()
+        markers = [f"段落顺序标记{i}" for i in range(1, 8)]
+        original = raw["opening_story"]["paragraphs"]
+        raw["opening_story"]["paragraphs"] = [
+            f"{markers[index]}：{paragraph}"
+            for index, paragraph in enumerate(
+                [
+                    *original,
+                    "复核者保留同一组输入和运算规则。",
+                    "交付者确认两个结果及其可观察差异。",
+                ]
+            )
+        ]
+        canonical = normalize_briefing_config(raw, require_source_url=True)
+        html = render_html(canonical)
+        markdown = render_markdown(canonical)
+        self.assertEqual(len(canonical["opening_story"]["paragraphs"]), 7)
+        self.assertEqual([html.index(marker) for marker in markers], sorted(html.index(marker) for marker in markers))
+        self.assertEqual(
+            [markdown.index(marker) for marker in markers],
+            sorted(markdown.index(marker) for marker in markers),
+        )
 
     def test_story_and_example_surfaces_use_theme_tokens(self) -> None:
         canonical = normalize_briefing_config(config(), require_source_url=True)

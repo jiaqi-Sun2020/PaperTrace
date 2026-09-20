@@ -3,9 +3,12 @@
 Every complete `allegory-teach` explanation includes one worked example after
 the relevant technical setup. In Bridge Mode, run the minimum example before
 the local analogy, then reuse its objects in the mapping and formal return. In
-Fable Mode, place the example after the story-to-reality mapping in section 2.
-Topic selection and example-form selection are separate decisions: never prefer
-a concept merely because it is easy to express with equations.
+Fable Mode, the narrative first runs the same bounded case in story language;
+section 2 then places its formal worked example after the story-to-reality
+mapping. Inputs or state labels, operation direction, signs, result,
+counterfactual, and observable difference must agree across both surfaces.
+Topic selection and example-form selection are separate decisions: never
+prefer a concept merely because it is easy to express with equations.
 
 In Bridge Mode, the minimum case normally is the required worked example. Reuse
 it through the local analogy and formal return instead of inventing a second
@@ -15,7 +18,9 @@ The example must instantiate the mechanism. A second abstract explanation,
 generic workflow, or list of implications is not an example. Name one bounded
 scenario, supply the actual inputs or initial states used in that scenario,
 identify the observable, and carry those inputs through the steps to a concrete
-result.
+result. In Fable Mode, the formal block may add symbols, types, rules, and the
+general form, but it may not replace the story's case with different values or
+reverse the sign, direction, or comparison.
 
 ## Select the example form
 

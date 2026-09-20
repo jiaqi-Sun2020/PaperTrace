@@ -14,11 +14,55 @@ technical problem -> difficult term or operation -> immediate goal
 known anchor -> missing bridge -> target mechanism
 ```
 
+Then derive the narrative background from that skeleton:
+
+```text
+world state -> actor goal -> available capability and limit -> trigger ->
+observable stakes -> actor choice -> mechanism consequence
+```
+
 Select one core relation from that skeleton. If the subject contains several
 mechanisms, the fable may carry only the selected relation; later mechanisms
 must be taught as separate bridges with a technical-language return between
 them. The preflight is not shown before the story because Fable Mode preserves
 the user's requested delayed reveal.
+
+## Immersive background gate
+
+Begin every Fable Mode story with at least two causally necessary background
+paragraphs. Two or three are usually enough, but add more when an essential
+goal, capability, limit, trigger, or observable cost cannot otherwise be made
+explicit. After the background, give every key mechanism transition enough
+space to be reconstructed; there is no total paragraph-count limit. A
+standalone fable may reveal the name in its final story paragraph; a daily
+opening must keep the name out of every narrative paragraph and reveal it in
+the factual debrief, as required by its existing version-3 validator.
+
+Every background paragraph must perform at least one causal job:
+
+- explain why the problem matters to the actor;
+- establish a rule or capability that constrains what the actor can do;
+- introduce the condition that makes the old approach fail;
+- make the chosen action necessary or plausible; or
+- establish an observable consequence against which success or failure can be
+  judged.
+
+Use setting, motivation, and sensory detail to make the situation immersive,
+but do not confuse atmosphere with background. Apply the deletion test: remove
+the paragraph and ask whether the actor's goal, available choices, reason for
+acting, or consequence becomes less intelligible. If none changes, the
+paragraph is decorative and must be rewritten or removed.
+
+A technical rule must appear as a real constraint in the story world before a
+character relies on it. Do not introduce a tool limitation, permission, or
+failure condition only when the mechanism needs it. Stakes may be physical
+loss, a wrong prediction, a failed operation, or an invalid inference, but they
+must be observable and must follow from the mapped mechanism. Do not invent a
+disaster merely to make the story dramatic.
+
+The background may deepen the selected relation; it may not smuggle in a
+second technical mechanism. Each background paragraph may contain narrative
+texture, but the story as a whole still teaches only one core relation.
 
 ## Narrative gate
 
@@ -37,18 +81,53 @@ changed state, and the observable consequence before compressing them into a
 general rule. A reader should not need prior field vocabulary to decode what
 the characters actually did.
 
+For every mathematical or numerical story, run one complete minimum case in
+the story body:
+
+```text
+actual input -> explicit operation -> intermediate value -> result ->
+counterfactual result -> observable difference
+```
+
+The delayed reveal hides the concept name, standard acronym, and defining
+equation. It does not hide operands, arithmetic rules, intermediate values,
+state labels, results, or the comparison that exposes the mechanism. For a
+non-mathematical mechanism, replace the numeric chain with a named object,
+explicit initial state, operation, changed state, failure case, and observable
+outcome; do not add decorative formulas or invented measurements.
+
+Each mechanism paragraph must answer five questions without relying on a later
+debrief: who acts, what concrete input or state they receive, what operation
+they perform, what output or state follows, and how the difference is observed.
+Ban undefined mechanism-bearing placeholders such as “some payment,” “this
+initial value,” “positive term,” “more influence,” “higher-page effect,” or
+“immediately matches.” On first use, state what the object records, its present
+value or state, and how it enters the next operation.
+
+The story body and `worked_example` use the same bounded case. Their input
+values or state labels, operation direction, signs, result, counterfactual, and
+observable difference must agree. The debrief may introduce formal symbols,
+the defining equation, and a general form, but it must not replace the story's
+case with a different one.
+
 Use three to five named story elements when possible. Give each important
 element one primary technical counterpart. If limited reuse is unavoidable,
 the final mapping must list every counterpart and explain where the analogy
 stops; otherwise reject the draft.
 Do not state the concept name, standard acronym, or defining equation before
-the last paragraph of the story.
+the last paragraph of a standalone story. For a daily opening, do not place any
+of them in the narrative paragraphs; the factual debrief owns the reveal.
 
 ## Causal-fidelity gate
 
 The analogy may rename objects but must preserve the mechanism's directed
 structure. Before output, verify all of the following:
 
+- the actor's goal maps to the real technical goal;
+- the available tool and its limit map to the old method and its real limit;
+- the trigger maps to the difficult term, condition, or state change;
+- the stated stakes follow from failure of the selected mechanism rather than
+  from unrelated drama;
 - the order of events and the actor for each operation are recoverable;
 - every important consequence has a visible rule or prerequisite;
 - destructive or state-changing operations are not portrayed as passive,
@@ -69,18 +148,68 @@ The preflight must also answer two hard questions:
 
 Reject or narrow the story when either answer is missing.
 
+Also remove all story nouns and verify that the remaining structure can be
+restated as `problem -> limit -> operation -> state change -> result`. Failure
+to recover any one of these means the background or mechanism is hiding a
+logical step.
+
 For quantum explanations involving measurement, explicitly separate the
 pre-measurement quantum state, measurement back-action, the classical outcome,
 classical communication, and any conditional quantum operation. Classical
 broadcast can coordinate distant actions; it does not by itself create
 entanglement or enable controllable faster-than-light signalling.
 
+## Regression case: Carleman background and checkable truncation
+
+Use this case to test the background gate, not as a universal story template.
+Before the selected mechanism begins, either Carleman regression must establish
+all of the following shared background:
+
+- a mountain city must predict river level early enough to operate its gates,
+  which gives the characters a concrete goal;
+- the accounting machine can multiply a recorded page by a fixed coefficient
+  and add pages, which represents the available linear operations and their
+  limit;
+- rising water begins to amplify its own rate of change, corresponding in the
+  minimum technical case to the nonlinear term in `\dot{x}=x+x^2`;
+- a bad forecast has an observable consequence, such as the ledger prediction
+  falling behind the gauge and causing an incorrect gate decision.
+
+Then choose exactly one regression branch:
+
+- **Lifting branch:** the apprentice creates pages for monomial coordinates
+  such as `x^2` and `x^3`. The story explains only why a nonlinear product can
+  become a linear coupling between lifted coordinates. The debrief states that
+  the pages are not new independent physical rivers and treats finite
+  truncation only as a boundary, not as a second taught mechanism.
+- **Truncation branch:** the higher-order ledger is already a known anchor. The
+  story explains only how sealing it at a finite page represents a specified
+  closure or truncation and how lost higher-order influence creates prediction
+  error. It does not re-teach why lifting produces linear couplings. Use the
+  private source model `\dot{x}=x+x^2`, set `x=1/2`, and let the first three
+  ledger pages hold `1/2`, `1/4`, and `1/8`. In natural story language, show
+  that the full second-page rate is obtained by doubling `1/4`, doubling
+  `1/8`, and adding the results to get `3/4`. Then seal after page two under
+  zero closure, retain only `2(1/4)=1/2`, and compare the two rates to expose
+  the omitted `3/4-1/2=1/4`. The story must contain those values and operations;
+  “one missing payment” or “the prediction now agrees” is a failing negative
+  example.
+
+The truncation debrief then introduces `z_2'=2z_2+2z_3`, names the zero closure,
+and identifies the `1/4` as the local omitted contribution in this case. The
+selected debrief must distinguish the infinite-dimensional exact construction
+from the relevant finite approximation. It must also state that the operational
+city consequence belongs to the story scenario rather than being a theorem of
+Carleman linearization. Do not copy the city, flood, ledger, or gear-machine
+setting into unrelated topics.
+
 ## Required response shape
 
 ```markdown
 ## 寓言
 
-<story; the reveal appears only at the end>
+<story; a standalone reveal appears in the final paragraph, while a daily
+opening defers the reveal to section 1>
 
 ## 1. 概念名称与一句话定义
 
@@ -130,6 +259,11 @@ section 2 so it does not create a fifth numbered section.
   It traces those particular inputs through the governing rules and meaningful
   transitions, reaches a bounded result, and states what that result does not
   establish. Restating the general logic chain is not an example.
+- The story body already runs that same bounded case. For mathematical or
+  numerical cases, a reader can reproduce its input, intermediate value,
+  result, counterfactual, and difference without opening the debrief. For
+  non-mathematical cases, the reader can reproduce the exact state transition
+  and failure outcome without inventing missing labels.
 - Mathematical notation is conditional, not preferred. If the concept does not
   need mathematics, use the smallest complete operational, causal,
   experimental, or comparative case without decorative formulas.

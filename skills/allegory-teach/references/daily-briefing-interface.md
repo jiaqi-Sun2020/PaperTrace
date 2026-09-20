@@ -82,9 +82,17 @@ published files directly:
 }
 ```
 
-Use 2-6 narrative paragraphs totaling at least 120 characters. The title and
-paragraphs must not contain the canonical concept name or its aliases. When
-`grounding_kind` is `briefing_items`, reference at least one `story_id` that
+The version-3 schema accepts at least two narrative paragraphs totaling at
+least 120 characters so legacy two-paragraph handoffs remain valid. It imposes
+no paragraph-count maximum. Each paragraph may contain at most 2000 normalized
+characters; an overlong paragraph is rejected with an instruction to split it
+naturally and is never silently truncated. Newly authored stories begin with
+at least two causally necessary background paragraphs, usually two or three,
+then allocate as many mechanism paragraphs as the complete logic chain needs.
+The title and every full, validated narrative paragraph remain free of the
+canonical concept name and its aliases; the factual debrief owns the reveal,
+including when a leaked term occurs after character 900.
+When `grounding_kind` is `briefing_items`, reference at least one `story_id` that
 survives into the published selection. Under the default daily selection policy,
 the first ID is the rank-1 academic item. The pipeline renders the story first,
 then its compact factual debrief, then a collapsed worked example, then
@@ -95,8 +103,12 @@ concept. Do not prefer mathematical concepts during selection. Use `formula`
 only when the selected concept and evidence genuinely require mathematics; a
 complete operational, causal, experimental, or comparative example may contain
 no formula. Every kind still requires a bounded `scenario`, named `inputs`, and
-an `observable`; a generic explanation of the logic chain is rejected. When
-any formula is present, define its objects, expose every
+an `observable`; a generic explanation of the logic chain is rejected. The
+narrative and worked example use the same inputs/states, operation direction,
+result, and comparison. A mathematical or numerical narrative exposes its
+actual numbers and calculations before the debrief; a non-mathematical one
+exposes concrete state labels and transitions. When any formula is present,
+define its objects, expose every
 meaningful transition, and include a check that can reveal an invalid
 derivation. Read [worked-example-contract.md](worked-example-contract.md) for
 the full contract and mathematical branch example.

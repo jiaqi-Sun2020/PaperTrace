@@ -1,7 +1,7 @@
 # Architecture
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-15
+- Last reviewed: 2026-09-20
 
 ## Top-Level Structure
 
@@ -115,7 +115,7 @@ news/_index/story_index.jsonl
 
 Candidate config enters `news-ranker-v1` first. Eligible academic and social items receive separate component scores; deterministic MMR-style selection enforces new/continuing, source-class, formal-source, organization, and topic quotas. The ranked config then enters Delta compaction and the transactional `run -> verify -> finalize -> verify` release. Item-level `ranking` and top-level `ranking_policy`/`ranking_manifest` remain part of the published audit surface.
 
-Every new release also carries `opening_story.version=2` with one complete `worked_example`. The topic is selected independently of mathematical form; non-mathematical examples may omit formulas, while formula-bearing examples must expose objects, rules, transitions, and a falsifying check. Markdown preserves the full example, and HTML places it in a native `details` control closed by default before the briefing body. Story/example exposure never creates feedback identity or profile evidence.
+Every new release carries `opening_story.version=3` with the existing concealed narrative/debrief fields and one complete `worked_example`. Narrative paragraphs have a minimum count of two, no count maximum, and a fail-closed 2000-character per-paragraph limit. The story-specific normalizer preserves order and duplicates without truncation; concept-leak validation reads the full normalized text. Mathematical and numerical narratives reuse every numeric input and derived result from the worked example and state an operation plus counterfactual/comparison; non-mathematical examples may omit formulas. Markdown and HTML preserve all story paragraphs, while HTML places the example in a native `details` control closed by default before the briefing body. Story/example exposure never creates feedback identity or profile evidence.
 
 ## Reader Presentation Data Flow
 

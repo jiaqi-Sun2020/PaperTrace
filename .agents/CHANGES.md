@@ -1,9 +1,19 @@
 # Changes
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-15
+- Last reviewed: 2026-09-20
 
 This file records dated implementation and local-release milestones. Durable boundaries belong in `AGENTS.md`, commands in `RUNBOOK.md`, data contracts in `CONFIG_SPEC.md`, and architecture/ownership in `ARCHITECTURE.md`.
+
+## 2026-09-20
+
+### Checkable Fable cases and adaptive story length
+
+- Split `allegory-teach` into bridge-first ordinary teaching and explicit/daily Fable Mode, while preserving the delayed reveal and factual `1 -> 3 -> 4 -> 2` return.
+- Made Fable length follow causal completeness: at least two necessary background paragraphs, no total paragraph-count cap, and no permission to combine unrelated mechanisms merely because more space is available.
+- Required mathematical/numerical narratives to expose the same concrete inputs, operations, intermediate/result values, counterfactual, and observable difference as the worked example; non-mathematical narratives use explicit states without decorative formulas.
+- Kept `opening_story.version=3` and existing fields while replacing the old 2–6/900-character handling with a minimum of two paragraphs, no count maximum, a fail-closed 2000-character per-paragraph limit, full-text concept-leak checking, and complete ordered HTML/Markdown rendering without truncation or de-duplication.
+- Added a reproducible Carleman truncation regression (`3/4` full rate, `1/2` zero closure, `1/4` omitted contribution), rejected the former vague mountain-city draft, and passed 61 daily-pipeline tests plus Skill validation, Python compilation, and diff checks.
 
 ## 2026-09-15
 

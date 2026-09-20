@@ -270,10 +270,10 @@ def render_opening_story(config: dict[str, Any]) -> str:
   <h2>{esc(story.get('title') or '开篇寓言')}</h2>
   <div class="story-narrative">{paragraphs}</div>
   <div class="story-debrief">
-    <p><strong>揭晓：</strong>{esc(story.get('concept_name'))}——{esc(story.get('concept_definition'))}</p>
-    <p><strong>逻辑链：</strong>{esc(story.get('logic_chain'))}</p>
-    <p><strong>类比边界：</strong>{esc(story.get('analogy_boundary'))}</p>
-    <p><strong>避免误读：</strong>{esc(story.get('misleading_risk'))}</p>
+    <p><strong>1. 概念名称与一句话定义：</strong>{esc(story.get('concept_name'))}——{esc(story.get('concept_definition'))}</p>
+    <p><strong>3. 这个类比没有覆盖的边界：</strong>{esc(story.get('analogy_boundary'))}</p>
+    <p><strong>4. 它可能误导你的地方：</strong>{esc(story.get('misleading_risk'))}</p>
+    <p><strong>2. 故事元素与现实对应：</strong>{esc(story.get('logic_chain'))}</p>
   </div>
   {worked_example}
 </section>

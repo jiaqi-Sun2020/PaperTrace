@@ -24,6 +24,8 @@ VALID_WORKED_EXAMPLE_KINDS = {
     "experimental",
     "comparative",
 }
+OPENING_STORY_PARAGRAPH_LIMIT = 2000
+NUMERIC_TOKEN_RE = re.compile(r"[-+]?(?:\d+/\d+|\d+(?:\.\d+)?)(?:%|％)?")
 OPENING_STORY_FIELDS = (
     "title",
     "concept_name",
@@ -224,6 +226,26 @@ def normalize_text_list(values: Any, *, limit: int, field: str) -> list[str]:
     return result
 
 
+def normalize_opening_story_paragraphs(values: Any) -> list[str]:
+    """Normalize story paragraphs without silently clipping narrative text."""
+    field = "opening_story.paragraphs"
+    if values is None:
+        return []
+    if not isinstance(values, list):
+        raise ValueError(f"{field} must be a list")
+    result: list[str] = []
+    for index, value in enumerate(values, start=1):
+        text = " ".join(str(value or "").split()).strip()
+        if len(text) > OPENING_STORY_PARAGRAPH_LIMIT:
+            raise ValueError(
+                f"{field}[{index}] exceeds {OPENING_STORY_PARAGRAPH_LIMIT} characters; "
+                "split it into natural story paragraphs instead of truncating it"
+            )
+        if text:
+            result.append(text)
+    return result
+
+
 def normalize_worked_example(value: Any) -> dict[str, Any]:
     if value is None:
         return {}
@@ -396,6 +418,105 @@ def assert_worked_example_contract(example: dict[str, Any], *, required: bool) -
         )
 
 
+def numeric_tokens(value: Any) -> set[str]:
+    return set(NUMERIC_TOKEN_RE.findall(str(value or "")))
+
+
+def assert_story_body_example_contract(
+    story_text: str,
+    example: dict[str, Any],
+) -> None:
+    """Require a reproducible in-story case when the example is quantitative."""
+    kind = clean_text(example.get("kind"), 80)
+    if kind not in {"mathematical", "numerical"}:
+        return
+
+    story_numbers = numeric_tokens(story_text)
+    input_numbers: set[str] = set()
+    missing_inputs: list[str] = []
+    for item in example.get("inputs") or []:
+        value_numbers = numeric_tokens(item.get("value"))
+        if not value_numbers:
+            raise ValueError(
+                "mathematical or numerical opening_story.worked_example inputs must contain "
+                "the actual numeric values used by the story"
+            )
+        input_numbers.update(value_numbers)
+        absent_numbers = sorted(value_numbers - story_numbers)
+        if absent_numbers:
+            input_name = clean_text(item.get("name"), 240) or "unnamed input"
+            missing_inputs.append(f"{input_name} ({', '.join(absent_numbers)})")
+    if missing_inputs:
+        raise ValueError(
+            "mathematical or numerical opening_story paragraphs must reuse the worked-example "
+            "input values; missing: " + ", ".join(missing_inputs)
+        )
+
+    result_numbers = numeric_tokens(example.get("result"))
+    derived_numbers = result_numbers - input_numbers
+    expected_results = derived_numbers or result_numbers
+    missing_results = sorted(expected_results - story_numbers)
+    if not expected_results or missing_results:
+        raise ValueError(
+            "mathematical or numerical opening_story paragraphs must state a checkable result "
+            "from the worked example instead of deferring values to the debrief; missing: "
+            + ", ".join(missing_results or ["numeric result"])
+        )
+
+    folded = story_text.casefold()
+    operation_cues = (
+        "=",
+        "+",
+        "−",
+        "-",
+        "×",
+        "*",
+        "÷",
+        "/",
+        "加",
+        "减",
+        "乘",
+        "除",
+        "代入",
+        "计算",
+        "算出",
+        "求和",
+        "取差",
+        "add",
+        "subtract",
+        "multiply",
+        "divide",
+        "compute",
+    )
+    comparison_cues = (
+        "若",
+        "如果",
+        "相比",
+        "对照",
+        "改为",
+        "改成",
+        "否则",
+        "差",
+        "遗漏",
+        "误差",
+        "偏差",
+        "versus",
+        "compare",
+        "difference",
+        "if ",
+    )
+    if not any(cue in folded for cue in operation_cues):
+        raise ValueError(
+            "mathematical or numerical opening_story paragraphs must state the operation "
+            "performed on the concrete inputs"
+        )
+    if not any(cue in folded for cue in comparison_cues):
+        raise ValueError(
+            "mathematical or numerical opening_story paragraphs must include a counterfactual "
+            "or comparison with an observable difference"
+        )
+
+
 def normalize_opening_story(value: Any) -> dict[str, Any]:
     if value is None:
         return {}
@@ -407,9 +528,7 @@ def normalize_opening_story(value: Any) -> dict[str, Any]:
     return {
         "version": 3 if worked_example else 1,
         "title": clean_text(value.get("title") or "开篇寓言", 160),
-        "paragraphs": normalize_text_list(
-            value.get("paragraphs"), limit=900, field="opening_story.paragraphs"
-        ),
+        "paragraphs": normalize_opening_story_paragraphs(value.get("paragraphs")),
         "concept_name": clean_text(value.get("concept_name"), 240),
         "concept_aliases": normalize_text_list(
             value.get("concept_aliases"), limit=120, field="opening_story.concept_aliases"
@@ -450,9 +569,19 @@ def assert_opening_story_contract(
     if missing:
         raise ValueError("opening_story missing required fields: " + ", ".join(missing))
     paragraphs = story.get("paragraphs") or []
-    if not isinstance(paragraphs, list) or not (2 <= len(paragraphs) <= 6):
-        raise ValueError("opening_story.paragraphs must contain 2-6 story paragraphs")
-    story_text = " ".join(clean_text(paragraph, 900) for paragraph in paragraphs)
+    if not isinstance(paragraphs, list) or len(paragraphs) < 2:
+        raise ValueError("opening_story.paragraphs must contain at least 2 story paragraphs")
+    normalized_paragraphs: list[str] = []
+    for index, paragraph in enumerate(paragraphs, start=1):
+        text = " ".join(str(paragraph or "").split()).strip()
+        if len(text) > OPENING_STORY_PARAGRAPH_LIMIT:
+            raise ValueError(
+                f"opening_story.paragraphs[{index}] exceeds "
+                f"{OPENING_STORY_PARAGRAPH_LIMIT} characters; split it into natural story "
+                "paragraphs instead of truncating it"
+            )
+        normalized_paragraphs.append(text)
+    story_text = " ".join(normalized_paragraphs)
     if len(story_text) < 120:
         raise ValueError("opening_story must contain at least 120 characters of narrative")
     hidden_terms = [story.get("concept_name"), *(story.get("concept_aliases") or [])]
@@ -468,6 +597,10 @@ def assert_opening_story_contract(
     assert_worked_example_contract(
         story.get("worked_example") or {},
         required=worked_example_required,
+    )
+    assert_story_body_example_contract(
+        story_text,
+        story.get("worked_example") or {},
     )
     grounding_kind = clean_text(story.get("grounding_kind"), 80)
     if grounding_kind not in VALID_STORY_GROUNDING:

@@ -1,7 +1,7 @@
 # Runbook
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-15
+- Last reviewed: 2026-09-20
 
 ## Choose One Primary Pipeline
 
@@ -48,7 +48,14 @@ value, not for equation availability. Use a mathematical/numerical derivation
 only when it belongs to the mechanism; otherwise provide a complete operational,
 causal, experimental, or comparative case without a formula. Read
 `skills/allegory-teach/references/worked-example-contract.md` before authoring
-the handoff.
+the handoff, and read `story-output-contract.md` plus
+`daily-briefing-interface.md` for the Fable contract. Keep
+`opening_story.version=3`; supply at least two paragraphs with no count maximum,
+split any paragraph longer than 2000 characters, and never rely on truncation.
+For mathematical or numerical stories, put the same concrete inputs,
+operations, results, counterfactual, and observable difference in the narrative
+and the worked example. For non-mathematical stories, provide explicit states
+and transitions without decorative formulas.
 
 The final verify must report visible HTML `?=0`, replacement-character `=0`, Chinese UI markers, concept/feedback identity equality, all default statuses `unrated`, light default/Cosmic option, and no feedback2 panel. A failed encoding check blocks finalize and therefore blocks story-index updates.
 

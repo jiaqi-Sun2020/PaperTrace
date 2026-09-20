@@ -1,7 +1,7 @@
 # Config Spec
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-15
+- Last reviewed: 2026-09-20
 
 ## Primary Pipeline Selection
 
@@ -303,12 +303,25 @@ Every new `daily_pipeline.py run` forces:
 }
 ```
 
-`opening_story.version=2` adds one `worked_example` after the concealed-name
-narrative and factual debrief. Its `kind` is one of `mathematical`, `numerical`,
+`opening_story.version=3` retains the concealed-name narrative and factual
+`1 -> 3 -> 4 -> 2` debrief, then adds one `worked_example`. `paragraphs` contains
+at least two entries and has no count maximum. Each normalized paragraph is at
+most 2000 characters; longer input fails with an instruction to split naturally
+and is never silently truncated. Story normalization preserves input order and
+duplicate paragraphs, and concept-name/alias leakage is checked against the full
+validated paragraph text.
+
+The worked example `kind` is one of `mathematical`, `numerical`,
 `operational`, `causal`, `experimental`, or `comparative`. All kinds require a
 question, explicit assumptions, named objects/roles, ordered steps, a result,
 interpretation, at least one check, and a `non_conclusion`. Each step requires a
 named rule, an explanation, and at least one of `action` or `formula`.
+
+The narrative and worked example use the same bounded case. Mathematical and
+numerical narratives must contain every numeric input and derived result used by
+the example, an explicit operation, and a counterfactual or comparison with an
+observable difference. Non-mathematical narratives use explicit objects, state
+labels, operations, and failure/result states without invented quantities.
 
 Topic selection is independent of mathematical form. Non-mathematical examples
 may omit every formula. `kind=mathematical` requires at least one genuine TeX
