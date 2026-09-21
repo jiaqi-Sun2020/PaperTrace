@@ -98,6 +98,52 @@ class AllegoryTeachContractTests(unittest.TestCase):
         self.assertIn("must not retell the story", contract)
         self.assertIn("Concrete domain cases belong in `tests/regression_cases.json`", contract)
 
+    def test_fable_requires_governing_rule_origin_before_calculation(self) -> None:
+        skill = self.read("SKILL.md")
+        story = self.read("references/story-output-contract.md")
+        story_flat = " ".join(story.split())
+        payload = json.loads(self.read("tests/regression_cases.json"))
+        truncation = next(
+            case
+            for case in payload["cases"]
+            if case["id"] == "mathematical-truncation"
+        )
+        nonmathematical = next(
+            case
+            for case in payload["cases"]
+            if case["id"] == "nonmathematical-state-transition"
+        )
+
+        self.assertIn("A visible rule is not yet an explained rule", skill)
+        self.assertIn("## Governing-rule origin gate", story)
+        self.assertIn("Before the first calculation, update, transition", story_flat)
+        self.assertIn("source of the governing rule", story_flat)
+        self.assertIn(
+            "The delayed reveal may continue to hide the concept name",
+            story_flat,
+        )
+        self.assertIn(
+            "the derivation or plain-language source of the checked-coordinate rule",
+            truncation["must_preserve"],
+        )
+        self.assertIn(
+            "introducing a calculation rule as an unexplained machine habit",
+            truncation["must_avoid"],
+        )
+        self.assertIn(
+            "making the story checkable only after the debrief supplies the missing derivation",
+            truncation["must_avoid"],
+        )
+        self.assertIn(
+            "the protocol or constraint that licenses the transition",
+            nonmathematical["must_preserve"],
+        )
+        self.assertIn("decorative formula", nonmathematical["must_avoid"])
+        self.assertIn(
+            "Do not manufacture a formula or formal derivation",
+            story_flat,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

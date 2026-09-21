@@ -87,6 +87,46 @@ changed state, and the observable consequence before compressing them into a
 general rule. A reader should not need prior field vocabulary to decode what
 the characters actually did.
 
+## Governing-rule origin gate
+
+A checkable story is incomplete when a reader can reproduce its arithmetic but
+cannot explain why that arithmetic is the right operation. Before the first
+calculation, update, transition, comparison, or replacement, state in plain
+language where its governing rule comes from. A rule may come from a definition,
+the original dynamics, a chain-rule step, a conservation constraint, a
+measurement operation, an experimental protocol, or a declared approximation.
+The story may rename objects, but it may not turn the governing rule into an
+arbitrary habit of a machine, character, or institution.
+
+Before using the rule, make this chain recoverable from the story itself:
+
+```text
+what is being tracked -> why it can change -> source of the governing rule ->
+why each required input contributes -> what the limited version removes or
+replaces -> observable difference
+```
+
+For a mathematical or numerical mechanism, explain the rule origin before the
+first concrete calculation. If a coefficient, sign, dependency, or missing term
+comes from a definition or derivation, describe that source in ordinary
+language and expose the operations needed to justify the calculation. The
+delayed reveal may continue to hide the concept name, standard acronym, and
+defining equation; it may not hide the causal reason for the calculation.
+Formal notation and the complete derivation belong in the factual debrief.
+
+For lifted-coordinate, truncation, projection, pruning, compression, or other
+approximation stories, identify the original variable or state, what every
+retained or expanded quantity records, the source of the checked quantity's
+update rule, why a higher-order or removed quantity contributes before the
+approximation, the explicit replacement rule after it is no longer represented,
+and the resulting error or observable change. A numerical run that omits any of
+these causal links is merely reproducible arithmetic and must be rewritten.
+
+For a non-mathematical mechanism, identify the real protocol, definition,
+constraint, or operating rule that licenses the transition. Do not manufacture
+a formula or formal derivation when the declared procedure itself is the rule
+source.
+
 For every mathematical or numerical story, run one complete minimum case in
 the story body:
 

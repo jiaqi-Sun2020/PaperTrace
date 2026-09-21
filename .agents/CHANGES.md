@@ -7,6 +7,13 @@ This file records dated implementation and local-release milestones. Durable bou
 
 ## 2026-09-21
 
+### Allegory governing-rule origin gate
+
+- Added a hard Fable Mode gate requiring every calculation, update, transition, comparison, or replacement rule to identify its source before first use; reproducible arithmetic without a motivated rule now fails the story contract.
+- Required mathematical and numerical stories to explain in plain language what is tracked, why it changes, why each input contributes, and how a finite replacement creates the observable difference, while preserving delayed reveal of the concept name, acronym, and defining equation.
+- Kept non-mathematical mechanisms formula-free when a real protocol or constraint supplies the rule, expanded the property-based truncation regression, and added whitespace-stable static contract coverage without changing the daily briefing schema or rendering pipeline.
+- Passed seven Allegory Teach contract tests, 61 daily-pipeline tests, UTF-8 Skill validation, Python compilation for the modified test, and `git diff --check`.
+
 ### Allegory cognitive-compression gates
 
 - Promoted technical correctness and beginner comprehensibility to independent hard gates. Bridge Mode now runs the direct concrete case first and adds a local analogy only when it lowers cognitive load; Fable Mode keeps its causal setup but prefers the simplest familiar setting instead of literary or dramatic world-building.

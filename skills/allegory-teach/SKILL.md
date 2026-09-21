@@ -108,6 +108,16 @@ Use a concept already known by the learner only as an anchor; do not pretend it
 proves mastery. Every causal transition must follow from a visible rule,
 constraint, or action. Do not hide a logical jump behind analogy language.
 
+A visible rule is not yet an explained rule. Before the first calculation,
+update, transition, comparison, or replacement that depends on a rule, identify
+what is being tracked, why it can change, where the rule comes from, and why
+each required input contributes. A legitimate source may be a definition,
+original dynamics, a chain-rule step, a conservation constraint, a measurement
+operation, an experimental protocol, or a declared approximation. When a
+finite version removes an input, also state what replaces it and where the
+resulting error enters. A non-mathematical mechanism needs its real protocol,
+constraint, or operating basis, not a decorative formula or forced derivation.
+
 One analogy explains one core relation. If the requested topic contains several
 mechanisms, teach them as separate bridges and return to technical language
 after each one; never make one story carry the whole system. Use the fewest
