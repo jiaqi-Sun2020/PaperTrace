@@ -1,17 +1,17 @@
 ---
 name: allegory-teach
-description: Explain one complex, abstract, professional, or difficult concept so a first-time learner can follow its causal logic. Default to a bridge-first technical explanation with a minimum concrete case and a local mapped analogy; use an immersive, causally necessary concealed-name Chinese fable only when explicitly requested or for a daily-briefing opening story. Do not use it to mutate learner knowledge or publish a daily briefing.
+description: "Explain one complex, abstract, professional, or difficult concept so a first-time learner can follow its causal logic. Default to the least elaborate bridge that works: a concrete case first, an optional local analogy only when it reduces cognitive load, and a causally necessary concealed-name Chinese fable only when explicitly requested or for a daily-briefing opening story. Do not use it to mutate learner knowledge or publish a daily briefing."
 ---
 
 # Allegory Teach
 
 Turn one concept into a low-friction causal model without letting an analogy
-replace the underlying technical claim. The first success criterion is that a
-reader meeting the topic for the first time can reconstruct what happens and
-why; literary elegance is secondary. Use this priority order:
+replace the underlying technical claim. Technical correctness and beginner
+comprehensibility are independent hard gates: failing either requires a
+rewrite. Only after both gates pass, use this optimization order:
 
 ```text
-mechanism accuracy > explicit logic > beginner comprehension > memorability > literary style
+explicit logic > cognitive simplicity > brevity > memorability > literary style
 ```
 
 This is an explanation layer around
@@ -23,7 +23,9 @@ Select one mode before drafting. Do not blend both output structures.
 
 - **Bridge Mode is the default** for requests to explain, analyze, teach, repair
   confusion, or introduce an unfamiliar topic. State the real technical problem
-  and run a minimum concrete case before adding one local analogy. Read
+  and run a minimum concrete case. Add one local analogy only when the concrete
+  case leaves a specific relation unclear and the analogy reduces rather than
+  increases the learner's cognitive load. Read
   [references/bridge-mode-contract.md](references/bridge-mode-contract.md).
 - **Fable Mode is opt-in** when the user explicitly asks for an allegory, story,
   delayed reveal, or says not to name the concept at first. It is also mandatory
@@ -36,7 +38,7 @@ Select one mode before drafting. Do not blend both output structures.
   explicitly requests a concealed-name fable, preserve the delayed reveal but
   make the post-story technical reconstruction complete.
 - A strict short form, prompt-only request, or localized rewrite may compress
-  Bridge Mode, but it does not relax mechanism accuracy or epistemic limits.
+  Bridge Mode, but it does not relax either hard gate or epistemic limits.
 
 ## Select the subject
 
@@ -75,6 +77,20 @@ initial state -> rule or constraint -> local action -> consequence ->
 observable trade-off or failure mode
 ```
 
+Before choosing story objects, use the least elaborate teaching device that can
+repair the missing bridge:
+
+```text
+minimum technical representation -> direct concrete case -> is the bridge clear?
+yes: stop adding analogy machinery
+no: add one local analogy for the unresolved relation
+explicit story request or daily opening: use Fable Mode, but keep its world minimal
+```
+
+Do not build a story world first and then force each technical object into it.
+Compress the mechanism to its minimum objects, one causal transition, and one
+observable difference before deciding whether imagery helps.
+
 For Fable Mode, turn that technical spine into this narrative spine before
 drafting:
 
@@ -98,6 +114,14 @@ after each one; never make one story carry the whole system. Use the fewest
 analogy elements that preserve the selected relation. Each important element
 must have one primary technical counterpart. If an element must represent more
 than one object, disclose that overload explicitly or reject the analogy.
+
+As a soft cognitive budget, prefer at most three mechanism-bearing story
+objects and one unfamiliar story-world rule. Count only elements that carry a
+technical mapping, not ordinary background nouns. Exceeding this preference is
+not an automatic failure, but it requires another compression pass and is
+allowed only when the additional element makes the selected relation easier to
+understand. Literary setting, historical style, poetic wording, and dramatic
+stakes are optional; familiar objects and ordinary actions are preferred.
 
 When a mechanism concerns propagation, layers, depth, state changes, or
 information flow, show the smallest concrete case before stating the general
@@ -128,7 +152,33 @@ value,” “higher-page effect,” or “now they match.” Each first occurren
 what the object records, its current value or state, and how it enters the next
 step.
 
-Before returning any analogy, answer both questions:
+## Beginner-comprehension gates
+
+An analogy succeeds only when it lowers vocabulary and working-memory load.
+Before returning one, run all five checks below. Failure of any check means
+simplify the analogy, replace it, or use the direct concrete case without an
+analogy when the user did not explicitly request Fable Mode.
+
+1. **Plain-Language Gate:** every mechanism-bearing phrase is understandable
+   without learning a second metaphor vocabulary. An invented term is invalid
+   when it merely renames the abstraction.
+2. **Self-Explanation Test:** a first-time learner can say what physically or
+   operationally happens. Prefer actions such as take away, keep, connect,
+   disconnect, copy, pass, replace, set to zero, add, and compare. Words such as
+   seal, freeze, hide, awaken, or suppress must immediately define their exact
+   operation or be replaced.
+3. **Cognitive Compression Test:** compare only mechanism-bearing objects,
+   independent rules, state labels, and causal transitions. If the analogy
+   creates a second symbolic system that is harder than the minimum technical
+   case, abandon it.
+4. **Literal Reconstruction Test:** remove decorative story nouns and restate
+   the remainder as `input/object -> operation -> state change -> output ->
+   observable difference`. No essential step may disappear.
+5. **Predicted Follow-up Test:** the likely next question should concern the
+   real variable, operation, condition, or approximation. If it is instead
+   “what does that story word mean?”, regenerate.
+
+The preflight must also answer both questions:
 
 1. Why does this correspondence make the real mechanism easier to understand?
 2. After removing every story word, can the real objects, operations, states,
@@ -140,7 +190,7 @@ For the technical explanation in either mode, read
 [references/logic-chain-explanation.md](references/logic-chain-explanation.md).
 Use its smallest applicable analysis pattern. Bridge Mode follows its technical
 sequence directly; Fable Mode applies it after the reveal while preserving the
-required `1 -> 3 -> 4 -> 2` section order.
+required `1 -> 2 -> 3 -> 4` section order.
 
 Read [references/worked-example-contract.md](references/worked-example-contract.md)
 before constructing the required example. Match the example to the concept:
@@ -153,13 +203,16 @@ or initial states, trace those particular values/states through the rules, and
 state a concrete observable result. In Fable Mode, the story body and
 `worked_example` must reuse the same inputs, operation direction, result, and
 comparison; the debrief may reveal formal notation and the general rule but may
-not silently substitute a cleaner case.
+not silently substitute a cleaner case. Because the story has already run the
+case, the worked example formalizes it compactly instead of repeating the same
+narrative at equal length.
 
 ## Return every analogy to fact
 
 In Bridge Mode, return to formal language immediately after each local analogy.
 In Fable Mode, use the four factual sections in the user's requested order:
-`1 -> 3 -> 4 -> 2`. In both modes, state what the analogy omits and how it could
+`1 -> 2 -> 3 -> 4`, then place the unnumbered worked example after section 4.
+In both modes, state what the analogy omits and how it could
 lead to a wrong technical inference. Expose the technical causal chain, the
 relevant object/operation distinction, and any information that is preserved,
 changed, or discarded. Include one worked example whose form follows the
@@ -170,7 +223,10 @@ When a claim uses words such as faster, cheaper, harder, scalable, or advantage,
 name the real parameters on which it depends. When the mechanism involves
 truncation, discretization, estimation, or modelling, distinguish exact
 identities, theoretical limits, finite implementations, approximations, and
-their error sources instead of compressing them into an equivalence claim.
+their error sources instead of compressing them into an equivalence claim. For
+any removal, truncation, projection, pruning, compression, or approximation,
+state what originally contributed, what is no longer represented, which rule
+replaces the missing contribution, and where the resulting error enters.
 
 When the user requests an interactive explanation, end with one small
 prediction, comparison, or paraphrase check. Do not append a fifth numbered

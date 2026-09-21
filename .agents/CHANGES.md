@@ -1,9 +1,19 @@
 # Changes
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-20
+- Last reviewed: 2026-09-21
 
 This file records dated implementation and local-release milestones. Durable boundaries belong in `AGENTS.md`, commands in `RUNBOOK.md`, data contracts in `CONFIG_SPEC.md`, and architecture/ownership in `ARCHITECTURE.md`.
+
+## 2026-09-21
+
+### Allegory cognitive-compression gates
+
+- Promoted technical correctness and beginner comprehensibility to independent hard gates. Bridge Mode now runs the direct concrete case first and adds a local analogy only when it lowers cognitive load; Fable Mode keeps its causal setup but prefers the simplest familiar setting instead of literary or dramatic world-building.
+- Added plain-language, self-explanation, cognitive-compression, literal-reconstruction, and predicted-follow-up checks, plus explicit replacement-rule handling for removal, truncation, projection, pruning, compression, and approximation.
+- Moved detailed Carleman, spectral-gap, and measurement examples out of production contracts into property-based regression coverage, and made Fable worked examples compact formalizations of the already completed story run rather than duplicate narratives.
+- Migrated standalone and daily factual debriefs from `1 -> 3 -> 4 -> 2` to `1 -> 2 -> 3 -> 4` without changing `opening_story.version=3`, JSON fields, ranking, feedback identity, or learner state. HTML and Markdown retain the collapsed example before the briefing body.
+- Passed six Allegory Teach contract tests, 61 daily-pipeline tests, UTF-8 Skill validation, Python compilation for all modified Python files, and `git diff --check`.
 
 ## 2026-09-20
 

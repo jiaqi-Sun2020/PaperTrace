@@ -53,6 +53,12 @@ the paragraph and ask whether the actor's goal, available choices, reason for
 acting, or consequence becomes less intelligible. If none changes, the
 paragraph is decorative and must be rewritten or removed.
 
+Fable does not mean literary, historical, ancient, dramatic, or poetic. Prefer
+the simplest familiar setting that makes the actor's goal, limitation, action,
+and observable consequence concrete. Atmosphere is optional; mechanism clarity
+is mandatory. Do not add institutions, lore, characters, or danger merely to
+make the response feel more like a story.
+
 A technical rule must appear as a real constraint in the story world before a
 character relies on it. Do not introduce a tool limitation, permission, or
 failure condition only when the mechanism needs it. Stakes may be physical
@@ -110,10 +116,14 @@ observable difference must agree. The debrief may introduce formal symbols,
 the defining equation, and a general form, but it must not replace the story's
 case with a different one.
 
-Use three to five named story elements when possible. Give each important
-element one primary technical counterpart. If limited reuse is unavoidable,
-the final mapping must list every counterpart and explain where the analogy
-stops; otherwise reject the draft.
+As a soft cognitive budget, prefer at most three mechanism-bearing story
+objects and one unfamiliar story-world rule. Count only elements that carry a
+technical mapping, not ordinary background nouns. Exceeding the preference is
+not an automatic failure, but it requires a new compression comparison and is
+allowed only when the extra element lowers total understanding cost. Give each
+important element one primary technical counterpart. If limited reuse is
+unavoidable, the final mapping must list every counterpart and explain where
+the analogy stops; otherwise reject the draft.
 Do not state the concept name, standard acronym, or defining equation before
 the last paragraph of a standalone story. For a daily opening, do not place any
 of them in the narrative paragraphs; the factual debrief owns the reveal.
@@ -153,55 +163,42 @@ restated as `problem -> limit -> operation -> state change -> result`. Failure
 to recover any one of these means the background or mechanism is hiding a
 logical step.
 
+## Plain-language and cognitive-compression gate
+
+Run every Fable Mode draft through the five checks defined in `SKILL.md`:
+
+1. **Plain-Language Gate:** reject a mechanism-bearing word that itself needs a
+   definition before the action can be understood.
+2. **Self-Explanation Test:** a first-time learner can describe what is moved,
+   retained, connected, disconnected, copied, passed, replaced, set to zero,
+   added, or compared. A metaphor-only verb such as “seal,” “freeze,” “hide,”
+   or “awaken” must state its exact operation immediately or be replaced.
+3. **Cognitive Compression Test:** the story must not require more independent
+   objects, rules, labels, or causal transitions than its explanatory value
+   earns. Arbitrary page numbers, colors, rooms, ranks, or characters may not
+   duplicate an existing technical index without making the relation clearer.
+4. **Literal Reconstruction Test:** after replacing story nouns with neutral
+   words such as input, object, operation, removed part, replacement rule, and
+   output, the complete mechanism still remains.
+5. **Predicted Follow-up Test:** the likely immediate question concerns the real
+   mechanism or its conditions, not the meaning of the story vocabulary.
+
+If any test fails, use a simpler familiar action, narrow the story to one
+relation, or rebuild the fable around the already prepared concrete case. Do
+not try to rescue a failed analogy by adding more prose.
+
+Whenever the mechanism removes, truncates, projects, prunes, compresses, or
+approximates part of a system, state what originally contributed, what is no
+longer represented, what explicit rule replaces the missing contribution, and
+where the error enters. A phrase such as “close the page” or “hide the layer”
+does not satisfy this requirement unless it immediately states the operation,
+such as setting a named input to zero.
+
 For quantum explanations involving measurement, explicitly separate the
 pre-measurement quantum state, measurement back-action, the classical outcome,
 classical communication, and any conditional quantum operation. Classical
 broadcast can coordinate distant actions; it does not by itself create
 entanglement or enable controllable faster-than-light signalling.
-
-## Regression case: Carleman background and checkable truncation
-
-Use this case to test the background gate, not as a universal story template.
-Before the selected mechanism begins, either Carleman regression must establish
-all of the following shared background:
-
-- a mountain city must predict river level early enough to operate its gates,
-  which gives the characters a concrete goal;
-- the accounting machine can multiply a recorded page by a fixed coefficient
-  and add pages, which represents the available linear operations and their
-  limit;
-- rising water begins to amplify its own rate of change, corresponding in the
-  minimum technical case to the nonlinear term in `\dot{x}=x+x^2`;
-- a bad forecast has an observable consequence, such as the ledger prediction
-  falling behind the gauge and causing an incorrect gate decision.
-
-Then choose exactly one regression branch:
-
-- **Lifting branch:** the apprentice creates pages for monomial coordinates
-  such as `x^2` and `x^3`. The story explains only why a nonlinear product can
-  become a linear coupling between lifted coordinates. The debrief states that
-  the pages are not new independent physical rivers and treats finite
-  truncation only as a boundary, not as a second taught mechanism.
-- **Truncation branch:** the higher-order ledger is already a known anchor. The
-  story explains only how sealing it at a finite page represents a specified
-  closure or truncation and how lost higher-order influence creates prediction
-  error. It does not re-teach why lifting produces linear couplings. Use the
-  private source model `\dot{x}=x+x^2`, set `x=1/2`, and let the first three
-  ledger pages hold `1/2`, `1/4`, and `1/8`. In natural story language, show
-  that the full second-page rate is obtained by doubling `1/4`, doubling
-  `1/8`, and adding the results to get `3/4`. Then seal after page two under
-  zero closure, retain only `2(1/4)=1/2`, and compare the two rates to expose
-  the omitted `3/4-1/2=1/4`. The story must contain those values and operations;
-  “one missing payment” or “the prediction now agrees” is a failing negative
-  example.
-
-The truncation debrief then introduces `z_2'=2z_2+2z_3`, names the zero closure,
-and identifies the `1/4` as the local omitted contribution in this case. The
-selected debrief must distinguish the infinite-dimensional exact construction
-from the relevant finite approximation. It must also state that the operational
-city consequence belongs to the story scenario rather than being a theorem of
-Carleman linearization. Do not copy the city, flood, ledger, or gear-machine
-setting into unrelated topics.
 
 ## Required response shape
 
@@ -217,6 +214,14 @@ opening defers the reveal to section 1>
 
 <真实问题 -> 困难项或操作 -> 目标 -> 机制主链>
 
+## 2. 故事元素与现实对应
+
+| 故事元素 | 对应的现实对象（类型/作用） | 对应操作或约束 | 信息的保留/变化/丢弃（如适用） | 因果作用 |
+|---|---|---|---|---|
+| ... | ... | ... | ... | ... |
+
+<移除故事词后的真实机制，以及为什么这个对应关系让缺失步骤变得可见>
+
 ## 3. 这个类比没有覆盖的边界
 
 - <missing condition, scale, formal assumption, or competing mechanism>
@@ -225,24 +230,16 @@ opening defers the reveal to section 1>
 
 - <a plausible but false inference from the story, followed by the correction>
 
-## 2. 故事元素与现实对应
-
-| 故事元素 | 对应的现实对象（类型/作用） | 对应操作或约束 | 信息的保留/变化/丢弃（如适用） | 因果作用 |
-|---|---|---|---|---|
-| ... | ... | ... | ... | ... |
-
-<为什么这个对应关系让缺失的技术步骤变得可见>
-
-### 完整例子
+## 最小检查例
 
 <one worked example whose mathematical, numerical, operational, causal,
 experimental, or comparative form matches the concept>
 ```
 
-Keep the requested `1 -> 3 -> 4 -> 2` order even though the labels are not
-numeric order. The final table must cover every causal element that carries the
-story; decorative details need not be mapped. Keep the worked example inside
-section 2 so it does not create a fifth numbered section.
+Keep the factual return in the learner's decoding order `1 -> 2 -> 3 -> 4`.
+The final table must cover every causal element that carries the story;
+decorative details need not be mapped. Keep the worked example unnumbered after
+section 4 so it does not create a fifth factual section.
 
 ## Truth conditions
 
@@ -259,6 +256,9 @@ section 2 so it does not create a fifth numbered section.
   It traces those particular inputs through the governing rules and meaningful
   transitions, reaches a bounded result, and states what that result does not
   establish. Restating the general logic chain is not an example.
+- In Fable Mode the story has already run that case, so the worked example adds
+  formal names, symbols, rules, a compact calculation or state trace, and one
+  check. It does not repeat the story in equally long prose.
 - The story body already runs that same bounded case. For mathematical or
   numerical cases, a reader can reproduce its input, intermediate value,
   result, counterfactual, and difference without opening the debrief. For
@@ -283,16 +283,19 @@ those sections rather than adding a new numbered section:
   Immediately expose the technical skeleton prepared before the story:
   `problem -> difficult term/operation -> goal -> mechanism spine`. The story
   cannot remain the only explanation.
+- **2:** Map each story element to the real object and its type/role, the
+  corresponding operation or constraint, and what information is preserved,
+  changed, or discarded. Then remove the story vocabulary, restate the real
+  mechanism, and explain why the correspondence makes the missing bridge
+  visible. Finish with `previous step -> current bridge -> next step ->
+  resulting capability`.
 - **3:** Separate a model assumption, a formal identity, an approximation, and
   an empirical conclusion whenever the analogy might blur them.
 - **4:** Preserve the reader's useful intuition, identify the first invalid
   inference, and correct it with the smallest counterexample or changed case
   that exposes the difference.
-- **2:** Map each story element to the real object and its type/role, the
-  corresponding operation or constraint, and what information is preserved,
-  changed, or discarded. State why the correspondence makes the missing bridge
-  visible, then give the worked example and finish with:
-  `previous step -> current bridge -> next step -> resulting capability`.
+
+After section 4, give the unnumbered worked example using the same bounded case.
 
 When formulas are needed after the story, define every symbol and its object
 type before manipulation. Name the rule used at each meaningful transition and

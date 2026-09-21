@@ -2,17 +2,18 @@
 
 Every complete `allegory-teach` explanation includes one worked example after
 the relevant technical setup. In Bridge Mode, run the minimum example before
-the local analogy, then reuse its objects in the mapping and formal return. In
-Fable Mode, the narrative first runs the same bounded case in story language;
-section 2 then places its formal worked example after the story-to-reality
-mapping. Inputs or state labels, operation direction, signs, result,
-counterfactual, and observable difference must agree across both surfaces.
-Topic selection and example-form selection are separate decisions: never
-prefer a concept merely because it is easy to express with equations.
+any optional local analogy, then reuse its objects in the mapping and formal
+return. In Fable Mode, the narrative first runs the same bounded case in story
+language; the unnumbered example after section 4 formalizes that case compactly.
+Inputs or state labels, operation direction, signs, result, counterfactual, and
+observable difference must agree across both surfaces. Topic selection and
+example-form selection are separate decisions: never prefer a concept merely
+because it is easy to express with equations.
 
 In Bridge Mode, the minimum case normally is the required worked example. Reuse
-it through the local analogy and formal return instead of inventing a second
-case that increases cognitive load without testing a different necessary link.
+it through any optional local analogy and formal return instead of inventing a
+second case that increases cognitive load without testing a different necessary
+link. Do not print the same calculation or state trace a second time.
 
 The example must instantiate the mechanism. A second abstract explanation,
 generic workflow, or list of implications is not an example. Name one bounded
@@ -21,6 +22,17 @@ identify the observable, and carry those inputs through the steps to a concrete
 result. In Fable Mode, the formal block may add symbols, types, rules, and the
 general form, but it may not replace the story's case with different values or
 reverse the sign, direction, or comparison.
+
+Use one-example-one-job discipline:
+
+- In Bridge Mode, the concrete case is the worked example; later prose refers
+  back to it rather than replaying it.
+- In Fable Mode, the story owns the intuitive run. The worked example defines
+  formal objects, states the real rule, gives a compact calculation or state
+  trace, and performs one useful check. It must not retell the story in equally
+  long prose.
+- If a second case is genuinely needed to test another relation, that relation
+  requires a separate bridge rather than an expanded first example.
 
 ## Select the example form
 
@@ -40,9 +52,9 @@ Choose the smallest form that makes the target mechanism testable:
 
 A non-mathematical example is complete without a formula. Never invent an
 equation, coefficient, probability model, or quantitative law to make it look
-formal. If the selected mechanism is genuinely mathematical, use the
-mathematical branch below, calculate the smallest useful instance before the
-general form, and keep every meaningful transition inspectable.
+formal. If the selected mechanism is genuinely mathematical, use the smallest
+useful calculation before the general form and keep every meaningful transition
+inspectable.
 
 ## Common structure
 
@@ -105,159 +117,16 @@ mathematical example, at least one step must contain a genuine formula. Formula
 strings contain TeX bodies without `\(...\)` or `\[...\]`; the renderer owns
 the display boundaries.
 
-## Fully worked mathematical branch: spectral gap
+## Final consistency check
 
-This example demonstrates the mathematical branch only. It is not a reason to
-prefer spectral or equation-heavy concepts during topic selection.
+Before returning the example, verify:
 
-**Question.** In the simplest two-level system, why does a smaller energy gap
-require a longer observation time to accumulate a distinguishable relative
-phase?
+- the story and formal block use the same inputs or state labels;
+- each formal step consumes a named input or an explicitly derived state;
+- the operation direction, sign, result, counterfactual, and observable agree;
+- the block adds formal precision or a falsifying check rather than repeating
+  the story's prose; and
+- the `non_conclusion` prevents the most tempting unsupported generalization.
 
-**Concrete scenario.** Prepare a two-level system with
-`\Delta=0.2\,\mathrm{meV}` and define “distinguishable” for this minimum case as
-accumulating one radian of relative phase.
-
-**Inputs.** `\Delta=0.2\,\mathrm{meV}` is the measured energy separation;
-`\hbar=0.658\,\mathrm{meV\,ps}` converts the separation into a time scale; and
-`\phi_*=1\,\mathrm{rad}` is the chosen resolution threshold.
-
-**Observable.** Record the first time at which the relative phase reaches
-`\phi_*`, then repeat the calculation after doubling `\Delta`.
-
-**Assumptions.** Let a time-independent Hamiltonian satisfy
-`H|0\rangle=E_0|0\rangle` and `H|1\rangle=E_1|1\rangle`, with
-`\Delta=E_1-E_0>0`. Prepare the equal superposition
-`|\psi(0)\rangle=(|0\rangle+|1\rangle)/\sqrt{2}`. This isolates phase
-accumulation; it does not model every gap-dependent algorithm.
-
-**Objects.** `H` is a Hermitian operator with energy units; `|0\rangle` and
-`|1\rangle` are orthonormal eigenvectors; `E_0,E_1,\Delta` are real energies;
-`t` is time; and `\hbar` has energy-times-time units.
-
-**Step 1 — apply time evolution.** By the time-independent Schrödinger rule,
-
-```tex
-|\psi(t)\rangle=e^{-iHt/\hbar}|\psi(0)\rangle
-=\frac{e^{-iE_0t/\hbar}|0\rangle+e^{-iE_1t/\hbar}|1\rangle}{\sqrt{2}}.
-```
-
-Each eigenvector keeps its direction and receives the phase associated with its
-own eigenvalue.
-
-**Step 2 — remove the unobservable common phase.** Using
-`E_1=E_0+\Delta`, factor out `e^{-iE_0t/\hbar}`:
-
-```tex
-|\psi(t)\rangle
-=e^{-iE_0t/\hbar}
-\frac{|0\rangle+e^{-i\Delta t/\hbar}|1\rangle}{\sqrt{2}}.
-```
-
-The prefactor is a global phase and does not change measurement probabilities.
-The remaining phase between the two components is observable through
-interference.
-
-**Step 3 — identify the information carrier.** The relative phase is
-
-```tex
-\phi(t)=\frac{\Delta t}{\hbar}.
-```
-
-The state accumulates phase separation at rate `\Delta/\hbar`; this is the
-missing bridge between an energy separation and a time scale.
-
-**Step 4 — impose this instance's resolution criterion.** Set
-`|\phi(t_{\mathrm{resolve}})|=1`. Therefore,
-
-```tex
-t_{\mathrm{resolve}}
-=\frac{\hbar}{\Delta}
-=\frac{0.658\,\mathrm{meV\,ps}}{0.2\,\mathrm{meV}}
-=3.29\,\mathrm{ps}.
-```
-
-The equality here belongs to the explicitly chosen one-radian threshold. It is
-not a universal measurement threshold.
-
-**Result.** The one-radian threshold is reached after `3.29 ps`. If `\Delta`
-doubles to `0.4 meV`, it is reached after about `1.65 ps`.
-
-**Checks.** Units give `[\hbar/\Delta]=time`. Doubling `\Delta` halves the
-computed time. As `\Delta\to0`, the two phase rates become indistinguishable in
-this setup and the required time scale diverges.
-
-**Interpretation.** A smaller spectral separation makes the two modes acquire
-distinguishing phase more slowly, so a phase-based discrimination or adiabatic
-argument can require a longer time.
-
-**Non-conclusion.** This calculation does not prove that every algorithm runs
-in exactly `\hbar/\Delta`, that a larger gap always makes every task easier, or
-that the gap alone determines dynamics. Initial-state overlap, matrix elements,
-the measured observable, degeneracy, the path of a time-dependent Hamiltonian,
-and the chosen error criterion can all matter.
-
-## Fully worked operational branch: measurement and feed-forward
-
-This branch demonstrates a concrete example without decorative mathematics and
-preserves the information-carrier distinctions highlighted by measurement.
-
-**Question.** In a four-site chain `A-B-C-D`, what changes when the two middle
-sites `B-C` are jointly measured and the result is sent to `D` for a
-conditional operation?
-
-**Concrete scenario.** Sites `A-B` and `C-D` each start with a prepared
-short-range entangled pair. At the scheduled middle step, `B-C` undergo a joint
-Bell-state measurement, producing the classical outcome `m_BC=1`. A classical
-message carrying that outcome reaches `D`, which applies the pre-agreed
-correction for outcome `1`.
-
-**Inputs.** The initial short-range resources specify what quantum correlations
-exist before measurement; the chosen measurement basis determines the possible
-outcomes and back-action; the actual outcome is the classical label `m_BC=1`; and
-the correction table maps outcome `1` to one operation at `D`.
-
-**Observable.** Compare the post-protocol `A-D` correlations obtained when `D`
-receives and uses `m_BC=1` with the unconditioned `A-D` state before the
-classical message arrives.
-
-**Objects.** The joint state is the quantum carrier before measurement; the
-joint measurement on `B-C` is a state-changing operation; `m_BC` is a classical
-outcome, not the original quantum state; the message is classical
-communication; and the correction at `D` is a measurement-conditioned quantum
-operation.
-
-**Step 1 — prepare local resources.** Establish the stated short-range quantum
-resources on `A-B` and `C-D`. This is a prerequisite: classical communication
-alone cannot supply the missing quantum resource.
-
-**Step 2 — jointly measure `B-C`.** Perform the specified Bell-state measurement
-and record `m_BC=1`. The measurement consumes the two measured subsystems and
-changes the relevant joint state; it is not a passive copy of a state that then
-continues unchanged toward `D`.
-
-**Step 3 — send the outcome.** Transmit the classical bit `1` to `D`. Before
-that message arrives, `D` cannot condition a controllable action on the actual
-outcome merely from its local reduced state.
-
-**Step 4 — apply feed-forward.** `D` looks up outcome `1` in the correction
-table and applies the corresponding operation. The protocol is now “local
-quantum preparation → measurement with back-action → classical outcome →
-classical communication → conditional quantum operation,” not the original
-nearest-neighbour evolution plus a harmless side channel.
-
-**Result.** With the stated initial resource, measurement, received outcome,
-and correction, the final correlations can be reorganized across more distant
-sites. Omitting the classical outcome leaves `D` with the unconditioned mixture;
-omitting the initial quantum resource leaves only classically coordinated
-actions.
-
-**Checks.** Remove the initial short-range resource: broadcasting `m_BC` no
-longer creates entanglement. Withhold the message: `D` cannot choose the
-outcome-dependent correction. Treat the measurement as passive: the predicted
-state disagrees with the actual post-measurement branch.
-
-**Non-conclusion.** This instance does not show that measurement alone creates
-long-range entanglement, that the pre-measurement quantum state survives
-unchanged, or that classical outcomes enable faster-than-light controllable
-communication.
+Concrete domain cases belong in `tests/regression_cases.json`, not in this
+production contract.

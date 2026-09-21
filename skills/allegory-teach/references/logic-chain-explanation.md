@@ -45,10 +45,10 @@ inputs and produce the stated result. A paragraph that only repeats the causal
 chain, even accurately, remains an explanation and does not satisfy the example
 contract.
 
-In Bridge Mode, the minimum case appears before the analogy. In Fable Mode, it
-is prepared before story drafting and appears in the factual debrief so the
-delayed reveal remains intact. In either mode, generalize only after the minimum
-case has visibly run once.
+In Bridge Mode, the minimum case appears before any optional analogy. In Fable
+Mode, it is prepared before story drafting, run in the narrative without leaking
+the concept name, and then formalized compactly after the factual debrief. In
+either mode, generalize only after the minimum case has visibly run once.
 
 ## Keep technical claims inspectable
 

@@ -20,33 +20,44 @@ compressed for a short-form request, but the mechanism may not be reordered:
 4. **Run the real mechanism:** show each meaningful transition and say why it
    follows. Distinguish definitions, assumptions, identities, approximations,
    and conclusions.
-5. **One local analogy:** explain only the selected relation. Introduce no extra
-   characters, objects, or world rules that the bridge does not need.
-6. **Map and justify:** map each important analogy element to one primary
-   technical object or operation, then state why that correspondence helps.
-7. **Return to technical language:** restate the same transition without story
-   vocabulary before moving to another mechanism.
+5. **Need-an-analogy decision:** ask whether the concrete case already makes the
+   missing relation visible. If yes, continue in technical language without an
+   analogy. If no, use one local analogy for only that relation and introduce no
+   extra characters, objects, or world rules that the bridge does not need.
+6. **Map and justify when an analogy is used:** map each important analogy
+   element to one primary technical object or operation, then state why that
+   correspondence lowers the learner's cognitive cost.
+7. **Return to technical language after an analogy:** restate the same
+   transition without story vocabulary before moving to another mechanism.
 8. **Bound the claim:** identify analogy limits and, when applicable, separate
    exact theory, finite implementation, approximation, and error source.
 9. **Reconnect the chain:** finish with
    `previous step -> current bridge -> next step -> resulting capability`.
 
 Do not force all nine items into nine headings when the request is narrow. Do
-not omit the technical position, minimum case, mapping, technical return, or
-bounded conclusion merely to make the answer shorter.
+not omit the technical position, minimum case, or bounded conclusion merely to
+make the answer shorter. Mapping and analogy return are mandatory only when an
+analogy is actually used.
 
 ## Analogy discipline
 
-One local analogy explains one core relation. When a topic contains multiple
-relations, repeat the cycle
+Do not build a full analogy when the direct concrete case already repairs the
+bridge. When an analogy is needed, one local analogy explains one core relation.
+For a topic with multiple unresolved relations, repeat the cycle
 
 ```text
-formal mechanism -> minimum case -> local analogy -> explicit mapping -> formal return
+formal mechanism -> minimum case -> need decision -> optional local analogy ->
+explicit mapping -> formal return
 ```
 
 for each bridge that is actually needed. Do not combine representation,
 truncation, solver complexity, error, readout, and end-to-end advantage into one
 story.
+
+Prefer no more than three mechanism-bearing analogy objects and one unfamiliar
+story rule. This is a soft cognitive budget rather than a numeric validity
+rule: count only elements that participate in the mapping, then keep an excess
+element only if another compression pass shows that it lowers total effort.
 
 Use one primary technical counterpart per important analogy element. If a
 limited overload is unavoidable, list every counterpart and explain the limit;
@@ -57,6 +68,12 @@ otherwise replace the analogy. After mapping, answer:
 
 If either answer is no, the analogy has renamed the abstraction rather than
 lowered its cost and must be rewritten.
+
+Apply the five beginner-comprehension checks from `SKILL.md`: plain language,
+self-explanation, cognitive compression, literal reconstruction, and predicted
+follow-up. Prefer familiar operational actions such as remove, retain, connect,
+replace, set to zero, add, and compare. An invented mechanism word is not an
+explanation unless its physical operation is stated immediately.
 
 ## Precision gates
 
@@ -72,54 +89,17 @@ lowered its cost and must be rewritten.
   govern the claim.
 - Do not turn a coordinate introduced for analysis into an independent physical
   degree of freedom unless the domain evidence establishes that interpretation.
-
-## Regression case: Carleman linearization
-
-Use this case to audit ordering and precision, not as a universal template.
-
-Start with the disclosed technical problem:
-
-```tex
-\dot{x}=x+x^2.
-```
-
-The nonlinear term is `x^2`; the local target is to see why treating monomials
-as coordinates turns one nonlinear update into linear couplings in a larger
-state description. Define
-
-```tex
-z_1=x,\qquad z_2=x^2,\qquad z_3=x^3.
-```
-
-Then calculate before using an analogy:
-
-```tex
-\dot{z}_1=z_1+z_2,
-```
-
-and, by the chain rule,
-
-```tex
-\dot{z}_2=2x\dot{x}=2x^2+2x^3=2z_2+2z_3.
-```
-
-This is the useful bridge: nonlinear powers of `x` become coordinates coupled
-linearly to one another. A short “additional ledger columns” analogy may now
-represent the added monomial coordinates, but it must state that a ledger column
-is an analysis coordinate, not a new independent physical freedom.
-
-The audit must also preserve the boundary: the exact Carleman construction is
-generally infinite-dimensional, whereas a computation that keeps terms only up
-to order `K` is a finite truncation with truncation error. A claim about cost or
-advantage is incomplete unless it states its dependence on relevant quantities
-such as `K`, system dimension, time horizon, target error, solver conditioning,
-and requested readout.
+- For removal, truncation, projection, pruning, compression, or approximation,
+  explicitly identify the original contributors, the removed or unrepresented
+  part, the rule used in place of its contribution, and the resulting error
+  path. A metaphorical action cannot substitute for the replacement rule.
 
 ## Failure conditions
 
 Rewrite the explanation when any of the following is true:
 
-- the analogy appears before the real problem or minimum case;
+- an optional analogy appears before the real problem or minimum case;
+- an analogy is added even though the concrete case already repairs the bridge;
 - the learner must decode new story vocabulary before understanding the target;
 - the analogy says what happened but not why the step helps;
 - one analogy carries more than one unresolved technical mechanism;

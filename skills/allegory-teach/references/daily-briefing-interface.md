@@ -8,7 +8,8 @@ collection, ranking, feedback, or publication.
 Daily opening stories always use Fable Mode because this product contract asks
 for a concealed-name narrative before the briefing. The routing decision is not
 serialized into the handoff: keep `opening_story.version=3`, the existing
-`1 -> 3 -> 4 -> 2` factual return, and the current worked-example schema. Do not
+fields, the `1 -> 2 -> 3 -> 4` factual return, and the current worked-example
+schema. Do not
 add an `explanation_mode` field. Bridge Mode remains the default only for
 ordinary direct teaching outside this opening-story contract.
 
@@ -110,8 +111,9 @@ actual numbers and calculations before the debrief; a non-mathematical one
 exposes concrete state labels and transitions. When any formula is present,
 define its objects, expose every
 meaningful transition, and include a check that can reveal an invalid
-derivation. Read [worked-example-contract.md](worked-example-contract.md) for
-the full contract and mathematical branch example.
+derivation. Because the story has already run the case, the collapsed worked
+example formalizes it compactly instead of retelling the narrative. Read
+[worked-example-contract.md](worked-example-contract.md) for the full contract.
 
 ## Post-release explanation handoff
 

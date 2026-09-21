@@ -303,8 +303,9 @@ Every new `daily_pipeline.py run` forces:
 }
 ```
 
-`opening_story.version=3` retains the concealed-name narrative and factual
-`1 -> 3 -> 4 -> 2` debrief, then adds one `worked_example`. `paragraphs` contains
+`opening_story.version=3` retains the concealed-name narrative and existing
+fields, renders the factual debrief in `1 -> 2 -> 3 -> 4` order, then adds one
+`worked_example`. `paragraphs` contains
 at least two entries and has no count maximum. Each normalized paragraph is at
 most 2000 characters; longer input fails with an instruction to split naturally
 and is never silently truncated. Story normalization preserves input order and
@@ -322,6 +323,9 @@ numerical narratives must contain every numeric input and derived result used by
 the example, an explicit operation, and a counterfactual or comparison with an
 observable difference. Non-mathematical narratives use explicit objects, state
 labels, operations, and failure/result states without invented quantities.
+Because the story already runs the case, the worked example formalizes it
+compactly through real objects, rules, a calculation or state trace, and a
+check; it does not retell the narrative at equal length.
 
 Topic selection is independent of mathematical form. Non-mathematical examples
 may omit every formula. `kind=mathematical` requires at least one genuine TeX

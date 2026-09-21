@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "mathematical-truncation",
+      "mode": "fable",
+      "concept": "finite Carleman truncation with zero closure",
+      "expected_device": "minimal familiar causal story followed by compact formalization",
+      "must_preserve": [
+        "the original higher-order contribution",
+        "the component that is no longer represented",
+        "zero closure as the replacement rule",
+        "the local numerical difference between the full and truncated rates",
+        "the distinction between the infinite exact construction and finite approximation"
+      ],
+      "must_avoid": [
+        "requiring a mountain city, ledger, shopkeeper, or other fixed setting",
+        "describing truncation only as sealing or hiding",
+        "treating lifted coordinates as independent physical freedoms"
+      ]
+    },
+    {
+      "id": "nonmathematical-state-transition",
+      "mode": "bridge",
+      "concept": "an operational approval state transition",
+      "expected_device": "direct concrete case",
+      "must_preserve": [
+        "named input state",
+        "explicit comparison or operation",
+        "changed output state",
+        "observable failure case"
+      ],
+      "must_avoid": [
+        "decorative formula",
+        "invented numerical law",
+        "unnecessary story world"
+      ]
+    },
+    {
+      "id": "direct-case-is-sufficient",
+      "mode": "bridge",
+      "concept": "a simple deterministic queue update",
+      "expected_device": "direct concrete case without analogy",
+      "must_preserve": [
+        "input",
+        "operation",
+        "intermediate state",
+        "output"
+      ],
+      "must_avoid": [
+        "adding a fable after the relation is already clear",
+        "duplicating the same case"
+      ]
+    },
+    {
+      "id": "undefined-metaphor",
+      "mode": "fable",
+      "concept": "removing one contributor and replacing it with zero",
+      "expected_device": "literal familiar action",
+      "must_preserve": [
+        "the removed contributor",
+        "the set-to-zero replacement rule",
+        "the changed result"
+      ],
+      "must_avoid": [
+        "seal the layer",
+        "freeze the influence",
+        "hide the contribution without defining an operation"
+      ]
+    },
+    {
+      "id": "cognitive-overload",
+      "mode": "fable",
+      "concept": "one causal relation with two technical objects",
+      "expected_device": "compressed familiar setting",
+      "must_preserve": [
+        "one cause",
+        "one state change",
+        "one observable consequence"
+      ],
+      "must_avoid": [
+        "unnecessary institutions, characters, ranks, colors, or room numbers",
+        "a second symbolic system that must be decoded",
+        "drama unrelated to the mechanism"
+      ]
+    },
+    {
+      "id": "multiple-relations",
+      "mode": "bridge",
+      "concept": "representation, truncation, and complexity in one request",
+      "expected_device": "separate bridges with a technical-language return",
+      "must_preserve": [
+        "one relation per analogy",
+        "formal return between relations",
+        "governing parameters for any performance claim"
+      ],
+      "must_avoid": [
+        "one giant story for the whole algorithm",
+        "claiming an advantage without real parameters"
+      ]
+    },
+    {
+      "id": "delayed-reveal",
+      "mode": "fable",
+      "concept": "an explicitly requested concealed-name explanation",
+      "expected_device": "minimal fable with at least two causal setup paragraphs",
+      "must_preserve": [
+        "concealed concept name until the reveal",
+        "actor goal and real limitation",
+        "checkable mechanism in the story",
+        "factual return in 1 -> 2 -> 3 -> 4 order"
+      ],
+      "must_avoid": [
+        "concept-name leakage",
+        "decorative background",
+        "repeating the full story in the worked example"
+      ]
+    }
+  ]
+}

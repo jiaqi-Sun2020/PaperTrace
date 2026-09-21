@@ -111,14 +111,14 @@ def mathematical_worked_example() -> dict:
 def carleman_truncation_story() -> dict:
     return {
         "version": 3,
-        "title": "封在第三页的来款",
+        "title": "被拿走的第三张输入卡",
         "paragraphs": [
-            "山城必须在暮鼓前给出下一刻的河位变化率，守闸人只在预测误差小于闸门容许量时接收指令；少算的水势会在下一次水尺读数上直接暴露。",
-            "账房已有一架只会把页值乘以固定倍率再相加的铜轮机。长账本的第一页记当前水位，第二页记水位的平方，第三页记水位的立方；值夜桌可以封在第二页后，这个容量限制会让第三页无法参与运算。",
-            "暴雨到来时，第一页的当前值是 1/2。账房按同一水位写出第二页 1/4 和第三页 1/8，并把这三个数逐项报给守闸人核对，因而没有把“后页”当成一个未说明的暗语。",
-            "计算第二页的完整变化率时，掌柜先把第二页的 1/4 乘以 2，得到 1/2；再把第三页的 1/8 乘以 2，得到 1/4；最后把 1/2 与 1/4 相加，结果是 3/4。",
-            "若账本在第二页后封册，封口规则把第三页贡献当作 0，铜轮便只保留 2 乘以 1/4，得到 1/2。用未封册的 3/4 减去封册后的 1/2，可观察到遗漏量正好是 1/4。",
-            "守闸人因此不会再听到“少算了一笔”这种无法复核的说法：他能逐项看到输入 1/4 与 1/8、两次乘以 2、完整结果 3/4、封册结果 1/2，以及两者相差 1/4。",
+            "预测台必须在下一次采样前交付一个局部变化率，验收员只接受能从输入卡逐步复算的结果；少算的输入会在参考结果中直接显示为差值。",
+            "桌上的计算器只会把卡片上的数乘以固定倍率再相加。完整计算需要三张输入卡，但便携盒只能保留前两张；盒子的明确规则是第三张卡缺席时把它的输入当作 0。",
+            "这次第一张卡的状态值是 1/2，由同一状态得到的第二张卡是 1/4，第三张卡是 1/8。操作员把三个数逐项报出，因此没有用“后面的影响”代替实际输入。",
+            "计算第二张卡对应的完整变化率时，操作员把 1/4 乘以 2，得到 1/2；再把 1/8 乘以 2，得到 1/4；最后把 1/2 与 1/4 相加，结果是 3/4。",
+            "改用便携盒时，操作员拿走第三张输入卡，并按规则把缺失输入设为 0，所以只保留 2 乘以 1/4，得到 1/2。用完整结果 3/4 减去便携结果 1/2，可观察到遗漏量正好是 1/4。",
+            "验收员现在可以直接复核：原来参与结果的是 1/4 与 1/8，拿走的是第三张卡，替代规则是设为 0，完整结果与简化结果之差是 1/4。",
         ],
         "concept_name": "Carleman linearization truncation",
         "concept_aliases": ["Carleman 截断", "卡莱曼线性化截断"],
@@ -480,9 +480,10 @@ class DailyPipelineTests(unittest.TestCase):
             "1/2",
             "1/4",
             "1/8",
-            "2 乘以 1/4",
+            "1/4 乘以 2",
             "3/4",
-            "3/4 减去封册后的 1/2",
+            "缺失输入设为 0",
+            "3/4 减去便携结果 1/2",
             "遗漏量正好是 1/4",
         ):
             self.assertIn(fragment, story_text)
@@ -491,11 +492,11 @@ class DailyPipelineTests(unittest.TestCase):
         raw = config()
         raw["opening_story"] = carleman_truncation_story()
         raw["opening_story"]["paragraphs"] = [
-            "山城必须在暮鼓前半小时决定河闸开度：开小了，水位会越过警戒线；开大了，下游船渠会在刻度尺上露出见底标记。守闸人因此只认一个可检查的目标——账房给出的半小时水位必须在允许误差内跟上河口水尺。",
-            "账房已有一架按固定倍率乘数、再把各页相加的铜轮机，也有一套逐页相连的长账本；只要所有相关页都摊开，机器就能沿着既定关系推进预测。但值夜桌最多同时压住两页，封在后面的页不会自动把数送回桌面，这是真实的容量限制。",
-            "暴雨越过北岭后，水尺从平缓上升转为越高涨得越快。前几日可以忽略的后页数额突然变大，双页预测开始在每次报时后落在实测刻度下方；若仍把差距当作抄写噪声，错误的闸门指令会在下一次报时被水尺直接揭穿。",
-            "掌柜于是先核对第二页的收支来源，发现它除了本页的固定减项，还应收到第三页传来的正项。若在第二页后封册，那笔正项并不会消失于河道，只会消失于预测；于是他把少算的第三页来款单独记成封口误差，再比较保留两页和多留一页时的报表。",
-            "双页账在这次初值下少算了一笔可量出的来款，预测因此下降得过快；把那笔来款补回，账面立刻与未封册的局部变化率一致。账房由此把封册位置当作精度与账本规模之间的选择，而不再把封掉的页误认为已经不存在。",
+            "预测台必须在下一次采样前交付一个可复核的局部变化率，少算输入会让结果偏离参考值。",
+            "桌上计算器只会把输入乘以固定倍率再相加，便携盒只能保留前两个输入，缺失输入按 0 处理。",
+            "操作员说当前状态已经写在三张卡上，但没有报出每张卡的实际数值。",
+            "他把完整计算描述成多算一个输入，把简化计算描述成少算一个输入，却没有展示乘法、中间结果或差值。",
+            "验收员因此无法从故事独立复算完整结果、简化结果与遗漏量。",
         ]
         with self.assertRaisesRegex(ValueError, "must reuse the worked-example input values"):
             normalize_briefing_config(raw, require_source_url=True)
@@ -575,6 +576,11 @@ class DailyPipelineTests(unittest.TestCase):
 
     def test_story_renders_before_briefing_in_html_and_markdown(self) -> None:
         canonical = normalize_briefing_config(config(), require_source_url=True)
+        self.assertEqual(canonical["opening_story"]["version"], 3)
+        self.assertEqual(
+            canonical["opening_story"]["logic_chain"],
+            opening_story()["logic_chain"],
+        )
         feedback = export_feedback(canonical, Path("config.json"), "unrated", "none")
         html = render_html({**canonical, "default_status": "unrated", "initial_feedback_items": feedback["items"]})
         markdown = render_markdown(canonical)
@@ -595,9 +601,9 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertIn("**本例输入**", markdown)
         debrief_labels = [
             "1. 概念名称与一句话定义",
+            "2. 故事元素与现实对应",
             "3. 这个类比没有覆盖的边界",
             "4. 它可能误导你的地方",
-            "2. 故事元素与现实对应",
         ]
         self.assertEqual(
             [label for _, label in sorted((html.index(label), label) for label in debrief_labels)],
@@ -607,6 +613,8 @@ class DailyPipelineTests(unittest.TestCase):
             [label for _, label in sorted((markdown.index(label), label) for label in debrief_labels)],
             debrief_labels,
         )
+        self.assertLess(html.index(debrief_labels[-1]), html.index('data-story-example="true"'))
+        self.assertLess(markdown.index(debrief_labels[-1]), markdown.index("### 完整例子"))
         self.assertEqual(len(feedback["items"]), 1)
         self.assertFalse(any(entry["concept"] == "spectral gap" for entry in feedback["items"]))
 
