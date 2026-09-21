@@ -213,6 +213,21 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
             issues.append("reader does not reserve a stable scrollbar gutter")
         if "feedbackExportFallback" not in html_text:
             issues.append("feedback copy fallback textarea is missing")
+        for token, message in (
+            ("PaperTraceFeedbackRecovery", "shared feedback recovery runtime is missing"),
+            ('id="feedbackRecoveryStatus"', "feedback recovery status is missing"),
+            ('id="clearLocalFeedback"', "local feedback recovery clear control is missing"),
+            ("function restoreLocalRecovery()", "feedback restore handler is missing"),
+            ("window.addEventListener('pagehide'", "feedback pagehide flush is missing"),
+            ("window.addEventListener('beforeunload'", "unsafe feedback unload guard is missing"),
+        ):
+            if token not in html_text:
+                issues.append(message)
+        recovery_keys = re.findall(r'paper\.reader\.feedback-draft\.v1:([^"\']+)', html_text)
+        if not recovery_keys or not any(re.fullmatch(r"[0-9a-f]{64}", value) for value in recovery_keys):
+            issues.append("feedback recovery storage key is not namespaced by a full paper SHA-256")
+        if any("\\" in value or "/" in value or ":" in value for value in recovery_keys):
+            issues.append("feedback recovery storage key contains a path instead of a paper fingerprint")
         if re.search(
             r"document\.addEventListener\(['\"]pointerdown['\"][\s\S]{0,800}?closePanel\(\)",
             html_text,

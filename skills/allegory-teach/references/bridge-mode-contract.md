@@ -4,6 +4,22 @@ Use Bridge Mode for a first encounter, a direct explanation, or a request to
 repair confusion unless the user explicitly asks for a concealed-name fable.
 Its job is to expose the missing technical relation before adding imagery.
 
+## Prefer Bridge Mode when it is clearer
+
+A good Bridge Mode explanation is preferable to a weak fable. If a proposed
+story only renames variables or wraps `given values -> apply rule -> calculate
+-> compare` in scenery, keep the technical skeleton visible and use Bridge Mode.
+Formula-heavy material does not automatically require Bridge Mode; route by
+whether a goal, real limit, meaningful action, or observable consequence makes
+the mechanism easier to reconstruct.
+
+For an explicit fable request, first narrow the target to one story-worthy
+relation and replace noun substitutions with causal actions. If that repair
+still adds decoding cost without teaching value, say so and use this contract
+instead. Daily opening stories do not use this fallback; their source selection
+follows `daily-briefing-interface.md` so the required opening remains a valid
+Fable Mode story.
+
 ## Required sequence
 
 For a substantial explanation, keep this causal order. Headings may be

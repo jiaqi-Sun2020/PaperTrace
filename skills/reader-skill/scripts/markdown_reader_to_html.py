@@ -35,6 +35,10 @@ try:
     )
 except Exception as exc:  # pragma: no cover - formal builds must use the shared shell/theme
     raise RuntimeError(f"lean-html-skill reader_theme is required for formal reader builds: {exc}") from exc
+try:
+    from feedback_recovery import feedback_recovery_script
+except Exception as exc:  # pragma: no cover - formal builds must share recovery behavior
+    raise RuntimeError(f"lean-html-skill feedback_recovery is required for formal reader builds: {exc}") from exc
 
 
 ANCHOR_RE = re.compile(r'<a\s+id=["\']([^"\']+)["\']\s*>\s*</a>', re.I)
@@ -944,6 +948,17 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
         "items": []
     }
     metadata_json = json.dumps(metadata, ensure_ascii=False).replace("</", "<\\/")
+    source_map_sha256 = str(provenance.get("source_map", {}).get("sha256") or "").lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", source_map_sha256):
+        fallback_basis = "\n".join(
+            [
+                title,
+                str(provenance.get("reader_manifest", {}).get("sha256") or ""),
+                str(provenance.get("completion_run_state", {}).get("sha256") or ""),
+            ]
+        )
+        source_map_sha256 = hashlib.sha256(fallback_basis.encode("utf-8")).hexdigest()
+    recovery_runtime = feedback_recovery_script(source_map_sha256)
     return f'''
 <button type="button" class="feedback-opener" id="openFreeFeedback">Annotate / 自由标注</button>
 <aside class="feedback-dock" id="feedbackDock" hidden>
@@ -990,9 +1005,11 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     <button type="button" id="deleteFeedback">Delete current</button>
     <button type="button" id="downloadFeedback">Download feedback JSON</button>
     <button type="button" id="copyFeedback">Copy feedback for Codex</button>
+    <button type="button" id="clearLocalFeedback">Clear local recovery</button>
     <button type="button" id="closeFeedback">Close</button>
   </div>
   <p class="feedback-save-status" id="feedbackSaveStatus" role="status" aria-live="polite" hidden></p>
+  <p class="feedback-recovery-status" id="feedbackRecoveryStatus" role="status" aria-live="polite">Local recovery is starting…</p>
   <div class="feedback-summary" id="feedbackSummary">No saved feedback yet.</div>
   <textarea id="feedbackExportFallback" class="feedback-export-fallback" readonly hidden aria-label="Feedback JSON export fallback"></textarea>
   <details class="feedback-list-wrap" id="feedbackListWrap">
@@ -1001,6 +1018,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
   </details>
 </aside>
 <script type="application/json" id="readerFeedbackSeed">__READER_FEEDBACK_SEED__</script>
+__FEEDBACK_RECOVERY_RUNTIME__
 <script>
 (function () {{
   const seed = JSON.parse(document.getElementById('readerFeedbackSeed').textContent);
@@ -1016,6 +1034,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
   const needsExplanation = document.getElementById('needsExplanation');
   const summary = document.getElementById('feedbackSummary');
   const saveStatus = document.getElementById('feedbackSaveStatus');
+  const recoveryStatus = document.getElementById('feedbackRecoveryStatus');
   const statusButtons = Array.from(document.querySelectorAll('.status-buttons button'));
   const opener = document.getElementById('openFreeFeedback');
   let currentConcept = null;
@@ -1026,6 +1045,10 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
   let currentKey = null;
   let currentSelectionMeta = {{}};
   let currentConceptMeta = {{}};
+  let draftDirty = false;
+  let restoringRecovery = false;
+  let lastExportedAt = null;
+  let lastRecoveryStatusKind = 'ready';
   let lastSelection = {{
     text: '',
     blockId: '',
@@ -1035,6 +1058,23 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     original_context: '',
     translation_context: ''
   }};
+  const recovery = window.PaperTraceFeedbackRecovery.create({{
+    onStatus: updateRecoveryStatus
+  }});
+
+  function updateRecoveryStatus(event) {{
+    if (!recoveryStatus) return;
+    lastRecoveryStatusKind = event && event.kind ? event.kind : 'ready';
+    recoveryStatus.dataset.state = event && event.kind ? event.kind : 'ready';
+    if (event && event.kind === 'saved' && event.saved_at) {{
+      const when = new Date(event.saved_at);
+      recoveryStatus.textContent = `Local recovery saved at ${{when.toLocaleTimeString()}} in this browser only.`;
+      return;
+    }}
+    recoveryStatus.textContent = event && event.message
+      ? event.message
+      : 'Local recovery is ready in this browser only.';
+  }}
 
   function closestBlockId(el) {{
     const block = el.closest('.bilingual-block[id], .prose[id], .figure-card[id], .label-card[id], .md-table[id], section[id], article[id], [id]');
@@ -1111,6 +1151,152 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
       exported_at: new Date().toISOString(),
       items: Array.from(feedback.values())
     }};
+  }}
+
+  function draftSnapshot() {{
+    if (!draftDirty) return null;
+    return {{
+      dirty: true,
+      current_key: currentKey || '',
+      current_concept: currentConcept || '',
+      current_block: currentBlock || '',
+      current_kind: currentKind || 'freeform',
+      current_source_excerpt: currentSourceExcerpt || '',
+      current_selected_text: currentSelectedText || '',
+      current_selection_meta: currentSelectionMeta || {{}},
+      current_concept_meta: currentConceptMeta || {{}},
+      last_selection: lastSelection || {{}},
+      form: {{
+        concept: conceptInput.value,
+        status: getStatus(),
+        user_question: question.value,
+        note: note.value,
+        source_context: context.value,
+        confusion_type: confusionType.value,
+        explanation_style: explanationStyle.value,
+        needs_explanation: needsExplanation.checked
+      }}
+    }};
+  }}
+
+  function recoveryEnvelope() {{
+    return {{
+      exported_at: lastExportedAt,
+      items: Array.from(feedback.values()),
+      draft: draftSnapshot()
+    }};
+  }}
+
+  function persistRecoveryNow() {{
+    return recovery.persist(recoveryEnvelope());
+  }}
+
+  function scheduleRecovery() {{
+    recovery.schedule(recoveryEnvelope, 250);
+  }}
+
+  function markDraftDirty() {{
+    if (restoringRecovery) return;
+    draftDirty = true;
+    scheduleRecovery();
+  }}
+
+  function restoreLocalRecovery() {{
+    const recovered = recovery.load();
+    if (!recovered) {{
+      if (lastRecoveryStatusKind !== 'warning') updateRecoveryStatus({{
+        kind: 'ready',
+        message: 'Local recovery is ready in this browser only.'
+      }});
+      return;
+    }}
+    restoringRecovery = true;
+    lastExportedAt = recovered.exported_at || null;
+    recovered.items.forEach(item => {{
+      if (!item || typeof item !== 'object') return;
+      const key = item.feedback_id || feedbackKey(item.concept || item.selected_text, item.block_id, item.annotation_kind);
+      if (!key) return;
+      item.feedback_id = key;
+      feedback.set(key, item);
+      showVisualFeedback(key, item);
+    }});
+    const recoveredDraft = recovered.draft && recovered.draft.dirty ? recovered.draft : null;
+    if (recoveredDraft) {{
+      const form = recoveredDraft.form || {{}};
+      currentKey = recoveredDraft.current_key || null;
+      currentConcept = recoveredDraft.current_concept || '';
+      currentBlock = recoveredDraft.current_block || '';
+      currentKind = recoveredDraft.current_kind || 'freeform';
+      currentSourceExcerpt = recoveredDraft.current_source_excerpt || '';
+      currentSelectedText = recoveredDraft.current_selected_text || '';
+      currentSelectionMeta = recoveredDraft.current_selection_meta || {{}};
+      currentConceptMeta = recoveredDraft.current_concept_meta || {{}};
+      lastSelection = recoveredDraft.last_selection || lastSelection;
+      openPanel({{
+        concept: form.concept || currentConcept || '',
+        status: form.status || 'unrated',
+        user_question: form.user_question || '',
+        note: form.note || '',
+        source_excerpt: form.source_context || currentSourceExcerpt || '',
+        selected_text: currentSelectedText || '',
+        confusion_type: form.confusion_type || '',
+        explanation_style: form.explanation_style || '',
+        needs_explanation: !!form.needs_explanation
+      }});
+      draftDirty = true;
+    }}
+    restoringRecovery = false;
+    refreshSummary();
+    updateRecoveryStatus({{
+      kind: 'restored',
+      message: `Recovered ${{feedback.size}} saved annotation(s)${{recoveredDraft ? ' and an unfinished draft' : ''}} from this browser.`,
+      saved_at: recovered.saved_at || null
+    }});
+  }}
+
+  function clearLocalRecovery() {{
+    Array.from(feedback.keys()).forEach(removeVisualFeedback);
+    feedback.clear();
+    currentKey = null;
+    currentConcept = '';
+    currentBlock = '';
+    currentKind = 'freeform';
+    currentSourceExcerpt = '';
+    currentSelectedText = '';
+    currentSelectionMeta = {{}};
+    currentConceptMeta = {{}};
+    lastSelection = {{ text: '', blockId: '', excerpt: '', selected_language: '', bilingual_block_id: '', original_context: '', translation_context: '' }};
+    lastExportedAt = null;
+    draftDirty = false;
+    conceptLabel.textContent = 'No concept selected';
+    conceptInput.value = '';
+    question.value = '';
+    note.value = '';
+    context.value = '';
+    confusionType.value = '';
+    explanationStyle.value = '';
+    needsExplanation.checked = false;
+    setStatus('unrated');
+    recovery.clear();
+    refreshSummary();
+    if (saveStatus) {{
+      saveStatus.hidden = false;
+      saveStatus.textContent = 'Local recovery and the current page annotations were cleared.';
+    }}
+  }}
+
+  function confirmAndClearLocalRecovery(message) {{
+    if (!window.confirm(message)) return false;
+    clearLocalRecovery();
+    return true;
+  }}
+
+  function afterSuccessfulExport() {{
+    lastExportedAt = new Date().toISOString();
+    persistRecoveryNow();
+    confirmAndClearLocalRecovery(
+      'Feedback JSON was exported. Clear the local recovery copy and current page annotations?\\n\\nChoose Cancel to keep automatic recovery available.'
+    );
   }}
 
   function refreshSummary() {{
@@ -1245,8 +1431,10 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
       explanationStyle.value = '';
       needsExplanation.checked = false;
       setStatus('unrated');
+      draftDirty = false;
     }}
     refreshSummary();
+    persistRecoveryNow();
   }}
 
   function openSavedFeedback(key) {{
@@ -1311,6 +1499,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
 
   function openPanel(existing) {{
     clearSaveStatus();
+    if (!restoringRecovery) draftDirty = false;
     conceptInput.value = existing.concept || '';
     question.value = existing.user_question || '';
     note.value = existing.note || '';
@@ -1453,7 +1642,9 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
       el.classList.remove('mastered', 'known', 'learning', 'unknown', 'unrated');
       el.classList.add(getStatus());
     }});
+    draftDirty = false;
     refreshSummary();
+    persistRecoveryNow();
     announceSaved(item);
     restoreVerticalReadingPosition(readingAnchor, readingTop);
   }}
@@ -1468,6 +1659,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    afterSuccessfulExport();
   }}
 
   function showExportFallback(text, message) {{
@@ -1485,6 +1677,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     try {{
       await navigator.clipboard.writeText(text);
       summary.textContent = 'Feedback copied for Codex.';
+      afterSuccessfulExport();
     }} catch (err) {{
       showExportFallback(text, 'Clipboard access failed. Feedback JSON is ready below; select and copy it.');
     }}
@@ -1509,7 +1702,12 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
       }}
     }});
   }});
-  statusButtons.forEach(btn => btn.addEventListener('click', () => setStatus(btn.dataset.status)));
+  statusButtons.forEach(btn => btn.addEventListener('click', () => {{
+    setStatus(btn.dataset.status);
+    markDraftDirty();
+  }}));
+  [conceptInput, question, note, context].forEach(field => field.addEventListener('input', markDraftDirty));
+  [confusionType, explanationStyle, needsExplanation].forEach(field => field.addEventListener('change', markDraftDirty));
   document.getElementById('useSelectedText').addEventListener('click', () => {{
     const selected = rememberSelection();
     if (selected.text) {{
@@ -1520,19 +1718,36 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
       currentConceptMeta.source_anchor = selected.bilingual_block_id || selected.blockId || currentConceptMeta.source_anchor || '';
       context.value = selected.text;
       if (!conceptInput.value.trim()) conceptInput.value = selected.text.slice(0, 120);
+      markDraftDirty();
     }}
   }});
   document.getElementById('saveFeedback').addEventListener('click', saveCurrent);
   document.getElementById('deleteFeedback').addEventListener('click', () => deleteFeedbackItem(currentKey));
   document.getElementById('downloadFeedback').addEventListener('click', () => {{ saveCurrent(); downloadFeedback(); }});
   document.getElementById('copyFeedback').addEventListener('click', () => {{ saveCurrent(); copyFeedback(); }});
+  document.getElementById('clearLocalFeedback').addEventListener('click', () => {{
+    confirmAndClearLocalRecovery(
+      'Clear the local recovery copy and all current page annotations? Export JSON first if you need a backup.'
+    );
+  }});
   document.getElementById('closeFeedback').addEventListener('click', closePanel);
   document.addEventListener('keydown', event => {{
     if (event.key === 'Escape') closePanel();
   }});
+  window.addEventListener('pagehide', () => recovery.flush());
+  document.addEventListener('visibilitychange', () => {{
+    if (document.visibilityState === 'hidden') recovery.flush();
+  }});
+  window.addEventListener('beforeunload', event => {{
+    recovery.flush();
+    if (!recovery.hasUnsafeChanges()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  }});
+  restoreLocalRecovery();
   refreshSummary();
 }}());
-</script>'''.replace("__READER_FEEDBACK_SEED__", metadata_json).strip()
+</script>'''.replace("__READER_FEEDBACK_SEED__", metadata_json).replace("__FEEDBACK_RECOVERY_RUNTIME__", recovery_runtime).strip()
 
 
 def split_top_segments(markdown: str) -> list[tuple[str | None, str]]:
@@ -2709,6 +2924,24 @@ body.feedback-open .feedback-opener { opacity: 0; pointer-events: none; }
   color: var(--reader-status-saved-text);
   font-size: .9rem;
   font-weight: 700;
+}
+.feedback-recovery-status {
+  margin: 8px 0 0;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--reader-panel-bg);
+  color: var(--muted);
+  font-size: .84rem;
+}
+.feedback-recovery-status[data-state="saved"],
+.feedback-recovery-status[data-state="restored"] {
+  border-color: var(--reader-status-saved-border);
+  color: var(--reader-status-saved-text);
+}
+.feedback-recovery-status[data-state="warning"] {
+  border-color: var(--reader-danger-border);
+  color: var(--reader-danger-text);
 }
 .feedback-summary {
   color: var(--muted);

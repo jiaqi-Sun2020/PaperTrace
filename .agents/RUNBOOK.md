@@ -199,14 +199,15 @@ If Source Page Index links do not open, inspect the generated `href` values firs
 
 ## Import Reader Feedback
 
-Reader HTML feedback is manual-export only. In the browser:
+Reader HTML uses browser-local recovery plus manual portable export. In the browser:
 
 1. Click a highlighted concept or select text and click `Annotate / 自由标注`.
 2. Fill status/question/context fields.
 3. Click `Save mark`.
 4. Confirm the saved item appears in the feedback panel's saved-annotation list and, when a source block is detected, as a badge in the page.
 5. Delete mistakes with `Delete current` or the row-level `Delete` button in the saved-annotation list.
-6. After finishing the paper, click `Download feedback JSON` to export all saved items.
+6. If the tab is refreshed or closed, reopen the same reader and confirm saved marks and any unfinished form draft are restored.
+7. After finishing the paper, click `Download feedback JSON` to export all saved items, then choose whether to clear the browser recovery copy.
 
 Then import the downloaded JSON:
 
@@ -218,7 +219,7 @@ Alternative: click `Copy feedback for Codex`, paste the payload into Codex, and 
 
 If browser clipboard permissions block copying, use the visible fallback textarea populated by `Copy feedback for Codex`; it contains the same JSON payload.
 
-Important: feedback saved in the HTML page is in-memory. Refreshing or closing the page before export may lose unsaved/unexported feedback.
+Important: browser recovery is local to the current browser/origin and may be unavailable under restrictive `file://` or privacy settings. Treat exported JSON as the portable backup. If the panel reports that recovery is unavailable, export before closing. The recovery copy never updates `.agents` or the learner profile.
 
 The learner profile uses schema v2. Imports should keep stable concept IDs in `concepts`, raw selected text and questions in `events`, source paths/URLs in `sources`, and unclear or learning items in `review_queue`.
 

@@ -33,10 +33,18 @@ Begin every Fable Mode story with at least two causally necessary background
 paragraphs. Two or three are usually enough, but add more when an essential
 goal, capability, limit, trigger, or observable cost cannot otherwise be made
 explicit. After the background, give every key mechanism transition enough
-space to be reconstructed; there is no total paragraph-count limit. A
+space to be reconstructed; there is no total word, paragraph, or mechanism
+paragraph limit. Complete the narrative and technical spines before applying
+the deletion test. Brevity may remove only decoration or repetition; it may not
+remove a goal, limit, rule source, choice, state change, or consequence. A
 standalone fable may reveal the name in its final story paragraph; a daily
 opening must keep the name out of every narrative paragraph and reveal it in
 the factual debrief, as required by its existing version-3 validator.
+
+For a daily opening, the 2000-normalized-character limit applies to each
+paragraph as a transport safety boundary, not to the whole story. Split an
+overlong paragraph at a natural causal or state-transition boundary. Never
+truncate, summarize away, or omit a required link merely to satisfy that limit.
 
 Every background paragraph must perform at least one causal job:
 
@@ -69,6 +77,45 @@ disaster merely to make the story dramatic.
 The background may deepen the selected relation; it may not smuggle in a
 second technical mechanism. Each background paragraph may contain narrative
 texture, but the story as a whole still teaches only one core relation.
+
+## Story-value and dual-spine gate
+
+A fable is valid only when the story action teaches the mechanism. Reject a
+draft whose characters, props, meters, cards, rooms, or machines merely rename
+variables, states, vectors, operators, formulas, or omitted terms. Adding a
+setting to `given values -> apply rule -> calculate -> compare` creates a worked
+example, not a fable.
+
+The narrative spine must be recoverable before the technical reveal:
+
+```text
+actor goal -> real limit or missing information -> available action or tempting
+shortcut -> choice or operation -> observable consequence -> reveal
+```
+
+The technical spine must be recoverable as:
+
+```text
+technical objective -> governing-rule source -> required inputs or states ->
+representation or capability limit -> changed result -> error, ambiguity, or
+trade-off
+```
+
+Couple the two spines explicitly. The goal maps to the technical objective, the
+story limit maps to the real limit, the action maps to the technical operation,
+and the consequence maps to the result or failure. The actor must do more than
+read values and report arithmetic: the constraint must make a choice, shortcut,
+or changed action meaningful. Do not invent drama when the mechanism supplies
+only an ordinary operational consequence.
+
+Every mechanism-bearing story element must make at least one causal contribution:
+clarify the goal, expose a limit or dependency, enable or block an action, force
+a choice, change a state, or make a consequence observable. Remove a noun-only
+substitution. For a standalone explicit fable, first repair the draft by
+narrowing it to one relation or replacing symbol stand-ins with causal actions;
+if it still adds no value over the minimum technical case, disclose the mismatch
+and return to Bridge Mode. A daily opening instead follows the ranked-source
+fallback in `daily-briefing-interface.md` and must still produce a valid fable.
 
 ## Narrative gate
 
@@ -325,7 +372,10 @@ those sections rather than adding a new numbered section:
   cannot remain the only explanation.
 - **2:** Map each story element to the real object and its type/role, the
   corresponding operation or constraint, and what information is preserved,
-  changed, or discarded. Then remove the story vocabulary, restate the real
+  changed, or discarded. For each important mapping, trace `story action ->
+  technical operation -> why it is required -> preserved, changed, discarded,
+  or replaced information -> observable consequence`; noun correspondences
+  alone are insufficient. Then remove the story vocabulary, restate the real
   mechanism, and explain why the correspondence makes the missing bridge
   visible. Finish with `previous step -> current bridge -> next step ->
   resulting capability`.

@@ -463,9 +463,27 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
     if re.search(r"object-fit\s*:\s*cover|height\s*:\s*(?!\s*auto\b)[^;]+", figure_css, re.I):
         fail("figure-card CSS can crop or fix-height source object imagery", issues)
 
-    for token in ("function closePanel()", "downloadFeedback", "copyFeedback", "readerFeedbackSeed", 'id="readerThemeSelect"', "paper.reader.theme"):
+    for token in (
+        "function closePanel()",
+        "downloadFeedback",
+        "copyFeedback",
+        "readerFeedbackSeed",
+        'id="readerThemeSelect"',
+        "paper.reader.theme",
+        "PaperTraceFeedbackRecovery",
+        "function restoreLocalRecovery()",
+        'id="feedbackRecoveryStatus"',
+        'id="clearLocalFeedback"',
+        "window.addEventListener('pagehide'",
+        "window.addEventListener('beforeunload'",
+    ):
         if token not in html_text:
             fail(f"formal interaction contract is missing: {token}", issues)
+    recovery_keys = re.findall(r'paper\.reader\.feedback-draft\.v1:([^"\']+)', html_text)
+    if not recovery_keys or not any(re.fullmatch(r"[0-9a-f]{64}", value) for value in recovery_keys):
+        fail("feedback recovery key is not isolated by a full source-map SHA-256", issues)
+    if any("\\" in value or "/" in value or ":" in value for value in recovery_keys):
+        fail("feedback recovery key leaks a filesystem path", issues)
     marks = re.findall(r'<mark\s+class="knowledge-gap\b[^>]*>', html_text)
     if full_paper and (len(concepts.get("concepts") or []) < 30 or not marks):
         fail("full formal reader lacks grounded concepts or rendered knowledge marks", issues)

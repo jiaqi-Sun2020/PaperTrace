@@ -23,6 +23,21 @@ result. In Fable Mode, the formal block may add symbols, types, rules, and the
 general form, but it may not replace the story's case with different values or
 reverse the sign, direction, or comparison.
 
+## Do not confuse a worked example with a fable
+
+A familiar setting, named character, or physical prop does not turn a worked
+example into a Fable Mode story. If the structure is primarily
+`given values -> apply rule -> calculate result -> compare result`, label it as
+the worked example and use Bridge Mode. A fable must additionally make the
+actor's goal, real constraint, choice or changed action, observable consequence,
+and mechanism reveal carry explanatory work.
+
+Formula density alone does not decide the mode. Keep Fable Mode only when its
+narrative action lowers the cost of understanding the real dependency; otherwise
+prefer the direct technical case. In a valid Fable response, this contract still
+formalizes the already completed story case compactly and never supplies a
+missing narrative spine after the fact.
+
 Use one-example-one-job discipline:
 
 - In Bridge Mode, the concrete case is the worked example; later prose refers

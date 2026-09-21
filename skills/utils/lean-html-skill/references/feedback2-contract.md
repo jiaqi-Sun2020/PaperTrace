@@ -4,7 +4,14 @@ Use this reference when an HTML report needs a second feedback pass.
 
 ## Model
 
-The page stores marks in browser memory/localStorage and exports JSON manually. It must not write `.agents` directly.
+The page may automatically keep saved marks and an unfinished form draft in browser `localStorage` so an accidental refresh or tab closure can be recovered. This is a same-browser recovery copy, not a durable or portable export. The page must still export JSON manually and must not write `.agents` directly.
+
+For paper readers, namespace the internal recovery envelope as
+`paper.reader.feedback-draft.v1:<source-map-sha256>`. The envelope is not part
+of the feedback-v2 export schema and must never use an absolute filesystem path
+as its key. Storage failure must be visible, while JSON download/copy remains
+available. Only a successful download or clipboard write may offer to clear
+the local recovery copy.
 
 News report export:
 

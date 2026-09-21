@@ -23,6 +23,10 @@ class AllegoryTeachContractTests(unittest.TestCase):
                 "direct-case-is-sufficient",
                 "undefined-metaphor",
                 "cognitive-overload",
+                "no-variable-renaming-disguise",
+                "dual-spine-coupling",
+                "worked-example-not-fable",
+                "causal-completeness-before-brevity",
                 "multiple-relations",
                 "delayed-reveal",
             },
@@ -50,6 +54,12 @@ class AllegoryTeachContractTests(unittest.TestCase):
             "## Regression case",
             "## Fully worked",
             "mountain city",
+            "greenhouse",
+            "dyehouse",
+            "温室",
+            "染坊",
+            "ledger",
+            "shopkeeper",
             "Carleman linearization",
             "spectral gap",
             "\\dot{x}=x+x^2",
@@ -143,6 +153,44 @@ class AllegoryTeachContractTests(unittest.TestCase):
             "Do not manufacture a formula or formal derivation",
             story_flat,
         )
+
+    def test_story_or_bridge_value_gate_repairs_then_falls_back(self) -> None:
+        skill = " ".join(self.read("SKILL.md").split())
+        bridge = " ".join(self.read("references/bridge-mode-contract.md").split())
+        daily = " ".join(self.read("references/daily-briefing-interface.md").split())
+        self.assertIn("Story-or-Bridge value gate", skill)
+        self.assertIn("A fable is valid only when its actions teach the mechanism", skill)
+        self.assertIn("perform one repair pass", skill)
+        self.assertIn("downgrade transparently", skill)
+        self.assertIn("A good Bridge Mode explanation is preferable to a weak fable", bridge)
+        self.assertIn("inspect the remaining academic items in descending rank order", daily)
+        self.assertIn('selection_basis="explicit_override"', daily)
+
+    def test_fable_requires_action_coupled_dual_spines(self) -> None:
+        story = " ".join(self.read("references/story-output-contract.md").split())
+        self.assertIn("Story-value and dual-spine gate", story)
+        self.assertIn("actor goal -> real limit or missing information", story)
+        self.assertIn("technical objective -> governing-rule source", story)
+        self.assertIn("The actor must do more than read values and report arithmetic", story)
+        self.assertIn("story action -> technical operation -> why it is required", story)
+
+    def test_complete_story_precedes_brevity(self) -> None:
+        skill = " ".join(self.read("SKILL.md").split())
+        story = " ".join(self.read("references/story-output-contract.md").split())
+        daily = " ".join(self.read("references/daily-briefing-interface.md").split())
+        self.assertIn("Complete the story and technical causal spines before compressing", skill)
+        self.assertIn("no total word, paragraph, or mechanism paragraph limit", story)
+        self.assertIn("transport safety boundary, not to the whole story", story)
+        self.assertIn("transport boundary, not a total story-length budget", daily)
+        self.assertIn("Never truncate", story)
+
+    def test_worked_example_is_not_a_fable_by_scenery(self) -> None:
+        contract = " ".join(
+            self.read("references/worked-example-contract.md").split()
+        )
+        self.assertIn("Do not confuse a worked example with a fable", contract)
+        self.assertIn("given values -> apply rule -> calculate result -> compare result", contract)
+        self.assertIn("does not turn a worked example into a Fable Mode story", contract)
 
 
 if __name__ == "__main__":

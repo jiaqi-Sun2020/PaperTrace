@@ -28,6 +28,19 @@ function extractFunction(source, name) {
   throw new Error(`unterminated function ${name}`);
 }
 
+function testInlineScriptSyntax() {
+  const scripts = Array.from(html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g));
+  for (const [index, match] of scripts.entries()) {
+    if (/type=["']application\/json["']/.test(match[1])) continue;
+    if (!match[2].trim()) continue;
+    try {
+      new vm.Script(match[2]);
+    } catch (error) {
+      throw new Error(`inline script ${index + 1} has invalid JavaScript: ${error.message}`);
+    }
+  }
+}
+
 function testSaveMarkPreservesReaderLayout() {
   const closePanel = extractFunction(html, "closePanel");
   const saveCurrent = extractFunction(html, "saveCurrent");
@@ -49,6 +62,8 @@ function testSaveMarkPreservesReaderLayout() {
     let currentKey = null;
     let currentSelectionMeta = {};
     let currentConceptMeta = { source_anchor: "S001", concept_type: "math_object", alias_zh: "哈密顿量", concept_id: "hamiltonian" };
+    let draftDirty = true;
+    let persistedRecovery = false;
     function feedbackKey(concept, blockId, kind) { return [kind || "concept", concept || "", blockId || ""].join("::"); }
     function removeVisualFeedback() {}
     function showVisualFeedback() {}
@@ -57,6 +72,7 @@ function testSaveMarkPreservesReaderLayout() {
     function currentReadingAnchor() { return null; }
     function restoreVerticalReadingPosition() {}
     function announceSaved(item) { saveStatus.textContent = item.concept; saveStatus.hidden = false; }
+    function persistRecoveryNow() { persistedRecovery = true; }
     const saveStatus = { hidden: true, textContent: "" };
     const bodyClasses = new Set(["feedback-open"]);
     const document = {
@@ -69,6 +85,7 @@ function testSaveMarkPreservesReaderLayout() {
     if (dock.hidden !== false) throw new Error("Save mark unexpectedly closed the panel");
     if (!bodyClasses.has("feedback-open")) throw new Error("Save mark unexpectedly changed docked reader layout");
     if (feedback.size !== 1) throw new Error("Save mark did not persist feedback item");
+    if (!persistedRecovery || draftDirty) throw new Error("Save mark did not commit browser-local recovery");
     if (saveStatus.hidden || saveStatus.textContent !== "Hamiltonian") throw new Error("Save mark did not announce an in-place save");
     closePanel();
     if (dock.hidden !== true || bodyClasses.has("feedback-open")) throw new Error("Close did not release the docked feedback layout");
@@ -103,6 +120,124 @@ function testSaveMarkRestoresReadingPosition() {
     if (scrollCalls.length !== 1) throw new Error("sub-pixel marker movement should not scroll the reader");
   `;
   vm.runInNewContext(script, { Number, Math }, { timeout: 1000 });
+}
+
+function extractFeedbackRecoveryScript(source) {
+  const match = source.match(/<script data-papertrace-feedback-recovery="v1">([\s\S]*?)<\/script>/);
+  if (!match) throw new Error("missing shared feedback recovery runtime");
+  return match[1];
+}
+
+function testFeedbackRecoveryRoundTripAndIsolation() {
+  const script = extractFeedbackRecoveryScript(html);
+  const store = new Map();
+  const storage = {
+    getItem(key) { return store.has(key) ? store.get(key) : null; },
+    setItem(key, value) { store.set(key, value); },
+    removeItem(key) { store.delete(key); },
+  };
+  const window = {
+    localStorage: storage,
+    setTimeout(fn) { fn(); return 1; },
+    clearTimeout() {},
+  };
+  const context = { window, globalThis: window, Object, Array, JSON, Date, Number, String };
+  vm.runInNewContext(script, context, { timeout: 1000 });
+  const api = window.PaperTraceFeedbackRecovery;
+  if (!api || api.version !== 1) throw new Error("shared feedback recovery API was not installed");
+  const statuses = [];
+  const recovery = api.create({ onStatus(event) { statuses.push(event); } });
+  if (!/^paper\.reader\.feedback-draft\.v1:[0-9a-f]{64}$/.test(recovery.storageKey)) {
+    throw new Error("feedback recovery key is not isolated by a paper SHA-256");
+  }
+  const saved = recovery.persist({
+    exported_at: null,
+    items: [{ feedback_id: "concept::Hamiltonian::S001", concept: "Hamiltonian", block_id: "S001" }],
+    draft: { dirty: true, form: { concept: "open system", note: "unfinished" } },
+  });
+  if (!saved) throw new Error("feedback recovery did not persist a valid envelope");
+  const restored = api.create().load();
+  if (!restored || restored.items.length !== 1 || !restored.draft || restored.draft.form.note !== "unfinished") {
+    throw new Error("saved mark and unfinished form draft did not survive a reload");
+  }
+
+  const otherFingerprint = "b".repeat(64);
+  const otherKey = `paper.reader.feedback-draft.v1:${otherFingerprint}`;
+  store.set(otherKey, JSON.stringify(Object.assign({}, restored, { paper_fingerprint: "a".repeat(64) })));
+  if (api.create({ paper_fingerprint: otherFingerprint, storage_key: otherKey }).load() !== null) {
+    throw new Error("feedback recovery accepted a draft from another paper");
+  }
+
+  store.set(recovery.storageKey, "{broken-json");
+  if (api.create().load() !== null) throw new Error("corrupt feedback recovery data was not ignored");
+  store.set(recovery.storageKey, "x".repeat(4 * 1024 * 1024 + 1));
+  if (api.create().load() !== null) throw new Error("oversize feedback recovery data was not ignored");
+
+  recovery.persist({ items: [], draft: null });
+  recovery.clear();
+  if (store.has(recovery.storageKey)) throw new Error("local feedback recovery clear did not remove the paper key");
+
+  const failing = api.create({
+    storage: { getItem() { return null; }, setItem() { throw new Error("quota"); }, removeItem() {} },
+    storage_key: `paper.reader.feedback-draft.v1:${"c".repeat(64)}`,
+    paper_fingerprint: "c".repeat(64),
+  });
+  if (failing.persist({ items: [], draft: null }) !== false || !failing.hasUnsafeChanges()) {
+    throw new Error("storage failure did not leave an unsafe-change warning state");
+  }
+  if (!statuses.some((event) => event.kind === "saved")) throw new Error("local recovery save status was not announced");
+}
+
+function testFeedbackRecoveryIntegration() {
+  const deleteFeedbackItem = extractFunction(html, "deleteFeedbackItem");
+  if (!deleteFeedbackItem.includes("persistRecoveryNow();")) {
+    throw new Error("deleting a saved annotation does not immediately persist recovery state");
+  }
+  for (const token of [
+    "function draftSnapshot()",
+    "function restoreLocalRecovery()",
+    "recovery.schedule(recoveryEnvelope, 250)",
+    "window.addEventListener('pagehide'",
+    "window.addEventListener('beforeunload'",
+    "field.addEventListener('input', markDraftDirty)",
+    "field.addEventListener('change', markDraftDirty)",
+  ]) {
+    if (!html.includes(token)) throw new Error(`missing feedback recovery integration: ${token}`);
+  }
+  const restoreLocalRecovery = extractFunction(html, "restoreLocalRecovery");
+  for (const token of ["feedback.set(key, item)", "showVisualFeedback(key, item)", "openPanel({", "draftDirty = true"]) {
+    if (!restoreLocalRecovery.includes(token)) throw new Error(`reload does not restore reader state: ${token}`);
+  }
+  const downloadFeedback = extractFunction(html, "downloadFeedback");
+  if (!downloadFeedback.includes("afterSuccessfulExport();")) {
+    throw new Error("download export does not ask whether to clear local recovery");
+  }
+  const copyFeedback = extractFunction(html, "copyFeedback");
+  const successIndex = copyFeedback.indexOf("afterSuccessfulExport();");
+  const catchIndex = copyFeedback.indexOf("catch (err)");
+  if (successIndex < 0 || catchIndex < 0 || successIndex > catchIndex) {
+    throw new Error("copy export can clear local recovery after clipboard failure");
+  }
+
+  const confirmAndClear = extractFunction(html, "confirmAndClearLocalRecovery");
+  const afterExport = extractFunction(html, "afterSuccessfulExport");
+  const script = `
+    let allowClear = false;
+    let persisted = 0;
+    let cleared = 0;
+    let lastExportedAt = null;
+    const window = { confirm() { return allowClear; } };
+    function persistRecoveryNow() { persisted += 1; return true; }
+    function clearLocalRecovery() { cleared += 1; }
+    ${confirmAndClear}
+    ${afterExport}
+    afterSuccessfulExport();
+    if (persisted !== 1 || cleared !== 0 || !lastExportedAt) throw new Error("Cancel did not keep the local recovery copy");
+    allowClear = true;
+    afterSuccessfulExport();
+    if (persisted !== 2 || cleared !== 1) throw new Error("Confirm did not clear the local recovery copy after export");
+  `;
+  vm.runInNewContext(script, { Date }, { timeout: 1000 });
 }
 
 function extractThemeScript(source) {
@@ -274,9 +409,12 @@ function testReaderViewControlsPersist() {
   }
 }
 
+testInlineScriptSyntax();
 testSaveMarkPreservesReaderLayout();
 testBlankPageClickDoesNotDismissFeedback();
 testSaveMarkRestoresReadingPosition();
+testFeedbackRecoveryRoundTripAndIsolation();
+testFeedbackRecoveryIntegration();
 testThemePersists();
 testReaderViewControlsPersist();
-console.log("reader JS runtime passed: explicit feedback dismissal, stable utility lane, in-place save, theme, collapsible panes, resize state, and source pages persist.");
+console.log("reader JS runtime passed: feedback autosave/restore/isolation, export retention choices, explicit dismissal, stable layout, theme, view state, and source pages.");

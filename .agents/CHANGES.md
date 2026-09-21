@@ -7,6 +7,14 @@ This file records dated implementation and local-release milestones. Durable bou
 
 ## 2026-09-21
 
+### Allegory story-value and causal-completeness gates
+
+- Added a Story-or-Bridge value gate: explicit fable requests receive one relation-narrowing repair pass before a transparent Bridge fallback when scenery still only renames variables or replays a formula; formula density alone does not decide the mode.
+- Required Fable Mode to couple an actor goal, real limit, choice/action, observable consequence, and reveal to the technical objective, rule source, inputs, limit, result, and error or trade-off. Debriefs now map causal actions and information changes rather than nouns alone.
+- Made causal completeness precede brevity with no total word or paragraph cap. The daily version-3 handoff retains its fail-closed 2000-character per-paragraph transport boundary, natural splitting, full ordered rendering, and no silent truncation.
+- Kept daily stories mandatory and rank-1-first; when one repair pass cannot produce a valid fable, the existing explicit-override fields select the first viable academic source in rank order without changing ranking or display order.
+- Added property regressions for variable-renaming disguises, dual-spine coupling, worked-example confusion, and completeness-before-brevity. Passed 11 Allegory Teach contract tests, 61 daily-pipeline tests, UTF-8 Skill validation, Python compilation, and `git diff --check`.
+
 ### Allegory governing-rule origin gate
 
 - Added a hard Fable Mode gate requiring every calculation, update, transition, comparison, or replacement rule to identify its source before first use; reproducible arithmetic without a motivated rule now fails the story contract.
@@ -126,3 +134,9 @@ This file records dated implementation and local-release milestones. Durable bou
 - Added the ranking stage and 8+12 verified release to README, project context, architecture, config, runbook, decisions, and bilingual demo contracts.
 - Removed confirmed dead corpus/example paths and replaced the stale reader example with an existing local reader.
 - Reduced `.agents/AGENTS.md` by moving duplicated trigger state to the root `AGENTS.md` and command/test detail to `RUNBOOK.md`.
+
+### Reader feedback local recovery
+
+- Added a shared `lean-html-skill` browser recovery runtime for saved paper annotations and unfinished feedback forms.
+- Reader recovery keys now use the full source-map SHA-256 rather than a title or absolute path; the feedback-v2 export and explicit `reader-learner` import boundary remain unchanged.
+- Successful download or clipboard copy asks whether to clear the browser copy, while clipboard fallback, storage failure, corrupt state, and quota errors fail safely without losing export access.

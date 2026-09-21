@@ -334,12 +334,14 @@ In the generated HTML:
 3. Add note, exact question, question type, explanation style, and selected/source context when useful.
 4. Click `Save mark`; the panel remains open so the reader geometry and current reading position stay stable.
 5. Confirm the in-panel save status and saved item; when a source block is detected, confirm its page badge.
-6. Use `Download feedback JSON` or `Copy feedback for Codex`, then close the panel when finished.
+6. The page automatically keeps saved marks and unfinished form input in a source-hash-isolated browser recovery copy. Use `Download feedback JSON` or `Copy feedback for Codex` for a portable backup, then choose whether to clear the local recovery copy.
 7. Import the exported payload with `reader-learner`.
 
-The HTML page stores marks in browser memory/local page state. It does not update `.agents` automatically. This persistence and export behavior should be shared with `lean-html-skill` instead of reimplemented in domain-specific scripts.
+The HTML page restores saved marks and unfinished input from browser-local storage after an accidental refresh or tab closure. That recovery copy is local to the browser, is keyed by the source-map SHA-256 rather than a local path, and does not update `.agents` automatically. JSON export remains the portable handoff. This persistence and export behavior must come from `lean-html-skill` instead of being reimplemented in domain-specific scripts.
 
 `Save mark`, `Download feedback JSON`, and `Copy feedback for Codex` save the current form state without closing the panel. Blank-page clicks are inert with respect to both feedback and Contents; only Esc or the explicit close button closes the panel. Copy must populate the fallback export textarea even when clipboard access succeeds.
+
+If browser storage is unavailable, full, corrupt, or belongs to another paper fingerprint, continue reading and exporting but show an explicit recovery warning. Prompt before leaving only when current changes could not be stored. A successful download or clipboard copy asks whether to clear the local recovery copy; a clipboard failure that only exposes the fallback textarea must retain it.
 
 ## Quality Checklist
 

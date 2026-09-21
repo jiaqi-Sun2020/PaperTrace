@@ -19,7 +19,7 @@
 - Do not store full selected text, long sentence excerpts, or user questions as concept keys.
 - Use `reader-learner` scripts or explicit user direction before mutating `.agents/reader-learner/knowledge_profile.json`.
 - Except for permitted personal learner-profile reads/updates, do not open, print, copy, summarize, upload, or modify any file that appears to contain keys, passwords, tokens, credentials, API secrets, certificates, private keys, cookies, or session data.
-- Remember that interactive HTML feedback is not auto-persisted. It exists in page memory until the user clicks `Download feedback JSON` or `Copy feedback for Codex`.
+- Interactive reader HTML may auto-save marks and unfinished form input to a source-hash-isolated browser recovery copy. This is not a portable backup and never writes `.agents`; the user still exports with `Download feedback JSON` or `Copy feedback for Codex` before importing through `reader-learner`.
 - For document/code edits, keep changes tightly scoped and verify with the smallest relevant command.
 - For generated reader outputs, report exact output paths and warnings.
 

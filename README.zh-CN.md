@@ -101,7 +101,7 @@ Codex 会核验来源和日期，应用排名与 Delta 规则，并仅在严格�
 - `academic_venue_sweep.py`、`aihot_candidates.py`、`config_to_news_feedback.py` 和 `audit_briefing_config.py` 分别支持候选池、学术检索审计、全量反馈导出和对抗性审核。
 - `lean-html-skill` 的 Cosmic Sci-Fi Product Design System Layer 只控制视觉风格，不改变功能和信息架构；默认白色背景，可切换 Cosmic 深空背景，并通过成对的前景/表面变量及发布审计阻止寓言、公式和表格出现低对比度。
 - `reader-learner` 通过知识库重建、审计和安全测试，阻止噪声、乱码或未评级曝光被误写为已掌握知识。
-- `allegory-teach` 把技术正确和初学者可理解同时设为硬门槛，并采用双模式分流：普通教学先公开真实技术问题、运行最小实例，只在局部类比确实降低认知负担时才加入它并立即回到正式语言；只有显式寓言请求和日报开篇才使用延迟揭名的 Fable Mode。新寓言至少用两段建立具有因果作用的背景，并优先选择最简单、熟悉的场景；机制段数由逻辑完整度决定而不设总上限。数学或数值故事必须在正文给出实际输入、操作、结果、对照和可观察差异；非数学故事使用明确状态变化，不为格式添加公式。
+- `allegory-teach` 把技术正确和初学者可理解同时设为硬门槛。普通教学先运行真实最小实例；寓言只有在角色目标、真实限制、选择或行动及可观察后果确实帮助理解技术机制时才成立，给变量换成场景名词仍只是 worked example。显式寓言请求先进行一次缩小关系和重建动作的修复，仍无教学增益时透明降级为 Bridge；日报开篇始终保留 Fable，并只在故事价值门失败时使用现有排名来源覆盖。故事先保证因果完整，再删除装饰和重复，不设总字数或段数上限。
 - `chat-knowledge-profile` 把本地 ChatGPT/GPT/Claude/Deepseek 会话提炼为可审核候选、会话摘要和严格的 `reader-learner` feedback handoff。
 - `demo-skill` 把 README/AGENTS 契约提炼为四条 pipeline 的中英文项目展示页，并复用 GSAP + ScrollTrigger 双语模板与无覆盖生成脚本。
 - 日报加入可审计的 `news-ranker-v1`：先做证据准入，再按学术/社会两套分数和 MMR 多样性约束筛选；正式发布包含 7–8 篇学术论文和至少 10 条社会新闻，并保留分项得分、配额、选择轨迹与淘汰原因。
@@ -155,7 +155,7 @@ Generating/viewing a lesson never changes the profile or queue. Only actual perf
 
 ## 寓言教学
 
-`skills/allegory-teach` 是自适应教学的可选“初学者优先”说明层，也是日报开篇故事的只读创作依赖。技术正确与初学者可理解是两个独立硬门槛。Bridge Mode 是普通首次教学入口：先说明真实问题、困难项和目标，运行最小实例；只有实例仍留下明确缺口且类比能降低理解成本时，才加入一个局部类比并立刻映射回正式机制。Fable Mode 只用于显式寓言／延迟揭晓请求与日报开篇；每篇新寓言至少用两段建立必要因果背景，并优先采用最简单熟悉的场景，随后按真实状态转换展开，不受固定总段数压缩。故事正文与折叠例子必须使用同一组输入／状态、操作方向、结果和对照，例子只做紧凑形式化，再按 `1 → 2 → 3 → 4` 回到事实。两种模式都拒绝需要二次解释的故事术语，并在相关时区分精确关系与有限近似。日报默认使用综合影响排名第 1 的学术论文作为故事来源，只有记录显式覆盖理由时才能改选。
+`skills/allegory-teach` 是自适应教学的可选“初学者优先”说明层，也是日报开篇故事的只读创作依赖。Bridge Mode 先公开真实问题并运行最小实例；显式寓言请求则先尝试把一个核心关系写成互相扣合的故事主线和技术主线。如果一次修复后仍只是变量改名或公式重放，就说明原因并改用 Bridge。合格寓言必须让“角色目标 → 真实限制 → 选择／行动 → 可观察后果 → 揭示”逐项对应技术目标、规则来源、输入、真实限制、结果及误差或权衡；worked example 只能紧凑形式化同一案例，不能事后补出缺失的故事主线。寓言至少有两段必要背景，但必须先完成全部因果链再压缩，不设总字数或总段数上限。日报仍必须有 Fable：先尝试排名第 1 的学术论文，无法通过故事价值门时，才按排名选择首个合格来源并记录现有显式覆盖理由。单段 2000 字符只是传输边界，超限应在自然因果节点分段，禁止截断。事实回扣仍按 `1 → 2 → 3 → 4`。
 
 > 使用 `$allegory-teach` 从我的当前研究边界选择一个概念，默认使用能奏效的最小具体桥梁，只有类比确实降低认知负担时才加入它；如果我明确要求寓言，则把名称隐藏到故事结尾，并按 1 → 2 → 3 → 4 给出事实回扣。
 
@@ -348,11 +348,12 @@ python .\skills\reader-skill\tests\adversarial_html_audit.py "<reader-dir>"
 1. 点击高亮知识点，或选中文本添加 free annotation；
 2. 选择 `mastered`、`known`、`learning`、`unknown` 或 `unrated`；
 3. 填写问题、笔记、解释偏好或卡点；
-4. 点击 `Save mark`，面板会关闭，页面保留已标注状态；
-5. 点击 `Download feedback JSON` 下载 `reader_feedback.json`；
-6. 如果浏览器禁止剪贴板，使用 `Copy feedback for Codex` 的 fallback textarea 取回 JSON。
+4. 点击 `Save mark`；面板保持打开，已保存标注与未提交输入会自动写入同一浏览器的本地恢复副本；
+5. 意外刷新或关闭后，重新打开同一 reader，核对标注与草稿已恢复；
+6. 点击 `Download feedback JSON` 下载 `reader_feedback.json`，并按提示决定是否清除本地恢复副本；
+7. 如果浏览器禁止剪贴板，使用 `Copy feedback for Codex` 的 fallback textarea 取回 JSON；复制失败时不会清除恢复副本。
 
-HTML 只负责收集和导出 feedback；它不直接写 `.agents/reader-learner/knowledge_profile.json`。
+HTML 只负责在浏览器本地恢复、收集和导出 feedback；它不直接写 `.agents/reader-learner/knowledge_profile.json`。本地恢复不是跨设备备份，长期或跨浏览器使用仍以导出的 JSON 为准。
 
 ### 6. reader_feedback.json -> knowledge profile
 

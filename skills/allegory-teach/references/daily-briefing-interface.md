@@ -30,6 +30,15 @@ only when `story_delivery.selection_basis="explicit_override"` and
 `story_delivery.override_reason` states the concrete reason. The override is an
 exception, not an alternative default.
 
+Apply the story-value gate inside the rank-1 item first: narrow it to one causal
+relation and attempt one repair before changing sources. If the result would
+still only rename variables or replay a formula, inspect the remaining academic
+items in descending rank order and select the first one that supports a valid
+goal-limit-choice-consequence spine. Record the failed story-value check as the
+explicit override reason. Use a stable learner-profile concept only when no
+ranked academic item passes. This changes neither ranking nor display order; it
+only prevents the required opening from becoming a weak fable.
+
 For a later explanation, use one of the following only after its source
 pipeline has passed its release gate:
 
@@ -87,7 +96,10 @@ The version-3 schema accepts at least two narrative paragraphs totaling at
 least 120 characters so legacy two-paragraph handoffs remain valid. It imposes
 no paragraph-count maximum. Each paragraph may contain at most 2000 normalized
 characters; an overlong paragraph is rejected with an instruction to split it
-naturally and is never silently truncated. Newly authored stories begin with
+naturally and is never silently truncated. This per-paragraph value is a
+transport boundary, not a total story-length budget: preserve the complete
+narrative and technical spines and split at natural causal or state-transition
+boundaries. Newly authored stories begin with
 at least two causally necessary background paragraphs, usually two or three,
 then allocate as many mechanism paragraphs as the complete logic chain needs.
 The title and every full, validated narrative paragraph remain free of the

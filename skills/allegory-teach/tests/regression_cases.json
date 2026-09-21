@@ -95,6 +95,80 @@
       ]
     },
     {
+      "id": "no-variable-renaming-disguise",
+      "mode": "fable",
+      "concept": "a mechanism with technical objects, an observation, and a limited representation",
+      "expected_device": "story actions that reveal the dependency rather than renamed variables",
+      "must_preserve": [
+        "actor goal",
+        "real limitation or missing information",
+        "meaningful operation or choice",
+        "observable consequence",
+        "mapping from story action to technical operation"
+      ],
+      "must_avoid": [
+        "story objects that only rename variables",
+        "a machine that simply evaluates a formula",
+        "a character who only reads values and reports arithmetic",
+        "a debrief that maps nouns without mapping causal actions"
+      ]
+    },
+    {
+      "id": "dual-spine-coupling",
+      "mode": "fable",
+      "concept": "one causal mechanism with a real operational limit",
+      "expected_device": "coupled narrative and technical causal spines",
+      "must_preserve": [
+        "actor goal mapped to the technical objective",
+        "story limitation mapped to the real technical limit",
+        "story action mapped to the technical operation",
+        "story consequence mapped to the technical result or failure",
+        "why the mapped operation is required"
+      ],
+      "must_avoid": [
+        "a complete calculation before the actor goal is intelligible",
+        "a story that can be deleted without losing teaching value",
+        "an object-only mapping table",
+        "unrelated dramatic stakes"
+      ]
+    },
+    {
+      "id": "worked-example-not-fable",
+      "mode": "fable",
+      "concept": "a formula-heavy example that may be clearer as a direct bridge",
+      "expected_device": "repair one story-worthy relation, then downgrade transparently if no story value remains",
+      "must_preserve": [
+        "one repair pass that narrows the relation",
+        "actor goal, real constraint, choice, and consequence when Fable Mode survives",
+        "transparent Bridge Mode fallback when the repair still only renames variables",
+        "direct technical skeleton after fallback"
+      ],
+      "must_avoid": [
+        "adding characters to a calculation and calling it a fable",
+        "using setting words as variable names",
+        "treating formula density as an automatic routing rule",
+        "forcing a weak fable to preserve the requested label"
+      ]
+    },
+    {
+      "id": "causal-completeness-before-brevity",
+      "mode": "fable",
+      "concept": "a mechanism whose explanation needs several causal state transitions",
+      "expected_device": "complete causal story with natural paragraph boundaries and no total length cap",
+      "must_preserve": [
+        "every required goal, limit, rule source, choice, state change, and consequence",
+        "one paragraph per key transition when it lowers reconstruction cost",
+        "natural paragraph splitting for a daily transport limit",
+        "deletion only of decoration or repetition"
+      ],
+      "must_avoid": [
+        "a fixed total word limit",
+        "a fixed total paragraph limit",
+        "silent truncation",
+        "removing a causal link merely to make the story shorter"
+      ]
+    },
+    {
       "id": "multiple-relations",
       "mode": "bridge",
       "concept": "representation, truncation, and complexity in one request",

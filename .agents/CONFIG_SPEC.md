@@ -235,9 +235,11 @@ Generated manually from interactive HTML with `Download feedback JSON`, or copie
 
 Persistence rules:
 
-- The HTML page stores feedback in browser memory for the current page session.
+- The HTML page stores saved marks and an optional unfinished form draft in a browser-local recovery envelope keyed as `paper.reader.feedback-draft.v1:<source-map-sha256>`.
+- The recovery envelope is internal, contains no absolute path in its storage key, and does not change the exported feedback-v2 schema.
 - Only items saved with `Save mark` are included in export/copy output.
-- Refreshing or closing the page before export may lose current-session feedback.
+- Reopening the same reader restores valid same-paper marks and drafts; invalid, oversized, mismatched, unavailable, or quota-failed storage is ignored with a visible warning rather than blocking JSON export.
+- A successful download or clipboard copy asks whether to clear the browser recovery copy. Clipboard fallback without a successful write never clears it.
 - `reader_feedback.json` is an intermediate handoff artifact; the long-term source of truth is `.agents/reader-learner/knowledge_profile.json` after import.
 
 Important fields:

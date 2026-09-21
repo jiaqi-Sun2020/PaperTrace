@@ -1,6 +1,6 @@
 ---
 name: lean-html-skill
-description: Render or post-process shared standalone HTML layers for PaperTrace skills, including compact report shells, reusable embedded CSS/JS, Cosmic Sci-Fi Product Design System styling, and manual feedback export panels that produce reader_feedback2.json or news_feedback2.json. Use when reader-skill, ai-quantum-news-briefing, adaptive-teach, or another PaperTrace skill needs HTML output, interactive concept/freeform annotation, copy/download feedback JSON, professional futuristic web styling, or wants to avoid duplicating HTML/feedback UI logic inside domain-specific skills.
+description: Render or post-process shared standalone HTML layers for PaperTrace skills, including compact report shells, reusable embedded CSS/JS, browser-local feedback recovery, Cosmic Sci-Fi Product Design System styling, and manual JSON export. Use when reader-skill, ai-quantum-news-briefing, adaptive-teach, or another PaperTrace skill needs HTML output, interactive annotation, copy/download feedback JSON, or shared browser UI behavior.
 ---
 
 # Lean HTML Skill
@@ -44,7 +44,9 @@ Design layer rules:
 - Do not mutate `.agents` or `knowledge_profile.json`.
 - Do not infer learner status from content alone. Preserve explicit statuses from source feedback; when a saved mark has no status, use `unrated` for both news/daily reports and reader/paper reports.
 - Do not own paper/news domain logic, explanations, citations, or source-map interpretation.
-- Do not hide feedback in browser memory as if it were persisted. The user must click download/copy.
+- Browser-local recovery may protect saved marks and unfinished form drafts from accidental refresh or tab closure, but it is not a portable or profile-level backup. Keep download/copy explicit and visible.
+- Namespace recovery by a source fingerprint, never by an absolute local path, and fail visibly when browser storage is unavailable or full.
+- Do not write browser-recovered feedback into `.agents`, generated HTML, or a learner profile automatically.
 
 ## Reader-Skill Integration Boundary
 
@@ -54,6 +56,8 @@ Design layer rules:
 - `lean-html-skill` owns reusable page chrome, shared feedback forms, copy/download controls, localStorage/browser-memory behavior, and common status/question UI.
 - Existing `reader-skill/scripts/markdown_reader_to_html.py` may remain as a compatibility wrapper while reusable HTML pieces are migrated here incrementally.
 - New feedback export behavior for reader HTML should be implemented here first, then called from `reader-skill`.
+- Shared recovery stores an internal versioned envelope containing saved items, an optional unfinished draft, timestamps, and a paper fingerprint. It must not change the exported feedback-v2 schema.
+- A successful download or clipboard copy may offer to clear the browser recovery copy; clipboard fallback alone is not a successful copy and must never trigger clearing.
 - Shared reader feedback UI must keep `Download feedback JSON` and `Copy feedback for Codex` working, preserve the open panel and reader geometry after `Save mark`, and close only on Esc or the explicit close button. Blank-page and article-content clicks must never dismiss feedback or mutate Contents state.
 - `Copy feedback for Codex` must populate a visible fallback textarea with the export JSON even when clipboard access is unavailable; feedback must never be trapped behind a browser permission failure.
 - Shared knowledge marks must preserve reader-specific metadata from `reader-skill`: `data-concept`, `data-status`, `data-source-anchor`, `data-concept-type`, `data-alias-zh`, and `title`.
@@ -114,5 +118,6 @@ For reader HTML integration, domain skills should run the shared contract valida
 ## Resources
 
 - `scripts/lean_html.py`: CLI utility for post-processing HTML reports with a feedback2 panel.
+- `scripts/feedback_recovery.py`: shared SHA-256-namespaced browser recovery runtime for saved feedback and unfinished drafts.
 - `references/cosmic-sci-fi-design-system.md`: visual-only Cosmic Sci-Fi Product Design System layer.
 - `references/feedback2-contract.md`: JSON shape and integration rules for second-pass feedback.

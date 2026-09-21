@@ -34,11 +34,30 @@ Select one mode before drafting. Do not blend both output structures.
   essential goal, constraint, trigger, or stake cannot otherwise be understood.
   Atmosphere alone is not background. Read
   [references/story-output-contract.md](references/story-output-contract.md).
-- An explicit requested format wins over the default. If a first-time learner
-  explicitly requests a concealed-name fable, preserve the delayed reveal but
-  make the post-story technical reconstruction complete.
+- An explicit fable request triggers a Fable repair attempt before any fallback:
+  narrow the target to one relation and rebuild it around a goal, real limit,
+  choice, and consequence. If that repaired story would still only rename
+  variables or replay a formula, state why the story layer adds no teaching
+  value and return a Bridge Mode explanation instead. Daily openings are the
+  exception: they must remain Fable Mode and follow the source-selection rule
+  below.
 - A strict short form, prompt-only request, or localized rewrite may compress
   Bridge Mode, but it does not relax either hard gate or epistemic limits.
+
+## Story-or-Bridge value gate
+
+Before drafting a full fable, compare the proposed story with the minimum
+technical case. A fable is valid only when its actions teach the mechanism. A
+character, setting, tool, or prop that merely stands in for a variable, vector,
+operator, formula, or missing term adds no explanatory value.
+
+Prefer Bridge Mode when the direct case exposes the relation with less decoding.
+Formula density is evidence to inspect, not an automatic routing rule: a
+mathematical mechanism may remain in Fable Mode when a familiar goal, limit,
+choice, or visible failure makes its dependency easier to reconstruct. For an
+explicit fable request, perform one repair pass by narrowing the relation or
+replacing noun substitutions with causal actions. If the story still fails the
+value comparison, downgrade transparently rather than publishing a weak fable.
 
 ## Select the subject
 
@@ -143,10 +162,13 @@ Distinguish carriers that the real mechanism distinguishes. An observation,
 measurement, compression, deletion, or projection that changes state must never
 appear as cost-free inspection.
 
-Do not impose a total paragraph limit on Fable Mode. Let each necessary state
-transition occupy its own paragraph when that lowers the reader's reconstruction
-cost, and delete any paragraph that contributes no causal information. A
-mathematical or numerical story must expose one complete in-story run:
+Complete the story and technical causal spines before compressing Fable Mode.
+Do not impose a total word, paragraph, or mechanism-paragraph limit. Let each
+necessary state transition occupy its own paragraph when that lowers the
+reader's reconstruction cost. Apply the deletion test only after both spines are
+complete, and never remove a goal, limit, rule source, choice, state change, or
+consequence merely to make the answer shorter. A mathematical or numerical
+story must expose one complete in-story run:
 
 ```text
 actual input -> explicit operation -> intermediate value -> result ->
@@ -252,7 +274,14 @@ before using it. Daily authoring always uses Fable Mode; it does not add an
 pre-publication authoring, consume only the source-audited,
 deterministically ranked selection. By default, ground the story in the
 rank-1 academic item after the academic section has been ordered by descending
-impact score; use another source only through an explicit, documented override.
+impact score and first try to narrow that item to one relation that passes the
+story-value gate. If no relation survives one repair pass, inspect the remaining
+academic items in rank order and use the first one that passes, recording
+`story_delivery.selection_basis="explicit_override"` and a concrete
+`override_reason`. Only when no ranked academic item can support a valid fable
+may a stable learner-profile concept be used through that same explicit
+override. Never weaken ranking or publish a noun-renaming story to avoid the
+override.
 For later explanation, consume finalized,
 source-grounded briefing context or a user-provided feedback export. Return the
 opening-story handoff to the briefing pipeline, which alone validates, renders,
