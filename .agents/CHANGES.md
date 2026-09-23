@@ -1,9 +1,35 @@
 # Changes
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-21
+- Last reviewed: 2026-09-23
 
 This file records dated implementation and local-release milestones. Durable boundaries belong in `AGENTS.md`, commands in `RUNBOOK.md`, data contracts in `CONFIG_SPEC.md`, and architecture/ownership in `ARCHITECTURE.md`.
+
+## 2026-09-23 — Unified Fable authoring and semantic review correction
+
+- All new allegory-teach calls use complete Fable, with version-3 daily handoffs; versions 1–4 retain runtime compatibility.
+- Removed short-scene routing for new content; completeness precedes brevity and the full story stays visible.
+- Added object-type, epistemic-strength, timing and cross-surface revision review; structural acceptance is not semantic approval.
+- Scope: explanation contracts and the two reported openings only; ranking, feedback and learner data are unchanged.
+- Verified 25 Allegory contract/review tests and 72 daily-pipeline regressions. Reissued the two reported local openings with full narratives; generated reports and review records remain outside Git.
+- Semantic-review provenance is bound to the complete story/example digest; stale or missing review evidence cannot certify teaching quality. Automated checks validate provenance, not semantic truth.
+
+## 2026-09-22
+
+### Allegory narrative-layer isolation
+
+- Split Fable authoring into private technical/evidence preflight, a sealed story-world narrative, and the factual debrief. Added a case-specific private denylist, story-world allowlist, full-paragraph lexicon/perspective audits, and a requirement to reveal professional terminology only after the narrative ends.
+- Reconciled rule-origin and evidence-authority gates with the language firewall: the story preserves the supported causal rule in ordinary in-world actions, while derivation names, source attribution, claim strength, unresolved links, and reviewer conclusions stay in the debrief.
+- Changed story/formal consistency from identical surface notation to the same underlying case and data identity. Exact ratios or explicitly approximate normalized frequencies may appear in the story; the worked example restores the exact metric, denominator, conditions, scope, and uncertainty without implying a new raw sample.
+- Kept `opening_story.version=3`, existing fields, `1 -> 2 -> 3 -> 4`, ranked source selection, feedback identity, learner-profile ownership, and the 2000-character per-paragraph fail-closed boundary unchanged.
+- Passed 18 Allegory Teach contract tests, 61 daily-pipeline tests, UTF-8 Skill validation, Python compilation, and `git diff --check`.
+
+### Allegory evidence authority and semantic conservation
+
+- Added a fail-closed evidence-authority audit for every calculation, state transition, causal verb, and replacement. Definitions/protocols, direct measurements, source-author attributions, compatible inferences, and analogy-only visualizations retain distinct claim strength.
+- Added semantic-conservation and evidence-boundary exit rules: story actions cannot invent mechanisms, directionality, guarantees, information recovery, complete correction, or global success beyond the source. Empirical metrics retain numerator, denominator, conditions, scope, and available uncertainty and require a justified composition model.
+- Added six property regressions for state-space versus information recovery, unsupported mechanisms, operation-type separation, metric composition, claim strength/scope, and explicit exit at an unresolved link. Kept `opening_story.version=3`, ranking, feedback, and learner-profile interfaces unchanged.
+- Passed 14 Allegory Teach contract tests, 61 daily-pipeline tests, UTF-8 Skill validation, Python compilation, and `git diff --check`.
 
 ## 2026-09-21
 
@@ -140,3 +166,9 @@ This file records dated implementation and local-release milestones. Durable bou
 - Added a shared `lean-html-skill` browser recovery runtime for saved paper annotations and unfinished feedback forms.
 - Reader recovery keys now use the full source-map SHA-256 rather than a title or absolute path; the feedback-v2 export and explicit `reader-learner` import boundary remain unchanged.
 - Successful download or clipboard copy asks whether to clear the browser copy, while clipboard fallback, storage failure, corrupt state, and quota errors fail safely without losing export access.
+
+## 2026-09-23 — Everyday daily opening contract
+
+- Added version-4 Everyday openings while retaining legacy versions and explicit Fable mode.
+- Completeness of one familiar relation takes priority over suggested length; no total word, sentence, or paragraph cap.
+- Separated scene from complete technical example, updated rendering, and preserved ranking, feedback, and publication ownership. Earlier dated Fable-only entries are historical, not current v4 instructions.

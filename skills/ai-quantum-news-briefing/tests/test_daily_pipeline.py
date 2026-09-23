@@ -1110,5 +1110,177 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertNotIn("lean-html-feedback-dock", html)
 
 
+
+class EverydayOpeningTests(unittest.TestCase):
+    """In-memory contract/render tests, not a substitute for teaching review."""
+
+    def raw(self) -> dict:
+        value = config()
+        value["opening_story"].update(
+            version=4,
+            title="并排走路",
+            paragraphs=["两个人从同一条线并排走。脚步越接近，短时间里越难看出谁走得快；多看一会儿，差距才逐渐显出来。"],
+        )
+        return value
+
+    def normalize(self, value: dict) -> dict:
+        return normalize_briefing_config(value, require_source_url=True)
+
+    def test_v4_accepts_one_short_scene_without_example_numbers(self) -> None:
+        raw = self.raw()
+        canonical = self.normalize(raw)
+        story = canonical["opening_story"]
+        self.assertEqual(story["version"], 4)
+        self.assertEqual(story["paragraphs"], raw["opening_story"]["paragraphs"])
+        self.assertEqual(story["worked_example"], self.normalize(config())["opening_story"]["worked_example"])
+        self.assertNotIn("0.658", " ".join(story["paragraphs"]))
+        self.assertEqual(self.normalize(canonical), canonical)
+
+    def test_v4_has_no_total_length_or_paragraph_ceiling(self) -> None:
+        raw = self.raw()
+        # Transport stress case, not a recommended teaching draft.
+        paragraphs = [f"第 {n} 段。" + "仍需保留的文字。" * 50 for n in range(12)]
+        raw["opening_story"]["paragraphs"] = paragraphs
+        canonical = self.normalize(raw)
+        self.assertEqual(canonical["opening_story"]["paragraphs"], paragraphs)
+        html, markdown = render_html(canonical), render_markdown(canonical)
+        for paragraph in paragraphs:
+            self.assertIn(paragraph, html)
+            self.assertIn(paragraph, markdown)
+
+    def test_v4_preserves_duplicates_and_transport_boundary(self) -> None:
+        raw = self.raw()
+        raw["opening_story"]["paragraphs"] = ["甲" * 2000] * 2
+        self.assertEqual(self.normalize(raw)["opening_story"]["paragraphs"], ["甲" * 2000] * 2)
+        raw["opening_story"]["paragraphs"][0] += "乙"
+        with self.assertRaisesRegex(ValueError, "exceeds 2000"):
+            self.normalize(raw)
+        self.assertEqual(len(raw["opening_story"]["paragraphs"][0]), 2001)
+
+    def test_v4_rejects_empty_or_nontext_scene(self) -> None:
+        for paragraphs in ([], ["   "], [123], [{"text": "scene"}]):
+            with self.subTest(paragraphs=paragraphs), self.assertRaises(ValueError):
+                raw = self.raw()
+                raw["opening_story"]["paragraphs"] = paragraphs
+                self.normalize(raw)
+
+    def test_v4_factual_and_example_overflow_fails_without_clipping(self) -> None:
+        for field, limit in (("title", 160), ("concept_definition", 800), ("logic_chain", 800)):
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "exceeds"):
+                raw = self.raw()
+                raw["opening_story"][field] = "甲" * (limit + 1)
+                self.normalize(raw)
+        raw = self.raw()
+        raw["opening_story"]["worked_example"]["steps"][0]["explanation"] = "甲" * 1601
+        with self.assertRaisesRegex(ValueError, "exceeds 1600"):
+            self.normalize(raw)
+
+    def test_versions_are_explicit_and_legacy_inference_is_unchanged(self) -> None:
+        for version in (None, True, False, "4", 4.0, 0, 5, 99):
+            raw = self.raw()
+            raw["opening_story"]["version"] = version
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "supported integer"):
+                self.normalize(raw)
+        for version in (1, 2, 3):
+            raw = config()
+            raw["opening_story"]["version"] = version
+            self.assertEqual(self.normalize(raw)["opening_story"]["version"], 3)
+        raw = config()
+        raw["opening_story"].pop("version")
+        self.assertEqual(self.normalize(raw)["opening_story"]["version"], 3)
+        raw["opening_story"].pop("worked_example")
+        raw["story_delivery"]["worked_example_required"] = False
+        self.assertEqual(self.normalize(raw)["opening_story"]["version"], 1)
+
+    def test_v3_numerical_contract_is_not_weakened(self) -> None:
+        raw = self.raw()
+        raw["opening_story"]["version"] = 3
+        with self.assertRaises(ValueError):
+            self.normalize(raw)
+        self.assertEqual(self.normalize(config())["opening_story"]["version"], 3)
+
+    def test_v4_still_requires_a_complete_example(self) -> None:
+        for field in ("worked_example",):
+            raw = self.raw()
+            raw["opening_story"].pop(field)
+            raw["story_delivery"]["worked_example_required"] = False
+            with self.assertRaisesRegex(ValueError, "worked_example"):
+                self.normalize(raw)
+        for field in ("scenario", "inputs", "observable"):
+            raw = self.raw()
+            raw["opening_story"]["worked_example"].pop(field)
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.normalize(raw)
+
+    def test_v4_full_text_concealment_and_source_checks_remain(self) -> None:
+        raw = self.raw()
+        raw["opening_story"]["paragraphs"] = ["普通场景。" * 220 + "谱隙"]
+        with self.assertRaisesRegex(ValueError, "reveals the concept"):
+            self.normalize(raw)
+        raw = self.raw()
+        raw["opening_story"].update(grounding_kind="briefing_items", source_story_ids=["not-published"])
+        with self.assertRaisesRegex(ValueError, "unpublished"):
+            self.normalize(raw)
+
+    def test_v4_render_order_escaping_and_feedback_parity(self) -> None:
+        raw = self.raw()
+        raw["opening_story"]["title"] = "<script>not executable</script>"
+        canonical = self.normalize(raw)
+        html, markdown = render_html(canonical), render_markdown(canonical)
+        for output in (html, markdown):
+            labels = ["这里真正要理解的是", "对应真实概念", "这个比喻没有覆盖", "不能由此推出"]
+            positions = [output.index(label) for label in labels]
+            self.assertEqual(positions, sorted(positions))
+            self.assertNotIn("1. 概念名称与一句话定义", output)
+        self.assertIn("&lt;script&gt;", html)
+        from html.parser import HTMLParser
+
+        class Tags(HTMLParser):
+            def __init__(self) -> None:
+                super().__init__()
+                self.scripts = []
+                self.details = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "script":
+                    self.scripts.append(dict(attrs))
+                if tag == "details" and "story-worked-example" in dict(attrs).get("class", ""):
+                    self.details.append(dict(attrs))
+
+        parsed, baseline = Tags(), Tags()
+        parsed.feed(html)
+        baseline.feed(render_html(self.normalize(self.raw())))
+        # Serialized JSON may contain literal "<script>" text, but must not
+        # create an extra executable HTML element or close its data container.
+        self.assertEqual(parsed.scripts, baseline.scripts)
+        self.assertEqual(len(parsed.details), 1)
+        self.assertNotIn("open", parsed.details[0])
+        self.assertEqual(
+            export_feedback(canonical, Path("config.json"), "unrated", "none"),
+            export_feedback(self.normalize(config()), Path("config.json"), "unrated", "none"),
+        )
+
+    def test_v4_synthetic_release_round_trip(self) -> None:
+        # Isolated fixture only: never use the repository's news or profile data.
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            candidate = root / "candidate.json"
+            candidate.write_text(json.dumps(self.raw(), ensure_ascii=False), encoding="utf-8")
+            output = root / "news" / "2026-07-10"
+            index = root / "story_index.jsonl"
+            args = Namespace(
+                config=str(candidate), output_dir=str(output), index=str(index),
+                date="2026-07-10", days=7, continuing_mode="one-line",
+                design_system="cosmic", background_mode="light",
+            )
+            self.assertEqual(cmd_run(args), 0)
+            run_dir = next((output / ".staging").iterdir())
+            self.assertEqual(verify_artifacts(run_dir, strict=True)["status"], "pass")
+            self.assertEqual(cmd_finalize(Namespace(run_dir=str(run_dir), strict=True)), 0)
+            self.assertEqual(verify_artifacts(output, strict=True)["status"], "pass")
+            saved = json.loads((output / "news_feedback_config_delta_2026-07-10.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved["opening_story"]["version"], 4)
+
+
 if __name__ == "__main__":
     unittest.main()

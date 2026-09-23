@@ -48,14 +48,19 @@ value, not for equation availability. Use a mathematical/numerical derivation
 only when it belongs to the mechanism; otherwise provide a complete operational,
 causal, experimental, or comparative case without a formula. Read
 `skills/allegory-teach/references/worked-example-contract.md` before authoring
-the handoff, and read `story-output-contract.md` plus
-`daily-briefing-interface.md` for the Fable contract. Keep
-`opening_story.version=3`; supply at least two paragraphs with no count maximum,
-split any paragraph longer than 2000 characters, and never rely on truncation.
-For mathematical or numerical stories, put the same concrete inputs,
-operations, results, counterfactual, and observable difference in the narrative
-and the worked example. For non-mathematical stories, provide explicit states
-and transitions without decorative formulas.
+the handoff, then read `story-output-contract.md`, `narrative-language-firewall.md`
+and `daily-briefing-interface.md`. New authoring uses complete Fable version 3.
+At least two causal background paragraphs precede the complete mechanism, with
+no total length/count cap. Naturally split paragraphs over 2000 characters.
+Keep the narrative and example consistent; legacy versions 1–4 remain readable.
+
+For source maintenance only, run these regression tests from `D:\AI\PaperTrace`.
+They use synthetic in-memory/temporary fixtures, not published reports:
+
+```powershell
+python -B -m unittest discover -s skills/allegory-teach/tests -p "test_*.py"
+python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p test_daily_pipeline.py
+```
 
 The final verify must report visible HTML `?=0`, replacement-character `=0`, Chinese UI markers, concept/feedback identity equality, all default statuses `unrated`, light default/Cosmic option, and no feedback2 panel. A failed encoding check blocks finalize and therefore blocks story-index updates.
 
@@ -63,6 +68,25 @@ It also verifies that the native worked-example `details` control is closed by
 default and ordered between the opening-story debrief and `日报正文`;
 formula-bearing examples must retain the MathJax marker. A failed worked-example
 check blocks finalize and therefore blocks story-index updates.
+
+### Recheck an opening-story repair
+
+From `D:\AI\PaperTrace`, after structural release verification, run:
+
+```powershell
+python skills/allegory-teach/scripts/audit_daily_story.py --run-dir news/YYYY-MM-DD --review news/YYYY-MM-DD/opening_story_review_YYYY-MM-DD.json --output news/YYYY-MM-DD/adversarial_audit_YYYY-MM-DD.json
+```
+
+Replace `YYYY-MM-DD` with the release date. The separately authored review binds
+the current story/example digest and records text, judgment, source or rule,
+reason and limitation for three review rounds. Content edits require re-review,
+not just a refreshed hash. The validator checks provenance and structure, not
+semantic truth. Keep review records and reports local; they are not learner
+evidence and do not change the handoff schema.
+
+A story-only historical reissue retains the original lookback/design settings
+and uses an isolated shadow index. Compare all non-story fields and preserve
+feedback and canonical index bytes; do not rerank against today's live index.
 
 ## Build The Bilingual Project Demo
 

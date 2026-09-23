@@ -1,59 +1,43 @@
 # Daily Briefing Interface
 
-`allegory-teach` has two read-only relationships with an AI + quantum briefing:
-it may author the opening-story handoff after deterministic ranking and source
-audit, or explain a concept from an already published briefing. It never owns
-collection, ranking, feedback, or publication.
-
-Daily opening stories always use Fable Mode because this product contract asks
-for a concealed-name narrative before the briefing. The routing decision is not
-serialized into the handoff: keep `opening_story.version=3`, the existing
-fields, the `1 -> 2 -> 3 -> 4` factual return, and the current worked-example
-schema. Do not
-add an `explanation_mode` field. Bridge Mode remains the default only for
-ordinary direct teaching outside this opening-story contract.
+`allegory-teach` authors a source-grounded opening handoff or explains a
+released briefing. It never owns collection, ranking, feedback, or publication.
+All new daily openings use Fable Mode, `opening_story.version=3`.
+Read `story-output-contract.md` and `narrative-language-firewall.md`.
+Historical versions 1–4 remain readable; do not add an explanation_mode field.
 
 ## Accepted upstream context
 
-For an opening story before publication, use only a deterministically ranked
-selection whose underlying items already passed the news evidence gate. Do not
-use unranked candidates, search-result pages, a staging directory, or a compact
-story-index summary as primary evidence. If the story instead comes from the
-learner boundary, read only the stable concept facts needed to choose it; do not
-copy status, raw events, private notes, or profile paths into the report.
+Use only source-audited, deterministically ranked publishable items, not search
+results, staging records, or story-index summaries as primary evidence.
+The academic display order remains descending `ranking.base_score`.
+The default source is rank 1; its `story_id` is first in `source_story_ids`.
+Try one narrower relation and one repair within that item before changing source.
+If no faithful, comprehensible analogy survives, inspect remaining academic
+items in rank order. Record `story_delivery.selection_basis="explicit_override"`
+and a concrete `override_reason`. Use a stable learner-profile concept only
+when the user explicitly selects it. If no eligible source supports a valid
+fable, stop publication and disclose the failed gate.
+This changes neither ranking nor display order. Never trade evidence quality
+for a more entertaining scene.
 
-The academic section is displayed by descending `ranking.base_score`, the
-pipeline's evidence-backed impact/importance proxy. The default story source is
-the rank-1 academic item, and its `story_id` must be the first entry in
-`source_story_ids`. Use a different briefing item or learner-profile concept
-only when `story_delivery.selection_basis="explicit_override"` and
-`story_delivery.override_reason` states the concrete reason. The override is an
-exception, not an alternative default.
+For later explanation, use finalized briefing/feedback context with source
+title/URL, excerpt, category, and date range, or a stable concept whose sources
+identify a briefing. Profile reads are limited to relevant stable facts.
+Do not copy status, raw events, private notes, or profile paths into a report.
 
-Apply the story-value gate inside the rank-1 item first: narrow it to one causal
-relation and attempt one repair before changing sources. If the result would
-still only rename variables or replay a formula, inspect the remaining academic
-items in descending rank order and select the first one that supports a valid
-goal-limit-choice-consequence spine. Record the failed story-value check as the
-explicit override reason. Use a stable learner-profile concept only when no
-ranked academic item passes. This changes neither ranking nor display order; it
-only prevents the required opening from becoming a weak fable.
-
-For a later explanation, use one of the following only after its source
-pipeline has passed its release gate:
-
-1. a finalized `news_feedback.json` exported by the briefing reader;
-2. a finalized news-feedback config or briefing item with title, category,
-   source title/URL, source excerpt, and concept list; or
-3. a stable profile concept whose `sources` record identifies a news briefing.
-
-Retain item title, category, source title/URL, and date range as provenance for
-the factual debrief.
+Every important analogy action must preserve the source's operation target,
+direction, evidence class, and claim boundary. Stop at unresolved mechanisms.
+A visualization is not evidence and may not imply extra information recovery,
+perfect observation, or universal success.
 
 ## Opening-story handoff
 
-Return this object to `ai-quantum-news-briefing`; do not write the config or
-published files directly:
+Return this object to `ai-quantum-news-briefing`; do not publish or write
+the config yourself. The existing fields carry the four reading layers:
+`paragraphs` = complete narrative, `concept_definition` = bounded definition,
+`concept_name` plus `logic_chain` = real concept and mapping,
+`analogy_boundary` plus `misleading_risk` = boundary corrections.
 
 ```json
 {
@@ -92,42 +76,51 @@ published files directly:
 }
 ```
 
-The version-3 schema accepts at least two narrative paragraphs totaling at
-least 120 characters so legacy two-paragraph handoffs remain valid. It imposes
-no paragraph-count maximum. Each paragraph may contain at most 2000 normalized
-characters; an overlong paragraph is rejected with an instruction to split it
-naturally and is never silently truncated. This per-paragraph value is a
-transport boundary, not a total story-length budget: preserve the complete
-narrative and technical spines and split at natural causal or state-transition
-boundaries. Newly authored stories begin with
-at least two causally necessary background paragraphs, usually two or three,
-then allocate as many mechanism paragraphs as the complete logic chain needs.
-The title and every full, validated narrative paragraph remain free of the
-canonical concept name and its aliases; the factual debrief owns the reveal,
-including when a leaked term occurs after character 900.
-When `grounding_kind` is `briefing_items`, reference at least one `story_id` that
-survives into the published selection. Under the default daily selection policy,
-the first ID is the rank-1 academic item. The pipeline renders the story first,
-then its compact factual debrief, then a collapsed worked example, then
-`日报正文`.
 
-The worked example is required for a new daily run, but its form follows the
-concept. Do not prefer mathematical concepts during selection. Use `formula`
-only when the selected concept and evidence genuinely require mathematics; a
-complete operational, causal, experimental, or comparative example may contain
-no formula. Every kind still requires a bounded `scenario`, named `inputs`, and
-an `observable`; a generic explanation of the logic chain is rejected. The
-narrative and worked example use the same inputs/states, operation direction,
-result, and comparison. A mathematical or numerical narrative exposes its
-actual numbers and calculations before the debrief; a non-mathematical one
-exposes concrete state labels and transitions. When any formula is present,
-define its objects, expose every
-meaningful transition, and include a check that can reveal an invalid
-derivation. Because the story has already run the case, the collapsed worked
-example formalizes it compactly instead of retelling the narrative. Read
-[worked-example-contract.md](worked-example-contract.md) for the full contract.
+## Versioned validation and presentation
+
+- New version-3 authoring begins with at least two causally necessary background
+  paragraphs and then completes the story. No total character, sentence, or
+  paragraph-count ceiling applies; suggested lengths are never pass/fail thresholds.
+- Each paragraph has a 2000-normalized-character transport boundary. Split
+  naturally; never truncate. Preserve all paragraphs in their input order.
+- Conceal the concept and professional representation throughout the title and
+  story. Reveal only in factual section 1, then return in order 1 -> 2 -> 3 -> 4.
+- Keep a complete structured worked example after section 4 and before the
+  briefing. HTML shows the entire story and debrief, with only the example
+  inside a native details control closed by default.
+- Narrative and example preserve the same bounded case and underlying data
+  identity. Natural-language projection is allowed; fabricated measurements,
+  mismatched conditions and phantom references are not. Read
+  `worked-example-contract.md` and the shared semantic review.
+- Versions 1, 2, 3 and 4 retain their runtime meaning and existing normalization,
+  validation and rendering. Version 4 stays 4 and may retain one paragraph.
+  Unknown or malformed versions are rejected. Do not bulk rewrite history.
+- The first source ID defaults to rank 1. Source override uses the existing
+  audited reason; ranking, publication, feedback identity and learner ownership
+  remain unchanged. Schema success never certifies semantic correctness.
 
 ## Post-release explanation handoff
+
+For a story-only repair, keep ranking, item identity, feedback and index records
+unchanged. Reproduce the existing staged release using its original lookback
+and design settings; compare non-story config fields before publication.
+Never rerank against today's index and assume historical output stays identical.
+
+Keep authored review evidence outside the opening-story schema. Record the
+current story/example digest and three rounds: story-completeness,
+semantic-and-source, cross-surface-and-display. Each records reviewed text,
+judgment, reason, source_or_rule and limitation. Re-author the judgment after an
+edit, not just its hash. The validator checks provenance, not truth.
+
+From `D:\AI\PaperTrace`, reproduce the review and structural audit with:
+
+```powershell
+python skills/allegory-teach/scripts/audit_daily_story.py --run-dir news/YYYY-MM-DD --review news/YYYY-MM-DD/opening_story_review_YYYY-MM-DD.json --output news/YYYY-MM-DD/adversarial_audit_YYYY-MM-DD.json
+```
+
+Missing, stale or unsupported review records cannot certify a release as
+teaching-approved, even when the structural pipeline passes.
 
 The optional in-chat handoff is:
 

@@ -517,6 +517,65 @@ def assert_story_body_example_contract(
         )
 
 
+def opening_story_version(value: dict[str, Any]) -> int:
+    """Absent versions retain legacy inference; explicit unknown versions fail."""
+    version = value.get("version", 3 if value.get("worked_example") else 1)
+    if type(version) is not int or version not in {1, 2, 3, 4}:
+        raise ValueError("opening_story.version must be a supported integer: 1, 2, 3, or 4")
+    return version
+
+
+def assert_v4_transport(value: dict[str, Any]) -> None:
+    """Check raw fields before legacy normalizers can silently clip their text."""
+    def fields(record: dict[str, Any], limits: dict[str, int], prefix: str) -> None:
+        for key, limit in limits.items():
+            raw = record.get(key)
+            if raw is not None and not isinstance(raw, str):
+                raise ValueError(f"{prefix}.{key} must be text")
+            text = " ".join((raw or "").split())
+            if len(text) > limit:
+                raise ValueError(f"{prefix}.{key} exceeds {limit} characters; shorten or split without truncation")
+
+    def text_list(record: dict[str, Any], key: str, limit: int, prefix: str) -> None:
+        values = record.get(key)
+        if values is None:
+            return
+        if not isinstance(values, list):
+            raise ValueError(f"{prefix}.{key} must be a list")
+        for index, raw in enumerate(values):
+            fields({"text": raw}, {"text": limit}, f"{prefix}.{key}[{index}]")
+
+    fields(value, {"title": 160, "concept_name": 240, "concept_definition": 800,
+                   "logic_chain": 800, "analogy_boundary": 800,
+                   "misleading_risk": 800, "grounding_kind": 80}, "opening_story")
+    for key, limit in (("paragraphs", OPENING_STORY_PARAGRAPH_LIMIT),
+                       ("concept_aliases", 120), ("source_story_ids", 180)):
+        text_list(value, key, limit, "opening_story")
+    example = value.get("worked_example")
+    if not example:
+        return
+    if not isinstance(example, dict):
+        raise ValueError("opening_story.worked_example must be an object")
+    prefix = "opening_story.worked_example"
+    fields(example, {"kind": 80, "title": 200, "question": 1200, "scenario": 1600,
+                     "observable": 1200, "result": 1600, "interpretation": 1600,
+                     "non_conclusion": 1600}, prefix)
+    text_list(example, "assumptions", 1000, prefix)
+    text_list(example, "checks", 1200, prefix)
+    for key, limits in (
+        ("inputs", {"name": 240, "value": 800, "role": 800}),
+        ("objects", {"name": 240, "kind": 240, "role": 800, "units": 160}),
+        ("steps", {"action": 1200, "formula": 1600, "rule": 600, "explanation": 1600}),
+    ):
+        values = example.get(key) or []
+        if not isinstance(values, list):
+            raise ValueError(f"{prefix}.{key} must be a list")
+        for index, record in enumerate(values):
+            if not isinstance(record, dict):
+                raise ValueError(f"{prefix}.{key}[{index}] must be an object")
+            fields(record, limits, f"{prefix}.{key}[{index}]")
+
+
 def normalize_opening_story(value: Any) -> dict[str, Any]:
     if value is None:
         return {}
@@ -524,10 +583,15 @@ def normalize_opening_story(value: Any) -> dict[str, Any]:
         raise ValueError("opening_story must be an object")
     if not value:
         return {}
+    version = opening_story_version(value)
+    if version == 4:
+        assert_v4_transport(value)
     worked_example = normalize_worked_example(value.get("worked_example"))
     return {
-        "version": 3 if worked_example else 1,
-        "title": clean_text(value.get("title") or "开篇寓言", 160),
+        "version": 4 if version == 4 else (3 if worked_example else 1),
+        "title": clean_text(value.get("title") or (
+            "先用一个生活中的例子理解" if version == 4 else "开篇寓言"
+        ), 160),
         "paragraphs": normalize_opening_story_paragraphs(value.get("paragraphs")),
         "concept_name": clean_text(value.get("concept_name"), 240),
         "concept_aliases": normalize_text_list(
@@ -556,6 +620,9 @@ def assert_opening_story_contract(
         if required:
             raise ValueError("daily briefing requires opening_story before the briefing body")
         return
+    version = opening_story_version(story)
+    if version == 4:
+        assert_v4_transport(story)
     required_fields = (
         "title",
         "concept_name",
@@ -569,11 +636,14 @@ def assert_opening_story_contract(
     if missing:
         raise ValueError("opening_story missing required fields: " + ", ".join(missing))
     paragraphs = story.get("paragraphs") or []
-    if not isinstance(paragraphs, list) or len(paragraphs) < 2:
-        raise ValueError("opening_story.paragraphs must contain at least 2 story paragraphs")
+    minimum_paragraphs = 1 if version == 4 else 2
+    if not isinstance(paragraphs, list) or len(paragraphs) < minimum_paragraphs:
+        raise ValueError(f"opening_story.paragraphs must contain at least {minimum_paragraphs} story paragraphs")
     normalized_paragraphs: list[str] = []
     for index, paragraph in enumerate(paragraphs, start=1):
         text = " ".join(str(paragraph or "").split()).strip()
+        if version == 4 and not text:
+            raise ValueError("opening_story.paragraphs must contain nonempty text")
         if len(text) > OPENING_STORY_PARAGRAPH_LIMIT:
             raise ValueError(
                 f"opening_story.paragraphs[{index}] exceeds "
@@ -582,7 +652,7 @@ def assert_opening_story_contract(
             )
         normalized_paragraphs.append(text)
     story_text = " ".join(normalized_paragraphs)
-    if len(story_text) < 120:
+    if version != 4 and len(story_text) < 120:
         raise ValueError("opening_story must contain at least 120 characters of narrative")
     hidden_terms = [story.get("concept_name"), *(story.get("concept_aliases") or [])]
     concealed_text = f"{clean_text(story.get('title'))} {story_text}".casefold()
@@ -596,12 +666,13 @@ def assert_opening_story_contract(
         raise ValueError("opening_story reveals the concept before the factual debrief: " + ", ".join(leaked))
     assert_worked_example_contract(
         story.get("worked_example") or {},
-        required=worked_example_required,
+        required=worked_example_required or version == 4,
     )
-    assert_story_body_example_contract(
-        story_text,
-        story.get("worked_example") or {},
-    )
+    if version != 4:
+        assert_story_body_example_contract(
+            story_text,
+            story.get("worked_example") or {},
+        )
     grounding_kind = clean_text(story.get("grounding_kind"), 80)
     if grounding_kind not in VALID_STORY_GROUNDING:
         raise ValueError("opening_story.grounding_kind must be learner_profile or briefing_items")

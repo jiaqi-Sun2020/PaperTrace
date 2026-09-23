@@ -147,6 +147,19 @@ Every new release carries `opening_story.version=3` with the existing concealed 
 - Generated reader HTML must pass both the compile-time `structure_validation_report.json` gate and the post-generation adversarial HTML audit before it is considered complete.
 - Shared feedback UI belongs in `lean-html-skill` and must include a clipboard fallback textarea for exported JSON.
 
+## Opening-story review boundary
+
+New calls author complete Fable/version-3 handoffs. Existing versions 1–4 retain
+their runtime semantics; Bridge and Everyday are historical references only.
+Structural release verification is separate from semantic review. Local review
+records bind the story/example digest and cover story completeness, semantic and
+source fidelity, and cross-surface/display consistency.
+
+`skills/allegory-teach/scripts/review_evidence.py` checks review freshness and
+evidence presence; `audit_daily_story.py` combines those checks with release
+validation. Passing these checks is not proof of semantic truth and does not
+mutate learner data. See `.agents/RUNBOOK.md` for the review command.
+
 ## Generated Or Sensitive Areas
 
 - Treat `*_reader/` folders as generated-but-important reading artifacts.

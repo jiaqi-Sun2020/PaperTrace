@@ -1,7 +1,11 @@
 # Bridge Mode Contract
 
+> Historical compatibility reference only. All new invocations use Fable; do not
+> use this document to select a mode or automatically downgrade a request.
+
 Use Bridge Mode for a first encounter, a direct explanation, or a request to
-repair confusion unless the user explicitly asks for a concealed-name fable.
+repair confusion unless the user asks for a life-based analogy or a complete fable.
+Daily openings follow Everyday Mode by default.
 Its job is to expose the missing technical relation before adding imagery.
 
 ## Prefer Bridge Mode when it is clearer
@@ -18,7 +22,7 @@ relation and replace noun substitutions with causal actions. If that repair
 still adds decoding cost without teaching value, say so and use this contract
 instead. Daily opening stories do not use this fallback; their source selection
 follows `daily-briefing-interface.md` so the required opening remains a valid
-Fable Mode story.
+Everyday Mode analogy (or a full fable only when explicitly requested).
 
 ## Required sequence
 
@@ -34,8 +38,10 @@ compressed for a short-form request, but the mechanism may not be reordered:
    case before displaying the general form. For a non-mathematical mechanism,
    trace concrete input, state change, output, and one failure case.
 4. **Run the real mechanism:** show each meaningful transition and say why it
-   follows. Distinguish definitions, assumptions, identities, approximations,
-   and conclusions.
+   follows. For each transition, identify the rule or evidence source, actual
+   change, preserved/lost content, and conclusion not established. Distinguish
+   definitions, direct measurements, author attributions, compatible
+   inferences, assumptions, identities, approximations, and conclusions.
 5. **Need-an-analogy decision:** ask whether the concrete case already makes the
    missing relation visible. If yes, continue in technical language without an
    analogy. If no, use one local analogy for only that relation and introduce no
@@ -46,7 +52,9 @@ compressed for a short-form request, but the mechanism may not be reordered:
 7. **Return to technical language after an analogy:** restate the same
    transition without story vocabulary before moving to another mechanism.
 8. **Bound the claim:** identify analogy limits and, when applicable, separate
-   exact theory, finite implementation, approximation, and error source.
+   exact theory, finite implementation, approximation, and error source. Keep
+   the source's device/population, conditions, time or round scope,
+   uncertainty, and unresolved mechanism visible.
 9. **Reconnect the chain:** finish with
    `previous step -> current bridge -> next step -> resulting capability`.
 
@@ -91,6 +99,19 @@ follow-up. Prefer familiar operational actions such as remove, retain, connect,
 replace, set to zero, add, and compare. An invented mechanism word is not an
 explanation unless its physical operation is stated immediately.
 
+Apply the shared evidence-authority audit before any optional analogy:
+
+```text
+real object -> technical operation -> rule or evidence source -> actual change
+-> preserved content -> lost content -> conclusion not established
+```
+
+The analogy may rename a supported operation but may not add a causal verb,
+intermediate physical process, directionality, or guarantee. If the evidence
+does not distinguish the next mechanism, stop the analogy there, state that
+limit in technical language, and continue without filling the gap. A Bridge
+Mode explanation is not an escape from evidence or semantic-conservation rules.
+
 ## Precision gates
 
 - Mathematical notation is required only when mathematics carries the
@@ -105,6 +126,17 @@ explanation unless its physical operation is stated immediately.
   govern the claim.
 - Do not turn a coordinate introduced for analysis into an independent physical
   degree of freedom unless the domain evidence establishes that interpretation.
+- Preserve the target of each operation: movement into an allowed state set is
+  not recovery of the original content; removal of one error mode is not full
+  correction; readout is not automatically nondisturbing observation;
+  post-selection is not physical reset; and a local metric is not end-to-end
+  success.
+- For an empirical rate, probability, percentage, fidelity, or error metric,
+  retain its numerator, denominator, conditioning set, experimental unit,
+  device/population, round or time window, and source-reported uncertainty.
+  First require a compatible sample space, target event, population, and
+  conditioning set; then combine only with a source-backed joint model or an
+  explicit, defensible conditional-independence assumption.
 - For removal, truncation, projection, pruning, compression, or approximation,
   explicitly identify the original contributors, the removed or unrepresented
   part, the rule used in place of its contribution, and the resulting error
@@ -120,6 +152,14 @@ Rewrite the explanation when any of the following is true:
 - the analogy says what happened but not why the step helps;
 - one analogy carries more than one unresolved technical mechanism;
 - the mapping drifts or uses one object for incompatible technical roles;
+- a story action adds a mechanism, direction, or guarantee that the source does
+  not authorize;
+- a measured result, author attribution, compatible inference, and analogy-only
+  visualization are presented at the same evidence level;
+- the operation's target or information carrier expands from state change into
+  unsupported recovery, correction, or task success;
+- empirical metrics with different denominators or conditions are multiplied
+  without a justified composition model;
 - an approximation is described as an exact equivalence;
 - a performance conclusion has no governing technical parameters;
 - the final chain does not identify the previous step, current bridge, and next

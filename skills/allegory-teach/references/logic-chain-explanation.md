@@ -1,9 +1,7 @@
 # Logic-Chain Explanation Guidance
 
-Use this shared guide for the technical layer in both modes. Bridge Mode applies
-it before and around each local analogy; Fable Mode applies it after the reveal.
-It adapts the project-local `logic-chain-tutor` approach to this skill's two
-output contracts.
+Use this guide for private technical preflight and the factual return after a
+complete Fable. Do not expose the formal derivation before the narrative ends.
 
 ## Diagnose the smallest missing bridge
 
@@ -45,10 +43,9 @@ inputs and produce the stated result. A paragraph that only repeats the causal
 chain, even accurately, remains an explanation and does not satisfy the example
 contract.
 
-In Bridge Mode, the minimum case appears before any optional analogy. In Fable
-Mode, it is prepared before story drafting, run in the narrative without leaking
-the concept name, and then formalized compactly after the factual debrief. In
-either mode, generalize only after the minimum case has visibly run once.
+Prepare the minimum case before story drafting, run it in the narrative without
+leaking the concept name, then formalize it compactly after the factual debrief.
+Generalize only after the minimum case has visibly run once.
 
 ## Keep technical claims inspectable
 
@@ -86,6 +83,50 @@ condition number, target error, sample count, or number of requested
 observables. Do not list irrelevant symbols merely to make the answer look
 complete.
 
+## Preserve evidence authority and semantic targets
+
+Audit each causal edge before translating it into an analogy:
+
+```text
+real object -> technical operation -> rule or evidence source -> actual change
+-> preserved content -> lost content -> conclusion not established
+```
+
+Assign the strongest source class that is actually available:
+
+1. definition or declared protocol;
+2. direct measurement or observation;
+3. the source author's mechanistic attribution;
+4. an inference that is consistent with, but not uniquely established by, the
+   evidence; or
+5. analogy-only visualization.
+
+Use claim verbs that preserve that class: distinguish “is defined as,” “the
+experiment measured,” “the authors attribute,” and “is consistent with.” Do
+not turn correlation into unique causation, an attribution into direct
+measurement, or a visualization into a physical intermediate step. Preserve
+the source's device, population, calibration, time, round, and uncertainty
+scope. If an essential link is unresolved, state that the evidence does not
+distinguish the mechanism instead of filling the gap with a story action.
+
+Preserve the operation's semantic target. A transition into an allowed state
+set does not establish recovery of the original information carried within that
+set. Removal of one failure mode does not establish complete correction;
+measurement or readout does not imply passive observation; post-selection does
+not physically reset discarded systems; reduced disturbance does not mean zero
+disturbance; and a component fidelity or error rate does not establish global
+task success. In every domain, name what changed, what was preserved, what was
+discarded, and what remains unknown.
+
+For every empirical rate, probability, percentage, or fidelity, identify the
+metric, numerator, denominator, conditioning set, experimental unit, device or
+population, round or time window, and source-reported uncertainty when present.
+First require a compatible sample space, target event, population, and
+conditioning set. Then combine metrics only when the source provides a joint
+quantity or explicit composition model, or when a stated conditional-
+independence assumption is defensible for that exact population. Otherwise
+report the quantities separately.
+
 ## Correct without replacing the learner's model wholesale
 
 When a plausible interpretation is wrong, respond in this order:
@@ -119,3 +160,34 @@ For the strict fable response, do not add a separate quiz or recap section: the
 compact logic chain belongs at the end of section 2. The chain must identify the
 previous step, the bridge just repaired, the next step, and the capability or
 consequence that follows.
+
+## Semantic, timing and cross-surface review
+
+Before writing, lock one selected teaching relation. The title, bounded
+definition, narrative, action mapping and worked example must explain that
+relation, not alternate between a caveat and the whole system.
+
+Preserve object types: a basis is not its linear span, a set of labels is not
+a state space, and a population is not an individual state or its information.
+"Not established" is not "impossible" and does not license a story-invented
+cause of loss. Preserve parallel, serial, conditional and feedback dependencies;
+never add detection or a decision as the prerequisite of an unconditional act.
+Verify unfamiliar terms against the original source; retain the original term
+rather than inventing a translation when uncertain.
+
+After any story edit, re-review every example reference to a story object,
+number, action, condition, comparison and conclusion. An unchanged example is
+not evidence of consistency. Reject phantom story quantities and stale case
+references. Hypothetical case data must be labeled, never passed off as a
+paper's sample. A semantic error in the core mapping cannot be repaired by
+adding disclaimers.
+
+Keep audit records separate from teaching prose. The visible story must be
+understandable before expanding the example; the debrief carries the real
+mechanism and only consequential boundaries. Detailed derivations and metric
+identities belong in the example without repeatedly printing internal checks.
+
+Report structural validation separately from semantic review. A semantic
+review needs the reviewed text, judgment, source or rule basis, and limitation.
+Missing evidence means unreviewed, not pass. Length and keyword checks cannot
+certify comprehension, truth or action correspondence.

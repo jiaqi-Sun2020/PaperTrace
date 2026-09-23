@@ -1,9 +1,10 @@
 # Fable Mode Output Contract
 
-Use this contract only when the user explicitly asks for an allegory, story, or
-delayed reveal, or when authoring a daily-briefing opening story. Ordinary
-first-contact explanations use
-[bridge-mode-contract.md](bridge-mode-contract.md) instead.
+Use this contract for all new allegory-teach invocations, including ordinary
+teaching, life-based requests and daily openings (version 3). Historical Bridge
+and Everyday documents do not route new output. The title and every narrative
+paragraph obey [narrative-language-firewall.md](narrative-language-firewall.md).
+Formal terminology returns only after the story ends.
 
 ## Private technical preflight
 
@@ -23,9 +24,12 @@ observable stakes -> actor choice -> mechanism consequence
 
 Select one core relation from that skeleton. If the subject contains several
 mechanisms, the fable may carry only the selected relation; later mechanisms
-must be taught as separate bridges with a technical-language return between
+must be taught as separate complete stories with a technical-language return between
 them. The preflight is not shown before the story because Fable Mode preserves
-the user's requested delayed reveal.
+the user's requested delayed reveal. During this private pass, complete the
+evidence-authority audit and build the case-specific narrative denylist plus
+story-world allowlist required by the language firewall. Neither list appears
+in the final response or daily handoff.
 
 ## Immersive background gate
 
@@ -37,9 +41,9 @@ space to be reconstructed; there is no total word, paragraph, or mechanism
 paragraph limit. Complete the narrative and technical spines before applying
 the deletion test. Brevity may remove only decoration or repetition; it may not
 remove a goal, limit, rule source, choice, state change, or consequence. A
-standalone fable may reveal the name in its final story paragraph; a daily
-opening must keep the name out of every narrative paragraph and reveal it in
-the factual debrief, as required by its existing version-3 validator.
+standalone and daily fables both keep the canonical name and all professional
+representation out of every narrative paragraph. The factual debrief owns the
+reveal after the closed story world has ended.
 
 For a daily opening, the 2000-normalized-character limit applies to each
 paragraph as a transport safety boundary, not to the whole story. Split an
@@ -90,7 +94,7 @@ The narrative spine must be recoverable before the technical reveal:
 
 ```text
 actor goal -> real limit or missing information -> available action or tempting
-shortcut -> choice or operation -> observable consequence -> reveal
+shortcut -> choice or operation -> observable consequence -> story boundary
 ```
 
 The technical spine must be recoverable as:
@@ -114,15 +118,15 @@ a choice, change a state, or make a consequence observable. Remove a noun-only
 substitution. For a standalone explicit fable, first repair the draft by
 narrowing it to one relation or replacing symbol stand-ins with causal actions;
 if it still adds no value over the minimum technical case, disclose the mismatch
-and return to Bridge Mode. A daily opening instead follows the ranked-source
-fallback in `daily-briefing-interface.md` and must still produce a valid fable.
+and report the specific obstacle without changing modes. A daily opening instead follows the ranked-source
+fallback in `daily-briefing-interface.md` and stops publication if no eligible source supports a valid fable.
 
 ## Narrative gate
 
 The story teaches a causal mechanism, not a loose mood or a vocabulary item.
 It must expose a starting condition, a governing rule or constraint, an action,
 and a consequence. If one of those cannot be mapped to evidence, choose a
-different concept or use a direct explanation instead.
+narrower supported relation; otherwise report the failed gate.
 
 The story cannot paper over an unsupported transition: every consequence must
 follow from a stated rule, constraint, or action. Retain one known learner
@@ -133,6 +137,14 @@ over a polished abstraction: show the initial state, the first operation, the
 changed state, and the observable consequence before compressing them into a
 general rule. A reader should not need prior field vocabulary to decode what
 the characters actually did.
+
+The narrative is a sealed language surface, not a paper summary with renamed
+nouns. The title and every full story paragraph must use only native story-world
+objects, visible actions, ordinary quantities, and causal language. Domain
+terms, method and device names, formal symbols, equations, metric labels,
+units, source attribution, and reviewer commentary belong to the private
+preflight or factual debrief. Audit the complete narrative rather than only its
+opening or the canonical concept name.
 
 ## Governing-rule origin gate
 
@@ -155,24 +167,30 @@ replaces -> observable difference
 
 For a mathematical or numerical mechanism, explain the rule origin before the
 first concrete calculation. If a coefficient, sign, dependency, or missing term
-comes from a definition or derivation, describe that source in ordinary
-language and expose the operations needed to justify the calculation. The
-delayed reveal may continue to hide the concept name, standard acronym, and
-defining equation; it may not hide the causal reason for the calculation.
-Formal notation and the complete derivation belong in the factual debrief.
+comes from a definition or derivation, translate its causal role into ordinary
+story-world language and expose the operations needed to justify the result.
+The sealed narrative hides the concept name, adjacent domain vocabulary,
+standard acronym, formal variable, defining equation, unit, and metric label;
+it may not hide the causal reason for the calculation. Formal notation,
+derivation names, protocol names, and source attribution belong in the factual
+debrief.
 
 For lifted-coordinate, truncation, projection, pruning, compression, or other
-approximation stories, identify the original variable or state, what every
-retained or expanded quantity records, the source of the checked quantity's
-update rule, why a higher-order or removed quantity contributes before the
-approximation, the explicit replacement rule after it is no longer represented,
-and the resulting error or observable change. A numerical run that omits any of
-these causal links is merely reproducible arithmetic and must be rewritten.
+approximation stories, privately identify the original variable or state, what
+every retained or expanded quantity records, the source of the checked
+quantity's update rule, why a higher-order or removed quantity contributes
+before the approximation, the explicit replacement rule after it is no longer
+represented, and the resulting error or observable change. Express those
+relations through story-world objects and actions without their professional
+labels, then restore the real objects and rule in section 2. A numerical run
+that omits any causal link is merely reproducible arithmetic and must be
+rewritten.
 
 For a non-mathematical mechanism, identify the real protocol, definition,
-constraint, or operating rule that licenses the transition. Do not manufacture
-a formula or formal derivation when the declared procedure itself is the rule
-source.
+constraint, or operating rule in the private preflight, express why it licenses
+the transition through an in-world constraint, and restore its formal name in
+the debrief. Do not manufacture a formula or formal derivation when the declared
+procedure itself is the rule source.
 
 For every mathematical or numerical story, run one complete minimum case in
 the story body:
@@ -182,12 +200,14 @@ actual input -> explicit operation -> intermediate value -> result ->
 counterfactual result -> observable difference
 ```
 
-The delayed reveal hides the concept name, standard acronym, and defining
-equation. It does not hide operands, arithmetic rules, intermediate values,
-state labels, results, or the comparison that exposes the mechanism. For a
-non-mathematical mechanism, replace the numeric chain with a named object,
-explicit initial state, operation, changed state, failure case, and observable
-outcome; do not add decorative formulas or invented measurements.
+The closed story world hides all professional representation, not only the
+concept name: aliases, adjacent domain terms, standard acronyms, formal
+variables, equations, set notation, units, and metric labels stay out. It does
+not hide the underlying operands, arithmetic rule, intermediate quantity,
+result, or comparison; express them as ordinary in-world actions and numbers.
+For a non-mathematical mechanism, replace the numeric chain with a named story
+object, explicit initial state, operation, changed state, failure case, and
+observable outcome; do not add decorative formulas or invented measurements.
 
 Each mechanism paragraph must answer five questions without relying on a later
 debrief: who acts, what concrete input or state they receive, what operation
@@ -197,11 +217,15 @@ initial value,” “positive term,” “more influence,” “higher-page effe
 “immediately matches.” On first use, state what the object records, its present
 value or state, and how it enters the next operation.
 
-The story body and `worked_example` use the same bounded case. Their input
-values or state labels, operation direction, signs, result, counterfactual, and
-observable difference must agree. The debrief may introduce formal symbols,
-the defining equation, and a general form, but it must not replace the story's
-case with a different one.
+The story body and `worked_example` use the same bounded case and underlying
+data identity. Their population or object, conditions, operation direction,
+result, counterfactual, and observable difference must agree. The story may
+project a rate into an exact in-world ratio or an explicitly approximate
+normalized frequency while the formal block restores the exact source value,
+metric identity, denominator, scope, and uncertainty. Such a normalized group
+is explanatory, not a claim about the source's raw sample size. The debrief may
+introduce formal symbols, the defining equation, and a general form, but it
+must not replace the story's case or silently change its data.
 
 As a soft cognitive budget, prefer at most three mechanism-bearing story
 objects and one unfamiliar story-world rule. Count only elements that carry a
@@ -211,9 +235,64 @@ allowed only when the extra element lowers total understanding cost. Give each
 important element one primary technical counterpart. If limited reuse is
 unavoidable, the final mapping must list every counterpart and explain where
 the analogy stops; otherwise reject the draft.
-Do not state the concept name, standard acronym, or defining equation before
-the last paragraph of a standalone story. For a daily opening, do not place any
-of them in the narrative paragraphs; the factual debrief owns the reveal.
+Do not state the concept name, alias, adjacent domain vocabulary, standard
+acronym, variable, equation, unit, formal metric label, source voice, or
+reviewer conclusion anywhere in the title or narrative paragraphs. The factual
+debrief owns the reveal for standalone and daily Fable Mode alike.
+
+## Evidence-authority and semantic-conservation gate
+
+A technically plausible story still fails when it uses a causal step that the
+source does not authorize. Before drafting story actions, make this private
+audit for every calculation, update, state transition, causal verb, or
+replacement:
+
+```text
+real object -> technical operation -> rule or evidence source -> actual change
+-> preserved content -> lost content -> conclusion not established
+```
+
+Classify each supporting statement at its actual evidence level:
+
+1. definition or declared protocol;
+2. direct measurement or observation;
+3. the source author's mechanistic attribution;
+4. an inference consistent with, but not uniquely established by, the evidence;
+5. analogy-only visualization.
+
+The story may simplify vocabulary but may not promote a claim up this ladder.
+Use wording equivalent to “defined by,” “measured,” “the authors attribute,” or
+“consistent with” in the factual debrief as appropriate; those evidence labels
+and source phrases never enter the sealed narrative. Do not turn correlation
+into unique causation, an author interpretation into a direct observation, or
+a story image into a physical intermediate mechanism.
+
+Renaming nouns does not authorize new verbs. Every mechanism-bearing story
+action must map to a supported technical operation with the same direction,
+prerequisites, and strength. Do not add analogy-only oscillation, resonance,
+echo, energy landscape, one-way transport, automatic correction, memory
+recovery, or perfect nondisturbance unless the supplied source explicitly
+establishes that property. When the next causal link is unknown or
+underdetermined, let the story show only the actor's observable inability to
+distinguish the hidden cause, then end the narrative. Disclose in the factual
+debrief that the evidence does not distinguish the missing mechanism. Never
+switch to reviewer voice inside the story or complete a smoother causal spine
+by invention.
+
+Preserve the semantic target of the operation. In particular:
+
+- restoring membership in an allowed state space does not by itself recover
+  the original logical content inside that space;
+- removing one failure mode does not establish complete correction;
+- measurement or readout is not automatically passive or nondisturbing;
+- post-selection discards trials and is not a physical reset of those systems;
+- reduced disturbance does not mean zero disturbance; and
+- a component fidelity, leakage rate, readout rate, or logical error rate does
+  not establish end-to-end task success.
+
+Apply the same conservation test outside quantum topics: identify the operation
+target, the carrier before and after, what is changed, preserved, discarded, or
+unknown, and the strongest conclusion the evidence actually supports.
 
 ## Causal-fidelity gate
 
@@ -283,17 +362,19 @@ such as setting a named input to zero.
 
 For quantum explanations involving measurement, explicitly separate the
 pre-measurement quantum state, measurement back-action, the classical outcome,
-classical communication, and any conditional quantum operation. Classical
-broadcast can coordinate distant actions; it does not by itself create
-entanglement or enable controllable faster-than-light signalling.
+classical communication, and any conditional quantum operation in the private
+preflight and factual debrief. The sealed narrative uses distinct in-world
+carriers and actions without those professional labels. Classical broadcast can
+coordinate distant actions; it does not by itself create entanglement or enable
+controllable faster-than-light signalling.
 
 ## Required response shape
 
 ```markdown
 ## 寓言
 
-<story; a standalone reveal appears in the final paragraph, while a daily
-opening defers the reveal to section 1>
+<closed-world story; standalone and daily Fable Mode both defer every
+professional term and the canonical reveal to section 1>
 
 ## 1. 概念名称与一句话定义
 
@@ -303,9 +384,9 @@ opening defers the reveal to section 1>
 
 ## 2. 故事元素与现实对应
 
-| 故事元素 | 对应的现实对象（类型/作用） | 对应操作或约束 | 信息的保留/变化/丢弃（如适用） | 因果作用 |
-|---|---|---|---|---|
-| ... | ... | ... | ... | ... |
+| 故事动作或元素 | 对应的现实对象与技术操作 | 规则或证据等级 | 为什么需要 | 改变/保留/丢弃/未知 | 可观察后果 | 不支持的更强结论 |
+|---|---|---|---|---|---|---|
+| ... | ... | ... | ... | ... | ... | ... |
 
 <移除故事词后的真实机制，以及为什么这个对应关系让缺失步骤变得可见>
 
@@ -334,10 +415,18 @@ section 4 so it does not create a fifth factual section.
   condition or scope; it is not a synonym or an unsupported empirical claim.
 - The mapping distinguishes an analogy from an identity. State uncertainty when
   source evidence does not support a one-to-one match.
+- Every mechanism-bearing action preserves its evidence level, source scope,
+  direction, prerequisites, operation target, and information carrier. It does
+  not add a causal edge merely to make the story complete.
+- The title and every story paragraph pass the language firewall: no source
+  terminology, formal symbols, metric labels, units, paper/reviewer voice, or
+  mid-story technical aside appears.
 - The boundary section names at least one formal or empirical limit of the
-  analogy.
+  analogy, the evidence conditions under which the claim was established, and
+  any unresolved mechanism or residual risk relevant to the mapped action.
 - The misleading section names at least one wrong prediction that a literal
-  reading of the story would invite.
+  reading of the story would invite, including the strongest tempting claim
+  that the source does not establish.
 - The worked example starts from an explicit question or initial state, exposes
   one bounded concrete scenario, named input values or states, and an observable.
   It traces those particular inputs through the governing rules and meaningful
@@ -347,8 +436,10 @@ section 4 so it does not create a fifth factual section.
   formal names, symbols, rules, a compact calculation or state trace, and one
   check. It does not repeat the story in equally long prose.
 - The story body already runs that same bounded case. For mathematical or
-  numerical cases, a reader can reproduce its input, intermediate value,
-  result, counterfactual, and difference without opening the debrief. For
+  numerical cases, a reader can reproduce its in-world input, intermediate
+  quantity, result, counterfactual, and difference without opening the debrief.
+  A projected frequency retains the same source datum and conditions and marks
+  any rounding; the formal block restores exact metric identity. For
   non-mathematical cases, the reader can reproduce the exact state transition
   and failure outcome without inventing missing labels.
 - Mathematical notation is conditional, not preferred. If the concept does not
@@ -366,26 +457,34 @@ section 4 so it does not create a fifth factual section.
 Keep the outer section order unchanged. Apply the following analysis within
 those sections rather than adding a new numbered section:
 
-- **1:** Give the canonical name and one scope-bounded, mechanism-level definition.
+- **1:** End the story boundary, then give the canonical name and one
+  scope-bounded, mechanism-level definition.
   Immediately expose the technical skeleton prepared before the story:
   `problem -> difficult term/operation -> goal -> mechanism spine`. The story
   cannot remain the only explanation.
 - **2:** Map each story element to the real object and its type/role, the
   corresponding operation or constraint, and what information is preserved,
-  changed, or discarded. For each important mapping, trace `story action ->
-  technical operation -> why it is required -> preserved, changed, discarded,
-  or replaced information -> observable consequence`; noun correspondences
-  alone are insufficient. Then remove the story vocabulary, restate the real
+  changed, discarded, or still unknown. For each important mapping, trace
+  `story action -> technical operation -> evidence level -> why it is required
+  -> preserved, changed, discarded, or replaced information -> observable
+  consequence -> unsupported stronger conclusion`; noun correspondences alone
+  are insufficient. Then remove the story vocabulary, restate the real
   mechanism, and explain why the correspondence makes the missing bridge
   visible. Finish with `previous step -> current bridge -> next step ->
   resulting capability`.
 - **3:** Separate a model assumption, a formal identity, an approximation, and
-  an empirical conclusion whenever the analogy might blur them.
+  an empirical conclusion whenever the analogy might blur them. State the
+  source's device/population, calibration or operating conditions, time or
+  round scope, and unresolved residual risk when relevant.
 - **4:** Preserve the reader's useful intuition, identify the first invalid
   inference, and correct it with the smallest counterexample or changed case
-  that exposes the difference.
+  that exposes the difference. Explicitly name any causal or recovery claim
+  that would exceed the available evidence.
 
 After section 4, give the unnumbered worked example using the same bounded case.
+It may use a professional term only after section 1 or 2 has introduced and
+mapped that term. If a new term is unavoidable, precede its formal label with a
+plain-language clause that states what it does.
 
 When formulas are needed after the story, define every symbol and its object
 type before manipulation. Name the rule used at each meaningful transition and

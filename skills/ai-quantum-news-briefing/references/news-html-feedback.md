@@ -14,7 +14,7 @@ Final HTML acceptance checks include UTF-8 metadata, a successful round trip, ze
 
 ## Purpose
 
-The HTML page begins with one compact concept-teaching fable and then presents
+The HTML page begins with one complete Fable (version 3 for new authoring) and then presents
 the briefing body. The story is not a feedback item. The page remains the
 feedback collection layer and should not write `.agents` directly. It lets the
 user:
@@ -51,11 +51,11 @@ Build HTML from a config file:
     "override_reason": ""
   },
   "opening_story": {
-    "version": 3,
-    "title": "开篇寓言",
+    "version": 4,
+    "title": "先用一个生活中的例子理解",
     "paragraphs": [
-      "山谷里的两座钟塔每天从同一声钟响出发，却沿着不同齿轮缓慢传递回声。守钟人只能在城门关闭前观察有限时间，再判断声音来自哪座塔。",
-      "当两种最难区分的节拍越来越接近，守钟人就必须等待更久；决定等待时间的不是单个齿轮的速度，而是最相近两种节拍之间留下的距离。"
+      "两个人从同一条线并排走。脚步很接近时，刚走一小段还看不出谁快；继续观察，前后的差距才慢慢显出来。",
+      "如果两人的速度始终不变，而且你要看到同样明显的间距才下判断，那么速度差越小，就越需要多等一会儿。"
     ],
     "concept_name": "Canonical concept name",
     "concept_aliases": ["standard acronym"],
@@ -148,6 +148,16 @@ python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\news_delta.py ap
 ```
 
 Only `new` and evidence-backed `material_update` items should be fully expanded. Recently seen stories without verified new facts should be compressed into `持续跟踪，一句话` or skipped with `--continuing-mode skip`. Index update is deferred to `daily_pipeline.py finalize`.
+
+## Versioned opening presentation
+
+For new daily authoring, follow `skills/allegory-teach/references/daily-briefing-interface.md`.
+Version 4 renders scene -> one-sentence core -> real mapping -> boundaries ->
+complete worked example. It has no total length/count budget and no required
+two-paragraph background; existing field transport limits fail without clipping.
+Scene and example share a relation, not necessarily a setting or numbers.
+Explicit full fables/legacy versions keep their old presentation. Unknown
+versions fail. The JSON above illustrates fields, not a publishable evidence fixture.
 
 ## Boundary
 

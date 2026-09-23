@@ -264,6 +264,21 @@ def render_opening_story(config: dict[str, Any]) -> str:
         if clean_text(paragraph)
     )
     worked_example = render_worked_example(story)
+    if story.get("version") == 4:
+        return f"""
+<section class="opening-story" data-opening-story="true">
+  <div class="story-kicker">在读今日信号之前</div>
+  <h2>{esc(story.get('title') or '先用一个生活中的例子理解')}</h2>
+  <div class="story-narrative">{paragraphs}</div>
+  <div class="story-debrief">
+    <p><strong>这里真正要理解的是：</strong>{esc(story.get('concept_definition'))}</p>
+    <p><strong>对应真实概念：</strong>{esc(story.get('concept_name'))}——{esc(story.get('logic_chain'))}</p>
+    <p><strong>这个比喻没有覆盖：</strong>{esc(story.get('analogy_boundary'))}</p>
+    <p><strong>不能由此推出：</strong>{esc(story.get('misleading_risk'))}</p>
+  </div>
+  {worked_example}
+</section>
+"""
     return f"""
 <section class="opening-story" data-opening-story="true">
   <div class="story-kicker">在读今日信号之前</div>

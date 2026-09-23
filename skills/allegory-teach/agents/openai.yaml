@@ -1,7 +1,7 @@
 interface:
   display_name: "Allegory Teach"
-  short_description: "Teach hard concepts with low-load precise bridges."
-  default_prompt: "Use $allegory-teach to explain one difficult concept with the simplest concrete bridge that works, adding an analogy only if it reduces cognitive load and using a concealed-name fable only when I explicitly request one."
+  short_description: "Teach through complete, source-faithful fables."
+  default_prompt: "Use $allegory-teach to explain one difficult relation through a complete, source-faithful fable, followed by a precise factual return and consistent worked example; preserve causal completeness before brevity."
 
 policy:
   allow_implicit_invocation: true

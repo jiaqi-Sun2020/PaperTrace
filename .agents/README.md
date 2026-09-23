@@ -1,7 +1,7 @@
 # Agent Context Index
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-20
+- Last reviewed: 2026-09-22
 
 This directory combines project-agent context and learner memory.
 
@@ -23,7 +23,7 @@ Directory roles:
 - `skills/ai-quantum-news-briefing`: AI/quantum briefing skill that can generate source-grounded briefings, render briefing feedback HTML, and normalize explicit news feedback into the same learner profile.
 - `skills/utils/chat-knowledge-profile`: staged chat conversation import skill for turning local ChatGPT/GPT/Claude/Deepseek exports into bounded evidence events, conversation summaries, candidate profile signals, strict reader-learner handoffs, reviewable patches, and optional profile updates.
 - `skills/adaptive-teach`: explicit-invocation, profile-backed teaching decision skill. It reads the profile, selects a diagnostic/teach/review/prerequisite/transfer session, generates short lessons, and delegates validated teaching feedback to `reader-learner`.
-- `skills/allegory-teach`: optional read-only explanation layer for one selected advanced concept and the Pipeline 2 opening-story handoff. It rejects scenery that merely renames technical variables and requires coupled narrative and technical causal spines. Explicit fable requests receive one repair pass before a transparent Bridge fallback; daily openings remain Fable and may use the existing ranked-source override when rank 1 fails the story-value gate. Causal completeness precedes brevity, with no total story cap and only the existing fail-closed per-paragraph transport boundary. The factual debrief remains `1 -> 2 -> 3 -> 4`, and the compact worked example cannot replace a missing story spine or change ranking, feedback, or learner state.
+- `allegory-teach` owns explanation only. All new invocations—ordinary teaching, life-based analogies and daily openings—use complete Fable Mode. Read `skills/allegory-teach/references/story-output-contract.md` and `daily-briefing-interface.md`. New daily handoffs use version 3, at least two causal background paragraphs, no total length/count ceiling, and a 2000-character per-paragraph fail-closed transport boundary. The entire story is visible; factual return uses 1 -> 2 -> 3 -> 4 and the consistent technical example is collapsed. Technical correctness, evidence fidelity and beginner comprehension are separate gates. Historical versions 1–4 keep their runtime meaning; Bridge and Everyday are compatibility references only. Ranking, publication ownership, feedback identity and learner state do not change.
 - `skills/utils/demo-skill`: bilingual project-demo skill that verifies README/AGENTS contracts, materializes the bundled Chinese/English four-pipeline templates, and audits the intended Git upload scope.
 
 Recommended reading order:
@@ -72,7 +72,7 @@ Visual/math note: final reader HTML also requires figure/table cards or semantic
 
 Credential rule: except for permitted learner-profile reads/updates, do not open, print, copy, summarize, upload, or modify any suspected key/password/token/credential file.
 
-Daily AI/quantum briefing note: `skills/ai-quantum-news-briefing` runs `news-ranker-v1` before Delta compaction, then publishes 7–8 academic papers and 10–14 social-news items (target 12) with auditable score components, quotas, selection trace, and exclusions. Every new run also requires `opening_story.version=3`: at least two narrative paragraphs, no paragraph-count maximum, a fail-closed 2000-character per-paragraph limit, full-text concept-leak checking, a `1 -> 2 -> 3 -> 4` factual debrief, and one concept-appropriate worked example. Quantitative narratives reuse the worked example's concrete values and comparison; non-mathematical narratives use explicit states without decorative formulas. HTML keeps the example collapsed by default. It renders feedback HTML with concept chips and freeform annotations and converts explicit news feedback into the same learner profile through `scripts/import_news_feedback.py`. Story, example, and news exposure alone remain `unrated`; do not infer `known`, `unknown`, `learning`, or `mastered` without explicit user feedback. The end-to-end briefing contract finishes only after `daily_pipeline.py run -> verify -> finalize -> verify`; index mutation is forbidden before final verification. The verified 2026-07-16 local release and its 8+12 result are recorded in `CHANGES.md`.
+Daily opening note: new authoring uses Fable Mode and `opening_story.version=3`. Follow `CONFIG_SPEC.md` for the versioned data contract and `RUNBOOK.md` for release commands. The existing ranking, quotas, feedback, and verified release boundary remain unchanged.
 
 Chat conversation import note: use `skills/utils/chat-knowledge-profile` only with local `.txt`, `.md`, `.html`, or `.json` ChatGPT/GPT/Claude/Deepseek exports. The pipeline is `collect -> extract -> propose -> apply`; `collect` also writes `conversation_summaries.json`. Review `profile_patch.json` before applying, and use `--backup` when mutating `knowledge_profile.json`. Share URLs should be copied or exported locally first.
 

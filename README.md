@@ -32,7 +32,7 @@ PaperTrace is a local workspace for paper reading, AI + quantum briefings, and a
 | Track meaningful current AI and quantum developments | [Briefing pipeline](#daily-briefing) | Opening story with a collapsed worked example, briefing HTML, feedback JSON, manifest, and index |
 | Turn local chat exports into reviewable profile candidates | [Knowledge Profile](#knowledge-profile) | A human-reviewed, backed-up profile patch |
 | Choose a focused next lesson or review from existing evidence | [Adaptive Teach](#adaptive-teach) | A one-topic lesson and controlled feedback handoff |
-| Understand one advanced, profile-relevant mechanism | [Allegory Teach](#allegory-teach) | A bridge-first explanation by default, or an explicit concealed-name fable, plus one worked example |
+| Understand one advanced, profile-relevant mechanism | [Allegory Teach](#allegory-teach) | A complete concealed-name fable, precise factual return, and consistent worked example |
 
 <a id="pipelines"></a>
 
@@ -101,7 +101,7 @@ Use the script interface below only when you need recovery, diagnostics, or CI i
 - <code>news-ranker-v1</code> first applies an evidence gate, then uses separate academic/social scoring and diversity constraints. The published config retains item scores, quotas, selection trace, and exclusions.
 - <code>lean-html-skill</code> controls only visual presentation. It keeps the light theme as default, provides a Cosmic option, pairs component foreground/surface tokens across Light, Cosmic, and print modes, and blocks low-contrast story/table output without changing behavior or data structure.
 - <code>reader-learner</code> validates, normalizes, and atomically updates the profile while blocking encoding corruption, HTML remnants, and exposure-only overclaims.
-- <code>allegory-teach</code> treats technical correctness and beginner comprehensibility as independent hard gates. Direct teaching starts with the real problem and a minimum concrete case, adding one local analogy only when it reduces cognitive load. A fable is valid only when the actor's goal, real limit, choice or changed action, and observable consequence make the technical mechanism easier to reconstruct; scenery that only renames variables remains a worked example. Explicit fable requests get one repair pass before a transparent Bridge fallback, while daily openings remain Fable Mode and use the existing ranked-source override only when necessary. Story length follows complete causal logic without a total cap.
+- <code>allegory-teach</code> uses complete, source-faithful Fables for all new explanation and daily-opening requests within the skill. Technical correctness and beginner comprehension are independent gates; story completeness precedes brevity.
 
 ## Directory layout
 
@@ -145,9 +145,9 @@ Generating or viewing a lesson never changes the profile or review queue. Only a
 
 ## Allegory Teach
 
-<code>skills/allegory-teach</code> is the optional beginner-first companion to Adaptive Teach and the read-only authoring dependency for the daily briefing's opening story. Technical correctness and beginner comprehensibility are hard gates; literary style is optional. Bridge Mode is the ordinary first-contact path: disclose the real problem, run a minimum concrete case, and add one mapped local analogy only when the case leaves a relation unclear and the analogy lowers cognitive cost. An explicit story request first tries to build one valid Fable relation; if a repair pass still produces only renamed variables or formula replay, it explains the mismatch and returns a Bridge explanation. A valid fable couples <code>actor goal → real limit → choice/action → observable consequence → reveal</code> with the real technical objective, rule source, inputs, limit, result, and error or trade-off. It starts with at least two causal setup paragraphs, completes both spines before compression, and has no total word or paragraph cap. The worked example formalizes the same bounded case but cannot replace the narrative spine. Daily openings remain Fable Mode: rank 1 is tried first, then the first viable academic source in rank order may be selected through the existing explicit override; each paragraph retains the fail-closed 2000-character transport boundary and is split naturally rather than truncated. The factual return remains <code>1 → 2 → 3 → 4</code>.
+<code>skills/allegory-teach</code> is the explanation companion to Adaptive Teach and the daily-opening authoring dependency. New output uses complete Fable Mode (daily version 3): at least two causal background paragraphs, complete story, factual return 1 → 2 → 3 → 4, and a consistent worked example collapsed in HTML. No total length/count ceiling applies. The 2000-character per-paragraph transport limit rejects overflow without truncation. Historical versions 1–4 remain readable; Bridge and Everyday are legacy references, not new authoring routes. Ranking, feedback, publication and learner ownership stay unchanged.
 
-> Use <code>$allegory-teach</code> to explain one concept near my current research boundary with the simplest concrete bridge that works. Add a mapped local analogy only if it lowers cognitive load. If I explicitly ask for a fable, conceal the name until the reveal and return the factual sections in the order 1 → 2 → 3 → 4.
+> Use <code>$allegory-teach</code> to explain one concept through a complete source-faithful fable. Finish the causal story before revealing technical terminology in the factual <code>1 → 2 → 3 → 4</code> debrief; then formalize the same case in a worked example.
 
 ## Persistent Visible Wiki
 
@@ -169,7 +169,7 @@ For one-step imports, use <code>reader-feedback</code> or <code>news-feedback</c
 | <code>reader-skill</code> | Formal reader normalization, source anchors, HTML generation, concept marks, and structural/audit gates. | Direct profile mutation. |
 | <code>reader-learner</code> | Feedback import, schema-v2 profile validation, backup/atomic mutation, and Visible Wiki projection. | PDF reader generation or teaching decisions. |
 | <code>adaptive-teach</code> | Profile-backed teaching decisions, sessions, lessons, and teaching-feedback handoff. | Profile schema, direct profile writes, PDFs/news collection, or shared HTML shell. |
-| <code>allegory-teach</code> | A bridge-first direct explanation or explicit source-aware fable, factual return, and concept-appropriate worked example for one selected advanced concept. | Topic-ranking/session ownership, profile mutation, news collection, or daily-release changes. |
+| <code>allegory-teach</code> | A complete source-aware fable, factual return, and consistent worked example for one selected relation. | Topic-ranking/session ownership, profile mutation, news collection, or daily-release changes. |
 | <code>ai-quantum-news-briefing</code> | Sourced AI/quantum briefings, candidate ranking, briefing feedback artifacts, and news-feedback normalization. | Treating mere exposure as knowledge. |
 | <code>lean-html-skill</code> | Shared HTML shell, feedback UI, export controls, and visual design layer. | Domain interpretation or profile mutation. |
 | <code>chat-knowledge-profile</code> | Staged local conversation extraction and reviewable profile handoffs. | Share-URL scraping or direct profile overwrite. |
@@ -280,7 +280,7 @@ Optional discovery and evidence tools:
 
 Key rules:
 
-- Every run requires <code>opening_story</code> and one concrete worked example; validation fails before staging if the example lacks a bounded scenario, actual inputs/states, or an observable, if a quantitative story omits the same checkable values and comparison, if the story reveals its concept anywhere in the full paragraph text, or if the default story does not cite the rank-1 academic paper. Stories require at least two paragraphs, have no count maximum, and reject any paragraph over 2000 characters instead of truncating it. HTML keeps the example collapsed by default, and formulas are conditional rather than a topic-selection preference.
+- Every run requires a source-grounded <code>opening_story</code> and a complete worked example. New authoring uses complete Fable version 3; source binding, full-text name concealment, field transport limits, and concrete example validation remain enforced. Human/agent content review separately checks the selected causal relation and readability; schema success is not teaching approval. HTML keeps the example collapsed by default.
 - AI HOT is a candidate source, never final evidence.
 - <code>news-ranker-v1</code> runs before Delta compaction; AI HOT scores cannot replace it.
 - Publish 7–8 academic records and 10–14 social-news records (target 12), preserving source, topic, and organization diversity.

@@ -1,6 +1,6 @@
 ---
 name: ai-quantum-news-briefing
-description: Create concise, source-grounded AI and quantum technology briefings that open with a concept-teaching fable, turn them into interactive HTML pages with automatic unrated full-concept feedback JSON export plus optional concept/freeform feedback, and optionally update the user's learner profile from explicit news-reading feedback. Use for requests such as "今日资讯", "今日快报", "近三天资讯", "近4天快报", "AI+量子快报", company AI reports, research blogs, safety frameworks, model releases, policy updates, industry news, arXiv/Nature papers, quantum physics or quantum computing progress, requests to generate a briefing HTML reader, or when the user says to record daily briefing concepts as unrated/known/unknown/learning in `.agents/reader-learner/knowledge_profile.json`.
+description: Create concise, source-grounded AI and quantum technology briefings that open with a familiar concept-teaching analogy, turn them into interactive HTML pages with automatic unrated full-concept feedback JSON export plus optional concept/freeform feedback, and optionally update the user's learner profile from explicit news-reading feedback. Use for requests such as "今日资讯", "今日快报", "近三天资讯", "近4天快报", "AI+量子快报", company AI reports, research blogs, safety frameworks, model releases, policy updates, industry news, arXiv/Nature papers, quantum physics or quantum computing progress, requests to generate a briefing HTML reader, or when the user says to record daily briefing concepts as unrated/known/unknown/learning in `.agents/reader-learner/knowledge_profile.json`.
 ---
 
 # AI + Quantum News Briefing
@@ -55,7 +55,7 @@ python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\news_delta.py co
    - Use stable `story_id` when known; otherwise the helper derives one from source URL/title/concepts.
 
 4. Build the briefing in this order unless the user asks otherwise:
-   - 开篇故事：一则隐藏概念名称的因果寓言、揭晓、精简事实回扣，以及默认折叠的完整例子
+   - 开篇故事：生活画面 → 一句话核心 → 真实概念对应 → 边界纠正 → 默认折叠的完整例子
    - 今日新增
    - 重大更新
    - 持续跟踪，一句话
@@ -107,9 +107,9 @@ For daily and multi-day briefings, set `analysis_language` to `zh-CN` unless the
 ### Mandatory Opening Story
 
 After deterministic ranking has identified the publishable concepts, but before
-`daily_pipeline.py run`, author exactly one compact opening fable. Read
-`skills/allegory-teach/SKILL.md`, its story-output contract, and its daily
-briefing interface. Prefer a near-doctoral concept at the intersection of the
+`daily_pipeline.py run`, author exactly one complete Fable opening (version 3). Read
+`skills/allegory-teach/SKILL.md`, its story-output contract, narrative-language
+firewall and daily briefing interface. Prefer a near-doctoral concept at the intersection of the
 learner's read-only knowledge boundary and the final briefing. If no supported
 intersection exists, use one source-grounded final briefing concept and retain
 its neutral `unrated` status.
@@ -129,15 +129,18 @@ the same referenced `story_id` while preserving rejected candidates and their
 exclusion reasons in the ranking ledger.
 
 The candidate config must contain `story_delivery.required=true`,
-`story_delivery.worked_example_required=true`,
-`story_delivery.position="before_briefing"`, and an `opening_story` with 2-6
-Chinese narrative paragraphs plus `concept_name`, `concept_definition`,
-`logic_chain`, `analogy_boundary`, `misleading_risk`, `grounding_kind`, and
-`source_story_ids`, followed by one structured `worked_example`. Keep the
-concept name and aliases out of the title and narrative; reveal them only in the
-factual debrief. Use `briefing_items` with published `story_id` references when
-the story comes from current news, or `learner_profile` without copying profile
-status, raw events, or private notes into the briefing.
+`story_delivery.worked_example_required=true`, and
+`story_delivery.position="before_briefing"`.
+New authoring uses `opening_story.version=3` with at least two causally necessary
+background paragraphs, a complete mechanism and observable consequence.
+No total character, sentence, or paragraph-count cap applies. Split at natural
+causal boundaries when a paragraph exceeds 2000 characters; never truncate.
+Read `narrative-language-firewall.md`; professional terminology returns only
+after the entire story, in factual sections 1 -> 2 -> 3 -> 4.
+The full story stays visible; only the formal example is collapsed.
+Legacy versions 1–4 retain their runtime contracts; unknown versions are rejected.
+If rank 1 fails after narrowing and repair, inspect academic sources in ranking
+order and record an explicit override. If none passes, stop publication.
 
 Select the concept for relevance, causal value, source support, and the
 learner's missing bridge—not for whether it admits equations. Choose the worked
@@ -151,6 +154,10 @@ the handoff. Every example kind must still provide one bounded `scenario`, a
 non-empty list of named `inputs` with actual values/states/conditions, and an
 `observable`. The steps must consume those inputs and reach a concrete result;
 repeating the general logic chain does not satisfy the example contract.
+Story and example share the same bounded case, direction, conditions and data
+identity. Re-review every cross-reference after editing either surface.
+Hypothetical examples must not impersonate source measurements. Review causal
+fidelity and comprehension separately from structural schema validation.
 
 The opening story and worked example are presentation artifacts, not news items
 or learning events. They cannot satisfy academic/social quotas, enter candidate

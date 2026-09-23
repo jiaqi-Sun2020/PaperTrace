@@ -305,42 +305,21 @@ Every new `daily_pipeline.py run` forces:
 }
 ```
 
-`opening_story.version=3` retains the concealed-name narrative and existing
-fields, renders the factual debrief in `1 -> 2 -> 3 -> 4` order, then adds one
-`worked_example`. `paragraphs` contains
-at least two entries and has no count maximum. Each normalized paragraph is at
-most 2000 characters; longer input fails with an instruction to split naturally
-and is never silently truncated. Story normalization preserves input order and
-duplicate paragraphs, and concept-name/alias leakage is checked against the full
-validated paragraph text.
+New authoring uses `opening_story.version=3` (complete Fable). At least two
+causally necessary background paragraphs precede a complete story. No total
+character, sentence or paragraph ceiling applies; each normalized paragraph
+retains the 2000-character transport boundary, rejecting overflow without
+truncation. The entire story is visible before factual sections 1 -> 2 -> 3 -> 4;
+only the complete worked example is collapsed in HTML.
 
-The worked example `kind` is one of `mathematical`, `numerical`,
-`operational`, `causal`, `experimental`, or `comparative`. All kinds require a
-question, explicit assumptions, named objects/roles, ordered steps, a result,
-interpretation, at least one check, and a `non_conclusion`. Each step requires a
-named rule, an explanation, and at least one of `action` or `formula`.
-
-The narrative and worked example use the same bounded case. Mathematical and
-numerical narratives must contain every numeric input and derived result used by
-the example, an explicit operation, and a counterfactual or comparison with an
-observable difference. Non-mathematical narratives use explicit objects, state
-labels, operations, and failure/result states without invented quantities.
-Because the story already runs the case, the worked example formalizes it
-compactly through real objects, rules, a calculation or state trace, and a
-check; it does not retell the narrative at equal length.
-
-Topic selection is independent of mathematical form. Non-mathematical examples
-may omit every formula. `kind=mathematical` requires at least one genuine TeX
-formula step; any formula-bearing example must define its objects and include a
-check capable of exposing a bad derivation. Formula bodies omit display
-delimiters because the renderer owns `\[...\]`. Do not invent a quantitative law
-or decorative equation to satisfy the schema.
-
-HTML renders the worked example in a native `details` element closed by default,
-between the debrief and `data-briefing-body`. MathJax is loaded only when a
-formula is present, with escaped TeX left readable if loading fails. Markdown
-retains the full example for audit. Story/example content never creates feedback
-identities, changes ranking, or mutates the learner profile.
+Versions 1–4 retain their existing runtime normalization, validation and display;
+v4 stays v4 with one or more paragraphs and its existing same-relation example
+contract. Unknown versions fail. This authoring change is not a schema migration.
+New Fable stories and examples retain the same bounded case and data identity;
+examples require scenario, actual inputs, observable, justified steps, result,
+check and non-conclusion. No formula is required for nonmathematical mechanisms.
+Ranking, source binding, feedback identity and learner state do not change.
+Structural checks do not certify semantic correctness or comprehension.
 
 ## Academic Delivery Contract
 

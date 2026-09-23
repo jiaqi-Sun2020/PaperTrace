@@ -29,38 +29,40 @@
     },
     {
       "id": "nonmathematical-state-transition",
-      "mode": "bridge",
+      "mode": "fable",
       "concept": "an operational approval state transition",
-      "expected_device": "direct concrete case",
+      "expected_device": "complete familiar causal fable followed by factual return",
       "must_preserve": [
         "named input state",
         "the protocol or constraint that licenses the transition",
         "explicit comparison or operation",
         "changed output state",
-        "observable failure case"
+        "observable failure case",
+        "complete goal, constraint, action and consequence before the reveal"
       ],
       "must_avoid": [
         "decorative formula",
         "invented numerical law",
-        "an unexplained transition rule",
-        "unnecessary story world"
-      ]
+        "an unexplained transition rule"
+      ],
+      "legacy_mode": "bridge"
     },
     {
       "id": "direct-case-is-sufficient",
-      "mode": "bridge",
+      "mode": "fable",
       "concept": "a simple deterministic queue update",
-      "expected_device": "direct concrete case without analogy",
+      "expected_device": "complete familiar causal fable followed by factual return",
       "must_preserve": [
         "input",
         "operation",
         "intermediate state",
-        "output"
+        "output",
+        "complete goal, constraint, action and consequence before the reveal"
       ],
       "must_avoid": [
-        "adding a fable after the relation is already clear",
         "duplicating the same case"
-      ]
+      ],
+      "legacy_mode": "bridge"
     },
     {
       "id": "undefined-metaphor",
@@ -136,12 +138,12 @@
       "id": "worked-example-not-fable",
       "mode": "fable",
       "concept": "a formula-heavy example that may be clearer as a direct bridge",
-      "expected_device": "repair one story-worthy relation, then downgrade transparently if no story value remains",
+      "expected_device": "repair one story-worthy relation, then report the obstacle if no faithful story remains",
       "must_preserve": [
         "one repair pass that narrows the relation",
         "actor goal, real constraint, choice, and consequence when Fable Mode survives",
-        "transparent Bridge Mode fallback when the repair still only renames variables",
-        "direct technical skeleton after fallback"
+        "specific failed gate when the repair still only renames variables",
+        "no silent mode downgrade"
       ],
       "must_avoid": [
         "adding characters to a calculation and calling it a fable",
@@ -170,18 +172,20 @@
     },
     {
       "id": "multiple-relations",
-      "mode": "bridge",
+      "mode": "fable",
       "concept": "representation, truncation, and complexity in one request",
-      "expected_device": "separate bridges with a technical-language return",
+      "expected_device": "complete familiar causal fable followed by factual return",
       "must_preserve": [
         "one relation per analogy",
         "formal return between relations",
-        "governing parameters for any performance claim"
+        "governing parameters for any performance claim",
+        "complete goal, constraint, action and consequence before the reveal"
       ],
       "must_avoid": [
         "one giant story for the whole algorithm",
         "claiming an advantage without real parameters"
-      ]
+      ],
+      "legacy_mode": "bridge"
     },
     {
       "id": "delayed-reveal",
@@ -198,6 +202,392 @@
         "concept-name leakage",
         "decorative background",
         "repeating the full story in the worked example"
+      ]
+    },
+    {
+      "id": "state-space-is-not-information-recovery",
+      "mode": "fable",
+      "concept": "an operation that reduces population outside an allowed state set",
+      "expected_device": "one source-grounded action with an explicit semantic boundary",
+      "must_preserve": [
+        "the actual state-space membership before and after the operation",
+        "the population or component that the operation changes",
+        "the carrier of logical content and whether its recovery was measured",
+        "the distinction between returning to an allowed set and restoring the original content",
+        "residual error or information that remains unknown"
+      ],
+      "must_avoid": [
+        "equating allowed-state occupancy with recovery of the original data",
+        "describing removal of one failure mode as complete correction",
+        "claiming recovery of phase, coherence, or memory without source evidence",
+        "an absolute recovery guarantee"
+      ]
+    },
+    {
+      "id": "unsupported-mechanism-detail",
+      "mode": "fable",
+      "concept": "a calibrated selective operation whose intermediate physical mechanism is only partly established",
+      "expected_device": "a story limited to the supported operational relation",
+      "must_preserve": [
+        "the source-supported operation and its actual target",
+        "the evidence level for every causal statement",
+        "the operation direction and prerequisites",
+        "an explicit statement when the intermediate mechanism is unresolved",
+        "a technical-language return at the evidence boundary"
+      ],
+      "must_avoid": [
+        "invented matched beats, echo tunnels, resonance, or one-way transport",
+        "an analogy-only energy landscape presented as physics",
+        "a story action promoted into a physical causal edge",
+        "claiming a uniquely proved mechanism from compatible evidence"
+      ]
+    },
+    {
+      "id": "operation-type-separation",
+      "mode": "fable",
+      "concept": "a workflow containing measurement, readout, post-selection, and reset",
+      "expected_device": "complete familiar causal fable followed by factual return",
+      "must_preserve": [
+        "the state before each operation",
+        "whether the operation changes the physical system or only records an outcome",
+        "measurement back-action when applicable",
+        "whether failed trials are discarded or the system is physically reset",
+        "the state and available information after each operation",
+        "complete goal, constraint, action and consequence before the reveal"
+      ],
+      "must_avoid": [
+        "treating reset, readout, measurement, and post-selection as synonyms",
+        "portraying a state-changing operation as passive observation",
+        "describing discarded trials as repaired systems",
+        "collapsing quantum state, classical outcome, and control action into information"
+      ],
+      "legacy_mode": "bridge"
+    },
+    {
+      "id": "metric-identity-and-composition",
+      "mode": "fable",
+      "concept": "multiple empirical rates reported under different experimental conditions",
+      "expected_device": "complete familiar causal fable followed by factual return",
+      "must_preserve": [
+        "the name, numerator, and denominator of each metric",
+        "the conditioning set and experimental unit",
+        "device or population and time or round scope",
+        "source-reported uncertainty when available",
+        "a compatible sample space and target event before composition",
+        "the joint model or conditional-independence assumption required for composition",
+        "complete goal, constraint, action and consequence before the reveal"
+      ],
+      "must_avoid": [
+        "multiplying percentages from different experiments because their units match",
+        "mixing leakage, readout, state, and logical-error metrics",
+        "turning a component metric into end-to-end task success",
+        "dropping the denominator or conditioning set"
+      ],
+      "legacy_mode": "bridge"
+    },
+    {
+      "id": "claim-strength-and-scope",
+      "mode": "fable",
+      "concept": "an experimental observation with an author-attributed mechanism",
+      "expected_device": "complete familiar causal fable followed by factual return",
+      "must_preserve": [
+        "the distinction between definition, measurement, attribution, and compatible inference",
+        "the source's device, population, calibration, and operating conditions",
+        "the time or round scope and available uncertainty",
+        "residual risks and alternative mechanisms not excluded by the evidence",
+        "complete goal, constraint, action and consequence before the reveal"
+      ],
+      "must_avoid": [
+        "turning an author attribution into direct measurement",
+        "turning correlation into unique causation",
+        "universalizing a result from one device or calibration",
+        "absolute claims such as perfect, permanent, unaffected, or guaranteed"
+      ],
+      "legacy_mode": "bridge"
+    },
+    {
+      "id": "exit-at-evidence-boundary",
+      "mode": "fable",
+      "concept": "a causal chain whose next intermediate link is not resolved by the source",
+      "expected_device": "a bounded story followed by an explicit literal-language exit",
+      "must_preserve": [
+        "the last source-supported causal edge",
+        "a statement that the available evidence does not distinguish the next mechanism",
+        "a return to literal technical language",
+        "the supported observable consequence without an invented intermediate step"
+      ],
+      "must_avoid": [
+        "inventing a bridge so the story feels complete",
+        "hiding uncertainty behind a metaphorical verb",
+        "continuing the fable past the evidence boundary",
+        "using the factual debrief to retroactively justify an unsupported story action"
+      ]
+    },
+    {
+      "id": "closed-story-world-language",
+      "mode": "fable",
+      "concept": "one source-grounded technical relation translated into an ordinary story world",
+      "expected_device": "a sealed narrative followed by a terminology-restoring factual debrief",
+      "must_preserve": [
+        "actor goal, real limitation, supported action, and observable consequence",
+        "the source-authorized causal direction and prerequisites",
+        "a private case-specific denylist derived from the source and debrief",
+        "a compact allowlist of story-world objects, actions, rules, and quantities",
+        "the canonical name and professional distinctions restored after the story"
+      ],
+      "must_avoid": [
+        "domain terminology in the title or narrative paragraphs",
+        "method or device names embedded in story dialogue",
+        "a paper summary covered by renamed characters and props",
+        "using a fixed domain-specific blacklist as the only language audit"
+      ]
+    },
+    {
+      "id": "symbol-free-narrative",
+      "mode": "fable",
+      "concept": "a relation whose source uses variables, sets, formulas, and units",
+      "expected_device": "ordinary in-world actions and quantities with notation restored after the boundary",
+      "must_preserve": [
+        "the quantities and operation needed to reconstruct the mechanism",
+        "the same operation direction and comparison as the formal relation",
+        "formal notation restored in the factual debrief or worked example",
+        "a check that no second symbolic system is required to read the story"
+      ],
+      "must_avoid": [
+        "single-letter source variables in narrative prose",
+        "set notation, equations, standard acronyms, or formal units in the story",
+        "renaming technical variables while preserving their symbols",
+        "hiding an operation merely to keep notation out"
+      ]
+    },
+    {
+      "id": "narrative-perspective-lock",
+      "mode": "fable",
+      "concept": "an observed operation with an unresolved intermediate cause",
+      "expected_device": "an in-world observation limit followed by a literal evidence-boundary debrief",
+      "must_preserve": [
+        "the last supported story action and observable outcome",
+        "the actor's inability to distinguish an unobserved intermediate cause",
+        "the exact evidence limitation restored after the narrative ends",
+        "one uninterrupted story perspective from title through final paragraph"
+      ],
+      "must_avoid": [
+        "paper, author, reviewer, proof, or generalization language inside the story",
+        "switching to source commentary and then returning to the narrative",
+        "using reviewer language as a substitute for an in-world limitation",
+        "inventing the unresolved cause to keep the story flowing"
+      ]
+    },
+    {
+      "id": "story-native-metric-projection",
+      "mode": "fable",
+      "concept": "one empirical rate whose magnitude matters to the selected mechanism",
+      "expected_device": "a story-native frequency tied to the exact formal metric after the debrief",
+      "must_preserve": [
+        "the same underlying datum, population, conditioning, direction, and conclusion",
+        "an exact ratio or an explicitly approximate normalized story frequency",
+        "the exact source value, metric identity, denominator, scope, and uncertainty in the formal layer",
+        "a statement that normalization does not assert a new raw sample size"
+      ],
+      "must_avoid": [
+        "a formal metric label, percent sign, unit, or error bar in the narrative",
+        "unmarked rounding",
+        "turning a normalized explanatory group into literal trial counts",
+        "changing the denominator or experimental conditions between surfaces"
+      ]
+    },
+    {
+      "id": "rule-origin-without-term-leakage",
+      "mode": "fable",
+      "concept": "a calculation or transition licensed by a source-defined rule",
+      "expected_device": "the causal origin expressed as a story-world constraint before formal restoration",
+      "must_preserve": [
+        "what is tracked and why it can change",
+        "why each story-world input contributes before the action",
+        "the source-authorized rule and evidence level in the private preflight",
+        "the formal derivation, protocol, or definition restored in the debrief"
+      ],
+      "must_avoid": [
+        "a formal derivation or protocol name in the sealed narrative",
+        "an unexplained machine or institutional habit",
+        "omitting the rule origin to avoid terminology leakage",
+        "using source attribution as an in-story causal rule"
+      ]
+    },
+    {
+      "id": "terminology-restoration",
+      "mode": "fable",
+      "concept": "a sealed narrative that hides several necessary professional distinctions",
+      "expected_device": "complete action mapping and terminology restoration after the story",
+      "must_preserve": [
+        "the canonical concept name in factual section 1",
+        "every mechanism-bearing story action mapped to its real operation in section 2",
+        "changed, preserved, lost, and unknown content kept distinct",
+        "evidence level, conditions, residual risk, and unsupported stronger conclusion",
+        "plain-language introduction before any new worked-example term"
+      ],
+      "must_avoid": [
+        "keeping the debrief vague because the story was simple",
+        "failing to restore a hidden technical distinction",
+        "introducing unmapped jargon for the first time in the worked example",
+        "treating narrative simplicity as permission to weaken scope or uncertainty"
+      ]
+    },
+    {
+      "id": "everyday-completeness-over-budget",
+      "mode": "fable",
+      "concept": "queue with a necessary priority exception",
+      "expected_device": "complete familiar causal fable followed by factual return",
+      "must_preserve": [
+        "the reason for the exception before its consequence",
+        "necessary context even beyond 250 characters or six sentences",
+        "one selected relation",
+        "complete goal, constraint, action and consequence before the reveal"
+      ],
+      "must_avoid": [
+        "rejecting by total length",
+        "extra devices",
+        "shortening away why the outcome follows"
+      ],
+      "legacy_mode": "everyday"
+    },
+    {
+      "id": "everyday-invented-apparatus",
+      "mode": "fable",
+      "concept": "state transition",
+      "expected_device": "complete familiar causal fable followed by factual return",
+      "must_preserve": [
+        "ordinary language",
+        "supported operation direction",
+        "explicit outcome",
+        "complete goal, constraint, action and consequence before the reveal"
+      ],
+      "must_avoid": [
+        "读签灯 or 回送把手 as unexplained mechanism labels",
+        "word substitution that keeps an unsupported operation",
+        "claiming keyword absence proves readability"
+      ],
+      "legacy_mode": "everyday"
+    },
+    {
+      "id": "everyday-recovery-boundary",
+      "mode": "fable",
+      "concept": "return to an allowed set versus information recovery",
+      "expected_device": "complete familiar causal fable followed by factual return",
+      "must_preserve": [
+        "returning to a set does not by itself establish recovery of prior information",
+        "a quantum mapping does not assert that every state is a definite basis seat",
+        "no mechanism claim beyond the source",
+        "complete goal, constraint, action and consequence before the reveal"
+      ],
+      "must_avoid": [
+        "a teacher taking attendance proves passive measurement",
+        "promising original state recovery",
+        "treating a sample percentage from incident notes as verified"
+      ],
+      "legacy_mode": "everyday"
+    },
+    {
+      "id": "everyday-local-identifiability",
+      "mode": "fable",
+      "concept": "local identifiability with a nuisance direction",
+      "expected_device": "complete familiar causal fable followed by factual return",
+      "must_preserve": [
+        "observations and local regime are specified",
+        "same first-order response is not necessarily exact global identity",
+        "extra observations or higher-order response may change the conclusion",
+        "complete goal, constraint, action and consequence before the reveal"
+      ],
+      "must_avoid": [
+        "both knobs change brightness therefore all experiments fail",
+        "mechanical breakage is necessary",
+        "using a disclaimer to retain a false central analogy"
+      ],
+      "legacy_mode": "everyday"
+    },
+    {
+      "id": "everyday-independent-technical-example",
+      "mode": "fable",
+      "concept": "sensitivity to a rate difference",
+      "expected_device": "complete familiar causal fable followed by factual return",
+      "must_preserve": [
+        "same relation and scope",
+        "hypothetical quantities identified",
+        "source metric identity when cited",
+        "complete goal, constraint, action and consequence before the reveal"
+      ],
+      "must_avoid": [
+        "changing the underlying case or data identity after the narrative",
+        "pretending the scene is an experiment",
+        "changing sign or causal direction"
+      ],
+      "legacy_mode": "everyday"
+    },
+    {
+      "id": "basis-versus-space",
+      "mode": "fable",
+      "concept": "quantum state representation",
+      "expected_device": "complete source-faithful fable or explicit failed gate",
+      "must_preserve": [
+        "basis vectors and their linear span are distinct",
+        "superpositions remain possible"
+      ],
+      "must_avoid": [
+        "equating a two-element label set with a Hilbert subspace"
+      ]
+    },
+    {
+      "id": "nonproof-versus-impossibility",
+      "mode": "fable",
+      "concept": "bounded recovery claim",
+      "expected_device": "complete source-faithful fable or explicit failed gate",
+      "must_preserve": [
+        "not established remains not established",
+        "only source-supported causes"
+      ],
+      "must_avoid": [
+        "inventing missing labels as a physical cause of loss"
+      ]
+    },
+    {
+      "id": "parallel-versus-feedback",
+      "mode": "fable",
+      "concept": "concurrent operations",
+      "expected_device": "complete source-faithful fable or explicit failed gate",
+      "must_preserve": [
+        "shared execution window",
+        "unconditional operation independent of observed result"
+      ],
+      "must_avoid": [
+        "inserting detect then decide before the operation"
+      ]
+    },
+    {
+      "id": "phantom-cross-reference",
+      "mode": "fable",
+      "concept": "revised narrative and example",
+      "expected_device": "complete source-faithful fable or explicit failed gate",
+      "must_preserve": [
+        "every reference has a current narrative counterpart",
+        "re-review after each edit"
+      ],
+      "must_avoid": [
+        "claiming the story used counts that are absent",
+        "passing because the example is unchanged"
+      ]
+    },
+    {
+      "id": "fable-repair-failure",
+      "mode": "fable",
+      "concept": "unfaithful proposed narrative",
+      "expected_device": "complete source-faithful fable or explicit failed gate",
+      "must_preserve": [
+        "narrow relation and repair first",
+        "report exact obstacle if no faithful repair"
+      ],
+      "must_avoid": [
+        "silent Bridge downgrade",
+        "invented causal step to finish the story"
       ]
     }
   ]
