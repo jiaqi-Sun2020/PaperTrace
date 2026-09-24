@@ -39,6 +39,10 @@ try:
     from feedback_recovery import feedback_recovery_script
 except Exception as exc:  # pragma: no cover - formal builds must share recovery behavior
     raise RuntimeError(f"lean-html-skill feedback_recovery is required for formal reader builds: {exc}") from exc
+try:
+    from feedback_ux import feedback_ux_runtime_script, feedback_ux_styles
+except Exception as exc:  # pragma: no cover - formal builds must share feedback interaction behavior
+    raise RuntimeError(f"lean-html-skill feedback_ux is required for formal reader builds: {exc}") from exc
 
 
 ANCHOR_RE = re.compile(r'<a\s+id=["\']([^"\']+)["\']\s*>\s*</a>', re.I)
@@ -959,8 +963,18 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
         )
         source_map_sha256 = hashlib.sha256(fallback_basis.encode("utf-8")).hexdigest()
     recovery_runtime = feedback_recovery_script(source_map_sha256)
+    feedback_runtime = feedback_ux_runtime_script()
     return f'''
 <button type="button" class="feedback-opener" id="openFreeFeedback">Annotate / 自由标注</button>
+<div class="papertrace-selection-toolbar" id="readerSelectionToolbar" role="toolbar" aria-label="为选中文字添加反馈" hidden>
+  <button type="button" data-inline-status="mastered">掌握</button>
+  <button type="button" data-inline-status="known">了解</button>
+  <button type="button" data-inline-status="learning">学习中</button>
+  <button type="button" data-inline-status="unknown">不理解</button>
+  <button type="button" class="papertrace-selection-details" data-selection-details>提问 / 备注</button>
+</div>
+<p class="papertrace-save-indicator" id="feedbackGlobalStatus" role="status" aria-live="polite" hidden></p>
+<p class="papertrace-save-indicator papertrace-undo-indicator" id="feedbackUndoStatus" role="status" aria-live="polite" hidden></p>
 <aside class="feedback-dock" id="feedbackDock" hidden>
   <h2>Concept Feedback / 自由标注</h2>
   <div class="selected-concept" id="feedbackConcept">No concept selected</div>
@@ -1000,7 +1014,6 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
   <label class="field-label" for="feedbackContext">Source context / selected text</label>
   <textarea id="feedbackContext" placeholder="Paste or capture the sentence/paragraph that confused you."></textarea>
   <div class="feedback-actions">
-    <button type="button" class="primary" id="saveFeedback">Save mark</button>
     <button type="button" id="useSelectedText">Use selected text</button>
     <button type="button" id="deleteFeedback">Delete current</button>
     <button type="button" id="downloadFeedback">Download feedback JSON</button>
@@ -1019,6 +1032,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
 </aside>
 <script type="application/json" id="readerFeedbackSeed">__READER_FEEDBACK_SEED__</script>
 __FEEDBACK_RECOVERY_RUNTIME__
+__FEEDBACK_UX_RUNTIME__
 <script>
 (function () {{
   const seed = JSON.parse(document.getElementById('readerFeedbackSeed').textContent);
@@ -1035,8 +1049,13 @@ __FEEDBACK_RECOVERY_RUNTIME__
   const summary = document.getElementById('feedbackSummary');
   const saveStatus = document.getElementById('feedbackSaveStatus');
   const recoveryStatus = document.getElementById('feedbackRecoveryStatus');
+  const globalSaveStatus = document.getElementById('feedbackGlobalStatus');
+  const undoStatus = document.getElementById('feedbackUndoStatus');
+  const selectionToolbar = document.getElementById('readerSelectionToolbar');
   const statusButtons = Array.from(document.querySelectorAll('.status-buttons button'));
   const opener = document.getElementById('openFreeFeedback');
+  const utilityPane = document.getElementById('tableOfContents');
+  if (utilityPane && dock.parentElement !== utilityPane) utilityPane.appendChild(dock);
   let currentConcept = null;
   let currentBlock = null;
   let currentKind = 'concept';
@@ -1061,6 +1080,19 @@ __FEEDBACK_RECOVERY_RUNTIME__
   const recovery = window.PaperTraceFeedbackRecovery.create({{
     onStatus: updateRecoveryStatus
   }});
+
+  function updateAutosaveStatus(event) {{
+    const target = globalSaveStatus || saveStatus;
+    if (!target || !event) return;
+    target.dataset.state = event.state || 'saved';
+    target.hidden = false;
+    if (event.state === 'saved' && event.saved_at) {{
+      target.textContent = `已自动保存 · ${{new Date(event.saved_at).toLocaleTimeString()}}`;
+    }} else {{
+      target.textContent = event.message || '已自动保存';
+    }}
+    if (event.state === 'saved') window.setTimeout(() => {{ target.hidden = true; }}, 1800);
+  }}
 
   function updateRecoveryStatus(event) {{
     if (!recoveryStatus) return;
@@ -1199,7 +1231,18 @@ __FEEDBACK_RECOVERY_RUNTIME__
     if (restoringRecovery) return;
     draftDirty = true;
     scheduleRecovery();
+    autosave.schedule('field-change');
   }}
+
+  const undoManager = window.PaperTraceFeedbackUX.createUndo({{
+    host: undoStatus,
+    duration: 5000
+  }});
+  const autosave = window.PaperTraceFeedbackUX.createAutosave({{
+    delay: 250,
+    commit: reason => saveCurrent(reason),
+    onState: updateAutosaveStatus
+  }});
 
   function restoreLocalRecovery() {{
     const recovered = recovery.load();
@@ -1315,7 +1358,7 @@ __FEEDBACK_RECOVERY_RUNTIME__
     if (!saveStatus) return;
     const label = (item.concept || item.selected_text || 'annotation').slice(0, 72);
     saveStatus.hidden = false;
-    saveStatus.textContent = `Saved: ${{label}}. This panel stays open; use Close when you are done.`;
+    saveStatus.textContent = `Auto-saved: ${{label}}.`;
   }}
 
   function feedbackKey(concept, blockId, kind) {{
@@ -1409,8 +1452,44 @@ __FEEDBACK_RECOVERY_RUNTIME__
     addBlockMarker(key, item);
   }}
 
-  function deleteFeedbackItem(key) {{
+  function restoreFeedbackSnapshot(key, item) {{
+    if (!key || !item) return;
+    removeVisualFeedback(key);
+    feedback.set(key, item);
+    showVisualFeedback(key, item);
+    refreshSummary();
+    persistRecoveryNow();
+  }}
+
+  function applyStatusWithUndo(status) {{
+    const previousKey = currentKey;
+    const previousItem = previousKey && feedback.has(previousKey)
+      ? JSON.parse(JSON.stringify(feedback.get(previousKey)))
+      : null;
+    const previousStatus = getStatus();
+    setStatus(status);
+    autosave.schedule('status-change');
+    const savedItem = autosave.flush('status-change');
+    const savedKey = currentKey;
+    if (!savedItem || previousStatus === status) return;
+    undoManager.offer(`状态已更新为 ${{status}}`, () => {{
+      if (previousItem && previousKey) {{
+        if (savedKey && savedKey !== previousKey) {{ feedback.delete(savedKey); removeVisualFeedback(savedKey); }}
+        currentKey = previousKey;
+        restoreFeedbackSnapshot(previousKey, previousItem);
+      }} else if (savedKey) {{
+        feedback.delete(savedKey);
+        removeVisualFeedback(savedKey);
+        refreshSummary();
+        persistRecoveryNow();
+      }}
+      setStatus(previousStatus);
+    }});
+  }}
+
+  function deleteFeedbackItem(key, options) {{
     if (!key || !feedback.has(key)) return;
+    const deleted = JSON.parse(JSON.stringify(feedback.get(key)));
     feedback.delete(key);
     removeVisualFeedback(key);
     if (currentKey === key) {{
@@ -1435,6 +1514,9 @@ __FEEDBACK_RECOVERY_RUNTIME__
     }}
     refreshSummary();
     persistRecoveryNow();
+    if (!options || options.offerUndo !== false) {{
+      undoManager.offer('标注已删除', () => restoreFeedbackSnapshot(key, deleted));
+    }}
   }}
 
   function openSavedFeedback(key) {{
@@ -1497,7 +1579,8 @@ __FEEDBACK_RECOVERY_RUNTIME__
     }});
   }}
 
-  function openPanel(existing) {{
+  function openPanel(existing, options) {{
+    const show = !options || options.show !== false;
     clearSaveStatus();
     if (!restoringRecovery) draftDirty = false;
     conceptInput.value = existing.concept || '';
@@ -1510,9 +1593,10 @@ __FEEDBACK_RECOVERY_RUNTIME__
     setStatus(existing.status || 'unrated');
     const blockLabel = currentBlock ? `  ·  ${{currentBlock}}` : '';
     conceptLabel.textContent = (existing.concept || 'Free annotation') + blockLabel;
-    dock.hidden = false;
-    document.body.classList.add('feedback-open');
-    conceptInput.focus();
+    if (show) {{
+      dock.hidden = false;
+      document.body.classList.add('feedback-open');
+    }}
   }}
 
   function openFor(mark) {{
@@ -1554,8 +1638,7 @@ __FEEDBACK_RECOVERY_RUNTIME__
     openPanel(feedback.get(key) || existing);
   }}
 
-  function openFree() {{
-    const selected = rememberSelection();
+  function prepareFreeSelection(selected, showPanel) {{
     currentConcept = selected.text ? selected.text.slice(0, 120) : '';
     currentBlock = selected.blockId || '';
     currentKind = 'freeform';
@@ -1591,15 +1674,23 @@ __FEEDBACK_RECOVERY_RUNTIME__
       alias_zh: '',
       concept_id: ''
     }};
-    openPanel(existing);
+    openPanel(existing, {{ show: showPanel !== false }});
+    return existing;
+  }}
+
+  function openFree() {{
+    const selected = rememberSelection();
+    prepareFreeSelection(selected, true);
   }}
 
   function closePanel() {{
+    autosave.flush('panel-close');
     dock.hidden = true;
     document.body.classList.remove('feedback-open');
   }}
 
-  function saveCurrent() {{
+  function saveCurrent(reason) {{
+    if (!conceptInput.value.trim() && !currentConcept && !currentSelectedText) return null;
     const readingAnchor = currentReadingAnchor();
     const readingTop = readingAnchor && typeof readingAnchor.getBoundingClientRect === 'function'
       ? readingAnchor.getBoundingClientRect().top
@@ -1644,9 +1735,11 @@ __FEEDBACK_RECOVERY_RUNTIME__
     }});
     draftDirty = false;
     refreshSummary();
-    persistRecoveryNow();
+    const recoverySaved = persistRecoveryNow();
     announceSaved(item);
     restoreVerticalReadingPosition(readingAnchor, readingTop);
+    if (!recoverySaved) throw new Error('browser-local feedback recovery failed');
+    return item;
   }}
 
   function downloadFeedback() {{
@@ -1684,6 +1777,17 @@ __FEEDBACK_RECOVERY_RUNTIME__
   }}
 
   document.addEventListener('selectionchange', rememberSelection);
+  const selectionController = window.PaperTraceFeedbackUX.createSelectionToolbar({{
+    root: document.getElementById('readerDocument'),
+    toolbar: selectionToolbar,
+    ignoreSelector: 'button, input, select, textarea, a, .math-display, .math-inline',
+    capture: () => selectionInfo(),
+    onStatus: (status, selected) => {{
+      prepareFreeSelection(selected, false);
+      applyStatusWithUndo(status);
+    }},
+    onDetails: selected => prepareFreeSelection(selected, true)
+  }});
   opener.addEventListener('pointerdown', event => {{
     event.preventDefault();
     rememberSelection();
@@ -1703,8 +1807,7 @@ __FEEDBACK_RECOVERY_RUNTIME__
     }});
   }});
   statusButtons.forEach(btn => btn.addEventListener('click', () => {{
-    setStatus(btn.dataset.status);
-    markDraftDirty();
+    applyStatusWithUndo(btn.dataset.status);
   }}));
   [conceptInput, question, note, context].forEach(field => field.addEventListener('input', markDraftDirty));
   [confusionType, explanationStyle, needsExplanation].forEach(field => field.addEventListener('change', markDraftDirty));
@@ -1721,10 +1824,9 @@ __FEEDBACK_RECOVERY_RUNTIME__
       markDraftDirty();
     }}
   }});
-  document.getElementById('saveFeedback').addEventListener('click', saveCurrent);
   document.getElementById('deleteFeedback').addEventListener('click', () => deleteFeedbackItem(currentKey));
-  document.getElementById('downloadFeedback').addEventListener('click', () => {{ saveCurrent(); downloadFeedback(); }});
-  document.getElementById('copyFeedback').addEventListener('click', () => {{ saveCurrent(); copyFeedback(); }});
+  document.getElementById('downloadFeedback').addEventListener('click', () => {{ autosave.flush('export'); downloadFeedback(); }});
+  document.getElementById('copyFeedback').addEventListener('click', () => {{ autosave.flush('export'); copyFeedback(); }});
   document.getElementById('clearLocalFeedback').addEventListener('click', () => {{
     confirmAndClearLocalRecovery(
       'Clear the local recovery copy and all current page annotations? Export JSON first if you need a backup.'
@@ -1732,13 +1834,14 @@ __FEEDBACK_RECOVERY_RUNTIME__
   }});
   document.getElementById('closeFeedback').addEventListener('click', closePanel);
   document.addEventListener('keydown', event => {{
-    if (event.key === 'Escape') closePanel();
+    if (event.key === 'Escape') {{ selectionController.hide(); closePanel(); }}
   }});
-  window.addEventListener('pagehide', () => recovery.flush());
+  window.addEventListener('pagehide', () => {{ autosave.flush('pagehide'); recovery.flush(); }});
   document.addEventListener('visibilitychange', () => {{
-    if (document.visibilityState === 'hidden') recovery.flush();
+    if (document.visibilityState === 'hidden') {{ autosave.flush('visibilitychange'); recovery.flush(); }}
   }});
   window.addEventListener('beforeunload', event => {{
+    autosave.flush('beforeunload');
     recovery.flush();
     if (!recovery.hasUnsafeChanges()) return;
     event.preventDefault();
@@ -1747,7 +1850,7 @@ __FEEDBACK_RECOVERY_RUNTIME__
   restoreLocalRecovery();
   refreshSummary();
 }}());
-</script>'''.replace("__READER_FEEDBACK_SEED__", metadata_json).replace("__FEEDBACK_RECOVERY_RUNTIME__", recovery_runtime).strip()
+</script>'''.replace("__READER_FEEDBACK_SEED__", metadata_json).replace("__FEEDBACK_RECOVERY_RUNTIME__", recovery_runtime).replace("__FEEDBACK_UX_RUNTIME__", feedback_runtime).strip()
 
 
 def split_top_segments(markdown: str) -> list[tuple[str | None, str]]:
@@ -2790,21 +2893,47 @@ main { min-width: 0; }
   border-color: var(--reader-status-saved-border);
 }
 .feedback-dock {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  bottom: 16px;
-  width: min(var(--feedback-dock-width), calc(100vw - 32px));
-  max-height: none;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-height: calc(100vh - 34px);
   overflow: auto;
   background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: 0 18px 50px rgba(23, 32, 51, .18);
+  border: 0;
+  border-radius: inherit;
+  box-shadow: none;
   padding: 14px;
-  z-index: 20;
+  z-index: 5;
 }
 .feedback-dock[hidden] { display: none; }
+body.feedback-open .toc-content { display: none; }
+body.feedback-open .toc { overflow: auto; }
+body.feedback-open .contents-pane-toggle,
+body.feedback-open .contents-pane-resizer { display: none; }
+body.feedback-open.toc-collapsed .toc {
+  display: block;
+  min-height: 120px;
+}
+body.feedback-open.toc-collapsed .layout.no-source-pages {
+  grid-template-columns: minmax(0, 1fr) var(--toc-pane-width);
+}
+body.feedback-open.toc-collapsed .layout.has-source-pages {
+  grid-template-columns: minmax(360px, var(--source-pane-width)) minmax(520px, 1fr) var(--toc-pane-width);
+}
+@media (min-width: 1101px) {
+  body.feedback-open .layout,
+  body.feedback-open.toc-collapsed .layout.no-source-pages {
+    grid-template-columns: minmax(0, 1fr) clamp(330px, 30vw, var(--feedback-dock-width));
+  }
+  body.feedback-open .layout.has-source-pages,
+  body.feedback-open.toc-collapsed .layout.has-source-pages {
+    grid-template-columns: minmax(280px, 30vw) minmax(420px, 1fr) clamp(330px, 30vw, var(--feedback-dock-width));
+  }
+  body.feedback-open .toc {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
 .feedback-opener {
   position: fixed;
   right: calc(var(--toc-pane-width) + 32px);
@@ -2835,22 +2964,23 @@ body.feedback-open .feedback-opener { opacity: 0; pointer-events: none; }
     width: min(100%, var(--toc-pane-width));
     justify-self: end;
   }
-  body.feedback-open .toc {
-    visibility: hidden;
-    pointer-events: none;
-  }
   .feedback-opener,
   body.toc-collapsed .feedback-opener { right: calc(var(--utility-pane-width) + 32px); }
 }
-@media (max-width: 1679px) {
-  body.feedback-open .layout { padding-bottom: min(62vh, 590px); }
+@media (max-width: 1100px) {
+  body.feedback-open .layout { padding-bottom: min(54vh, 520px); }
   .feedback-dock {
-    top: auto;
+    position: fixed;
     left: 16px;
     right: 16px;
     bottom: 16px;
     width: auto;
-    max-height: min(58vh, 560px);
+    height: auto;
+    max-height: min(50vh, 500px);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 18px 50px rgba(23, 32, 51, .22);
+    z-index: 1001;
   }
 }
 .feedback-dock h2 {
@@ -2880,7 +3010,7 @@ body.feedback-open .feedback-opener { opacity: 0; pointer-events: none; }
 }
 .status-buttons {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   margin: 10px 0;
 }
@@ -2890,6 +3020,7 @@ body.feedback-open .feedback-opener { opacity: 0; pointer-events: none; }
   background: var(--reader-panel-bg);
   color: var(--ink);
   padding: 7px 8px;
+  min-height: 40px;
   cursor: pointer;
 }
 .status-buttons button.active {
@@ -3168,6 +3299,7 @@ def build_html(
   <title>{html.escape(title)}</title>
   {reader_theme_boot_script()}
   <style>{css()}</style>
+  {feedback_ux_styles()}
   {math_support(math_renderer, mathjax_url)}
 </head>
 <body>
@@ -3221,9 +3353,9 @@ def validate_generated_html(html_text: str, concepts: list[dict], math_renderer:
             issues.append("feedback UI closePanel handler is missing")
         save_match = re.search(r"function saveCurrent\([^)]*\) \{([\s\S]*?)\n  \}", html_text)
         if not save_match or "announceSaved(item);" not in save_match.group(1):
-            issues.append("Save mark does not announce a successful in-place save")
+            issues.append("feedback autosave does not announce a successful in-place save")
         elif "closePanel();" in save_match.group(1):
-            issues.append("Save mark must not close the annotate panel or change reader layout")
+            issues.append("feedback autosave must not close the annotate panel")
         if "scrollbar-gutter: stable" not in html_text:
             issues.append("reader does not reserve a stable scrollbar gutter")
         required_attrs = ("data-concept=", "data-concept-id=", "data-status=", "data-source-anchor=", "data-concept-type=", "data-alias-zh=", "title=")

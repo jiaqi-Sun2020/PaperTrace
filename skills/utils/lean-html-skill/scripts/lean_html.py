@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from feedback_ux import feedback_ux_runtime_script, feedback_ux_styles
+
 
 VALID_STATUSES = {"mastered", "known", "learning", "unknown", "unrated"}
 DEFAULT_READER_STATUS = "unrated"
@@ -650,6 +652,7 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
     return f"""
 {MARKER_START}
 {feedback_css(design_system)}
+{feedback_ux_styles()}
 <aside class="lean-html-dock collapsed" id="lean-html-feedback-dock" aria-label="Second-pass feedback export">
   <header>
     <strong>Second-pass feedback · {filename}</strong>
@@ -702,7 +705,6 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
     <label for="lean-html-note">Note</label>
     <textarea id="lean-html-note" placeholder="Optional: what you understood, what still feels vague"></textarea>
     <div class="lean-html-toolbar">
-      <button class="lean-html-btn" type="button" id="lean-html-save">Save mark</button>
       <button class="lean-html-btn" type="button" id="lean-html-clear">Clear</button>
     </div>
     <label for="lean-html-export-fallback">Copy fallback (always populated)</label>
@@ -714,6 +716,15 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
     <ul id="lean-html-saved-list"></ul>
   </div>
 </aside>
+<div class="papertrace-selection-toolbar" id="lean-html-selection-toolbar" role="toolbar" aria-label="为选中文字添加反馈" hidden>
+  <button type="button" data-inline-status="mastered">掌握</button>
+  <button type="button" data-inline-status="known">了解</button>
+  <button type="button" data-inline-status="learning">学习中</button>
+  <button type="button" data-inline-status="unknown">不理解</button>
+  <button type="button" class="papertrace-selection-details" data-selection-details>提问 / 备注</button>
+</div>
+<p class="papertrace-save-indicator" id="lean-html-save-state" role="status" aria-live="polite" hidden></p>
+{feedback_ux_runtime_script()}
 <script>
 (function(){{
   const PAYLOAD = {payload_json};
@@ -733,6 +744,8 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
   const activeSourceEl = document.getElementById('lean-html-active-source');
   const savedList = document.getElementById('lean-html-saved-list');
   const exportFallbackEl = document.getElementById('lean-html-export-fallback');
+  const saveStateEl = document.getElementById('lean-html-save-state');
+  const selectionToolbar = document.getElementById('lean-html-selection-toolbar');
   function shortText(text, limit) {{
     text = String(text || '').trim();
     return text.length > limit ? text.slice(0, limit - 1) + '...' : text;
@@ -769,14 +782,14 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
       report_anchor: item.anchor
     }};
   }}
-  function setActive(base) {{
+  function setActive(base, expand) {{
     activeBase = base || {{}};
     conceptEl.value = activeBase.concept || activeBase.selected_text || '';
     statusEl.value = activeBase.status || DEFAULT_STATUS;
     activeSourceEl.textContent = activeBase.report_anchor
       ? ('Active: ' + activeBase.report_anchor + ' · ' + shortText(activeBase.source_title || activeBase.category || activeBase.block_id, 90))
       : 'Active: freeform report selection';
-    openDock();
+    if (expand !== false) openDock();
   }}
   function installItemButtons() {{
     document.querySelectorAll('.item-card[id]').forEach(card => {{
@@ -797,10 +810,10 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
       card.appendChild(actions);
     }});
   }}
-  function selectionBase() {{
+  function selectionBase(silent) {{
     const selection = window.getSelection();
     const text = selection ? String(selection.toString()).trim() : '';
-    if (!text) {{ alert('请先选中报告中的一段文本。'); return null; }}
+    if (!text) {{ if (!silent) alert('请先选中报告中的一段文本。'); return null; }}
     let node = selection.anchorNode;
     if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
     const card = node && node.closest ? node.closest('.item-card[id]') : null;
@@ -816,11 +829,13 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
   }}
   function currentMark() {{
     const concept = conceptEl.value.trim();
-    if (!concept) {{ alert('请先选择一个概念或选中文本。'); return null; }}
+    if (!concept) return null;
     const question = questionEl.value.trim();
     const status = statusEl.value || DEFAULT_STATUS;
+    const stableId = (activeBase && activeBase.feedback_id)
+      || 'feedback2::' + (activeBase && activeBase.report_anchor || 'freeform') + '::' + concept;
     return Object.assign({{}}, activeBase || {{}}, {{
-      feedback_id: 'feedback2::' + Date.now().toString(36) + '::' + Math.random().toString(36).slice(2, 8),
+      feedback_id: stableId,
       concept,
       status,
       user_question: question,
@@ -834,6 +849,30 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
       created_at: new Date().toISOString()
     }});
   }}
+  function commitCurrent() {{
+    const mark = currentMark();
+    if (!mark) return null;
+    const index = marks.findIndex(entry => entry.feedback_id === mark.feedback_id);
+    if (index >= 0) marks[index] = mark;
+    else marks.push(mark);
+    activeBase = mark;
+    renderMarks();
+    return mark;
+  }}
+  function updateSaveState(event) {{
+    if (!event || !saveStateEl) return;
+    saveStateEl.dataset.state = event.state || 'saved';
+    saveStateEl.hidden = false;
+    saveStateEl.textContent = event.state === 'saved' && event.saved_at
+      ? '已自动保存 · ' + new Date(event.saved_at).toLocaleTimeString()
+      : (event.message || '已自动保存');
+    if (event.state === 'saved') window.setTimeout(() => {{ saveStateEl.hidden = true; }}, 1800);
+  }}
+  const autosave = window.PaperTraceFeedbackUX.createAutosave({{
+    delay: 250,
+    commit: commitCurrent,
+    onState: updateSaveState
+  }});
   function exportPayload() {{
     const base = {{
       exported_at: new Date().toISOString(),
@@ -902,17 +941,25 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
     alert('已复制 feedback2 JSON，可直接粘给 Codex。');
   }}
   document.getElementById('lean-html-annotate-selection').addEventListener('click', () => {{
-    const base = selectionBase();
+    const base = selectionBase(false);
     if (base) setActive(base);
   }});
-  document.getElementById('lean-html-save').addEventListener('click', () => {{
-    const mark = currentMark();
-    if (!mark) return;
-    marks.push(mark);
-    questionEl.value = '';
-    noteEl.value = '';
-    renderMarks();
+  const selectionController = window.PaperTraceFeedbackUX.createSelectionToolbar({{
+    root: document.body,
+    toolbar: selectionToolbar,
+    ignoreSelector: '#lean-html-feedback-dock, button, input, select, textarea, a',
+    capture: () => selectionBase(true) || {{}},
+    onStatus: (status, base) => {{
+      setActive(base, false);
+      statusEl.value = status;
+      autosave.schedule('status-change');
+      autosave.flush('status-change');
+    }},
+    onDetails: base => setActive(base, true)
   }});
+  statusEl.addEventListener('change', () => {{ autosave.schedule('status-change'); autosave.flush('status-change'); }});
+  [conceptEl, questionEl, noteEl].forEach(field => field.addEventListener('input', () => {{ if (activeBase) autosave.schedule('field-change'); }}));
+  [confusionEl, styleEl].forEach(field => field.addEventListener('change', () => {{ if (activeBase) autosave.schedule('field-change'); }}));
   document.getElementById('lean-html-clear').addEventListener('click', () => {{
     activeBase = null;
     conceptEl.value = '';
@@ -921,9 +968,11 @@ def feedback_html(payload: dict[str, Any], design_system: str = "cosmic") -> str
     noteEl.value = '';
     activeSourceEl.textContent = 'No active report item.';
   }});
-  document.getElementById('lean-html-download').addEventListener('click', download);
-  document.getElementById('lean-html-copy').addEventListener('click', copy);
+  document.getElementById('lean-html-download').addEventListener('click', () => {{ autosave.flush('export'); download(); }});
+  document.getElementById('lean-html-copy').addEventListener('click', () => {{ autosave.flush('export'); copy(); }});
   toggle.addEventListener('click', toggleDock);
+  window.addEventListener('pagehide', () => autosave.flush('pagehide'));
+  document.addEventListener('visibilitychange', () => {{ if (document.visibilityState === 'hidden') autosave.flush('visibilitychange'); }});
   installItemButtons();
   loadMarks();
   statusEl.value = DEFAULT_STATUS;

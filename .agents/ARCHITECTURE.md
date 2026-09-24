@@ -122,7 +122,7 @@ Every new release carries `opening_story.version=3` with the existing concealed 
 - `paper_summary.json` supplies the source-anchored Chinese overview rendered before the concept ledger; it is completion evidence, not browser-authored state.
 - `source_map.pages` is the immutable manifest for the original-page viewer. Reader blocks expose `data-source-page`, and the browser synchronizes the left viewer without rerendering the PDF or treating full pages as article figures.
 - Source and Contents widths, collapse states, and theme are reversible presentation preferences stored under namespaced localStorage keys. They never mutate `paper.md`, `source_map.json`, `reader_wiki`, feedback identity, or the learner profile.
-- On wide screens, one fixed-width right utility lane is part of the base grid: Contents and annotation feedback alternate inside it without changing source/article columns. Blank-page clicks are inert; only Close or Esc dismisses feedback. At smaller widths, feedback uses a scroll-safe bottom workspace without covering translated content.
+- On wide screens, Contents and annotation feedback alternate in the right utility lane; opening feedback gives that lane enough width and rebalances the source/article columns without overlaying either one. At smaller widths, feedback uses a scroll-safe bottom workspace. Selection alone is inert, status actions save immediately, detail edits are debounced, and only Close or Esc dismisses the editor.
 - `reader-skill` owns the paper-specific pane semantics and source-page synchronization. `lean-html-skill` owns reusable chrome/feedback behavior and the shared contract checks that prevent inaccessible controls, broken restore paths, or translation-covering feedback.
 
 ## Module Boundaries

@@ -41,12 +41,13 @@ function testInlineScriptSyntax() {
   }
 }
 
-function testSaveMarkPreservesReaderLayout() {
+function testAutosavePersistsWithoutClosingReader() {
   const closePanel = extractFunction(html, "closePanel");
   const saveCurrent = extractFunction(html, "saveCurrent");
   const script = `
     const feedback = new Map();
     const dock = { hidden: false };
+    const autosave = { flush() {} };
     const conceptInput = { value: "Hamiltonian" };
     const note = { value: "" };
     const question = { value: "" };
@@ -72,7 +73,7 @@ function testSaveMarkPreservesReaderLayout() {
     function currentReadingAnchor() { return null; }
     function restoreVerticalReadingPosition() {}
     function announceSaved(item) { saveStatus.textContent = item.concept; saveStatus.hidden = false; }
-    function persistRecoveryNow() { persistedRecovery = true; }
+    function persistRecoveryNow() { persistedRecovery = true; return true; }
     const saveStatus = { hidden: true, textContent: "" };
     const bodyClasses = new Set(["feedback-open"]);
     const document = {
@@ -82,11 +83,11 @@ function testSaveMarkPreservesReaderLayout() {
     ${closePanel}
     ${saveCurrent}
     saveCurrent();
-    if (dock.hidden !== false) throw new Error("Save mark unexpectedly closed the panel");
-    if (!bodyClasses.has("feedback-open")) throw new Error("Save mark unexpectedly changed docked reader layout");
-    if (feedback.size !== 1) throw new Error("Save mark did not persist feedback item");
-    if (!persistedRecovery || draftDirty) throw new Error("Save mark did not commit browser-local recovery");
-    if (saveStatus.hidden || saveStatus.textContent !== "Hamiltonian") throw new Error("Save mark did not announce an in-place save");
+    if (dock.hidden !== false) throw new Error("autosave unexpectedly closed the panel");
+    if (!bodyClasses.has("feedback-open")) throw new Error("autosave unexpectedly changed docked reader layout");
+    if (feedback.size !== 1) throw new Error("autosave did not persist feedback item");
+    if (!persistedRecovery || draftDirty) throw new Error("autosave did not commit browser-local recovery");
+    if (saveStatus.hidden || saveStatus.textContent !== "Hamiltonian") throw new Error("autosave did not announce an in-place save");
     closePanel();
     if (dock.hidden !== true || bodyClasses.has("feedback-open")) throw new Error("Close did not release the docked feedback layout");
   `;
@@ -105,7 +106,7 @@ function testBlankPageClickDoesNotDismissFeedback() {
   }
 }
 
-function testSaveMarkRestoresReadingPosition() {
+function testAutosaveRestoresReadingPosition() {
   const restoreVerticalReadingPosition = extractFunction(html, "restoreVerticalReadingPosition");
   const script = `
     const scrollCalls = [];
@@ -114,12 +115,44 @@ function testSaveMarkRestoresReadingPosition() {
     ${restoreVerticalReadingPosition}
     restoreVerticalReadingPosition(anchor, 100);
     if (scrollCalls.length !== 1 || scrollCalls[0][0] !== 0 || scrollCalls[0][1] !== 34) {
-      throw new Error("Save mark did not restore the reading position after marker insertion");
+      throw new Error("autosave did not restore the reading position after marker insertion");
     }
     restoreVerticalReadingPosition(anchor, 133.8);
     if (scrollCalls.length !== 1) throw new Error("sub-pixel marker movement should not scroll the reader");
   `;
   vm.runInNewContext(script, { Number, Math }, { timeout: 1000 });
+}
+
+function extractFeedbackUXScript(source) {
+  const match = source.match(/<script data-papertrace-feedback-ux="v1">([\s\S]*?)<\/script>/);
+  if (!match) throw new Error("missing shared feedback UX runtime");
+  return match[1];
+}
+
+function testFeedbackUXAutosaveRuntime() {
+  const script = extractFeedbackUXScript(html);
+  const queue = [];
+  const states = [];
+  const window = {
+    setTimeout(fn) { queue.push(fn); return queue.length; },
+    clearTimeout() {},
+  };
+  vm.runInNewContext(script, { window, globalThis: window, Object, Date }, { timeout: 1000 });
+  const api = window.PaperTraceFeedbackUX;
+  if (!api || api.version !== 1) throw new Error("shared feedback UX API was not installed");
+  let saves = 0;
+  const autosave = api.createAutosave({ commit() { saves += 1; return { saves }; }, onState(event) { states.push(event.state); } });
+  autosave.flush("empty");
+  if (saves !== 0) throw new Error("empty autosave flush created a feedback record");
+  autosave.schedule("input");
+  autosave.schedule("input");
+  autosave.flush("pagehide");
+  if (saves !== 1) throw new Error("debounced autosave did not collapse rapid changes into one commit");
+  if (!states.includes("saving") || !states.includes("saved")) throw new Error("autosave state was not announced");
+  if (html.includes('id="saveFeedback"') || html.includes("Save mark")) throw new Error("legacy Save mark UI is still rendered");
+  for (const token of ['id="readerSelectionToolbar"', "data-inline-status=\"mastered\"", "data-selection-details"]) {
+    if (!html.includes(token)) throw new Error(`inline selection toolbar is missing: ${token}`);
+  }
 }
 
 function extractFeedbackRecoveryScript(source) {
@@ -410,11 +443,12 @@ function testReaderViewControlsPersist() {
 }
 
 testInlineScriptSyntax();
-testSaveMarkPreservesReaderLayout();
+testAutosavePersistsWithoutClosingReader();
 testBlankPageClickDoesNotDismissFeedback();
-testSaveMarkRestoresReadingPosition();
+testAutosaveRestoresReadingPosition();
+testFeedbackUXAutosaveRuntime();
 testFeedbackRecoveryRoundTripAndIsolation();
 testFeedbackRecoveryIntegration();
 testThemePersists();
 testReaderViewControlsPersist();
-console.log("reader JS runtime passed: feedback autosave/restore/isolation, export retention choices, explicit dismissal, stable layout, theme, view state, and source pages.");
+console.log("reader JS runtime passed: inline selection, debounced autosave, recovery/isolation, export retention, explicit dismissal, stable layout, theme, view state, and source pages.");

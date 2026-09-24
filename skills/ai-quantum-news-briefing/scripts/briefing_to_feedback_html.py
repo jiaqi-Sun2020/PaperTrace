@@ -16,9 +16,13 @@ from typing import Any, Iterable
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+LEAN_HTML_SCRIPTS = Path(__file__).resolve().parents[2] / "utils" / "lean-html-skill" / "scripts"
+if str(LEAN_HTML_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(LEAN_HTML_SCRIPTS))
 
 from briefing_contract import normalize_briefing_config
 from config_to_news_feedback import export_feedback, write_json
+from feedback_ux import feedback_ux_runtime_script, feedback_ux_styles
 
 
 DEFAULT_MATHJAX_URL = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
@@ -653,6 +657,30 @@ def render_html(config: dict[str, Any]) -> str:
       max-height: calc(100vh - 110px);
       overflow: auto;
     }}
+    aside.feedback-panel.is-collapsed {{
+      padding: 10px;
+    }}
+    aside.feedback-panel.is-collapsed .panel-title {{
+      margin-bottom: 0;
+    }}
+    .news-status-buttons {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+    }}
+    .news-status-buttons button {{
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+      color: var(--ink);
+      cursor: pointer;
+    }}
+    .news-status-buttons button.active {{
+      color: #fff;
+      background: var(--accent);
+      border-color: var(--accent);
+    }}
     .panel-title {{
       display: flex;
       align-items: center;
@@ -769,6 +797,7 @@ def render_html(config: dict[str, Any]) -> str:
       }}
     }}
   </style>
+  {feedback_ux_styles()}
 </head>
 <body>
   <header>
@@ -789,24 +818,26 @@ def render_html(config: dict[str, Any]) -> str:
         {''.join(sections_html)}
       </div>
     </div>
-    <aside class="feedback-panel" aria-label="Feedback panel">
+    <aside class="feedback-panel is-collapsed" id="feedbackPanel" aria-label="Feedback panel">
       <div class="panel-title">
         <h2>Feedback</h2>
         <span id="savedCount" class="source-id">0</span>
+        <button id="toggleFeedbackPanel" class="action-btn secondary" type="button" aria-expanded="false" aria-controls="feedbackDetails">展开</button>
       </div>
+      <div class="feedback-detail" id="feedbackDetails" hidden>
       <div class="field">
         <label for="conceptInput">Concept / selected text</label>
         <input id="conceptInput" placeholder="点击概念或自由标注">
       </div>
       <div class="field">
-        <label for="statusSelect">Status</label>
-        <select id="statusSelect">
-          <option value="unrated" selected>unrated / 见过但未判断</option>
-          <option value="unknown">unknown / 不清楚</option>
-          <option value="learning">learning / 学习中</option>
-          <option value="known">known / 已理解</option>
-          <option value="mastered">mastered / 能讲清楚会用</option>
-        </select>
+        <label>Status</label>
+        <div class="news-status-buttons" id="newsStatusButtons" role="group" aria-label="理解状态">
+          <button type="button" data-status="mastered">掌握</button>
+          <button type="button" data-status="known">了解</button>
+          <button type="button" data-status="learning">学习中</button>
+          <button type="button" data-status="unknown">不理解</button>
+          <button type="button" data-status="unrated">未评级</button>
+        </div>
       </div>
       <div class="field">
         <label for="questionType">Question type</label>
@@ -846,19 +877,29 @@ def render_html(config: dict[str, Any]) -> str:
         <textarea id="contextInput" placeholder="来源上下文会自动填入，也可以手动改"></textarea>
       </div>
       <div class="button-row">
-        <button id="saveBtn" class="action-btn primary" type="button">Save mark</button>
         <button id="deleteBtn" class="action-btn danger" type="button">Delete current</button>
         <button id="downloadBtn" class="action-btn secondary" type="button">Download JSON</button>
         <button id="copyBtn" class="action-btn secondary" type="button">Copy for Codex</button>
       </div>
       <details class="saved-list" open>
-        <summary>Saved annotations</summary>
+        <summary>最近修改与自由标注</summary>
         <div id="savedItems"></div>
       </details>
+      </div>
     </aside>
   </main>
   <button id="annotateBtn" class="action-btn floating-annotate" type="button">Annotate selection</button>
+  <div class="papertrace-selection-toolbar" id="newsSelectionToolbar" role="toolbar" aria-label="为选中文字添加反馈" hidden>
+    <button type="button" data-inline-status="mastered">掌握</button>
+    <button type="button" data-inline-status="known">了解</button>
+    <button type="button" data-inline-status="learning">学习中</button>
+    <button type="button" data-inline-status="unknown">不理解</button>
+    <button type="button" class="papertrace-selection-details" data-selection-details>提问 / 备注</button>
+  </div>
+  <p class="papertrace-save-indicator" id="newsSaveStatus" role="status" aria-live="polite" hidden></p>
+  <p class="papertrace-save-indicator papertrace-undo-indicator" id="newsUndoStatus" role="status" aria-live="polite" hidden></p>
   <script id="briefing-data" type="application/json">{js_json(config)}</script>
+  {feedback_ux_runtime_script()}
   <script>
     const CONFIG = JSON.parse(document.getElementById('briefing-data').textContent);
     const DEFAULT_STATUS = CONFIG.default_status || 'unrated';
@@ -871,6 +912,8 @@ def render_html(config: dict[str, Any]) -> str:
       + '::' + CONFIG.briefing_title + '::' + CONFIG.date_range;
     let saved = [];
     let active = null;
+    let storageUnavailable = false;
+    let unsafeChanges = false;
     const INITIAL_BY_ID = new Map(INITIAL_FEEDBACK.map(entry => [entry.feedback_id, entry]));
 
     function mergeInitialFeedback(stored, initial) {{
@@ -893,17 +936,58 @@ def render_html(config: dict[str, Any]) -> str:
       const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
       saved = mergeInitialFeedback(Array.isArray(stored) ? stored : [], INITIAL_FEEDBACK);
     }} catch (err) {{
+      storageUnavailable = true;
       saved = mergeInitialFeedback([], INITIAL_FEEDBACK);
     }}
 
     const $ = id => document.getElementById(id);
     const conceptInput = $('conceptInput');
-    const statusSelect = $('statusSelect');
+    const statusButtons = Array.from(document.querySelectorAll('#newsStatusButtons [data-status]'));
     const questionType = $('questionType');
     const styleSelect = $('styleSelect');
     const questionInput = $('questionInput');
     const noteInput = $('noteInput');
     const contextInput = $('contextInput');
+    const feedbackPanel = $('feedbackPanel');
+    const feedbackDetails = $('feedbackDetails');
+    const toggleFeedbackPanel = $('toggleFeedbackPanel');
+    const saveStatus = $('newsSaveStatus');
+    const undoStatus = $('newsUndoStatus');
+    const selectionToolbar = $('newsSelectionToolbar');
+    if (storageUnavailable) {{
+      unsafeChanges = true;
+      saveStatus.dataset.state = 'failed';
+      saveStatus.hidden = false;
+      saveStatus.textContent = '自动恢复不可用，请先导出 JSON。';
+    }}
+
+    function setStatus(status) {{
+      statusButtons.forEach(button => button.classList.toggle('active', button.dataset.status === status));
+    }}
+
+    function getStatus() {{
+      const button = statusButtons.find(entry => entry.classList.contains('active'));
+      return button ? button.dataset.status : DEFAULT_STATUS;
+    }}
+
+    function setPanelExpanded(expanded) {{
+      feedbackPanel.classList.toggle('is-collapsed', !expanded);
+      feedbackDetails.hidden = !expanded;
+      toggleFeedbackPanel.setAttribute('aria-expanded', String(expanded));
+      toggleFeedbackPanel.textContent = expanded ? '收起' : '展开';
+    }}
+
+    function updateAutosaveStatus(event) {{
+      if (!saveStatus || !event) return;
+      if (event.state === 'failed') unsafeChanges = true;
+      if (event.state === 'saved') unsafeChanges = false;
+      saveStatus.dataset.state = event.state || 'saved';
+      saveStatus.hidden = false;
+      saveStatus.textContent = event.state === 'saved' && event.saved_at
+        ? `已自动保存 · ${{new Date(event.saved_at).toLocaleTimeString()}}`
+        : (event.message || '已自动保存');
+      if (event.state === 'saved') window.setTimeout(() => {{ saveStatus.hidden = true; }}, 1800);
+    }}
 
     function itemContext(item) {{
       if (!item) return '';
@@ -919,7 +1003,7 @@ def render_html(config: dict[str, Any]) -> str:
       return 'news::' + concept + '::' + (blockId || CONFIG.date_range || CONFIG.briefing_title);
     }}
 
-    function openFeedback(payload) {{
+    function openFeedback(payload, options) {{
       const item = payload.itemId ? itemMap.get(payload.itemId) : null;
       const concept = payload.concept || payload.selectedText || '';
       const blockId = payload.itemId || '';
@@ -937,13 +1021,13 @@ def render_html(config: dict[str, Any]) -> str:
       }};
       const existing = saved.find(entry => entry.feedback_id === active.feedback_id);
       conceptInput.value = concept;
-      statusSelect.value = existing ? existing.status : DEFAULT_STATUS;
+      setStatus(existing ? existing.status : DEFAULT_STATUS);
       questionType.value = existing ? (existing.confusion_type || '') : '';
       styleSelect.value = existing ? (existing.explanation_style || '') : '';
       questionInput.value = existing ? (existing.user_question || '') : '';
       noteInput.value = existing ? (existing.note || '') : '';
       contextInput.value = existing ? (existing.source_excerpt || active.source_excerpt || '') : (active.source_excerpt || '');
-      conceptInput.focus();
+      if (!options || options.expand !== false) setPanelExpanded(true);
     }}
 
     function currentPayload() {{
@@ -954,7 +1038,7 @@ def render_html(config: dict[str, Any]) -> str:
       }}
       const base = active || {{}};
       const initial = INITIAL_BY_ID.get(base.feedback_id);
-      const status = statusSelect.value || DEFAULT_STATUS;
+      const status = getStatus();
       return {{
         ...(initial || {{}}),
         feedback_id: base.feedback_id || makeFeedbackId(concept, base.block_id),
@@ -980,24 +1064,74 @@ def render_html(config: dict[str, Any]) -> str:
     }}
 
     function persist() {{
-      localStorage.setItem(storageKey, JSON.stringify(saved));
       renderSaved();
       renderBadges();
+      localStorage.setItem(storageKey, JSON.stringify(saved));
     }}
 
-    function saveCurrent() {{
+    function saveCurrent(reason) {{
       const payload = currentPayload();
-      if (!payload) return;
+      if (!payload) return null;
       const index = saved.findIndex(entry => entry.feedback_id === payload.feedback_id);
       if (index >= 0) saved[index] = payload;
       else saved.push(payload);
       active = payload;
       persist();
+      return payload;
+    }}
+
+    const undoManager = window.PaperTraceFeedbackUX.createUndo({{
+      host: undoStatus,
+      duration: 5000
+    }});
+    const autosave = window.PaperTraceFeedbackUX.createAutosave({{
+      delay: 250,
+      commit: reason => saveCurrent(reason),
+      onState: updateAutosaveStatus
+    }});
+
+    function restoreEntry(entry) {{
+      if (!entry || !entry.feedback_id) return;
+      const index = saved.findIndex(row => row.feedback_id === entry.feedback_id);
+      if (index >= 0) saved[index] = entry;
+      else saved.push(entry);
+      active = entry;
+      persist();
+      openFeedback({{
+        itemId: entry.block_id || '',
+        concept: entry.concept || '',
+        selectedText: entry.selected_text || '',
+        annotationKind: entry.annotation_kind || 'news_concept',
+        sourceExcerpt: entry.source_excerpt || ''
+      }}, {{ expand: false }});
+    }}
+
+    function applyStatusWithUndo(status) {{
+      if (!active) return;
+      const before = saved.find(entry => entry.feedback_id === active.feedback_id);
+      const previous = before ? JSON.parse(JSON.stringify(before)) : null;
+      const previousStatus = getStatus();
+      setStatus(status);
+      autosave.schedule('status-change');
+      const result = autosave.flush('status-change');
+      if (!result || previousStatus === status) return;
+      const savedId = result.feedback_id;
+      undoManager.offer(`状态已更新为 ${{status}}`, () => {{
+        if (previous) restoreEntry(previous);
+        else {{
+          saved = saved.filter(entry => entry.feedback_id !== savedId);
+          active = null;
+          persist();
+          setStatus(previousStatus);
+        }}
+      }});
     }}
 
     function deleteCurrent() {{
       const concept = conceptInput.value.trim();
       const id = active ? active.feedback_id : makeFeedbackId(concept, '');
+      const previous = saved.find(entry => entry.feedback_id === id);
+      const snapshot = previous ? JSON.parse(JSON.stringify(previous)) : null;
       const initial = INITIAL_BY_ID.get(id);
       if (initial) {{
         saved = saved.map(entry => entry.feedback_id === id ? initial : entry);
@@ -1006,6 +1140,7 @@ def render_html(config: dict[str, Any]) -> str:
       }}
       active = null;
       persist();
+      if (snapshot) undoManager.offer('标注已删除', () => restoreEntry(snapshot));
     }}
 
     function payload() {{
@@ -1030,27 +1165,36 @@ def render_html(config: dict[str, Any]) -> str:
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      updateAutosaveStatus({{ state: 'saved', message: '已导出 JSON' }});
     }}
 
     async function copyFeedback() {{
       const text = JSON.stringify(payload(), null, 2);
       try {{
         await navigator.clipboard.writeText(text);
-        alert('已复制 feedback JSON。');
+        updateAutosaveStatus({{ state: 'saved', message: '已复制 JSON，可交给 Codex' }});
       }} catch (err) {{
         prompt('复制以下 JSON：', text);
       }}
     }}
 
+    function isUserChanged(entry) {{
+      const initial = INITIAL_BY_ID.get(entry.feedback_id);
+      if (!initial) return true;
+      return ['status', 'note', 'user_question', 'confusion_type', 'explanation_style', 'source_excerpt']
+        .some(key => (entry[key] || '') !== (initial[key] || ''));
+    }}
+
     function renderSaved() {{
-      $('savedCount').textContent = String(saved.length);
+      const visible = saved.filter(isUserChanged);
+      $('savedCount').textContent = String(visible.length);
       const wrap = $('savedItems');
       wrap.innerHTML = '';
-      if (!saved.length) {{
-        wrap.innerHTML = '<div class="muted">No saved annotations yet.</div>';
+      if (!visible.length) {{
+        wrap.innerHTML = '<div class="muted">暂无用户修改；默认未评级概念仍会保留在导出中。</div>';
         return;
       }}
-      saved.forEach((entry, index) => {{
+      visible.forEach(entry => {{
         const div = document.createElement('div');
         div.className = 'saved-item';
         div.innerHTML = '<strong></strong><div class="tiny"></div><div class="button-row"><button type="button" class="action-btn secondary">Edit</button><button type="button" class="action-btn danger">Delete</button></div>';
@@ -1060,18 +1204,30 @@ def render_html(config: dict[str, Any]) -> str:
         buttons[0].addEventListener('click', () => {{
           active = entry;
           conceptInput.value = entry.concept || '';
-          statusSelect.value = entry.status || DEFAULT_STATUS;
+          setStatus(entry.status || DEFAULT_STATUS);
           questionType.value = entry.confusion_type || '';
           styleSelect.value = entry.explanation_style || '';
           questionInput.value = entry.user_question || '';
           noteInput.value = entry.note || '';
           contextInput.value = entry.source_excerpt || '';
+          setPanelExpanded(true);
+          const card = entry.block_id
+            ? Array.from(document.querySelectorAll('.news-card')).find(node => node.dataset.itemId === entry.block_id)
+            : null;
+          if (card) card.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
         }});
         buttons[1].addEventListener('click', () => {{
+          const index = saved.findIndex(row => row.feedback_id === entry.feedback_id);
           const initial = INITIAL_BY_ID.get(entry.feedback_id);
-          if (initial) saved[index] = initial;
-          else saved.splice(index, 1);
-          persist();
+          const snapshot = JSON.parse(JSON.stringify(entry));
+          if (initial && index >= 0) saved[index] = initial;
+          else if (index >= 0) saved.splice(index, 1);
+          try {{
+            persist();
+            undoManager.offer('标注已删除', () => restoreEntry(snapshot));
+          }} catch (error) {{
+            updateAutosaveStatus({{ state: 'failed', message: '自动保存失败，请先导出 JSON。', error }});
+          }}
         }});
         wrap.appendChild(div);
       }});
@@ -1081,7 +1237,7 @@ def render_html(config: dict[str, Any]) -> str:
       document.querySelectorAll('.news-card').forEach(card => {{
         const itemId = card.dataset.itemId;
         const strip = card.querySelector('[data-mark-strip]');
-        const marks = saved.filter(entry => entry.block_id === itemId);
+        const marks = saved.filter(entry => entry.block_id === itemId && isUserChanged(entry));
         card.classList.toggle('marked', marks.length > 0);
         strip.innerHTML = '';
         marks.forEach(entry => {{
@@ -1103,28 +1259,70 @@ def render_html(config: dict[str, Any]) -> str:
       }});
     }});
 
-    $('annotateBtn').addEventListener('click', () => {{
+    function selectedNewsContext() {{
       const selection = window.getSelection();
       const text = selection ? selection.toString().trim() : '';
-      if (!text) {{
-        alert('请先选中一段日报文本。');
-        return;
-      }}
+      if (!text || !selection || !selection.rangeCount) return null;
       let node = selection.anchorNode;
       if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
       const card = node && node.closest ? node.closest('.news-card') : null;
-      openFeedback({{
+      return {{
+        text,
         itemId: card ? card.dataset.itemId : '',
         concept: text.slice(0, 120),
         selectedText: text,
-        annotationKind: 'news_freeform'
-      }});
-    }});
-    $('saveBtn').addEventListener('click', saveCurrent);
-    $('deleteBtn').addEventListener('click', deleteCurrent);
-    $('downloadBtn').addEventListener('click', downloadFeedback);
-    $('copyBtn').addEventListener('click', copyFeedback);
+        annotationKind: 'news_freeform',
+        sourceExcerpt: text
+      }};
+    }}
 
+    const selectionController = window.PaperTraceFeedbackUX.createSelectionToolbar({{
+      root: document.querySelector('main.layout > div'),
+      toolbar: selectionToolbar,
+      ignoreSelector: 'button, input, select, textarea, a, .math-display, .math-inline',
+      capture: () => selectedNewsContext() || {{}},
+      onStatus: (status, selected) => {{
+        openFeedback(selected, {{ expand: false }});
+        applyStatusWithUndo(status);
+      }},
+      onDetails: selected => openFeedback(selected)
+    }});
+
+    $('annotateBtn').addEventListener('click', () => {{
+      const selected = selectedNewsContext();
+      if (!selected) {{
+        alert('请先选中一段日报文本。');
+        return;
+      }}
+      openFeedback(selected);
+    }});
+    statusButtons.forEach(button => button.addEventListener('click', () => applyStatusWithUndo(button.dataset.status)));
+    [conceptInput, questionInput, noteInput, contextInput].forEach(field => {{
+      field.addEventListener('input', () => {{ if (active) autosave.schedule('field-change'); }});
+    }});
+    [questionType, styleSelect].forEach(field => {{
+      field.addEventListener('change', () => {{ if (active) autosave.schedule('field-change'); }});
+    }});
+    toggleFeedbackPanel.addEventListener('click', () => setPanelExpanded(feedbackDetails.hidden));
+    $('deleteBtn').addEventListener('click', () => {{
+      try {{ deleteCurrent(); }}
+      catch (error) {{ updateAutosaveStatus({{ state: 'failed', message: '自动保存失败，请先导出 JSON。', error }}); }}
+    }});
+    $('downloadBtn').addEventListener('click', () => {{ autosave.flush('export'); downloadFeedback(); }});
+    $('copyBtn').addEventListener('click', () => {{ autosave.flush('export'); copyFeedback(); }});
+    window.addEventListener('pagehide', () => autosave.flush('pagehide'));
+    document.addEventListener('visibilitychange', () => {{
+      if (document.visibilityState === 'hidden') autosave.flush('visibilitychange');
+    }});
+    window.addEventListener('beforeunload', event => {{
+      autosave.flush('beforeunload');
+      if (!unsafeChanges) return;
+      event.preventDefault();
+      event.returnValue = '';
+    }});
+
+    setStatus(DEFAULT_STATUS);
+    setPanelExpanded(false);
     renderSaved();
     renderBadges();
   </script>
@@ -1159,7 +1357,7 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(render_html(config), encoding="utf-8")
     print(f"Wrote {output_path}")
-    print(f"Items: {len(config['items'])}")
+    print(f"Items: {len(feedback['items'])}")
     if not args.no_auto_feedback:
         feedback_path = (
             Path(args.feedback_output).expanduser().resolve()

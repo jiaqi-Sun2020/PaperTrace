@@ -207,7 +207,7 @@ After a successful generation, run the adversarial HTML audit from the project r
 python D:\AI\PaperTrace\skills\reader-skill\tests\adversarial_html_audit.py <reader-dir>
 ```
 
-Do not report Pipeline 1 as complete until this audit passes. A passing reader bundle or completion ledger is still intermediate. The audit checks compiled full-source Algorithm cards instead of summaries/translated duplicate bodies, explicit math boundaries in every visible panel, atomic MathJax formulas without plaintext duplication, declared `exact-v1` bilingual pairs, MathJax runtime status, the model-authored source-linked paper summary, hash-bound source-page viewer data, Original/source-page collapse controls, knowledge-mark metadata, concept coverage, reader-notes pollution, an in-place `Save mark` confirmation, stable scrollbar handling, a fixed wide-screen utility lane, inert blank-page clicks, and feedback-copy fallback.
+Do not report Pipeline 1 as complete until this audit passes. A passing reader bundle or completion ledger is still intermediate. The audit checks compiled full-source Algorithm cards instead of summaries/translated duplicate bodies, explicit math boundaries in every visible panel, atomic MathJax formulas without plaintext duplication, declared `exact-v1` bilingual pairs, MathJax runtime status, the model-authored source-linked paper summary, hash-bound source-page viewer data, Original/source-page collapse controls, knowledge-mark metadata, concept coverage, reader-notes pollution, shared autosave and selection-toolbar behavior, stable utility-pane editing, inert blank-page clicks, and feedback-copy fallback.
 
 Before rendering a full paper, author `reader_wiki/paper_summary.json` with detailed Chinese overview/what/how/significance/evidence-limit sections and formal source anchors. For PDF readers, preserve every `source_map.pages` image under `assets/source_pages/`; the renderer uses those existing assets for the enlarged, viewport-height left viewer and must not rerender the PDF or embed full pages as article figures. On wide screens, source pages and Contents are independently resizable around a minimum-width center article; medium widths may default Contents to a restore rail, and narrow widths stack.
 
@@ -227,8 +227,8 @@ Reader HTML uses browser-local recovery plus manual portable export. In the brow
 
 1. Click a highlighted concept or select text and click `Annotate / 自由标注`.
 2. Fill status/question/context fields.
-3. Click `Save mark`.
-4. Confirm the saved item appears in the feedback panel's saved-annotation list and, when a source block is detected, as a badge in the page.
+3. Choose a status or edit a detail field; status saves immediately and text/select changes save after a short debounce.
+4. Confirm the saved item appears in the feedback panel's saved-annotation list and, when a source block is detected, as a badge in the page. Use the five-second undo for an accidental status or deletion.
 5. Delete mistakes with `Delete current` or the row-level `Delete` button in the saved-annotation list.
 6. If the tab is refreshed or closed, reopen the same reader and confirm saved marks and any unfinished form draft are restored.
 7. After finishing the paper, click `Download feedback JSON` to export all saved items, then choose whether to clear the browser recovery copy.
@@ -275,7 +275,7 @@ Generate an interactive briefing HTML when the user wants click/freeform feedbac
 python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\briefing_to_feedback_html.py --config <news_feedback_config.json> --output <briefing_reader.html>
 ```
 
-In the HTML, click concepts or use `Annotate selection`, then `Save mark`, then `Download JSON` or `Copy for Codex`.
+In the HTML, click concepts or select text for the contextual toolbar; explicit changes auto-save. Finish with `Download JSON` or `Copy for Codex` for a portable handoff.
 
 ```powershell
 python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\import_news_feedback.py --feedback <news_feedback.json> --profile D:\AI\PaperTrace\.agents\reader-learner\knowledge_profile.json

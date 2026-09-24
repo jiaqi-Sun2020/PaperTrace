@@ -205,7 +205,7 @@ python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\briefing_to_feed
 
 3. In the HTML, click concept chips or select arbitrary text only for corrections, explicit ratings, or extra questions.
 4. Mark status, exact question, question type, explanation style, and note when a specific item needs editing.
-5. Click `Save mark` only for changed items or new free-form annotations; do not require users to save every concept.
+5. Status choices save immediately; questions, notes, explanation style and context auto-save after a short debounce. Selecting text opens the shared quick-status toolbar, and merely opening/dismissing it creates no record.
 6. Export with `Download JSON` or `Copy for Codex`; the export must include the full default `unrated` concept set plus the user's edits.
 7. Import the exported `news_feedback.json` with `scripts/import_news_feedback.py` only when the user asks to update the learner profile.
 

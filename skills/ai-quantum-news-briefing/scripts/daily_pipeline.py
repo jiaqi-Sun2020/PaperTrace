@@ -179,7 +179,9 @@ def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
             failures.append("feedback2 panel is attached to the daily reader")
         required_html = (
             "Download JSON",
-            "id=\"saveBtn\"",
+            "PaperTraceFeedbackUX",
+            "id=\"newsSelectionToolbar\"",
+            "createAutosave",
             "localStorage",
             'data-lean-bg="light"',
             'data-lean-bg-option="light"',
@@ -188,6 +190,8 @@ def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
         for marker in required_html:
             if marker not in html_text:
                 failures.append(f"HTML contract marker missing: {marker}")
+        if "Save mark" in html_text or 'id="saveBtn"' in html_text:
+            failures.append("legacy Save mark action remains in daily reader")
         story_delivery = config.get("story_delivery") or {}
         story_required = bool(story_delivery.get("required"))
         worked_example_required = bool(story_delivery.get("worked_example_required"))

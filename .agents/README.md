@@ -56,7 +56,7 @@ Files:
 
 Do not treat these files as a transcript. They should summarize stable project facts, owner-confirmed rules, and current learner-state data only.
 
-Feedback note: interactive reader HTML may recover saved marks and unfinished input from browser-local storage after a refresh or tab closure, but it never auto-writes this directory. The user must export with `Download feedback JSON` or `Copy feedback for Codex`, then import/process that feedback with `reader-learner`.
+Feedback note: interactive HTML auto-saves explicit status and detail edits to browser-local storage and can recover them after a refresh or tab closure. Selection alone creates no mark, and browser recovery never writes this directory. The user must still export with `Download feedback JSON` or `Copy feedback for Codex`, then import/process that feedback with `reader-learner`.
 
 PDF bootstrap note: `skills/nature-reader/scripts/extract_pdf_bundle.py` creates immutable raw evidence and automatically materializes a UTF-8 `paper.md` working draft. The draft keeps stable source anchors and uses explicit `[translation-required]` / `[block-note-required]` markers, so it is inspectable but cannot pass completion. For a legacy raw bundle missing `paper.md`, run `materialize_reader_markdown.py <reader-dir>`; it preserves `source_map.json` and refuses to overwrite an existing reader by default. Complete every bilingual block and structural object, run the text audit and `complete_reader_bundle.py`, and only then invoke `reader-skill`.
 

@@ -153,7 +153,8 @@ If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a
 - every normalized bilingual block has a parsed source page and a one-to-one immutable source row;
 - feedback controls and learner-profile annotations are available;
 - every knowledge mark includes `data-concept`, `data-status`, `data-source-anchor`, `data-concept-type`, `data-alias-zh`, and `title`;
-- `Save mark` persists and confirms the current annotation without changing the reader layout; the feedback panel closes only after Esc or the explicit close button. Clicking article whitespace or other non-feedback content must not dismiss it, reveal Contents, or change reader geometry, while download/copy export remains available.
+- Explicit feedback auto-saves: status choices commit immediately, text/select fields commit after roughly 250 ms, and page hide/unload flushes pending input. The shared runtime shows saving/saved/failure state and must not create a record merely because the editor opened or a text selection was dismissed.
+- Selecting article text opens a contextual quick-status toolbar. `提问 / 备注` opens Feedback inside the right utility pane while leaving article text selectable; Contents returns when Feedback closes. Narrow screens use a bounded bottom drawer.
 - Source Page Index links remain plain relative paths such as `assets/source_pages/page-01.png`; inline math and concept highlighting must not run inside `href`, image `src`, file paths, or source-page labels.
 - full PDF readers expose every hash-bound `source_map.pages` image in an enlarged, viewport-height left source-page viewer that defaults to a substantial fluid share of wide screens, synchronizes to `data-source-page` reader blocks, uses only safe relative `assets/source_pages/` paths, and never substitutes a full page for an inline figure card;
 - wide readers use three ordered, user-resizable regions—source pages left, article center with a protected minimum width, and sticky Contents right—while medium widths default Contents to a recoverable rail and narrow widths stack without overflow;
@@ -332,14 +333,14 @@ In the generated HTML:
 1. Click a highlighted concept, or select arbitrary text and use the free annotation control.
 2. Mark `mastered`, `known`, `learning`, `unknown`, or `unrated`.
 3. Add note, exact question, question type, explanation style, and selected/source context when useful.
-4. Click `Save mark`; the panel remains open so the reader geometry and current reading position stay stable.
-5. Confirm the in-panel save status and saved item; when a source block is detected, confirm its page badge.
-6. The page automatically keeps saved marks and unfinished form input in a source-hash-isolated browser recovery copy. Use `Download feedback JSON` or `Copy feedback for Codex` for a portable backup, then choose whether to clear the local recovery copy.
+4. Choose a status or edit a field; the page auto-saves and confirms the time without moving the reading position. Status changes and deletion offer a five-second undo.
+5. Confirm the saved item; when a source block is detected, confirm its page badge.
+6. The page automatically keeps explicit marks and current form state in a source-hash-isolated browser recovery copy. Use `Download feedback JSON` or `Copy feedback for Codex` for a portable backup, then choose whether to clear the local recovery copy.
 7. Import the exported payload with `reader-learner`.
 
 The HTML page restores saved marks and unfinished input from browser-local storage after an accidental refresh or tab closure. That recovery copy is local to the browser, is keyed by the source-map SHA-256 rather than a local path, and does not update `.agents` automatically. JSON export remains the portable handoff. This persistence and export behavior must come from `lean-html-skill` instead of being reimplemented in domain-specific scripts.
 
-`Save mark`, `Download feedback JSON`, and `Copy feedback for Codex` save the current form state without closing the panel. Blank-page clicks are inert with respect to both feedback and Contents; only Esc or the explicit close button closes the panel. Copy must populate the fallback export textarea even when clipboard access succeeds.
+Status and field edits auto-save without closing the panel. `Download feedback JSON` and `Copy feedback for Codex` first flush pending changes. Blank-page clicks are inert with respect to both Feedback and Contents; only Esc or the explicit close button closes the panel. Copy must populate the fallback export textarea even when clipboard access succeeds.
 
 If browser storage is unavailable, full, corrupt, or belongs to another paper fingerprint, continue reading and exporting but show an explicit recovery warning. Prompt before leaving only when current changes could not be stored. A successful download or clipboard copy asks whether to clear the local recovery copy; a clipboard failure that only exposes the fallback textarea must retain it.
 

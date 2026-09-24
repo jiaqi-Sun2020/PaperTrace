@@ -169,9 +169,9 @@ versions fail. The JSON above illustrates fields, not a publishable evidence fix
 - Opening-story concepts are excluded from automatic feedback unless they independently occur in a news item's configured `concepts` list.
 - Full-concept HTML export is automatic from `news_feedback_config.json`: `Download JSON` must include all default concepts plus user edits.
 - The canonical config is section-based. Derive the browser item lookup table from `sections`; never require a legacy top-level `items` field.
-- On load, every automatic concept is already in browser state as `unrated`. `Save mark` edits that baseline and deleting an automatic concept restores its baseline. Only a freeform annotation may be removed entirely.
+- On load, every automatic concept is already in browser state as `unrated`. Explicit status or field changes auto-save over that baseline; deleting an automatic concept restores its baseline. Only a freeform annotation may be removed entirely.
 - `--no-auto-feedback` disables only the sidecar file write; the HTML should still embed the initial full-concept feedback set.
-- HTML `Save mark` is for corrections, questions, status changes, and free-form annotations, not for enrolling every default concept one by one.
+- The compact panel lists only user-changed entries, while `Download JSON` still exports the complete automatic baseline plus edits. Selection quick actions and the expanded detail editor use the shared `lean-html-skill` interaction runtime.
 - Daily/news exposure-only concepts should default to `unrated`.
 - Literature/paper reader concepts remain `unrated`; do not reuse the news default for paper HTML.
 - Do not infer `unknown` unless the user marks it or asks a question.

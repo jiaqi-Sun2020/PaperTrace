@@ -20,6 +20,7 @@
 - Use `reader-learner` scripts or explicit user direction before mutating `.agents/reader-learner/knowledge_profile.json`.
 - Except for permitted personal learner-profile reads/updates, do not open, print, copy, summarize, upload, or modify any file that appears to contain keys, passwords, tokens, credentials, API secrets, certificates, private keys, cookies, or session data.
 - Interactive reader HTML may auto-save marks and unfinished form input to a source-hash-isolated browser recovery copy. This is not a portable backup and never writes `.agents`; the user still exports with `Download feedback JSON` or `Copy feedback for Codex` before importing through `reader-learner`.
+- `lean-html-skill` owns the shared Feedback interaction runtime. Status choices save immediately, detail fields debounce, selected text receives a contextual toolbar, and Reader Feedback uses the Contents utility pane rather than covering the article. Passive opening/selection never creates learner evidence.
 - For document/code edits, keep changes tightly scoped and verify with the smallest relevant command.
 - For generated reader outputs, report exact output paths and warnings.
 

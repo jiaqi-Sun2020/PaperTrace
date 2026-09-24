@@ -44,7 +44,7 @@ Design layer rules:
 - Do not mutate `.agents` or `knowledge_profile.json`.
 - Do not infer learner status from content alone. Preserve explicit statuses from source feedback; when a saved mark has no status, use `unrated` for both news/daily reports and reader/paper reports.
 - Do not own paper/news domain logic, explanations, citations, or source-map interpretation.
-- Browser-local recovery may protect saved marks and unfinished form drafts from accidental refresh or tab closure, but it is not a portable or profile-level backup. Keep download/copy explicit and visible.
+- Browser-local recovery may protect auto-saved marks and current form state from accidental refresh or tab closure, but it is not a portable or profile-level backup. Keep download/copy explicit and visible.
 - Namespace recovery by a source fingerprint, never by an absolute local path, and fail visibly when browser storage is unavailable or full.
 - Do not write browser-recovered feedback into `.agents`, generated HTML, or a learner profile automatically.
 
@@ -58,7 +58,8 @@ Design layer rules:
 - New feedback export behavior for reader HTML should be implemented here first, then called from `reader-skill`.
 - Shared recovery stores an internal versioned envelope containing saved items, an optional unfinished draft, timestamps, and a paper fingerprint. It must not change the exported feedback-v2 schema.
 - A successful download or clipboard copy may offer to clear the browser recovery copy; clipboard fallback alone is not a successful copy and must never trigger clearing.
-- Shared reader feedback UI must keep `Download feedback JSON` and `Copy feedback for Codex` working, preserve the open panel and reader geometry after `Save mark`, and close only on Esc or the explicit close button. Blank-page and article-content clicks must never dismiss feedback or mutate Contents state.
+- Shared feedback UI owns the 250 ms debounced autosave controller, selection-adjacent quick-status toolbar, five-second undo notice, and visible saving/failure/export states. Status choices flush immediately; text/select fields debounce; page hide and unload flush pending work. Merely selecting text or opening the editor must not create an item.
+- Reader detail editing uses the existing right utility pane instead of covering the article; Contents and Feedback alternate there. On narrow screens use a bounded bottom drawer. Article selection must remain available while the editor is open, and only Esc or the explicit close button dismisses it.
 - `Copy feedback for Codex` must populate a visible fallback textarea with the export JSON even when clipboard access is unavailable; feedback must never be trapped behind a browser permission failure.
 - Shared knowledge marks must preserve reader-specific metadata from `reader-skill`: `data-concept`, `data-status`, `data-source-anchor`, `data-concept-type`, `data-alias-zh`, and `title`.
 - Shared inline rendering must not annotate or math-wrap inside `href`, `src`, file paths, source-page labels, code spans, or HTML attributes. Source Page Index links must remain plain clickable paths.

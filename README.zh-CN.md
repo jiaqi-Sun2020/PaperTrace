@@ -187,7 +187,7 @@ Open `D:\AI\PaperTrace\.agents\wiki` as the Obsidian vault. Start at `Home.md`, 
 | `skills/adaptive-teach` | 读取唯一 learner profile，区分薄弱/证据不足/到期复习，选择单一下一主题，生成诊断、短课、复习策略和 teaching-feedback handoff。 | 不维护 profile schema、normalization、atomic write、PDF/news、Visible Wiki 或通用 HTML shell。 |
 | `skills/allegory-teach` | 为一个选定的高阶概念生成完整因果寓言、事实回扣和适配概念类型的完整例子，保留日报来源上下文。 | 不拥有选题/会话状态，不改 profile/Wiki/feedback，不采集或发布日报。 |
 | `skills/ai-quantum-news-briefing` | 生成 source-grounded AI + 量子日报/多日报告，接入 AI HOT 候选池，生成日报反馈 HTML/JSON，导入新闻反馈。 | 不因为新闻“出现过”就自动判定用户已经掌握。 |
-| `skills/utils/lean-html-skill` | 共享 HTML shell、反馈面板、copy/download 导出控件、Cosmic Sci-Fi 视觉层和背景切换控件。 | 不做领域解释，不写 profile，不改变业务数据结构。 |
+| `skills/utils/lean-html-skill` | 共享 HTML shell、反馈自动保存/选区工具条、copy/download 导出控件、Cosmic Sci-Fi 视觉层和背景切换控件。 | 不做领域解释，不写 profile，不改变业务数据结构。 |
 | `skills/utils/chat-knowledge-profile` | 从本地 ChatGPT/GPT/Claude/Deepseek 导出记录提炼会话摘要、概念状态候选、学习/研究/工作流偏好，并生成严格 `reader-learner` handoff。 | 不抓取分享 URL，不把助手曝光当作掌握证据，不绕过补丁审核直接覆盖 profile。 |
 | `skills/utils/demo-skill` | 从经过核验的 README/AGENTS/source contract 生成结构等价的中文、英文四-pipeline 项目 demo，并负责模板物化与发布前审核。 | 不臆造 pipeline，不改业务数据，不把截图、浏览器 profile 或 QA 临时文件作为默认发布物。 |
 
@@ -321,7 +321,7 @@ python .\skills\reader-skill\scripts\markdown_reader_to_html.py "<reader-dir>" -
 
 - `reader_interactive.html` 是唯一正式 paper reader HTML；
 - 顶部包含当前主模型撰写的详细中文论文总结，分别回答“做了什么、怎么做、有什么意义、证据与局限”，且每项链接到正式 source anchor；
-- 阅读器按可用空间自适应：宽屏采用“左侧约 42% 起步的可拖拽大幅原始页—最低可读宽度正文—可拖拽 Contents”三栏布局，中等宽度默认把 Contents 收成可恢复窄条，窄屏自动纵向重排；Original、原始页图和 Contents 均可独立折叠，`Annotate / 自由标注` 展开时会让出布局空间或增加滚动安全区，不覆盖译文；
+- 阅读器按可用空间自适应：宽屏采用“左侧约 42% 起步的可拖拽大幅原始页—最低可读宽度正文—可拖拽 Contents”三栏布局，中等宽度默认把 Contents 收成可恢复窄条，窄屏自动纵向重排；Original、原始页图和 Contents 均可独立折叠，Feedback 与 Contents 共用右侧 utility pane，打开详情时正文仍可选择，窄屏使用有高度上限的底部抽屉；
 - 30-60 个候选知识点，已有 profile 状态会合并，论文核心概念即使 mastered 也要进入 glossary；
 - 每个 knowledge mark 都有 `data-concept`、`data-concept-id`、`data-status`、`data-source-anchor`、`data-concept-type`、`data-alias-zh` 和 `title`；
 - MathJax 存在且运行时状态为 pass；任何 Original、中文、论文总结或概念账本可见文本都不能出现裸 `\sigma`、`A^-1`、PDF 断裂公式、展示公式的文字重复副本或多公式挤在同一展示块；
@@ -339,7 +339,7 @@ cd D:\AI\PaperTrace
 python .\skills\reader-skill\tests\adversarial_html_audit.py "<reader-dir>"
 ```
 
-该审核会检查：`reader_wiki` 是否 pass、MathJax 加载/排版状态、所有可见面板的裸公式泄漏、声明为 `exact-v1` 的原文/中文公式组件对齐、一个展示块一个逻辑公式、重复纯文字公式清理、知识点 metadata、Save mark 后面板关闭、feedback 导出、Source Page Index href 污染、figure/table 裁剪、完整源码 Algorithm 的 XeLaTeX/SVG/manifest/hash/步骤数契约、主题控件和 Dark theme contrast/readability。
+该审核会检查：`reader_wiki` 是否 pass、MathJax 加载/排版状态、所有可见面板的裸公式泄漏、声明为 `exact-v1` 的原文/中文公式组件对齐、一个展示块一个逻辑公式、重复纯文字公式清理、知识点 metadata、选区工具条与自动保存、feedback 导出、Source Page Index href 污染、figure/table 裁剪、完整源码 Algorithm 的 XeLaTeX/SVG/manifest/hash/步骤数契约、主题控件和 Dark theme contrast/readability。
 
 ### 5. HTML feedback -> reader_feedback.json
 
@@ -348,8 +348,8 @@ python .\skills\reader-skill\tests\adversarial_html_audit.py "<reader-dir>"
 1. 点击高亮知识点，或选中文本添加 free annotation；
 2. 选择 `mastered`、`known`、`learning`、`unknown` 或 `unrated`；
 3. 填写问题、笔记、解释偏好或卡点；
-4. 点击 `Save mark`；面板保持打开，已保存标注与未提交输入会自动写入同一浏览器的本地恢复副本；
-5. 意外刷新或关闭后，重新打开同一 reader，核对标注与草稿已恢复；
+4. 点击状态会立即保存，问题和备注在输入后短暂防抖自动保存；状态修改和删除可在五秒内撤销；
+5. 意外刷新或关闭后，重新打开同一 reader，核对自动保存的标注与当前表单状态已恢复；
 6. 点击 `Download feedback JSON` 下载 `reader_feedback.json`，并按提示决定是否清除本地恢复副本；
 7. 如果浏览器禁止剪贴板，使用 `Copy feedback for Codex` 的 fallback textarea 取回 JSON；复制失败时不会清除恢复副本。
 

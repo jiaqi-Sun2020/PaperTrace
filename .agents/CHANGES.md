@@ -172,3 +172,10 @@ This file records dated implementation and local-release milestones. Durable bou
 - Added version-4 Everyday openings while retaining legacy versions and explicit Fable mode.
 - Completeness of one familiar relation takes priority over suggested length; no total word, sentence, or paragraph cap.
 - Separated scene from complete technical example, updated rendering, and preserved ranking, feedback, and publication ownership. Earlier dated Fable-only entries are historical, not current v4 instructions.
+
+## 2026-09-25 — Feedback autosave and continuous annotation
+
+- Added a shared `lean-html-skill` interaction runtime for debounced autosave, selection-adjacent quick status, five-second undo, and visible saving/failure state.
+- Reader Feedback now alternates with Contents inside the right utility pane on desktop; selecting article text remains available while the detail editor is open. Narrow screens retain a bounded bottom drawer.
+- Daily briefings now use immediate status buttons, auto-save detail fields, keep the full default-`unrated` export baseline, and show only user-changed entries in the compact panel.
+- Feedback JSON/import schemas and the explicit portable export boundary remain unchanged; passive selection or opening the editor creates no learner evidence.

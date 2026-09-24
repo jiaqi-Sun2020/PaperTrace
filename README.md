@@ -171,7 +171,7 @@ For one-step imports, use <code>reader-feedback</code> or <code>news-feedback</c
 | <code>adaptive-teach</code> | Profile-backed teaching decisions, sessions, lessons, and teaching-feedback handoff. | Profile schema, direct profile writes, PDFs/news collection, or shared HTML shell. |
 | <code>allegory-teach</code> | A complete source-aware fable, factual return, and consistent worked example for one selected relation. | Topic-ranking/session ownership, profile mutation, news collection, or daily-release changes. |
 | <code>ai-quantum-news-briefing</code> | Sourced AI/quantum briefings, candidate ranking, briefing feedback artifacts, and news-feedback normalization. | Treating mere exposure as knowledge. |
-| <code>lean-html-skill</code> | Shared HTML shell, feedback UI, export controls, and visual design layer. | Domain interpretation or profile mutation. |
+| <code>lean-html-skill</code> | Shared HTML shell, feedback autosave/selection runtime, export controls, and visual design layer. | Domain interpretation or profile mutation. |
 | <code>chat-knowledge-profile</code> | Staged local conversation extraction and reviewable profile handoffs. | Share-URL scraping or direct profile overwrite. |
 
 <a id="paper-reader"></a>
@@ -232,7 +232,7 @@ The audit checks source coverage, algorithms, source-page links, formula renderi
 
 ### 5. Reader feedback to the knowledge profile
 
-While reading, select concept marks or add annotations, choose a status, and click **Save mark**. Saved marks and unfinished form input are automatically recoverable in the same browser after a refresh or accidental tab closure. Export the result through **Download feedback JSON** or **Copy feedback for Codex** for a portable backup and profile handoff; the browser page never writes profile data itself.
+While reading, click a concept or select text for the contextual status toolbar. Status choices save immediately, while questions and notes auto-save after a short debounce; accidental status changes or deletion can be undone for five seconds. The right-side detail editor leaves article text selectable. Browser-local recovery survives refresh or accidental closure, but **Download feedback JSON** or **Copy feedback for Codex** remains the portable backup and profile handoff; the page never writes profile data itself.
 
     cd D:\AI\PaperTrace
     python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py reader-feedback --feedback "<reader_feedback.json>"

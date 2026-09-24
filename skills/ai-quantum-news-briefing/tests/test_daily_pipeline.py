@@ -1108,6 +1108,12 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertIn("Download JSON", html)
         self.assertIn('data-lean-bg-option="cosmic"', html)
         self.assertNotIn("lean-html-feedback-dock", html)
+        self.assertIn("PaperTraceFeedbackUX", html)
+        self.assertIn('id="newsSelectionToolbar"', html)
+        self.assertIn("createAutosave", html)
+        self.assertIn("autosave.schedule('status-change')", html)
+        self.assertNotIn("Save mark", html)
+        self.assertNotIn('id="saveBtn"', html)
 
 
 

@@ -673,9 +673,10 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         "document.body.classList.remove('feedback-open')",
         "--utility-pane-width: var(--feedback-dock-width)",
         "grid-template-columns: minmax(360px, var(--source-pane-width)) minmax(620px, 1fr) var(--utility-pane-width)",
-        "body.feedback-open .toc",
-        "visibility: hidden",
-        "body.feedback-open .layout { padding-bottom:",
+        "body.feedback-open .toc-content",
+        "utilityPane.appendChild(dock)",
+        "PaperTraceFeedbackUX",
+        'id="readerSelectionToolbar"',
         "scrollbar-gutter: stable",
         'id="feedbackSaveStatus"',
     ):
@@ -683,9 +684,11 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
             fail(f"docked annotation non-overlay contract is missing: {token}", issues)
     save_match = re.search(r"function saveCurrent\([^)]*\) \{([\s\S]*?)\n  \}", html_text)
     if not save_match or "announceSaved(item);" not in save_match.group(1):
-        fail("Save mark does not confirm an in-place save", issues)
+        fail("feedback autosave does not confirm an in-place save", issues)
     elif "closePanel();" in save_match.group(1):
-        fail("Save mark closes the annotation panel and destabilizes reader layout", issues)
+        fail("feedback autosave closes the annotation panel", issues)
+    if 'id="saveFeedback"' in html_text or "Save mark" in html_text:
+        fail("legacy Save mark action is still present", issues)
     if re.search(
         r"document\.addEventListener\(['\"]pointerdown['\"][\s\S]{0,800}?closePanel\(\)",
         html_text,

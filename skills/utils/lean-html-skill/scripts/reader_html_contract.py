@@ -206,15 +206,20 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
             issues.append("feedback UI closePanel handler is missing")
         save_match = re.search(r"function saveCurrent\([^)]*\) \{([\s\S]*?)\n  \}", html_text)
         if not save_match or "announceSaved(item);" not in save_match.group(1):
-            issues.append("Save mark does not announce a successful in-place save")
+            issues.append("feedback autosave does not announce a successful in-place save")
         elif "closePanel();" in save_match.group(1):
-            issues.append("Save mark must not close the annotate panel or change reader layout")
+            issues.append("feedback autosave must not close the annotate panel")
+        if 'id="saveFeedback"' in html_text or "Save mark" in html_text:
+            issues.append("feedback UI still requires the legacy Save mark action")
         if "scrollbar-gutter: stable" not in html_text:
             issues.append("reader does not reserve a stable scrollbar gutter")
         if "feedbackExportFallback" not in html_text:
             issues.append("feedback copy fallback textarea is missing")
         for token, message in (
             ("PaperTraceFeedbackRecovery", "shared feedback recovery runtime is missing"),
+            ("PaperTraceFeedbackUX", "shared feedback interaction runtime is missing"),
+            ('id="readerSelectionToolbar"', "inline selection toolbar is missing"),
+            ("createAutosave", "feedback autosave controller is missing"),
             ('id="feedbackRecoveryStatus"', "feedback recovery status is missing"),
             ('id="clearLocalFeedback"', "local feedback recovery clear control is missing"),
             ("function restoreLocalRecovery()", "feedback restore handler is missing"),
@@ -317,8 +322,8 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
         "document.body.classList.add('feedback-open')",
         "document.body.classList.remove('feedback-open')",
         "--utility-pane-width: var(--feedback-dock-width)",
-        "body.feedback-open .toc",
-        "visibility: hidden",
+        "body.feedback-open .toc-content",
+        "utilityPane.appendChild(dock)",
     ):
         if token not in html_text:
             issues.append(f"reader adaptive-pane contract is missing: {token}")
