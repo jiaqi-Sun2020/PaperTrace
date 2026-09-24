@@ -25,6 +25,10 @@ class FeedbackUXContractTests(unittest.TestCase):
         self.assertIn("createUndo", runtime)
         self.assertIn("if (!pending) return null", runtime)
         self.assertIn("settings.delay", runtime)
+        self.assertIn('root.document.addEventListener("selectionchange", scheduleReconcile)', runtime)
+        self.assertIn("else hide()", runtime)
+        self.assertIn("interactingWithToolbar", runtime)
+        self.assertIn("selectingInRoot", runtime)
 
     def test_styles_keep_toolbar_accessible_on_narrow_screens(self) -> None:
         styles = feedback_ux_styles()

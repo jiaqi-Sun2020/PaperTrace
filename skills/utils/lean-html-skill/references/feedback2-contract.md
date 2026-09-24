@@ -68,6 +68,7 @@ Each item should preserve:
 ## Interaction Rules
 
 - Selecting article text opens a contextual status toolbar. A status click creates or updates the mark immediately; `提问 / 备注` opens the non-modal detail editor.
+- Clearing or collapsing the selection, moving it outside the annotatable root, or clicking outside that root closes the toolbar and clears the cached selection. A pointer or keyboard interaction inside the toolbar temporarily protects the captured selection so focus-induced selection loss cannot apply an action to the wrong text.
 - The editor must not cover the readable article on desktop. Reader Contents and Feedback share the right utility pane; narrow screens use a bounded bottom drawer.
 - All explicit field changes auto-save with visible `saving`, `saved`, or `failed` state. Storage failure leaves in-memory export available and tells the user to export JSON.
 - Status changes and deletion offer a five-second undo. The default list shows user-changed items, while export retains required baseline `unrated` records.

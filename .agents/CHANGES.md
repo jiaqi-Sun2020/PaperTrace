@@ -5,6 +5,12 @@
 
 This file records dated implementation and local-release milestones. Durable boundaries belong in `AGENTS.md`, commands in `RUNBOOK.md`, data contracts in `CONFIG_SPEC.md`, and architecture/ownership in `ARCHITECTURE.md`.
 
+## 2026-09-25 — Contextual feedback toolbar dismissal
+
+- Synchronized the shared selection toolbar with actual browser selection state: clearing or collapsing a selection now hides the toolbar and clears the stale target.
+- Protected toolbar button interaction from transient focus-driven selection loss, so a chosen status or detail action still applies exactly once to the captured text.
+- Added runtime regressions for pointer cancellation, keyboard selection changes, empty-selection dismissal, and commit-time payload retention without changing feedback schemas.
+
 ## 2026-09-23 — Unified Fable authoring and semantic review correction
 
 - All new allegory-teach calls use complete Fable, with version-3 daily handoffs; versions 1–4 retain runtime compatibility.

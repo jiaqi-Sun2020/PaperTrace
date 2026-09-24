@@ -155,6 +155,132 @@ function testFeedbackUXAutosaveRuntime() {
   }
 }
 
+function testSelectionToolbarDismissesWhenSelectionClears() {
+  const script = extractFeedbackUXScript(html);
+  let timerId = 0;
+  const timers = new Map();
+  function setTimeoutFake(fn) { timerId += 1; timers.set(timerId, fn); return timerId; }
+  function clearTimeoutFake(id) { timers.delete(id); }
+  function drainTimers() {
+    while (timers.size) {
+      const [id, fn] = timers.entries().next().value;
+      timers.delete(id);
+      fn();
+    }
+  }
+  function eventTarget(extra) {
+    const listeners = new Map();
+    return Object.assign({
+      addEventListener(name, fn) {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(fn);
+      },
+      emit(name, event) {
+        for (const fn of listeners.get(name) || []) fn(event || { target: this });
+      },
+    }, extra || {});
+  }
+
+  const selectedElement = { nodeType: 1, closest() { return null; } };
+  let selectedText = "selected phrase";
+  const selection = {
+    rangeCount: 1,
+    toString() { return selectedText; },
+    getRangeAt() {
+      return {
+        commonAncestorContainer: selectedElement,
+        getBoundingClientRect() { return { left: 100, top: 80, bottom: 100, width: 120 }; },
+      };
+    },
+  };
+  const statusButton = eventTarget({ dataset: { inlineStatus: "known" } });
+  const toolbar = eventTarget({
+    hidden: true,
+    style: {},
+    offsetWidth: 500,
+    offsetHeight: 50,
+    setAttribute() {},
+    removeAttribute() {},
+    contains(target) { return target === this || target === statusButton; },
+    querySelectorAll() { return [statusButton]; },
+    querySelector() { return null; },
+  });
+  const rootElement = eventTarget({
+    contains(target) { return target === this || target === selectedElement; },
+  });
+  const document = eventTarget({ activeElement: null });
+  const window = {
+    document,
+    innerWidth: 1200,
+    innerHeight: 800,
+    getSelection() { return selection; },
+    setTimeout: setTimeoutFake,
+    clearTimeout: clearTimeoutFake,
+  };
+  vm.runInNewContext(script, { window, globalThis: window, Object, Date }, { timeout: 1000 });
+  let committed = null;
+  const controller = window.PaperTraceFeedbackUX.createSelectionToolbar({
+    toolbar,
+    root: rootElement,
+    onStatus(status, payload) { committed = { status, text: payload.text }; },
+  });
+
+  rootElement.emit("pointerdown", { target: selectedElement });
+  rootElement.emit("pointerup", { target: selectedElement });
+  drainTimers();
+  if (toolbar.hidden || !controller.current() || controller.current().text !== "selected phrase") {
+    throw new Error("valid selection did not open the contextual toolbar");
+  }
+
+  selectedText = "";
+  rootElement.emit("pointerdown", { target: selectedElement });
+  rootElement.emit("pointerup", { target: selectedElement });
+  drainTimers();
+  if (!toolbar.hidden || controller.current() !== null) {
+    throw new Error("clearing the selection left a stale toolbar or payload");
+  }
+
+  selectedText = "drag outside";
+  document.emit("selectionchange", { target: document });
+  drainTimers();
+  rootElement.emit("pointerdown", { target: selectedElement });
+  selectedText = "";
+  document.emit("pointercancel", { target: document });
+  drainTimers();
+  if (!toolbar.hidden || controller.current() !== null) {
+    throw new Error("pointer cancellation outside the annotation root left stale contextual state");
+  }
+
+  selectedText = "keyboard selection";
+  document.emit("selectionchange", { target: document });
+  drainTimers();
+  if (toolbar.hidden || controller.current().text !== "keyboard selection") {
+    throw new Error("selectionchange did not reveal a keyboard-created selection");
+  }
+  selectedText = "";
+  document.emit("selectionchange", { target: document });
+  drainTimers();
+  if (!toolbar.hidden || controller.current() !== null) {
+    throw new Error("selectionchange did not dismiss a collapsed keyboard selection");
+  }
+
+  selectedText = "commit me";
+  document.emit("selectionchange", { target: document });
+  drainTimers();
+  toolbar.emit("pointerdown", { target: statusButton });
+  selectedText = "";
+  document.emit("selectionchange", { target: document });
+  toolbar.emit("pointerup", { target: statusButton });
+  statusButton.emit("click", { target: statusButton });
+  drainTimers();
+  if (!committed || committed.status !== "known" || committed.text !== "commit me") {
+    throw new Error("transient selection loss while clicking the toolbar discarded the intended payload");
+  }
+  if (!toolbar.hidden || controller.current() !== null) {
+    throw new Error("committing a toolbar action did not clear the contextual state");
+  }
+}
+
 function extractFeedbackRecoveryScript(source) {
   const match = source.match(/<script data-papertrace-feedback-recovery="v1">([\s\S]*?)<\/script>/);
   if (!match) throw new Error("missing shared feedback recovery runtime");
@@ -447,8 +573,9 @@ testAutosavePersistsWithoutClosingReader();
 testBlankPageClickDoesNotDismissFeedback();
 testAutosaveRestoresReadingPosition();
 testFeedbackUXAutosaveRuntime();
+testSelectionToolbarDismissesWhenSelectionClears();
 testFeedbackRecoveryRoundTripAndIsolation();
 testFeedbackRecoveryIntegration();
 testThemePersists();
 testReaderViewControlsPersist();
-console.log("reader JS runtime passed: inline selection, debounced autosave, recovery/isolation, export retention, explicit dismissal, stable layout, theme, view state, and source pages.");
+console.log("reader JS runtime passed: selection dismissal, inline selection, debounced autosave, recovery/isolation, export retention, explicit dismissal, stable layout, theme, view state, and source pages.");

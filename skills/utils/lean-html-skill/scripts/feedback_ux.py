@@ -219,8 +219,13 @@ def feedback_ux_runtime_script() -> str:
     const rootElement = settings.root || (root.document && root.document.body);
     if (!toolbar || !rootElement) return Object.freeze({ hide: function () {}, show: function () {} });
     let current = null;
+    let reconcileTimer = null;
+    let selectingInRoot = false;
+    let interactingWithToolbar = false;
 
     function hide() {
+      if (reconcileTimer !== null && typeof root.clearTimeout === "function") root.clearTimeout(reconcileTimer);
+      reconcileTimer = null;
       toolbar.hidden = true;
       toolbar.removeAttribute("data-open");
       current = null;
@@ -261,18 +266,50 @@ def feedback_ux_runtime_script() -> str:
       return Object.assign({}, base || {}, { text: selection.toString().trim(), rect });
     }
 
-    function revealFromSelection() {
+    function reconcileFromSelection() {
+      reconcileTimer = null;
+      if (selectingInRoot || interactingWithToolbar) return;
       const payload = capture();
       if (payload) show(payload);
+      else hide();
     }
 
+    function scheduleReconcile() {
+      if (selectingInRoot || interactingWithToolbar) return;
+      if (reconcileTimer !== null && typeof root.clearTimeout === "function") root.clearTimeout(reconcileTimer);
+      if (typeof root.setTimeout === "function") {
+        reconcileTimer = root.setTimeout(reconcileFromSelection, 0);
+      } else {
+        reconcileFromSelection();
+      }
+    }
+
+    function finishRootSelection() {
+      if (!selectingInRoot) return;
+      selectingInRoot = false;
+      scheduleReconcile();
+    }
+
+    rootElement.addEventListener("pointerdown", function (event) {
+      if (toolbar.contains(event.target)) return;
+      selectingInRoot = true;
+    });
     rootElement.addEventListener("pointerup", function (event) {
       if (toolbar.contains(event.target)) return;
-      if (typeof root.setTimeout === "function") root.setTimeout(revealFromSelection, 0);
-      else revealFromSelection();
+      finishRootSelection();
     });
+    rootElement.addEventListener("pointercancel", finishRootSelection);
     rootElement.addEventListener("keyup", function (event) {
-      if (event.key === "Shift" || event.key.startsWith("Arrow")) revealFromSelection();
+      if (event.key === "Shift" || event.key.startsWith("Arrow")) scheduleReconcile();
+    });
+    toolbar.addEventListener("pointerdown", function () { interactingWithToolbar = true; });
+    toolbar.addEventListener("pointerup", function () {
+      if (typeof root.setTimeout === "function") root.setTimeout(function () { interactingWithToolbar = false; }, 0);
+      else interactingWithToolbar = false;
+    });
+    toolbar.addEventListener("pointercancel", function () { interactingWithToolbar = false; });
+    toolbar.addEventListener("focusout", function () {
+      if (!toolbar.hidden) scheduleReconcile();
     });
     toolbar.querySelectorAll("[data-inline-status]").forEach(function (button) {
       button.addEventListener("click", function () {
@@ -290,8 +327,11 @@ def feedback_ux_runtime_script() -> str:
     if (root.document) root.document.addEventListener("pointerdown", function (event) {
       if (!toolbar.hidden && !toolbar.contains(event.target) && !rootElement.contains(event.target)) hide();
     });
+    if (root.document) root.document.addEventListener("pointerup", finishRootSelection);
+    if (root.document) root.document.addEventListener("pointercancel", finishRootSelection);
+    if (root.document) root.document.addEventListener("selectionchange", scheduleReconcile);
 
-    return Object.freeze({ hide, show, capture: revealFromSelection, current: function () { return current; } });
+    return Object.freeze({ hide, show, capture: reconcileFromSelection, current: function () { return current; } });
   }
 
   root.PaperTraceFeedbackUX = Object.freeze({
