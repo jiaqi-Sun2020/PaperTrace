@@ -33,6 +33,14 @@ perfect observation, or universal success.
 
 ## Opening-story handoff
 
+Apply the source-context binding check in `story-output-contract.md` before
+handoff. Restore the real problem and relevant source constraints in the existing
+`logic_chain`, alongside the action mapping; keep `concept_definition` a bounded
+definition. The current renderer places the definition in section 1 and the
+logic chain in section 2: use those fields without adding a background field,
+changing schema, or hiding necessary context in the collapsed example. Do not
+claim that authoring or structural validation demonstrates improved retention.
+
 Return this object to `ai-quantum-news-briefing`; do not publish or write
 the config yourself. The existing fields carry the four reading layers:
 `paragraphs` = complete narrative, `concept_definition` = bounded definition,

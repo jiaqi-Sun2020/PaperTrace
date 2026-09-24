@@ -33,6 +33,49 @@ in the final response or daily handoff.
 
 ## Immersive background gate
 
+### Source-context binding
+
+For a paper, experiment or research briefing, privately connect the source's
+task and consequential problem to the selected relation before choosing story
+objects. Record source anchors for the necessary constraints, any documented
+baseline limitation, and the opportunity or insight the work actually supports.
+Keep author-stated motivation distinct from a pedagogical inference. Mark an
+absent baseline or unknown motivation as unavailable; do not invent research
+history, repeated failures, or an old-method/new-method success narrative.
+For a theorem, observation or general concept, a question or knowledge limit
+can supply the pressure; no previous failed method is required.
+
+The existing background gate checks both actor motivation and this source
+context. Before approval, reconstruct in ordinary language: what the task was,
+what constrained it, and why the selected relation matters there. Preserve only
+source-supported context needed for those answers. If that context already
+exists in the story, repair its factual mapping instead of adding more setup.
+No fixed number of background facts or paper-specific props proves adequacy.
+
+A story reusable across domains is a diagnostic prompt, not a failure. Check
+whether reuse has erased a necessary source constraint; repair that omission,
+not the story's generality. Never add decorative uniqueness or a second mechanism.
+Complete the causal story before shortening it; context binding imposes no new
+word or paragraph ceiling and does not relax the narrative language firewall.
+
+After the story, section 1 briefly locates the real research problem alongside
+the bounded name and definition. Section 2 maps necessary background constraints
+as well as actions back to the source. Distinguish the selected teaching relation
+from the paper's full contribution; do not claim that a generic example proves
+the research result. Keep the four-section order and the same underlying case.
+For the fixed daily renderer, follow `daily-briefing-interface.md`: the bounded
+definition stays in section 1 and the existing section-2 `logic_chain` carries
+the problem context and mapping, without a schema or renderer change.
+
+Use the existing three semantic review rounds: (1) quote the setup supporting
+task, constraint and value; (2) cite source anchors for those claims, including
+unavailable baselines and limits; (3) check that the debrief and example restore
+the same context without new claims. Missing necessary context requires repair
+and re-review, not automatic approval after one attempt. Structural tests and
+review-record validation cannot certify understanding or memory retention.
+Memory binding is a design goal, not evidence of mastery or permission to mutate
+the learner profile.
+
 Begin every Fable Mode story with at least two causally necessary background
 paragraphs. Two or three are usually enough, but add more when an essential
 goal, capability, limit, trigger, or observable cost cannot otherwise be made
@@ -381,6 +424,9 @@ professional term and the canonical reveal to section 1>
 <canonical name>：<one scope-bounded, mechanism-level definition>。
 
 <真实问题 -> 困难项或操作 -> 目标 -> 机制主链>
+
+<研究来源适用时：简短说明真实任务、必要约束及本关系的价值；
+不编造旧方法或研究动机，日报使用现有第 2 节字段承载这部分>
 
 ## 2. 故事元素与现实对应
 

@@ -68,6 +68,11 @@ make the explanation richer.
 
 ## Build one causal spine from first principles
 
+For source-grounded research, first preserve the minimum problem context that
+makes the selected relation worth explaining. Apply the context-binding check in
+`references/story-output-contract.md`; do not confuse a generic mechanism with
+the paper's motivation or invent a baseline to make the story distinctive.
+
 Before drafting, locate the learner's bridge and privately reduce the target to
 one causal spine:
 

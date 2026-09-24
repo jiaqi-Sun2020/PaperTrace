@@ -589,6 +589,54 @@
         "silent Bridge downgrade",
         "invented causal step to finish the story"
       ]
+    },
+    {
+      "id": "source-context-missing",
+      "mode": "fable",
+      "concept": "correct local mechanism with missing research motivation",
+      "expected_device": "repair necessary source context before approval",
+      "must_preserve": ["source-backed task and constraint", "why the selected relation matters", "source anchors for background claims"],
+      "must_avoid": ["mechanism correctness alone treated as teaching completion", "second mechanism added as background"]
+    },
+    {
+      "id": "context-already-sufficient",
+      "mode": "fable",
+      "concept": "complete setup whose debrief omits the research connection",
+      "expected_device": "repair factual mapping without duplicating setup",
+      "must_preserve": ["existing causal background", "mapping of task and constraints to source", "same underlying example"],
+      "must_avoid": ["mandatory story expansion", "fixed number of background facts as proof"]
+    },
+    {
+      "id": "no-documented-baseline",
+      "mode": "fable",
+      "concept": "theoretical criterion with no documented previous failed method",
+      "expected_device": "question-driven source-faithful story",
+      "must_preserve": ["knowledge limit as motivation", "unavailable baseline explicitly noted in preflight", "bounded research claim"],
+      "must_avoid": ["invented research history", "forced old-method failure and new-method success"]
+    },
+    {
+      "id": "legitimate-cross-domain-reuse",
+      "mode": "fable",
+      "concept": "general relation used in several research domains",
+      "expected_device": "reusable story with necessary source constraints",
+      "must_preserve": ["generalizable mechanism", "source context recoverable in debrief"],
+      "must_avoid": ["failure solely because story can explain other papers", "decorative uniqueness"]
+    },
+    {
+      "id": "context-without-term-leakage",
+      "mode": "fable",
+      "concept": "source-specific workflow expressed in ordinary language",
+      "expected_device": "closed-world narrative and source-grounded debrief",
+      "must_preserve": ["task rhythm and real constraint when source-supported", "source-backed opportunity", "full necessary causal background"],
+      "must_avoid": ["professional vocabulary in story", "invented baseline cost", "shortening away the reason for action"]
+    },
+    {
+      "id": "memory-goal-not-evidence",
+      "mode": "fable",
+      "concept": "story designed to aid recall without learner response data",
+      "expected_device": "report design intent without claiming measured learning",
+      "must_preserve": ["separate structural checks and semantic review", "unchanged learner state"],
+      "must_avoid": ["test pass asserted as retention improvement", "exposure promoted to mastery"]
     }
   ]
 }

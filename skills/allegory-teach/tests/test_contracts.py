@@ -9,6 +9,24 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class AllegoryTeachContractTests(unittest.TestCase):
+    def test_context_regression_coverage(self) -> None:
+        # Coverage validation only: these fixtures require semantic evaluation,
+        # not keyword-based certification of a generated story.
+        cases = json.loads(self.read("tests/regression_cases.json"))["cases"]
+        ids = [case["id"] for case in cases]
+        self.assertEqual(len(ids), len(set(ids)))
+        required = {
+            "source-context-missing", "context-already-sufficient",
+            "no-documented-baseline", "legitimate-cross-domain-reuse",
+            "context-without-term-leakage", "memory-goal-not-evidence",
+        }
+        self.assertTrue(required.issubset(ids))
+        for case in cases:
+            if case["id"] in required:
+                self.assertEqual(case["mode"], "fable")
+                self.assertGreaterEqual(len(case["must_preserve"]), 2)
+                self.assertGreaterEqual(len(case["must_avoid"]), 2)
+
     def read(self, relative_path: str) -> str:
         return (SKILL_DIR / relative_path).read_text(encoding="utf-8")
 

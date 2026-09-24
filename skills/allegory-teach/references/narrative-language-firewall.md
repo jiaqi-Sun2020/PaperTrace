@@ -21,6 +21,11 @@ Technical precision on the first surface does not authorize technical language
 on the second. The narrative preserves the causal structure; the debrief
 restores the professional representation.
 
+Hiding terminology must not erase the source's task, constraints or reason for
+the selected relation. Apply `story-output-contract.md`'s source-context binding
+check through in-world goals and choices, not paper/reviewer voice. A familiar,
+reusable scene is valid when its necessary source constraints remain recoverable.
+
 ## Build a private denylist and story-world allowlist
 
 Before drafting, derive a case-specific **narrative denylist** from the selected
