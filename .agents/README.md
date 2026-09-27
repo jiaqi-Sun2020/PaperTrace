@@ -1,14 +1,14 @@
 # Agent Context Index
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-22
+- Last reviewed: 2026-09-27
 
 This directory combines project-agent context and learner memory.
 
 Canonical four-pipeline taxonomy:
 
 1. **Paper Reader HTML:** PDF/source paper -> internal bundle/`reader_wiki` -> adversarially audited `reader_interactive.html`.
-2. **AI + Quantum Daily Briefing Release:** current sources -> ranked evidence -> concealed-name opening story plus concept-appropriate worked example -> staging -> `run -> verify -> finalize -> verify` -> briefing HTML plus required feedback/manifest/index artifacts.
+2. **AI + Quantum Daily Briefing Release:** current sources -> ranked evidence -> complete Fable and matching example -> staging -> reviewed preflight -> strict finalization/verification -> HTML plus feedback, review, manifest and index artifacts; OSS has a separate delivery result.
 3. **Local Chat-to-Profile Import:** local chat exports -> collect/extract/propose -> human review -> backed-up strict apply.
 4. **Adaptive Teaching Decision & Evidence Loop:** explicit teaching request -> profile-backed analysis -> one concept/mode -> short lesson -> actual performance -> validated teaching-feedback import.
 

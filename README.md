@@ -41,7 +41,7 @@ PaperTrace is a local workspace for paper reading, AI + quantum briefings, and a
 | Pipeline | What it solves | Completion boundary |
 |---|---|---|
 | **Paper Reader HTML** | Produces a bilingual, formula-readable, feedback-enabled reader from a PDF or source paper. | <code>reader_interactive.html</code> exists and passes the publishing adversarial HTML audit. Bundles and ledgers are intermediate state. |
-| **AI + Quantum Daily Briefing Release** | Turns current signals into a sourced and feedback-enabled AI + quantum briefing. | HTML, feedback, manifest, and index are published only after <code>run → verify → finalize → verify</code>. |
+| **AI + Quantum Daily Briefing Release** | Turns current signals into a sourced and feedback-enabled AI + quantum briefing. | New releases require structural verification, source/story review, sealed evidence, strict verification and finalization before optional OSS delivery. |
 | **Local Chat-to-Profile Import** | Extracts reviewable learning and research candidates from local chat exports. | A human reviews the patch and runs <code>apply --backup</code>. Candidates and unapplied patches are not final. |
 | **Adaptive Teaching Decision & Evidence Loop** | Selects the next topic from confirmed weaknesses, evidence gaps, and due reviews. | A lesson request ends with a validated session; profile return requires actual performance imported as validated teaching feedback. |
 
@@ -67,7 +67,7 @@ Codex processes the PDFs in order, continues automatically after each pass, and 
 
 ### 2. Release a sourced AI + Quantum briefing
 
-> Read the README and <code>.agents</code> in the current project. Using current, source-verifiable information for <code>&lt;date or date-range&gt;</code>, produce the AI + Quantum Daily Briefing Release. Build the evidence-backed candidate config with a concealed-name opening story and one concept-appropriate worked example, then complete <code>run → verify → finalize → verify</code>. Deliver the interactive briefing HTML, feedback JSON, manifest, and index; do not treat a candidate list or staging output as final.
+> Read the README and <code>.agents</code> in the current project. Using source-verifiable information for <code>&lt;date or date-range&gt;</code>, produce the AI + Quantum Daily Briefing Release. Build the evidence-backed candidate config with a complete Fable and consistent example, then complete the reviewed protocol documented in the daily Skill. Deliver the interactive HTML, feedback JSON, review evidence, manifest, and index; do not treat a candidate list or staging output as final.
 
 Codex verifies sources and dates, applies the ranking and Delta rules, then publishes only after the strict release sequence succeeds. Concepts in the exported feedback start as <code>unrated</code>.
 
@@ -259,19 +259,28 @@ Expected daily artifacts:
     news\YYYY-MM-DD\briefing_reader_YYYY-MM-DD.html
     news\YYYY-MM-DD\news_feedback_YYYY-MM-DD.json
     news\YYYY-MM-DD\news_feedback_config_delta_YYYY-MM-DD.json
+    news\YYYY-MM-DD\opening_story_review_YYYY-MM-DD.json
+    news\YYYY-MM-DD\news_content_review_YYYY-MM-DD.json
+    news\YYYY-MM-DD\release_preflight_audit_YYYY-MM-DD.json
     news\YYYY-MM-DD\daily_pipeline_manifest_YYYY-MM-DD.json
     news\YYYY-MM-DD\daily_pipeline_index_updates_YYYY-MM-DD.json
     news\_index\story_index.jsonl
 
-The release entry point is <code>daily_pipeline.py</code>. <code>run</code> writes staging only; only a successful <code>finalize</code> publishes artifacts and atomically updates the index:
+The release entry point is <code>daily_pipeline.py</code>. <code>run</code> writes staging only. New releases require source- and story-bound reviews before <code>finalize</code> can commit the index or invoke OSS. Run from <code>D:\AI\PaperTrace</code>:
 
     cd D:\AI\PaperTrace
     python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py run --config <candidate_news_feedback_config.json> --output-dir <news\YYYY-MM-DD> --index .\news\_index\story_index.jsonl
+    python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict --structure-only
+    python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py review-template --run-dir <news\YYYY-MM-DD\.staging\RUN_ID>
+    # Author the pending news and story reviews from the actual sources.
+    python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py seal-review --run-dir <news\YYYY-MM-DD\.staging\RUN_ID>
     python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict
-    python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict
+    python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict --require-remote
     python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD> --strict
 
-Optional OSS mirroring is disabled on a fresh checkout. Copy `news_publish.example.json` to the ignored `news_publish.local.json`, fill in your own site index URL, bucket, region, object prefix, and ossutil profile, and configure credentials in your user-level ossutil profile (with read/write permission for the two published objects). No AccessKey belongs in the JSON. From the repository root, run `python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py enable` after the existing homepage and its daily link are reachable and the homepage matches the configured Bucket object. Thereafter `finalize` strictly checks the completed local release and automatically mirrors only the HTML and homepage. If the site or Bucket check fails, mirroring stays disabled until another manual `enable`; inspect it with `python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py status`. A failed remote upload does not undo the local release; retry with `publish --run-dir .\news\<YYYY-MM-DD>` after fixing the cause. The local config, state, and receipts are Git-ignored.
+The candidate config must include timezone-aware `collection_completed_at`; an 08:00 Asia/Shanghai scheduled release covers the prior complete calendar day. `manifest.date` is the release identity, while the versioned coverage interval records the actual information window. See [the review protocol](skills/ai-quantum-news-briefing/references/release-review-protocol.md). Use `daily_pipeline.py status --from-date <YYYY-MM-DD>` to inspect evidenced coverage; old display-only date ranges are not full-day proof.
+
+Optional OSS mirroring is disabled on a fresh checkout. Copy `news_publish.example.json` to the ignored `news_publish.local.json`, fill in your own site index URL, bucket, region, object prefix, and ossutil profile, and configure credentials in your user-level ossutil profile (with read/write permission for the two published objects). No AccessKey belongs in the JSON. From the repository root, run `python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py enable` after the existing homepage and its daily link are reachable and the homepage matches the configured Bucket object. Thereafter `finalize` strictly checks the reviewed local release and mirrors only the HTML and homepage. The publisher reconciles remote content and receipts before uploading; historical backfill does not move a newer homepage backward. If the site or Bucket check fails after bounded retries, mirroring stays disabled until another manual `enable`; inspect it with `python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py status`. A failed remote upload does not undo the local release; retry with `publish --run-dir .\news\<YYYY-MM-DD>` after fixing the cause. The local config, state, and receipts are Git-ignored.
 
 Optional discovery and evidence tools:
 

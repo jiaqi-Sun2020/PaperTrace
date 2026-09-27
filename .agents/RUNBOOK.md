@@ -8,7 +8,7 @@
 Run commands from `D:\AI\PaperTrace` and do not mix terminal gates:
 
 1. **Paper Reader HTML:** build internal source evidence -> complete/compile -> generate `reader_interactive.html` -> publishing adversarial audit. Return the audited HTML, never the bundle.
-2. **AI + Quantum Daily Briefing Release:** collect current evidence -> `daily_pipeline.py run -> verify -> finalize -> verify`. Return the published briefing HTML and required release set, never a candidate/config/staging directory.
+2. **AI + Quantum Daily Briefing Release:** collect current evidence -> reviewed preflight -> strict finalize -> strict verify. Return the reviewed briefing HTML and release set, never a candidate/config/staging directory.
 3. **Local Chat-to-Profile Import:** `collect -> extract -> propose -> human review -> apply --backup`. Do not generate paper/news HTML and do not apply an unreviewed patch.
 4. **Adaptive Teaching Decision & Evidence Loop:** explicit request -> `analyze -> next -> lesson`; after real performance only, `build-feedback -> validate-feedback -> import-feedback`. Do not infer mastery or force feedback import from lesson exposure.
 
@@ -30,18 +30,28 @@ The first three commands only read the profile and create private teaching artif
 
 ## Daily Briefing Encoding Gate
 
-Run daily briefing commands from `D:\AI\PaperTrace`. The authoritative path is:
+Run daily briefing commands from `D:\AI\PaperTrace`. New protocol-2 releases require timezone-aware `collection_completed_at` in the candidate config. The 08:00 Asia/Shanghai scheduled run covers the previous complete calendar day; `--date` is the release date, not proof of coverage. Multi-day backfill needs explicit midnight `--coverage-start`/`--coverage-end` and per-day `coverage_evidence`. The authoritative path is:
 
 ```powershell
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py run --config <candidate_config.json> --date <YYYY-MM-DD> --design-system cosmic --background-mode light
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict --structure-only
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py review-template --run-dir <news\YYYY-MM-DD\.staging\RUN_ID>
+# Author the pending source and story reviews from actual evidence.
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py seal-review --run-dir <news\YYYY-MM-DD\.staging\RUN_ID>
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict
-python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict --require-remote
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD> --strict
+```
+
+The template is deliberately `unreviewed`. Check each selected news claim against its source and perform the protocol-2 story rounds before sealing. `seal-review` binds the reviews and preflight audit to the release manifest; it cannot certify semantic truth. Missing, failed or stale review blocks `finalize` and standalone OSS `publish`. Read `skills/ai-quantum-news-briefing/references/release-review-protocol.md`. Older releases stay readable but require fresh review before new OSS upload. Inspect structured coverage (old display-only `date_range` is not full-day evidence):
+
+```powershell
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py status --from-date <YYYY-MM-DD>
 ```
 
 ### Optional OSS website mirror
 
-The finalizer strictly re-verifies the completed local release, then invokes the OSS mirror when manually enabled. A remote upload failure leaves the local release complete and makes `finalize` exit 2; inspect `remote_publish` and retry with the publisher command rather than finalizing the same staging run again. The final standalone `verify` remains read-only.
+The finalizer strictly re-verifies the reviewed local release, then invokes the OSS mirror when manually enabled. With `--require-remote`, `disabled`, `pending` or failed delivery returns exit 2 while local completion remains intact. Inspect `remote_publish` and retry standalone `publish`, not the same `finalize`. Site/link checks still latch disabled after bounded retries and require manual `enable`; upload failure stays pending. The final standalone `verify` is read-only.
 
 From `D:\AI\PaperTrace`, install ossutil 2.x and create a user-level profile with `ossutil config credential`. Keep credentials outside this repository. Copy `news_publish.example.json` to the ignored `news_publish.local.json` and fill in `site_index_url`, `bucket`, `region`, `object_prefix`, and `ossutil_profile`. The URL path must match the prefix and end in `/index.html`.
 
@@ -51,7 +61,7 @@ python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py enable
 python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py publish --run-dir .\news\<YYYY-MM-DD>
 ```
 
-The existing index must link to one reachable `briefing_reader_YYYY-MM-DD.html`. `enable` checks both URLs and confirms the website index matches the configured Bucket object; the ossutil profile therefore needs GetObject and PutObject access to the published keys. Every publish repeats the checks; a failure latches the ignored state under `news/_index/` disabled until another manual `enable`. Only verified HTML and `index.html` reach OSS. The receipt stays under `news/_publish/`.
+The existing index must link to one reachable `briefing_reader_YYYY-MM-DD.html`. `enable` checks both URLs and confirms the website index matches the configured Bucket object; the ossutil profile needs GetObject and PutObject access. Every publish repeats the checks, reconciles remote HTML and the receipt, and never moves the homepage backward during historical backfill. Same-date content replacement requires `--correction-reason`, `--supersedes-hash` and fresh review. Only verified HTML and `index.html` reach OSS; receipts stay under `news/_publish/`.
 
 Before running, ensure the candidate config is UTF-8. Do not construct Chinese JSON through a default PowerShell/code-page pipeline. If normalization reports `encoding-corrupted` or `U+FFFD`, regenerate the config from the original source record; do not delete or globally replace `?`.
 
@@ -74,6 +84,8 @@ They use synthetic in-memory/temporary fixtures, not published reports:
 ```powershell
 python -B -m unittest discover -s skills/allegory-teach/tests -p "test_*.py"
 python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p test_daily_pipeline.py
+python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p test_publish_daily_to_oss.py
+python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p test_release_protocol.py
 ```
 
 The final verify must report visible HTML `?=0`, replacement-character `=0`, Chinese UI markers, concept/feedback identity equality, all default statuses `unrated`, light default/Cosmic option, and no feedback2 panel. A failed encoding check blocks finalize and therefore blocks story-index updates.

@@ -606,7 +606,7 @@ def render_markdown(config: dict[str, Any]) -> str:
                 f"- **1. 概念名称与一句话定义：**{clean_text(opening_story.get('concept_name'), 240)}——"
                 f"{clean_text(opening_story.get('concept_definition'), 800)}"
             )
-            lines.append(f"- **2. 故事元素与现实对应：**{clean_text(opening_story.get('logic_chain'), 800)}")
+            lines.append(f"- **2. 故事对应与真实机制：**{clean_text(opening_story.get('logic_chain'), 800)}")
             lines.append(f"- **3. 这个类比没有覆盖的边界：**{clean_text(opening_story.get('analogy_boundary'), 800)}")
             lines.append(f"- **4. 它可能误导你的地方：**{clean_text(opening_story.get('misleading_risk'), 800)}")
         lines.append("")

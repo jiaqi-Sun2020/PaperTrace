@@ -19,6 +19,15 @@ result. In Fable Mode, the formal block may add symbols, types, rules, and the
 general form, but it may not replace the story's case with different values or
 reverse the sign, direction, or comparison.
 
+Before handoff, read `question -> observable -> steps -> result` as one testable
+sentence. The steps must calculate or observe the promised quantity, and the
+result must answer that question; otherwise narrow the question/observable or
+complete the missing operation. A time-bound comparison does not measure
+output-state distance. Substituting numbers into an accepted bound checks a
+candidate against that bound; it is not a derivation of the bound. Label a
+teaching saturation rule or hypothetical count as an illustration, not as the
+source's physical implementation or raw measurement.
+
 Professional terminology belongs to this formal surface only after factual
 section 1 or 2 has introduced and mapped it. If an unavoidable term first
 appears in the worked example, precede the label with one plain-language clause

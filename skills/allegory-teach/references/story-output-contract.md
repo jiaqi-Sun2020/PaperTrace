@@ -31,6 +31,26 @@ evidence-authority audit and build the case-specific narrative denylist plus
 story-world allowlist required by the language firewall. Neither list appears
 in the final response or daily handoff.
 
+Write the private task-and-reasoning card specified in `SKILL.md` before the
+scene. Let the task type determine the causal spine, not a mandatory invention
+plot: an engineering choice compares a real constraint with feasible
+alternatives and costs; a lower-bound argument first distinguishes the claimed
+task from an apparent shortcut, then establishes a necessary condition without
+promising attainability; an experiment connects preparation and control to an
+observation and only the inference the evidence licenses. These are reasoning
+patterns, not paragraph templates. If the source documents no failed baseline,
+alternative cost or unique cause, leave that part unknown rather than inventing
+one to complete the scene.
+
+At each decisive turn, the reader must be able to recover `previous state ->
+operation or constraint -> next state -> reason`. An actor's assertion, a named
+rule, or a repeated metaphor noun is not the reason. Answer an obvious
+alternative such as adding capacity or preparing the answer beforehand by
+showing its source-supported cost or the way it changes the task; do not create
+an unsupported prohibition. A supplied theorem may be applied in the story
+and worked example, but its numerical application must not be called a proof
+of the theorem or an attainable performance promise.
+
 ## Immersive background gate
 
 ### Source-context binding
@@ -65,7 +85,11 @@ from the paper's full contribution; do not claim that a generic example proves
 the research result. Keep the four-section order and the same underlying case.
 For the fixed daily renderer, follow `daily-briefing-interface.md`: the bounded
 definition stays in section 1 and the existing section-2 `logic_chain` carries
-the problem context and mapping, without a schema or renderer change.
+the problem context and mapping, without a schema change.
+Field values for new daily handoffs contain no leading `1.`, `2.`, `3.`, or
+`4.` section numbers: the renderer owns numbering. Do not strip prefixes from
+historical material with a global regular expression, which could corrupt a
+legitimate value or formula.
 
 Use the existing three semantic review rounds: (1) quote the setup supporting
 task, constraint and value; (2) cite source anchors for those claims, including
@@ -428,7 +452,7 @@ professional term and the canonical reveal to section 1>
 <研究来源适用时：简短说明真实任务、必要约束及本关系的价值；
 不编造旧方法或研究动机，日报使用现有第 2 节字段承载这部分>
 
-## 2. 故事元素与现实对应
+## 2. 故事对应与真实机制
 
 | 故事动作或元素 | 对应的现实对象与技术操作 | 规则或证据等级 | 为什么需要 | 改变/保留/丢弃/未知 | 可观察后果 | 不支持的更强结论 |
 |---|---|---|---|---|---|---|

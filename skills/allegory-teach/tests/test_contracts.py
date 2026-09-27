@@ -27,6 +27,26 @@ class AllegoryTeachContractTests(unittest.TestCase):
                 self.assertGreaterEqual(len(case["must_preserve"]), 2)
                 self.assertGreaterEqual(len(case["must_avoid"]), 2)
 
+    def test_task_card_and_reasoning_regressions(self) -> None:
+        skill = self.read("SKILL.md")
+        story = self.read("references/story-output-contract.md")
+        worked = self.read("references/worked-example-contract.md")
+        daily = self.read("references/daily-briefing-interface.md")
+        cases = {case["id"] for case in json.loads(self.read("tests/regression_cases.json"))["cases"]}
+        self.assertTrue({
+            "bound-application-is-not-proof-or-attainment",
+            "natural-capacity-alternative",
+            "example-observable-is-actually-computed",
+            "first-round-story-only-review",
+        }.issubset(cases))
+        self.assertIn("private task-and-reasoning", skill)
+        self.assertIn("lower-bound argument", story)
+        self.assertIn("previous state ->", story)
+        self.assertIn("question -> observable -> steps -> result", worked)
+        self.assertIn("review_protocol_version=2", daily)
+        self.assertIn('review_method="self"', daily)
+        self.assertIn("renderer adds", daily)
+
     def read(self, relative_path: str) -> str:
         return (SKILL_DIR / relative_path).read_text(encoding="utf-8")
 

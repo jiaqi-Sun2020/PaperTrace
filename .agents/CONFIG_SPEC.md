@@ -1,7 +1,7 @@
 # Config Spec
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-20
+- Last reviewed: 2026-09-27
 
 ## Primary Pipeline Selection
 
@@ -220,7 +220,7 @@ Important options:
 | `news_delta.py context --index <path> --date <YYYY-MM-DD> --days 7` | Print compact recent-story context for the next daily briefing prompt. |
 | `news_delta.py apply --config <candidate.json> --output <delta.json>` | Rewrite a candidate config into delta-first sections without mutating the story index. |
 | `rank_briefing_candidates.py --config <candidate.json> --output <ranked.json>` | Apply the evidence gate, deterministic academic/social scores, quotas, and diversity selection without publishing. |
-| `daily_pipeline.py run/verify/finalize` | Stage, verify including UTF-8/visible-text integrity, publish the Markdown/interactive HTML/full feedback bundle, and atomically upsert the story index only after final verification. |
+| `daily_pipeline.py run/verify/review-template/seal-review/finalize/status` | Stage a version-2 daily release, verify structure, author and seal source-bound release reviews, strictly verify, commit locally with a single-instance lock, and inspect evidenced coverage. Finalize may mirror to OSS only after approval. |
 | `--feedback <path>` | Native `news_feedback.json` file. |
 | `--profile <path>` | Explicit learner profile path. |
 | `--reader-learner-importer <path>` | Override the delegated `reader-learner` importer. |
@@ -228,6 +228,14 @@ Important options:
 | `--no-import` | Only write normalized output; do not mutate the profile. |
 
 News feedback should use `source_kind: news_briefing` after normalization. Do not change a concept to `known`, `unknown`, `learning`, or `mastered` unless the user explicitly said so; exposure-only concepts should be `unrated`. The normalized reader-feedback handoff should preserve `briefing_title`, `date_range`, source title/URL, category, and a short source excerpt whenever available.
+
+### Daily release protocol 2
+
+New CLI runs use `pipeline_version: 2`; historical version-1 releases remain readable but require a current release review before first OSS upload or correction. A version-2 manifest records `coverage.start` (inclusive), `coverage.end` (exclusive), `collection_completed_at`, `story_index_snapshot_sha256`, required artifact paths and 64-hex SHA-256 values. The scheduled 08:00 run covers the preceding complete Asia/Shanghai calendar day; `manifest.date` remains the release identifier, not proof of coverage. Multi-day backfills require explicit midnight boundaries and per-day academic/social search evidence. A legacy `date_range` display string alone never proves full-day coverage.
+
+Publication review uses `opening_story_review_<date>.json`, `news_content_review_<date>.json`, and `release_preflight_audit_<date>.json`, all named and hashed in the version-2 manifest. The story review binds the full story, factual return, example, source and HTML narrative. The news review lists every selected item and separately judges its facts, judgment and relevance against source excerpts. The preflight audit binds the manifest's base content digest and both review hashes. `seal-review` rejects incomplete, stale or failing reviews; `verify --strict`, `finalize`, and standalone OSS `publish` recheck the binding. Automatic review records establish coverage and traceability, not a proof of scientific truth; uncertainty or missing source support must stop publication.
+
+The local commit and OSS publisher share a cross-process release lock. A local release may be complete while remote delivery is pending or disabled; `finalize --require-remote` returns nonzero unless the OSS acceptance check succeeds. Publisher recovery compares the reviewed local HTML, remote HTML, homepage date/link and receipt; it skips unchanged objects, repairs a missing receipt or homepage, and never moves the homepage backward for a historical backfill. Same-date content replacement requires an explicit correction reason, old-content reference and fresh review. Site/link verification failure latches remote publishing disabled until a manual `enable`. OSS credentials remain only in the user's ossutil profile; the ignored local route config, feedback and learner data are not release artifacts.
 
 ## Reader Feedback JSON
 

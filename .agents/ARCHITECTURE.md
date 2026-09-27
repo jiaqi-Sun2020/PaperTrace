@@ -1,7 +1,7 @@
 # Architecture
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-20
+- Last reviewed: 2026-09-27
 
 ## Top-Level Structure
 
@@ -107,13 +107,16 @@ news/<YYYY-MM-DD>/
 |-- briefing_reader_<YYYY-MM-DD>.html
 |-- news_feedback_<YYYY-MM-DD>.json
 |-- news_feedback_config_delta_<YYYY-MM-DD>.json
+|-- opening_story_review_<YYYY-MM-DD>.json
+|-- news_content_review_<YYYY-MM-DD>.json
+|-- release_preflight_audit_<YYYY-MM-DD>.json
 |-- daily_pipeline_manifest_<YYYY-MM-DD>.json
 `-- daily_pipeline_index_updates_<YYYY-MM-DD>.json
 
 news/_index/story_index.jsonl
 ```
 
-Candidate config enters `news-ranker-v1` first. Eligible academic and social items receive separate component scores; deterministic MMR-style selection enforces new/continuing, source-class, formal-source, organization, and topic quotas. The ranked config then enters Delta compaction and the transactional `run -> verify -> finalize -> verify` release. Item-level `ranking` and top-level `ranking_policy`/`ranking_manifest` remain part of the published audit surface.
+Candidate config enters `news-ranker-v1` first. Eligible academic and social items receive separate component scores; deterministic MMR-style selection enforces new/continuing, source-class, formal-source, organization, and topic quotas. The ranked config then enters Delta compaction. New protocol-2 releases follow `run -> structural verify -> authored news/story review -> seal-review -> strict verify -> finalize -> strict verify`; the three review files are bound by manifest hashes before local commit or OSS upload. Local completion and verified OSS delivery are separate states. Item-level `ranking` and top-level `ranking_policy`/`ranking_manifest` remain part of the published audit surface.
 
 Every new release carries `opening_story.version=3` with the existing concealed narrative/debrief fields and one complete `worked_example`. Narrative paragraphs have a minimum count of two, no count maximum, and a fail-closed 2000-character per-paragraph limit. The story-specific normalizer preserves order and duplicates without truncation; concept-leak validation reads the full normalized text. Mathematical and numerical narratives reuse every numeric input and derived result from the worked example and state an operation plus counterfactual/comparison; non-mathematical examples may omit formulas. Markdown and HTML preserve all story paragraphs, while HTML places the example in a native `details` control closed by default before the briefing body. Story/example exposure never creates feedback identity or profile evidence.
 

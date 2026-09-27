@@ -1,6 +1,6 @@
 ---
 name: ai-quantum-news-briefing
-description: Create concise, source-grounded AI and quantum technology briefings that open with a familiar concept-teaching analogy, turn them into interactive HTML pages with automatic unrated full-concept feedback JSON export plus optional concept/freeform feedback, and optionally update the user's learner profile from explicit news-reading feedback. Use for requests such as "今日资讯", "今日快报", "近三天资讯", "近4天快报", "AI+量子快报", company AI reports, research blogs, safety frameworks, model releases, policy updates, industry news, arXiv/Nature papers, quantum physics or quantum computing progress, requests to generate a briefing HTML reader, or when the user says to record daily briefing concepts as unrated/known/unknown/learning in `.agents/reader-learner/knowledge_profile.json`.
+description: Create source-grounded AI and quantum briefings with a complete Fable opening, reviewed release artifacts, interactive HTML and unrated feedback export. Use for daily or multi-day AI/quantum news, research, policy and model updates, briefing HTML requests, or explicit news-feedback handoffs to the learner profile.
 ---
 
 # AI + Quantum News Briefing
@@ -11,16 +11,16 @@ Use this skill to produce the user's recurring Chinese news briefings on AI, fro
 
 This skill owns **Primary Pipeline 2: AI + Quantum Daily Briefing Release**. It is distinct from Pipeline 1 paper PDF-to-HTML, Pipeline 3 local chat-to-profile import, and Pipeline 4 adaptive teaching decisions/evidence return.
 
-For a daily or multi-day briefing request, candidate pools, venue ledgers, Markdown, and `news_feedback_config.json` are internal artifacts. The pipeline completes only after `daily_pipeline.py run -> verify -> finalize -> verify` succeeds and the published directory contains the interactive briefing HTML, full default-`unrated` `news_feedback.json`, Markdown briefing, normalized delta config, release manifest, and atomically updated story index. Every new run requires a validated `opening_story` plus one complete concept-appropriate example, rendered before the briefing body in both HTML and Markdown; HTML keeps the example collapsed by default. The primary reader-facing artifact is the briefing HTML; do not report candidate/config generation as completion.
+For a daily or multi-day briefing request, candidate pools, venue ledgers, Markdown, and `news_feedback_config.json` are internal artifacts. New automated releases follow `run -> verify --structure-only -> review-template -> authored source/story review -> seal-review -> verify --strict -> finalize -> verify --strict`. Read [the release-review protocol](references/release-review-protocol.md) before running or recovering this sequence. The completed directory contains the interactive briefing HTML, full default-`unrated` feedback JSON, Markdown, normalized config, review evidence, manifest, and atomically updated story index. Every new run requires a validated `opening_story` and a consistent worked example; HTML keeps only the example collapsed. The primary reader-facing artifact is the briefing HTML, not a candidate, config or staging directory.
 
 Optional news-feedback import is a downstream learner-profile handoff. It does not replace or weaken the daily publication gate.
 
-An opt-in OSS website mirror runs after `finalize` strictly re-verifies the completed local release. Read the OSS publication section in `.agents/RUNBOOK.md` when configuring or operating it. Its local `news_publish.local.json` contains only site and OSS routing fields; `ossutil` owns credentials. Website mirroring starts disabled, requires `publish_daily_to_oss.py enable` after the existing site, daily link, and configured Bucket index agree, and latches disabled when those checks later fail. A failed mirror does not erase the completed local briefing; report the separate remote status.
+An opt-in OSS website mirror runs only after the reviewed local release passes strict verification. Direct `publish` applies the same content gate. Read the OSS section in `.agents/RUNBOOK.md` when operating it. The local `news_publish.local.json` contains only site routing; `ossutil` owns credentials. Website mirroring starts disabled, requires manual `enable`, and latches disabled when the site or link cannot be verified after bounded retries. A failed mirror does not erase the completed local briefing; report the separate remote status.
 
 ## Core Workflow
 
 1. Determine the time window.
-   - "今日": use the user's current date and timezone; include near-24-hour rolling updates when publication times cross time zones.
+   - "今日" in an interactive request follows the user's current date and timezone. The scheduled 08:00 Asia/Shanghai release instead covers the prior complete local calendar day; do not claim that its release-date label means the current day is fully covered.
    - "近三天", "近4天", "本周": state the exact date range.
    - If sources are thin for the exact day, say so and include "past 24-48 hours still relevant" items separately.
 
@@ -115,6 +115,8 @@ firewall and daily briefing interface. Prefer a near-doctoral concept at the int
 learner's read-only knowledge boundary and the final briefing. If no supported
 intersection exists, use one source-grounded final briefing concept and retain
 its neutral `unrated` status.
+Before drafting the scene, make the private task-and-reasoning card required by
+`allegory-teach`; keep it in review evidence, never in `opening_story`.
 
 For a daily briefing, default to the rank-1 academic item after the academic
 section is ordered by descending impact score. Set
@@ -158,6 +160,9 @@ non-empty list of named `inputs` with actual values/states/conditions, and an
 repeating the general logic chain does not satisfy the example contract.
 Story and example share the same bounded case, direction, conditions and data
 identity. Re-review every cross-reference after editing either surface.
+Keep `concept_definition` to a bounded definition, put the research-task and
+story-action mapping in `logic_chain`, and leave section numbering to the
+renderer. The example's question, observable, steps and result must agree.
 Hypothetical examples must not impersonate source measurements. Review causal
 fidelity and comprehension separately from structural schema validation.
 

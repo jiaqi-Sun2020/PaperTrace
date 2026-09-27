@@ -42,29 +42,29 @@ def feedback_ux_styles() -> str:
   outline: 2px solid var(--accent-soft, rgba(15, 118, 110, .18));
   outline-offset: 1px;
 }
-.papertrace-selection-toolbar [data-inline-status="mastered"] {
+.papertrace-selection-toolbar button[data-inline-status="mastered"] {
   border-color: var(--reader-status-saved-border, #15803d);
   background: var(--reader-status-saved-bg, color-mix(in srgb, var(--paper, var(--panel, #fff)) 88%, #16a34a));
   color: var(--reader-status-saved-text, var(--ink, #172033));
 }
-.papertrace-selection-toolbar [data-inline-status="known"] {
+.papertrace-selection-toolbar button[data-inline-status="known"] {
   border-color: var(--reader-accent, var(--accent, #0f766e));
   background: var(--reader-accent-soft, var(--accent-soft, color-mix(in srgb, var(--paper, var(--panel, #fff)) 88%, #0f766e)));
   color: var(--ink, #172033);
 }
-.papertrace-selection-toolbar [data-inline-status="learning"] {
+.papertrace-selection-toolbar button[data-inline-status="learning"] {
   border-color: var(--reader-status-learning-border, #d97706);
   background: var(--reader-status-learning-bg, color-mix(in srgb, var(--paper, var(--panel, #fff)) 88%, #d97706));
   color: var(--ink, #172033);
 }
-.papertrace-selection-toolbar [data-inline-status="unknown"] {
+.papertrace-selection-toolbar button[data-inline-status="unknown"] {
   border-color: var(--reader-status-unknown-border, #dc2626);
   background: var(--reader-status-unknown-bg, color-mix(in srgb, var(--paper, var(--panel, #fff)) 88%, #dc2626));
   color: var(--ink, #172033);
 }
-.papertrace-selection-toolbar .papertrace-selection-details {
-  background: var(--accent, #0f766e);
-  color: var(--reader-primary-text, #f8fafc);
+.papertrace-selection-toolbar button.papertrace-selection-details {
+  background: color-mix(in srgb, var(--paper, var(--panel, #fff)) 72%, var(--accent, #0f766e));
+  color: var(--ink, #172033);
   border-color: var(--accent, #0f766e);
 }
 .papertrace-save-indicator {

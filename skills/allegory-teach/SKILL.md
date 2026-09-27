@@ -82,6 +82,16 @@ initial state -> rule or constraint -> local action -> consequence ->
 observable trade-off or failure mode
 ```
 
+Before choosing characters or props, make a short private task-and-reasoning
+card: the one question being taught, the source-backed task and constraint,
+the learner's missing bridge, the actor's goal and success test, the tempting
+shortcut and why it changes or fails the task, the decisive rule and action,
+and a counterfactual with its boundary. For daily authoring, keep this card in
+review evidence outside `opening_story`; never add it to version 3 or display
+it as a second preface. Use the question to align the title, narrative, factual
+return and example. A card that cannot name the reason for the actor's next
+action is not ready for literary polishing.
+
 Before choosing story objects, prepare the minimum real case, choose one
 relation, and turn it into a complete causal story. Do not add a second system
 of invented rules. A caveat may be the selected relation, but it must not
@@ -303,6 +313,10 @@ Report structural validation separately from semantic review. A semantic
 review needs the reviewed text, judgment, source or rule basis, and limitation.
 Missing evidence means unreviewed, not pass. Length and keyword checks cannot
 certify comprehension, truth or action correspondence.
+Use the three-round review procedure in `references/daily-briefing-interface.md`
+for daily openings. A recorded self-review is not a blind or independent review;
+the reviewer must say which it was. Do not report improved understanding or
+retention without learner evidence.
 
 ## Return every analogy to fact
 

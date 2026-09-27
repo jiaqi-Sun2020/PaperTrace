@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import html
 from html.parser import HTMLParser
+from http.client import HTTPException
 import json
 import os
 from pathlib import Path
@@ -17,8 +18,12 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
+
+from release_audit import validate_bundle
+from release_lock import release_lock
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parents[2]
@@ -28,7 +33,9 @@ MAX_SITE_BYTES = 10 * 1024 * 1024
 
 
 class PublishError(Exception):
-    pass
+    def __init__(self, message: str, *, code: str = "failure") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def now_utc() -> str:
@@ -127,10 +134,15 @@ def fetch_html(url: str) -> tuple[str, bytes]:
             if response.headers.get_content_type() not in ("text/html", "application/xhtml+xml"):
                 raise PublishError("Website did not return HTML")
             data = response.read(MAX_SITE_BYTES + 1)
+    except HTTPError as exc:
+        code = "not_found" if exc.code == 404 else "transient" if exc.code >= 500 else "site_rejected"
+        raise PublishError(f"Website returned HTTP {exc.code}", code=code) from exc
+    except (URLError, TimeoutError, HTTPException) as exc:
+        raise PublishError(f"Website check failed: {exc.__class__.__name__}", code="transient") from exc
     except PublishError:
         raise
     except Exception as exc:
-        raise PublishError(f"Website check failed: {exc.__class__.__name__}") from exc
+        raise PublishError(f"Website check failed: {exc.__class__.__name__}", code="transient") from exc
     if len(data) > MAX_SITE_BYTES or b"<html" not in data[:4096].lower():
         raise PublishError("Website HTML is missing or exceeds the size limit")
     return final_url, data
@@ -184,6 +196,17 @@ def check_site(config: dict[str, str]) -> tuple[str, bytes]:
     return linked_url, index_bytes
 
 
+def checked_site(config: dict[str, str]) -> tuple[str, bytes]:
+    """Retry only transient site checks; failure still requires manual re-enable."""
+    for attempt in range(3):
+        try:
+            return check_site(config)
+        except PublishError as exc:
+            if exc.code != "transient" or attempt == 2:
+                raise
+    raise AssertionError("unreachable")
+
+
 def oss_key(config: dict[str, str], filename: str) -> str:
     return f"{config['object_prefix']}/{filename}" if config["object_prefix"] else filename
 
@@ -228,7 +251,7 @@ def upload_file(config: dict[str, str], source: Path, filename: str) -> None:
         raise PublishError(f"OSS upload failed with exit code {result.returncode}")
 
 
-def verified_release(run_dir: Path) -> tuple[str, Path, str]:
+def verified_release(run_dir: Path, *, require_audit: bool = True) -> tuple[str, Path, str]:
     from daily_pipeline import verify_artifacts
 
     result = verify_artifacts(run_dir, strict=True)
@@ -239,6 +262,12 @@ def verified_release(run_dir: Path) -> tuple[str, Path, str]:
         raise PublishError("Only a completed, indexed daily release may be published to OSS")
     if Path(manifest.get("output_dir", "")).resolve() != run_dir.resolve():
         raise PublishError("Release manifest does not match its output directory")
+    if require_audit:
+        failures = validate_bundle(run_dir, manifest,
+                                   require_manifest_binding=int(manifest.get("pipeline_version") or 1) >= 2)
+        if failures:
+            raise PublishError("Release lacks a current content review: " + "; ".join(failures[:3]),
+                               code="content_ineligible")
     run_date = str(manifest.get("date") or "")
     if not BRIEFING_NAME.fullmatch(f"briefing_reader_{run_date}.html"):
         raise PublishError("Release date is invalid")
@@ -246,7 +275,48 @@ def verified_release(run_dir: Path) -> tuple[str, Path, str]:
     return run_date, html_path, hashlib.sha256(html_path.read_bytes()).hexdigest()
 
 
-def publish(run_dir: Path, config_path: Path) -> dict[str, Any]:
+def _receipt(path: Path) -> dict[str, Any] | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _remote_html(url: str) -> bytes | None:
+    for attempt in range(3):
+        try:
+            final_url, data = fetch_html(url)
+            if final_url != url:
+                raise PublishError("Daily HTML redirected away from its configured URL", code="deployment_mismatch")
+            return data
+        except PublishError as exc:
+            if exc.code == "not_found":
+                return None
+            if exc.code != "transient" or attempt == 2:
+                raise
+    raise AssertionError("unreachable")
+
+
+def _index_html(filename: str) -> str:
+    redirect = html.escape(filename, quote=True)
+    return (
+        '<!doctype html>\n<html lang="zh-CN"><head><meta charset="utf-8">'
+        f'<meta http-equiv="refresh" content="0; url={redirect}">'
+        '<title>Daily Briefing</title></head><body>'
+        f'<a href="{redirect}">阅读最新日报</a></body></html>\n'
+    )
+
+
+def publish(run_dir: Path, config_path: Path, *, correction_reason: str | None = None,
+            supersedes_hash: str | None = None) -> dict[str, Any]:
+    with release_lock(config_path.parent / "news"):
+        return _publish_locked(run_dir, config_path, correction_reason=correction_reason,
+                               supersedes_hash=supersedes_hash)
+
+
+def _publish_locked(run_dir: Path, config_path: Path, *, correction_reason: str | None,
+                    supersedes_hash: str | None) -> dict[str, Any]:
     state_path, receipt_dir = locations(config_path)
     state = load_state(state_path)
     if not state.get("enabled"):
@@ -256,53 +326,84 @@ def publish(run_dir: Path, config_path: Path) -> dict[str, Any]:
         identity = deployment_id(config)
         if state.get("deployment_id") != identity:
             raise PublishError("Deployment settings changed; manual enable is required")
-        _, old_index = check_site(config)
+        current_home_url, old_index = checked_site(config)
         check_bucket_binding(config, old_index)
     except PublishError as exc:
         set_state(state_path, enabled=False, reason=str(exc))
         return {"status": "disabled", "reason": str(exc)}
 
-    run_date, html_path, expected_hash = verified_release(run_dir)
+    run_date, html_path, expected_hash = verified_release(run_dir, require_audit=True)
     target_url = urljoin(config["site_index_url"], html_path.name)
-    upload_file(config, html_path, html_path.name)
+    current_home_date = BRIEFING_NAME.fullmatch(current_home_url.rsplit("/", 1)[-1]).group(1)
+    receipt_path = receipt_dir / f"oss_publish_receipt_{run_date}.json"
+    prior = _receipt(receipt_path)
+    if prior and prior.get("html_sha256") not in (None, expected_hash):
+        if (not correction_reason or supersedes_hash != prior.get("html_sha256")):
+            raise PublishError("Published date has different content; an audited explicit correction is required",
+                               code="correction_required")
     try:
-        remote_url, remote_bytes = fetch_html(target_url)
-        if remote_url != target_url or hashlib.sha256(remote_bytes).hexdigest() != expected_hash:
-            raise PublishError("Uploaded daily HTML did not match the verified local release")
+        remote_bytes = _remote_html(target_url)
     except PublishError as exc:
         set_state(state_path, enabled=False, reason=str(exc))
         raise
-
-    redirect = html.escape(html_path.name, quote=True)
-    index_text = (
-        '<!doctype html>\n<html lang="zh-CN"><head><meta charset="utf-8">'
-        f'<meta http-equiv="refresh" content="0; url={redirect}">'
-        '<title>Daily Briefing</title></head><body>'
-        f'<a href="{redirect}">阅读最新日报</a></body></html>\n'
-    )
-    with tempfile.TemporaryDirectory(prefix="papertrace-oss-") as temp:
-        index_path = Path(temp) / "index.html"
-        index_path.write_text(index_text, encoding="utf-8")
+    remote_hash = hashlib.sha256(remote_bytes).hexdigest() if remote_bytes is not None else None
+    if remote_hash and remote_hash != expected_hash:
+        if not correction_reason or supersedes_hash != remote_hash:
+            raise PublishError("Remote date has different content; explicit correction is required",
+                               code="correction_required")
+    index_needed = current_home_date < run_date or (current_home_date == run_date and current_home_url != target_url)
+    if current_home_date == run_date and current_home_url == target_url and remote_hash != expected_hash:
+        index_needed = True
+    if remote_hash == expected_hash and not index_needed:
+        if prior and prior.get("html_sha256") == expected_hash and prior.get("deployment_id") == identity:
+            return {"status": "no_change", "date": run_date, "html_sha256": expected_hash,
+                    "site_url": target_url}
+        receipt = {"version": 2, "status": "published", "date": run_date,
+                   "html_sha256": expected_hash, "site_url": target_url,
+                   "deployment_id": identity, "index_updated": current_home_url == target_url,
+                   "published_at": now_utc(), "recovered": True}
+        atomic_json(receipt_path, receipt)
+        return receipt
+    if remote_hash != expected_hash:
         try:
-            upload_file(config, index_path, "index.html")
+            upload_file(config, html_path, html_path.name)
+        except PublishError as exc:
+            return {"status": "pending", "date": run_date, "reason": str(exc), "next_action": "retry publish"}
+        try:
+            refreshed = _remote_html(target_url)
+            if refreshed is None or hashlib.sha256(refreshed).hexdigest() != expected_hash:
+                raise PublishError("Uploaded daily HTML did not match the verified local release",
+                                   code="deployment_mismatch")
+        except PublishError as exc:
+            set_state(state_path, enabled=False, reason=str(exc))
+            raise
+
+    if index_needed:
+        with tempfile.TemporaryDirectory(prefix="papertrace-oss-") as temp:
+            index_path = Path(temp) / "index.html"
+            index_path.write_text(_index_html(html_path.name), encoding="utf-8")
             try:
-                final_link, _ = check_site(config)
+                upload_file(config, index_path, "index.html")
+            except PublishError as exc:
+                return {"status": "pending", "date": run_date, "reason": str(exc),
+                        "next_action": "reconcile remote index, then retry publish"}
+            try:
+                final_link, latest_index = checked_site(config)
                 if final_link != target_url:
-                    raise PublishError("Published index does not point to the new daily HTML")
+                    raise PublishError("Published index does not point to the approved daily HTML",
+                                       code="deployment_mismatch")
+                check_bucket_binding(config, latest_index)
             except PublishError as exc:
                 set_state(state_path, enabled=False, reason=str(exc))
                 raise
-        except PublishError:
-            previous_index = Path(temp) / "previous-index.html"
-            previous_index.write_bytes(old_index)
-            try:
-                upload_file(config, previous_index, "index.html")
-            except PublishError:
-                raise PublishError("Index verification failed and restoring its previous content also failed")
-            raise
 
-    receipt = {"status": "published", "date": run_date, "html_sha256": expected_hash, "site_url": target_url, "published_at": now_utc()}
-    atomic_json(receipt_dir / f"oss_publish_receipt_{run_date}.json", receipt)
+    receipt = {"version": 2, "status": "published", "date": run_date,
+               "html_sha256": expected_hash, "site_url": target_url,
+               "deployment_id": identity, "index_updated": index_needed,
+               "published_at": now_utc()}
+    if correction_reason:
+        receipt.update({"correction_reason": correction_reason, "supersedes_hash": supersedes_hash})
+    atomic_json(receipt_path, receipt)
     return receipt
 
 
@@ -310,7 +411,7 @@ def enable(config_path: Path) -> dict[str, Any]:
     state_path, _ = locations(config_path)
     try:
         config = load_config(config_path)
-        linked_url, website_index = check_site(config)
+        linked_url, website_index = checked_site(config)
         check_bucket_binding(config, website_index)
     except PublishError as exc:
         set_state(state_path, enabled=False, reason=str(exc))
@@ -333,10 +434,12 @@ def status(config_path: Path) -> dict[str, Any]:
     return {"status": "enabled", "updated_at": state.get("updated_at")}
 
 
-def auto_publish_after_finalize(output_root: Path) -> dict[str, Any]:
+def auto_publish_after_finalize(output_root: Path, *, correction_reason: str | None = None,
+                                supersedes_hash: str | None = None) -> dict[str, Any]:
     config_path = output_root.parent.parent / "news_publish.local.json"
     try:
-        return publish(output_root, config_path)
+        return publish(output_root, config_path, correction_reason=correction_reason,
+                       supersedes_hash=supersedes_hash)
     except PublishError as exc:
         return {"status": "failed", "reason": str(exc)}
     except Exception as exc:
@@ -348,6 +451,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", choices=("status", "enable", "publish"))
     parser.add_argument("--config", type=Path, default=PROJECT_ROOT / "news_publish.local.json")
     parser.add_argument("--run-dir", type=Path, help="Completed local daily release directory; required for publish")
+    parser.add_argument("--correction-reason", help="Required to replace different content for an already published date")
+    parser.add_argument("--supersedes-hash", help="SHA-256 of the old published HTML being corrected")
     args = parser.parse_args(argv)
     config_path = args.config.expanduser().resolve()
     try:
@@ -358,11 +463,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             if args.run_dir is None:
                 parser.error("publish requires --run-dir")
-            result = publish(args.run_dir.expanduser().resolve(), config_path)
+            result = publish(args.run_dir.expanduser().resolve(), config_path,
+                             correction_reason=args.correction_reason,
+                             supersedes_hash=args.supersedes_hash)
     except PublishError as exc:
         result = {"status": "failed", "reason": str(exc)}
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 1 if result["status"] == "failed" or (args.command == "enable" and result["status"] != "enabled") else 0
+    return 1 if result["status"] in {"failed", "pending"} or (args.command == "enable" and result["status"] != "enabled") else 0
 
 
 if __name__ == "__main__":

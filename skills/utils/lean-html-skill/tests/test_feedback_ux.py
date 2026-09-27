@@ -40,6 +40,9 @@ class FeedbackUXContractTests(unittest.TestCase):
         self.assertIn("var(--reader-status-learning-bg", styles)
         self.assertIn("var(--reader-status-unknown-bg", styles)
         self.assertIn("var(--reader-danger-bg", styles)
+        self.assertIn('button[data-inline-status="known"]', styles)
+        self.assertIn("button.papertrace-selection-details", styles)
+        self.assertIn("color: var(--ink, #172033)", styles)
 
     def test_generic_feedback_fragment_uses_autosave_without_legacy_button(self) -> None:
         fragment = feedback_html(

@@ -37,9 +37,11 @@ def audit(run_dir, review_path):
             'structural': {'status': 'fail' if failures else 'pass', 'failures': failures,
                            'paragraphs': len(story['paragraphs']),
                            'config_sha256': sha256_file(config_path)},
-            'semantic_review': {'status': 'unreviewed-or-fail' if semantic_failures else 'reviewed',
+            'semantic_review': {'status': 'unreviewed-or-fail' if semantic_failures else 'review-record-validated',
                                 'failures': semantic_failures, 'evidence': review,
-                                'caution': 'Code verifies provenance and freshness, not semantic truth.'}}
+                                'review_method': review.get('review_method', 'legacy-unspecified'),
+                                'validation_scope': 'provenance-and-freshness-only',
+                                'caution': 'Code verifies provenance and freshness, not comprehension or semantic truth.'}}
 
 
 def main():

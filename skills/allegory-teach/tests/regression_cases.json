@@ -637,6 +637,38 @@
       "expected_device": "report design intent without claiming measured learning",
       "must_preserve": ["separate structural checks and semantic review", "unchanged learner state"],
       "must_avoid": ["test pass asserted as retention improvement", "exposure promoted to mastery"]
+    },
+    {
+      "id": "bound-application-is-not-proof-or-attainment",
+      "mode": "fable",
+      "concept": "necessary time bound under source-stated conditions",
+      "expected_device": "shortcut changes the task, and a supplied bound excludes one candidate time",
+      "must_preserve": ["the original task and source-supported conditions", "the rule origin or an explicit admission that the bound is supplied", "a candidate-time comparison", "necessity without an attainment promise"],
+      "must_avoid": ["a clock prop announcing an unexplained coefficient", "substitution called a derivation", "a lower bound described as a reachable fastest schedule"]
+    },
+    {
+      "id": "natural-capacity-alternative",
+      "mode": "fable",
+      "concept": "finite representation and a feasible larger representation",
+      "expected_device": "show what ceases to fit, what expansion could do and its source-supported cost",
+      "must_preserve": ["an unambiguous count of represented states", "the first input outside that range", "expansion treated as possible", "illustrative replacement rule distinguished from physical implementation"],
+      "must_avoid": ["invented prohibition on adding capacity", "unsupported claim that a different carrier must be superior", "unnecessary props that act as second mechanism"]
+    },
+    {
+      "id": "example-observable-is-actually-computed",
+      "mode": "fable",
+      "concept": "same-case formal check after a story",
+      "expected_device": "question, observable, steps and result test the same target",
+      "must_preserve": ["same bounded case", "every promised observable computed or explicitly narrowed", "result directly answers the question"],
+      "must_avoid": ["promising a state-distance calculation but only checking elapsed time", "repeating story prose in place of an operation"]
+    },
+    {
+      "id": "first-round-story-only-review",
+      "mode": "fable",
+      "concept": "narrative comprehensibility before author mapping is shown",
+      "expected_device": "story-only reviewer reconstructs goal, choice, consequence and missing link",
+      "must_preserve": ["title and complete narrative as first-round input", "actual quoted causal evidence", "self-review labeled honestly", "source and cross-surface rounds kept distinct"],
+      "must_avoid": ["debrief used to repair an unclear story during the first round", "hash validation described as semantic proof", "unsupported claim of improved reader retention"]
     }
   ]
 }

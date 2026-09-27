@@ -221,8 +221,8 @@ def render_worked_example(story: dict[str, Any]) -> str:
 """
         )
 
-    has_formula = worked_example_has_formula(example)
-    summary = "展开完整例子与公式推导" if has_formula else "展开完整例子"
+    # A displayed formula may be a substitution or comparison, not a derivation.
+    summary = "展开完整例子与步骤"
     return f"""
 <details class="story-worked-example" data-story-example="true" data-story-example-kind="{esc(example.get('kind'))}">
   <summary>{summary}</summary>
@@ -290,7 +290,7 @@ def render_opening_story(config: dict[str, Any]) -> str:
   <div class="story-narrative">{paragraphs}</div>
   <div class="story-debrief">
     <p><strong>1. 概念名称与一句话定义：</strong>{esc(story.get('concept_name'))}——{esc(story.get('concept_definition'))}</p>
-    <p><strong>2. 故事元素与现实对应：</strong>{esc(story.get('logic_chain'))}</p>
+    <p><strong>2. 故事对应与真实机制：</strong>{esc(story.get('logic_chain'))}</p>
     <p><strong>3. 这个类比没有覆盖的边界：</strong>{esc(story.get('analogy_boundary'))}</p>
     <p><strong>4. 它可能误导你的地方：</strong>{esc(story.get('misleading_risk'))}</p>
   </div>
@@ -619,16 +619,16 @@ def render_html(config: dict[str, Any]) -> str:
       font: inherit;
     }}
     .concept-chip, .action-btn {{
-      border: 1px solid rgba(15, 118, 110, 0.34);
+      border: 1px solid var(--line);
       color: var(--accent);
-      background: #f0fdfa;
+      background: var(--panel);
       min-height: 30px;
       border-radius: 8px;
       padding: 4px 9px;
       cursor: pointer;
     }}
     .concept-chip:hover, .action-btn:hover {{
-      background: #ccfbf1;
+      background: color-mix(in srgb, var(--panel) 82%, var(--accent));
     }}
     .source-line {{
       color: var(--muted);
@@ -672,14 +672,15 @@ def render_html(config: dict[str, Any]) -> str:
       min-height: 40px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #f8fafc;
+      background: var(--panel);
       color: var(--ink);
       cursor: pointer;
     }}
     .news-status-buttons button.active {{
-      color: #fff;
-      background: var(--accent);
+      color: var(--ink);
+      background: color-mix(in srgb, var(--panel) 75%, var(--accent));
       border-color: var(--accent);
+      font-weight: 700;
     }}
     .panel-title {{
       display: flex;
@@ -705,7 +706,7 @@ def render_html(config: dict[str, Any]) -> str:
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 8px;
-      background: #fff;
+      background: var(--panel);
       color: var(--ink);
     }}
     textarea {{
@@ -724,14 +725,14 @@ def render_html(config: dict[str, Any]) -> str:
       border-color: var(--accent);
     }}
     .secondary {{
-      background: #f8fafc;
+      background: var(--panel);
       color: var(--ink);
       border-color: var(--line);
     }}
     .danger {{
       color: var(--bad);
-      border-color: #fecaca;
-      background: #fff5f5;
+      border-color: var(--bad);
+      background: color-mix(in srgb, var(--panel) 90%, var(--bad));
     }}
     details.saved-list {{
       margin-top: 12px;
@@ -749,7 +750,7 @@ def render_html(config: dict[str, Any]) -> str:
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 8px;
-      background: #fbfdff;
+      background: var(--panel);
       font-size: 13px;
     }}
     .saved-item strong {{
@@ -771,13 +772,55 @@ def render_html(config: dict[str, Any]) -> str:
       .header-inner, .layout {{
         grid-template-columns: 1fr;
       }}
+      .layout {{
+        padding-bottom: calc(84px + env(safe-area-inset-bottom));
+      }}
       aside.feedback-panel {{
-        position: static;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: var(--feedback-keyboard-offset, 0px);
+        z-index: 40;
+        max-height: 70vh;
+        max-height: min(70dvh, var(--feedback-available-height, 70dvh));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        overflow-wrap: anywhere;
+        border-radius: 14px 14px 0 0;
+        padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+      }}
+      aside.feedback-panel.is-collapsed {{
+        left: 12px;
+        right: 12px;
+        bottom: calc(12px + var(--feedback-keyboard-offset, 0px) + env(safe-area-inset-bottom));
         max-height: none;
+        border-radius: 12px;
+        padding: 8px 12px;
+      }}
+      aside.feedback-panel.is-collapsed.selection-active {{
+        visibility: hidden;
+        pointer-events: none;
+      }}
+      aside.feedback-panel .panel-title {{
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--panel);
+        padding: 8px 0;
+      }}
+      aside.feedback-panel.is-collapsed .panel-title {{
+        position: static;
+        padding: 0;
+      }}
+      #toggleFeedbackPanel {{
+        min-height: 44px;
+      }}
+      .concept-chip, .action-btn, .news-status-buttons button,
+      .feedback-detail input, .feedback-detail select {{
+        min-height: 44px;
       }}
       .floating-annotate {{
-        right: 14px;
-        bottom: 14px;
+        display: none;
       }}
     }}
     @media print {{
@@ -954,6 +997,36 @@ def render_html(config: dict[str, Any]) -> str:
     const saveStatus = $('newsSaveStatus');
     const undoStatus = $('newsUndoStatus');
     const selectionToolbar = $('newsSelectionToolbar');
+    const mobileFeedbackQuery = window.matchMedia('(max-width: 920px)');
+    function keepFocusedFieldVisible() {{
+      if (!mobileFeedbackQuery.matches || !feedbackPanel.contains(document.activeElement)) return;
+      const field = document.activeElement.getBoundingClientRect();
+      const panel = feedbackPanel.getBoundingClientRect();
+      const top = panel.top + 56;
+      const bottom = panel.bottom - 18;
+      if (field.bottom > bottom) feedbackPanel.scrollTop += field.bottom - bottom;
+      else if (field.top < top) feedbackPanel.scrollTop -= top - field.top;
+    }}
+    function updateMobileFeedbackViewport() {{
+      const viewport = window.visualViewport;
+      if (!mobileFeedbackQuery.matches || !viewport) {{
+        feedbackPanel.style.removeProperty('--feedback-keyboard-offset');
+        feedbackPanel.style.removeProperty('--feedback-available-height');
+        return;
+      }}
+      const keyboardOffset = Math.max(0, window.innerHeight - viewport.offsetTop - viewport.height);
+      feedbackPanel.style.setProperty('--feedback-keyboard-offset', `${{Math.round(keyboardOffset)}}px`);
+      feedbackPanel.style.setProperty('--feedback-available-height', `${{Math.max(0, Math.round(viewport.height - 12))}}px`);
+      window.requestAnimationFrame(keepFocusedFieldVisible);
+    }}
+    window.addEventListener('resize', updateMobileFeedbackViewport);
+    if (window.visualViewport) {{
+      window.visualViewport.addEventListener('resize', updateMobileFeedbackViewport);
+      window.visualViewport.addEventListener('scroll', updateMobileFeedbackViewport);
+    }}
+    new MutationObserver(() => {{
+      feedbackPanel.classList.toggle('selection-active', !selectionToolbar.hidden);
+    }}).observe(selectionToolbar, {{ attributes: true, attributeFilter: ['hidden'] }});
     if (storageUnavailable) {{
       unsafeChanges = true;
       saveStatus.dataset.state = 'failed';
@@ -975,6 +1048,10 @@ def render_html(config: dict[str, Any]) -> str:
       feedbackDetails.hidden = !expanded;
       toggleFeedbackPanel.setAttribute('aria-expanded', String(expanded));
       toggleFeedbackPanel.textContent = expanded ? '收起' : '展开';
+      if (expanded && mobileFeedbackQuery.matches) {{
+        updateMobileFeedbackViewport();
+        feedbackPanel.scrollTop = 0;
+      }}
     }}
 
     function updateAutosaveStatus(event) {{
@@ -1028,6 +1105,10 @@ def render_html(config: dict[str, Any]) -> str:
       noteInput.value = existing ? (existing.note || '') : '';
       contextInput.value = existing ? (existing.source_excerpt || active.source_excerpt || '') : (active.source_excerpt || '');
       if (!options || options.expand !== false) setPanelExpanded(true);
+      if (options && options.focusQuestion) {{
+        questionInput.focus({{ preventScroll: true }});
+        window.requestAnimationFrame(keepFocusedFieldVisible);
+      }}
     }}
 
     function currentPayload() {{
@@ -1211,10 +1292,10 @@ def render_html(config: dict[str, Any]) -> str:
           noteInput.value = entry.note || '';
           contextInput.value = entry.source_excerpt || '';
           setPanelExpanded(true);
-          const card = entry.block_id
-            ? Array.from(document.querySelectorAll('.news-card')).find(node => node.dataset.itemId === entry.block_id)
-            : null;
-          if (card) card.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+          if (mobileFeedbackQuery.matches) {{
+            questionInput.focus({{ preventScroll: true }});
+            window.requestAnimationFrame(keepFocusedFieldVisible);
+          }}
         }});
         buttons[1].addEventListener('click', () => {{
           const index = saved.findIndex(row => row.feedback_id === entry.feedback_id);
@@ -1285,7 +1366,7 @@ def render_html(config: dict[str, Any]) -> str:
         openFeedback(selected, {{ expand: false }});
         applyStatusWithUndo(status);
       }},
-      onDetails: selected => openFeedback(selected)
+      onDetails: selected => openFeedback(selected, {{ focusQuestion: true }})
     }});
 
     $('annotateBtn').addEventListener('click', () => {{
@@ -1294,7 +1375,7 @@ def render_html(config: dict[str, Any]) -> str:
         alert('请先选中一段日报文本。');
         return;
       }}
-      openFeedback(selected);
+      openFeedback(selected, {{ focusQuestion: true }});
     }});
     statusButtons.forEach(button => button.addEventListener('click', () => applyStatusWithUndo(button.dataset.status)));
     [conceptInput, questionInput, noteInput, contextInput].forEach(field => {{
@@ -1304,6 +1385,12 @@ def render_html(config: dict[str, Any]) -> str:
       field.addEventListener('change', () => {{ if (active) autosave.schedule('field-change'); }});
     }});
     toggleFeedbackPanel.addEventListener('click', () => setPanelExpanded(feedbackDetails.hidden));
+    feedbackPanel.addEventListener('keydown', event => {{
+      if (event.key === 'Escape' && !feedbackDetails.hidden) {{
+        setPanelExpanded(false);
+        toggleFeedbackPanel.focus({{ preventScroll: true }});
+      }}
+    }});
     $('deleteBtn').addEventListener('click', () => {{
       try {{ deleteCurrent(); }}
       catch (error) {{ updateAutosaveStatus({{ state: 'failed', message: '自动保存失败，请先导出 JSON。', error }}); }}
@@ -1323,6 +1410,7 @@ def render_html(config: dict[str, Any]) -> str:
 
     setStatus(DEFAULT_STATUS);
     setPanelExpanded(false);
+    updateMobileFeedbackViewport();
     renderSaved();
     renderBadges();
   </script>

@@ -40,6 +40,9 @@ definition. The current renderer places the definition in section 1 and the
 logic chain in section 2: use those fields without adding a background field,
 changing schema, or hiding necessary context in the collapsed example. Do not
 claim that authoring or structural validation demonstrates improved retention.
+For new fields, leave off `1.` through `4.` prefixes: the HTML renderer adds
+the headings. Keep the actual research task and story-action mapping in
+`logic_chain`, not in `analogy_boundary`; the latter only states omitted scope.
 
 Return this object to `ai-quantum-news-briefing`; do not publish or write
 the config yourself. The existing fields carry the four reading layers:
@@ -120,6 +123,32 @@ current story/example digest and three rounds: story-completeness,
 semantic-and-source, cross-surface-and-display. Each records reviewed text,
 judgment, reason, source_or_rule and limitation. Re-author the judgment after an
 edit, not just its hash. The validator checks provenance, not truth.
+
+For a newly authored review, use sidecar `review_protocol_version=2`,
+`review_method="self"` or `"independent"`, and a private `task_card` with
+`teaching_question`, `source_task_and_constraint`, `learner_bridge`,
+`actor_goal_and_success`, `shortcut_and_limit`, `decisive_rule_and_action`, and
+`counterfactual_and_boundary`. Do not put this card in `opening_story` or the
+published teaching prose. Existing review sidecars remain valid without these
+fields; their provenance check must not be relabelled semantic certification.
+
+Review in this order, recording `materials_seen` for each new round:
+
+1. `story-completeness`: see only `title` and `paragraphs`, not the task card,
+   author mapping, factual return or worked example. Quote the sentence that
+   supplies the goal, success condition, reason for action and counterfactual;
+   report any link that cannot be recovered from the story alone.
+2. `semantic-and-source`: see the full factual return and original source.
+   Check task identity, object and operation types, rule origin, theorem versus
+   application, alternatives and claim strength. Use primary source anchors.
+3. `cross-surface-and-display`: compare the revised story, debrief, worked
+   example and rendered HTML. Check field responsibility, question/observable/
+   steps/result, same-case quantities, visible order and collapsed example.
+
+An independent review requires a genuinely separate review pass with its input
+and output retained; otherwise label the record `self`. The code can validate
+declared materials, quotes and freshness, not whether a human learned or a
+causal judgment is scientifically correct. Report these outcomes separately.
 
 From `D:\AI\PaperTrace`, reproduce the review and structural audit with:
 

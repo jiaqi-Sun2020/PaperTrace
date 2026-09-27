@@ -14,7 +14,7 @@ import shutil
 import sys
 import tempfile
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -41,6 +41,9 @@ from news_delta import (
     upsert_index,
 )
 from rank_briefing_candidates import DEFAULT_RANKING_POLICY, merged_policy, rank_briefing_config
+from release_audit import REVIEW_NAMES, claim_digest, content_digest, make_report, selected_items, validate_bundle
+from release_lock import release_lock
+from review_evidence import ROUND_MATERIALS, TASK_CARD_KEYS, story_digest
 
 
 ARTIFACT_NAMES = {
@@ -77,6 +80,18 @@ def atomic_text(path: Path, content: str) -> None:
 
 def atomic_json(path: Path, data: dict[str, Any]) -> None:
     atomic_text(path, json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def atomic_copy(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".new", dir=target.parent)
+    os.close(fd)
+    try:
+        shutil.copy2(source, temp_name)
+        os.replace(temp_name, target)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
 
 
 def sha256_file(path: Path) -> str:
@@ -123,9 +138,9 @@ def parse_chip_identities(html_text: str) -> set[str]:
     return identities
 
 
-def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
+def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: bool = False) -> dict[str, Any]:
     manifest_files = list(run_root.glob("daily_pipeline_manifest_*.json"))
-    if not manifest_files:
+    if len(manifest_files) != 1:
         return {"status": "fail", "failures": [f"manifest missing in {run_root}"], "warnings": []}
     manifest_path = manifest_files[0]
     manifest = load_json(manifest_path)
@@ -261,9 +276,24 @@ def verify_artifacts(run_root: Path, *, strict: bool = True) -> dict[str, Any]:
         if manifest.get("design_system", "cosmic") == "cosmic":
             failures.extend(design_audit_issues(html_text))
         manifest_hashes = manifest.get("artifact_sha256") or {}
+        protocol = int(manifest.get("pipeline_version") or 1)
         for key, path in paths.items():
-            if key != "manifest" and manifest_hashes.get(key) and manifest_hashes[key] != sha256_file(path):
+            if key == "manifest":
+                continue
+            if protocol >= 2 and (manifest.get("artifacts") or {}).get(key) != path.name:
+                failures.append(f"manifest artifact identity mismatch: {key}")
+            recorded = manifest_hashes.get(key)
+            if protocol >= 2 and (not isinstance(recorded, str) or not re.fullmatch(r"[0-9a-f]{64}", recorded)):
+                failures.append(f"manifest hash missing or invalid: {key}")
+            elif recorded and recorded != sha256_file(path):
                 failures.append(f"manifest hash mismatch: {key}")
+        if protocol >= 2:
+            failures.extend(_validate_coverage_manifest(manifest))
+        if protocol >= 2 and not structure_only:
+            for key, template in REVIEW_NAMES.items():
+                if (manifest.get("artifacts") or {}).get(key) != template.format(date=run_date):
+                    failures.append(f"manifest review artifact identity mismatch: {key}")
+            failures.extend(validate_bundle(run_root, manifest, require_manifest_binding=True))
 
     status = "fail" if failures else "pass" if not warnings else "warn"
     return {
@@ -355,6 +385,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     assert_config_text_integrity(raw_config)
     normalize_briefing_config(raw_config, config_path, require_source_url=True)
     run_date = infer_date(raw_config, args.date).isoformat()
+    protocol = int(getattr(args, "release_protocol", 1))
+    if protocol >= 2:
+        coverage_start, coverage_end = _coverage_window(args, raw_config, run_date)
     output_root = Path(args.output_dir or (config_path.parents[2] / "news" / run_date)).expanduser().resolve()
     run_id = f"{run_date}-{uuid.uuid4().hex[:12]}"
     run_root = output_root / ".staging" / run_id
@@ -362,6 +395,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     index_path = Path(args.index).expanduser().resolve() if args.index else output_root.parent / "_index" / "story_index.jsonl"
 
     index_records = load_index(index_path)
+    index_snapshot = sha256_file(index_path) if index_path.exists() else None
     ranked_config = (
         rank_briefing_config(raw_config, index_records, date.fromisoformat(run_date), args.days)
         if isinstance(raw_config.get("academic_delivery"), dict) and raw_config["academic_delivery"].get("required")
@@ -389,7 +423,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     atomic_text(names["html"], rendered_html)
     atomic_json(names["index_updates"], {"run_id": run_id, "items": index_updates})
     manifest = {
-        "pipeline_version": 1,
+        "pipeline_version": protocol,
         "status": "staged",
         "run_id": run_id,
         "date": run_date,
@@ -397,6 +431,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         "input_config_sha256": sha256_file(config_path),
         "output_dir": str(output_root),
         "index_path": str(index_path),
+        "index_snapshot_sha256": index_snapshot,
         "delta_counts": delta_manifest.get("counts", {}),
         "ranking": (ranked_config.get("ranking_manifest") or {}).get("selected_counts", {}),
         "expected_concepts": len(feedback["items"]),
@@ -411,6 +446,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         "artifact_sha256": {key: sha256_file(path) for key, path in names.items() if key != "manifest"},
         "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
     }
+    if protocol >= 2:
+        manifest["coverage"] = {"start": coverage_start, "end": coverage_end,
+                                "timezone": "Asia/Shanghai",
+                                "collection_completed_at": raw_config["collection_completed_at"],
+                                "daily_search_evidence": raw_config.get("coverage_evidence") or []}
     atomic_json(names["manifest"], manifest)
     print(json.dumps({"status": "staged", "run_id": run_id, "run_dir": str(run_root)}, ensure_ascii=False))
     return 0
@@ -418,69 +458,383 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def cmd_verify(args: argparse.Namespace) -> int:
     run_root = Path(args.run_dir).expanduser().resolve()
-    result = verify_artifacts(run_root, strict=args.strict)
+    result = verify_artifacts(run_root, strict=args.strict, structure_only=getattr(args, "structure_only", False))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result["status"] == "pass" else 1
 
 
-def cmd_finalize(args: argparse.Namespace) -> int:
+def _coverage_window(args: argparse.Namespace, config: dict[str, Any], run_date: str) -> tuple[str, str]:
+    shanghai = timezone(timedelta(hours=8), "Asia/Shanghai")
+    anchor = date.fromisoformat(run_date)
+    described_dates = re.findall(r"20\d{2}-\d{2}-\d{2}", str(config.get("date_range") or ""))
+    if (len(set(described_dates)) > 1
+            and not (getattr(args, "coverage_start", None) and getattr(args, "coverage_end", None))):
+        raise ValueError("multi-day date_range requires explicit coverage boundaries")
+    default_start = datetime.combine(anchor - timedelta(days=1), datetime.min.time(), shanghai)
+    default_end = datetime.combine(anchor, datetime.min.time(), shanghai)
+    start_text = getattr(args, "coverage_start", None) or default_start.isoformat()
+    end_text = getattr(args, "coverage_end", None) or default_end.isoformat()
+    start = datetime.fromisoformat(start_text)
+    end = datetime.fromisoformat(end_text)
+    if start.tzinfo is None or end.tzinfo is None or start >= end:
+        raise ValueError("coverage must be a nonempty timezone-aware half-open interval")
+    if end.astimezone(shanghai).date() > anchor:
+        raise ValueError("coverage end cannot be later than the release-date midnight")
+    if (start.astimezone(shanghai).time() != datetime.min.time()
+            or end.astimezone(shanghai).time() != datetime.min.time()):
+        raise ValueError("coverage boundaries must be midnight in Asia/Shanghai")
+    if end > datetime.now(timezone.utc):
+        raise ValueError("coverage cannot include an unfinished day")
+    days = (end.astimezone(shanghai).date() - start.astimezone(shanghai).date()).days
+    covered_dates = {(start.astimezone(shanghai).date() + timedelta(days=offset)).isoformat()
+                     for offset in range(days)}
+    if described_dates and set(described_dates) != covered_dates:
+        raise ValueError("date_range does not match the declared complete-day coverage")
+    if days > 1:
+        evidence = config.get("coverage_evidence")
+        if (not isinstance(evidence, list) or len(evidence) != len(covered_dates)
+                or {row.get("date") for row in evidence if isinstance(row, dict)} != covered_dates
+                or any(not row.get("academic_search_ref") or not row.get("social_search_ref") for row in evidence if isinstance(row, dict))):
+            raise ValueError("multi-day coverage requires per-day academic and social search evidence")
+    collected = config.get("collection_completed_at")
+    if not isinstance(collected, str) or not collected.strip():
+        raise ValueError("new releases require collection_completed_at")
+    collected_at = datetime.fromisoformat(collected)
+    if collected_at.tzinfo is None or collected_at < end or collected_at > datetime.now(timezone.utc):
+        raise ValueError("collection_completed_at must be timezone-aware and after coverage end")
+    return start.isoformat(), end.isoformat()
+
+
+def _validate_coverage_manifest(manifest: dict[str, Any]) -> list[str]:
+    coverage = manifest.get("coverage")
+    if not isinstance(coverage, dict) or coverage.get("timezone") != "Asia/Shanghai":
+        return ["version-2 release lacks Asia/Shanghai coverage metadata"]
+    try:
+        shanghai = timezone(timedelta(hours=8), "Asia/Shanghai")
+        start = datetime.fromisoformat(coverage["start"])
+        end = datetime.fromisoformat(coverage["end"])
+        collected = datetime.fromisoformat(coverage["collection_completed_at"])
+        anchor = date.fromisoformat(manifest["date"])
+        if any(value.tzinfo is None for value in (start, end, collected)):
+            raise ValueError("naive datetime")
+        if (start >= end or end.astimezone(shanghai).date() > anchor
+                or any(value.astimezone(shanghai).time() != datetime.min.time()
+                       for value in (start, end))
+                or collected < end):
+            raise ValueError("invalid coverage interval")
+        days = (end.astimezone(shanghai).date() - start.astimezone(shanghai).date()).days
+        if days > 1:
+            evidence = coverage.get("daily_search_evidence")
+            expected = {(start.astimezone(shanghai).date() + timedelta(days=offset)).isoformat()
+                        for offset in range(days)}
+            if (not isinstance(evidence, list) or len(evidence) != days
+                    or {row.get("date") for row in evidence if isinstance(row, dict)} != expected
+                    or any(not isinstance(row, dict) or not row.get("academic_search_ref")
+                           or not row.get("social_search_ref") for row in evidence)):
+                raise ValueError("missing per-day search evidence")
+    except (KeyError, TypeError, ValueError):
+        return ["version-2 coverage interval or collection time is invalid"]
+    return []
+
+
+def cmd_seal_review(args: argparse.Namespace) -> int:
     run_root = Path(args.run_dir).expanduser().resolve()
-    result = verify_artifacts(run_root, strict=args.strict)
+    base = verify_artifacts(run_root, strict=True, structure_only=True)
+    if base["status"] != "pass":
+        print(json.dumps(base, ensure_ascii=False, indent=2))
+        return 1
+    manifest = base["manifest"]
+    protocol = int(manifest.get("pipeline_version") or 1)
+    if not ((protocol >= 2 and manifest.get("status") == "staged")
+            or (protocol == 1 and manifest.get("status") == "complete")):
+        raise ValueError("seal-review requires a staged protocol-2 release or a completed legacy release")
+    report_path = run_root / REVIEW_NAMES["release_audit"].format(date=manifest["date"])
+    report = make_report(run_root, manifest)
+    atomic_json(report_path, report)
+    failures = validate_bundle(run_root, manifest, require_manifest_binding=False)
+    if failures:
+        report_path.unlink()
+        print(json.dumps({"status": "fail", "failures": failures}, ensure_ascii=False, indent=2))
+        return 1
+    if protocol >= 2:
+        for key, template in REVIEW_NAMES.items():
+            path = run_root / template.format(date=manifest["date"])
+            manifest["artifacts"][key] = path.name
+            manifest["artifact_sha256"][key] = sha256_file(path)
+        manifest["audit_contract_version"] = 1
+        atomic_json(run_root / ARTIFACT_NAMES["manifest"].format(date=manifest["date"]), manifest)
+    print(json.dumps({"status": "sealed", "run_dir": str(run_root)}, ensure_ascii=False))
+    return 0
+
+
+def cmd_review_template(args: argparse.Namespace) -> int:
+    run_root = Path(args.run_dir).expanduser().resolve()
+    result = verify_artifacts(run_root, strict=True, structure_only=True)
     if result["status"] != "pass":
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 1
     manifest = result["manifest"]
+    if int(manifest.get("pipeline_version") or 1) < 2 or manifest.get("status") != "staged":
+        raise ValueError("review-template requires a staged protocol-2 release")
+    config = load_json(run_root / manifest["artifacts"]["delta_config"])
+    story = config["opening_story"]
+    story_review = {
+        "review_protocol_version": 2, "review_method": "self",
+        "story_sha256": story_digest(story),
+        "task_card": {key: "" for key in TASK_CARD_KEYS},
+        "rounds": [{"id": key, "materials_seen": sorted(materials),
+                    "judgment": "unreviewed", "reviewed_text": "", "reason": "",
+                    "source_or_rule": "", "limitation": ""}
+                   for key, materials in ROUND_MATERIALS.items()],
+    }
+    news_review = {
+        "version": 1, "review_method": "self", "content_digest": content_digest(manifest),
+        "items": [{"item_id": item["id"], "claim_digest": claim_digest(item),
+                   "source_url": item.get("source_url"), "evidence_anchor": "",
+                   "judgment": "unreviewed", "reason": "", "limitation": "",
+                   "claim_reviews": {name: {"verdict": "unreviewed", "evidence_anchor": "",
+                                            "reason": "", "limitation": ""}
+                                     for name in ("facts", "judgment", "relevance")}}
+                  for item in selected_items(config)],
+    }
+    review_paths = {key: run_root / REVIEW_NAMES[key].format(date=manifest["date"])
+                    for key in ("story_review", "news_review")}
+    for path in review_paths.values():
+        if path.exists():
+            raise ValueError(f"refusing to overwrite existing review: {path.name}")
+    for key, value in (("story_review", story_review), ("news_review", news_review)):
+        path = review_paths[key]
+        atomic_json(path, value)
+    print(json.dumps({"status": "review_pending", "run_dir": str(run_root)}, ensure_ascii=False))
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Report evidenced calendar-day coverage; do not infer it from old titles."""
+    news_root = Path(args.news_root).expanduser().resolve()
+    shanghai = timezone(timedelta(hours=8), "Asia/Shanghai")
+    through = date.fromisoformat(args.through_date) if args.through_date else datetime.now(shanghai).date() - timedelta(days=1)
+    start = date.fromisoformat(args.from_date)
+    if start > through:
+        raise ValueError("from-date must not be later than through-date")
+    covered: dict[str, list[str]] = {}
+    releases: list[dict[str, Any]] = []
+    for run_dir in sorted(news_root.iterdir()) if news_root.exists() else []:
+        if not run_dir.is_dir() or run_dir.name.startswith("_"):
+            continue
+        manifests = list(run_dir.glob("daily_pipeline_manifest_*.json"))
+        if len(manifests) != 1:
+            continue
+        try:
+            manifest = load_json(manifests[0])
+            if manifest.get("status") != "complete":
+                continue
+            date_value = str(manifest.get("date") or "")
+            if date.fromisoformat(date_value) < start:
+                continue
+            protocol = int(manifest.get("pipeline_version") or 1)
+            if protocol < 2:
+                releases.append({"date": date_value, "local_status": "legacy-unverified",
+                                 "coverage": "legacy-unverified", "remote_verified": False})
+                continue
+            result = verify_artifacts(run_dir, strict=True)
+            if result["status"] != "pass":
+                releases.append({"date": manifest.get("date"), "local_status": "invalid",
+                                 "failures": result["failures"][:3]})
+                continue
+            coverage = manifest.get("coverage")
+            receipt_path = news_root / "_publish" / f"oss_publish_receipt_{date_value}.json"
+            try:
+                receipt = load_json(receipt_path)
+            except (OSError, ValueError):
+                receipt = {}
+            receipt_matches = (receipt.get("status") == "published"
+                               and receipt.get("date") == date_value
+                               and receipt.get("html_sha256") == manifest.get("artifact_sha256", {}).get("html"))
+            releases.append({"date": date_value, "local_status": "complete",
+                             "coverage": coverage or "legacy-unverified",
+                             "receipt_matches_local": receipt_matches,
+                             "remote_verified": False})
+            if isinstance(coverage, dict):
+                left = datetime.fromisoformat(coverage["start"]).astimezone(shanghai).date()
+                right = datetime.fromisoformat(coverage["end"]).astimezone(shanghai).date()
+                for offset in range((right - left).days):
+                    covered.setdefault((left + timedelta(days=offset)).isoformat(), []).append(date_value)
+        except (OSError, ValueError, KeyError):
+            releases.append({"directory": run_dir.name, "local_status": "unreadable"})
+    requested = [(start + timedelta(days=offset)).isoformat() for offset in range((through - start).days + 1)]
+    print(json.dumps({"status": "ok", "through_date": through.isoformat(),
+                      "covered_days": {day: covered[day] for day in requested if day in covered},
+                      "missing_days": [day for day in requested if day not in covered],
+                      "releases": releases}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _recover_pending_transactions(output_root: Path, index_path: Path) -> None:
+    """Roll back an interrupted local commit before another commit starts."""
+    root = output_root / ".release_transactions"
+    if not root.exists():
+        return
+    for journal_path in sorted(root.glob("*/state.json")):
+        journal = load_json(journal_path)
+        if journal.get("status") != "prepared":
+            continue
+        if journal.get("output_dir") != str(output_root) or journal.get("index_path") != str(index_path):
+            raise ValueError("interrupted release journal points outside its expected targets")
+        manifest_files = list(output_root.glob("daily_pipeline_manifest_*.json"))
+        if len(manifest_files) == 1:
+            final_manifest = load_json(manifest_files[0])
+            if (final_manifest.get("run_id") == journal.get("run_id")
+                    and final_manifest.get("status") == "complete"
+                    and verify_artifacts(output_root, strict=True)["status"] == "pass"):
+                journal["status"] = "completed"
+                atomic_json(journal_path, journal)
+                continue
+        transaction = journal_path.parent
+        partial = transaction / "partial"
+        partial.mkdir(exist_ok=True)
+        for name in journal.get("targets", []):
+            if not isinstance(name, str) or Path(name).name != name:
+                raise ValueError("interrupted release journal has an unsafe target")
+            target = output_root / name
+            backup = transaction / "backups" / name
+            if target.exists():
+                os.replace(target, partial / name)
+            if backup.exists():
+                atomic_copy(backup, target)
+        previous_index = transaction / "index_before.jsonl"
+        if previous_index.exists():
+            index_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(previous_index, index_path)
+        elif index_path.exists() and not journal.get("index_existed"):
+            os.replace(index_path, partial / "story_index.jsonl")
+        journal["status"] = "rolled_back"
+        atomic_json(journal_path, journal)
+
+
+def _commit_local(args: argparse.Namespace) -> dict[str, Any]:
+    run_root = Path(args.run_dir).expanduser().resolve()
+    result = verify_artifacts(run_root, strict=args.strict)
+    if result["status"] != "pass":
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return {"status": "local_verification_failed", "failures": result["failures"]}
+    manifest = result["manifest"]
     run_date = str(manifest["date"])
     output_root = Path(manifest["output_dir"])
     index_path = Path(manifest["index_path"])
-    staged = artifact_paths(run_root, run_date)
-    final = artifact_paths(output_root, run_date)
+    _recover_pending_transactions(output_root, index_path)
+    staged = {key: run_root / name for key, name in manifest["artifacts"].items()}
+    final = {key: output_root / name for key, name in manifest["artifacts"].items()}
+    expected_names = {key: path.name for key, path in artifact_paths(run_root, run_date).items()}
+    if int(manifest.get("pipeline_version") or 1) >= 2:
+        expected_names.update({key: template.format(date=run_date) for key, template in REVIEW_NAMES.items()})
+    if manifest["artifacts"] != expected_names:
+        raise ValueError("manifest artifact identities are invalid")
+    current_index_hash = sha256_file(index_path) if index_path.exists() else None
+    if int(manifest.get("pipeline_version") or 1) >= 2 and current_index_hash != manifest.get("index_snapshot_sha256"):
+        raise ValueError("story index changed since ranking; rerun ranking and review")
+    prior = None
+    if final["manifest"].exists():
+        prior = load_json(final["manifest"])
+        if prior.get("status") == "complete":
+            old_hash = (prior.get("artifact_sha256") or {}).get("html")
+            content_keys = ("html", "markdown", "feedback", "delta_config")
+            same_content = all((prior.get("artifact_sha256") or {}).get(key)
+                               == (manifest.get("artifact_sha256") or {}).get(key)
+                               for key in content_keys)
+            if same_content and verify_artifacts(output_root, strict=True)["status"] == "pass":
+                return {"status": "complete", "output_dir": str(output_root), "index_path": str(index_path),
+                        "local_action": "no_change"}
+            if (not getattr(args, "correction_reason", None)
+                    or getattr(args, "supersedes_hash", None) != old_hash):
+                raise ValueError("existing release differs; explicit audited correction is required")
     output_root.mkdir(parents=True, exist_ok=True)
     backups: dict[Path, Path] = {}
     created_targets: set[Path] = set()
     index_before = index_path.read_bytes() if index_path.exists() else None
+    transaction = output_root / ".release_transactions" / f"{manifest['run_id']}-{uuid.uuid4().hex[:8]}"
+    (transaction / "backups").mkdir(parents=True)
+    if index_before is not None:
+        (transaction / "index_before.jsonl").write_bytes(index_before)
+    for target in final.values():
+        if target.exists():
+            backup = transaction / "backups" / target.name
+            shutil.copy2(target, backup)
+            backups[target] = backup
+        else:
+            created_targets.add(target)
+    journal = {"status": "prepared", "run_id": manifest["run_id"],
+               "output_dir": str(output_root), "index_path": str(index_path),
+               "index_existed": index_before is not None,
+               "targets": [path.name for path in final.values()]}
+    atomic_json(transaction / "state.json", journal)
     try:
         index_payload = load_json(run_root / ARTIFACT_NAMES["index_updates"].format(date=run_date))
         updates = index_payload.get("items") or []
         for key, staged_path in staged.items():
             target = final[key]
-            if target.exists():
-                backup = target.with_name(target.name + f".{manifest['run_id']}.bak")
-                shutil.copy2(target, backup)
-                backups[target] = backup
-            else:
-                created_targets.add(target)
-            os.replace(staged_path, target)
+            atomic_copy(staged_path, target)
         upsert_index(index_path, updates)
         final_manifest = load_json(final["manifest"])
         final_manifest.update({"status": "complete", "index_commit": {"committed": True, "records": len(updates), "index_sha256": sha256_file(index_path)}})
+        final_manifest["local_finalized_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        if prior is not None and getattr(args, "correction_reason", None):
+            final_manifest["correction"] = {
+                "reason": args.correction_reason,
+                "supersedes_run_id": prior.get("run_id"),
+                "supersedes_html_sha256": (prior.get("artifact_sha256") or {}).get("html"),
+            }
         atomic_json(final["manifest"], final_manifest)
     except Exception:
         if index_before is None:
             if index_path.exists():
-                index_path.unlink()
+                partial = transaction / "partial"
+                partial.mkdir(exist_ok=True)
+                os.replace(index_path, partial / "story_index.jsonl")
         else:
-            atomic_text(index_path, index_before.decode("utf-8"))
+            atomic_copy(transaction / "index_before.jsonl", index_path)
         for target in final.values():
             backup = backups.get(target)
             if backup and backup.exists():
-                os.replace(backup, target)
+                atomic_copy(backup, target)
             elif target in created_targets and target.exists():
-                target.unlink()
+                partial = transaction / "partial"
+                partial.mkdir(exist_ok=True)
+                os.replace(target, partial / target.name)
+        journal["status"] = "rolled_back"
+        atomic_json(transaction / "state.json", journal)
         raise
-    finally:
-        for backup in backups.values():
-            if backup.exists():
-                backup.unlink()
     final_check = verify_artifacts(output_root, strict=True)
     if final_check["status"] != "pass":
+        _recover_pending_transactions(output_root, index_path)
         print(json.dumps({"status": "local_verification_failed", "output_dir": str(output_root), "failures": final_check["failures"]}, ensure_ascii=False))
+        return {"status": "local_verification_failed", "failures": final_check["failures"]}
+    journal["status"] = "completed"
+    atomic_json(transaction / "state.json", journal)
+    return {"status": "complete", "output_dir": str(output_root), "index_path": str(index_path),
+            "local_action": "committed"}
+
+
+def cmd_finalize(args: argparse.Namespace) -> int:
+    run_root = Path(args.run_dir).expanduser().resolve()
+    manifest_files = list(run_root.glob("daily_pipeline_manifest_*.json"))
+    if len(manifest_files) != 1:
+        raise ValueError("staged release manifest missing or ambiguous")
+    manifest = load_json(manifest_files[0])
+    index_path = Path(manifest["index_path"])
+    with release_lock(Path(manifest["output_dir"]).parent):
+        local = _commit_local(args)
+    if local["status"] != "complete":
         return 1
     from publish_daily_to_oss import auto_publish_after_finalize
 
-    remote_publish = auto_publish_after_finalize(output_root)
-    print(json.dumps({"status": "complete", "output_dir": str(output_root), "index_path": str(index_path), "remote_publish": remote_publish}, ensure_ascii=False))
-    return 2 if remote_publish["status"] == "failed" else 0
+    output_root = Path(local["output_dir"])
+    remote_publish = auto_publish_after_finalize(
+        output_root, correction_reason=getattr(args, "correction_reason", None),
+        supersedes_hash=getattr(args, "supersedes_hash", None))
+    print(json.dumps({**local, "remote_publish": remote_publish}, ensure_ascii=False))
+    remote_required = bool(getattr(args, "require_remote", False))
+    return 2 if remote_publish["status"] in {"failed", "pending"} or (remote_required and remote_publish["status"] == "disabled") else 0
 
 
 def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
@@ -495,12 +849,32 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     run.add_argument("--continuing-mode", choices=["one-line", "skip"], default="one-line")
     run.add_argument("--design-system", choices=["cosmic", "classic", "none"], default="cosmic")
     run.add_argument("--background-mode", choices=["light", "cosmic"], default="light")
+    run.add_argument("--release-protocol", type=int, choices=(2,), default=2)
+    run.add_argument("--coverage-start", help="Inclusive ISO 8601 boundary with UTC offset")
+    run.add_argument("--coverage-end", help="Exclusive ISO 8601 boundary with UTC offset")
     run.set_defaults(func=cmd_run)
     for name, func in (("verify", cmd_verify), ("finalize", cmd_finalize)):
         command = subparsers.add_parser(name, help=f"{name.title()} a staged or published daily briefing.")
         command.add_argument("--run-dir", required=True)
         command.add_argument("--strict", action="store_true", default=True)
+        if name == "verify":
+            command.add_argument("--structure-only", action="store_true")
+        else:
+            command.add_argument("--require-remote", action="store_true")
+            command.add_argument("--correction-reason")
+            command.add_argument("--supersedes-hash")
         command.set_defaults(func=func)
+    seal = subparsers.add_parser("seal-review", help="Bind reviewed content to a staged protocol-2 release.")
+    seal.add_argument("--run-dir", required=True)
+    seal.set_defaults(func=cmd_seal_review)
+    template = subparsers.add_parser("review-template", help="Create unreviewed templates without approving content.")
+    template.add_argument("--run-dir", required=True)
+    template.set_defaults(func=cmd_review_template)
+    status = subparsers.add_parser("status", help="Inspect verified day coverage without accessing OSS.")
+    status.add_argument("--news-root", default=str(SCRIPT_DIR.parents[2] / "news"))
+    status.add_argument("--from-date", required=True)
+    status.add_argument("--through-date")
+    status.set_defaults(func=cmd_status)
     return parser.parse_args(list(argv) if argv is not None else None)
 
 

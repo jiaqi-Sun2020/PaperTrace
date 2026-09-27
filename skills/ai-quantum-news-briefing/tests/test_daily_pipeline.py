@@ -5,6 +5,9 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -530,7 +533,8 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertEqual(example["kind"], "operational")
         self.assertFalse(any(step["formula"] for step in example["steps"]))
         html = render_html(canonical)
-        self.assertIn("展开完整例子", html)
+        self.assertIn("展开完整例子与步骤", html)
+        self.assertNotIn("公式推导", html)
         self.assertNotIn('id="MathJax-script"', html)
 
     def test_legacy_story_without_example_remains_readable_outside_new_daily_contract(self) -> None:
@@ -590,7 +594,8 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertLess(html.index('data-story-example="true"'), html.index('data-briefing-body="true"'))
         details_tag = html[html.index('<details class="story-worked-example"'):html.index(">", html.index('<details class="story-worked-example"'))]
         self.assertNotIn(" open", details_tag)
-        self.assertIn("展开完整例子与公式推导", html)
+        self.assertIn("展开完整例子与步骤", html)
+        self.assertNotIn("展开完整例子与公式推导", html)
         self.assertIn('id="MathJax-script"', html)
         self.assertIn('class="example-scenario"', html)
         self.assertIn('class="example-input-table"', html)
@@ -602,7 +607,7 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertIn("**本例输入**", markdown)
         debrief_labels = [
             "1. 概念名称与一句话定义",
-            "2. 故事元素与现实对应",
+            "2. 故事对应与真实机制",
             "3. 这个类比没有覆盖的边界",
             "4. 它可能误导你的地方",
         ]
@@ -618,6 +623,44 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertLess(markdown.index(debrief_labels[-1]), markdown.index("### 完整例子"))
         self.assertEqual(len(feedback["items"]), 1)
         self.assertFalse(any(entry["concept"] == "spectral gap" for entry in feedback["items"]))
+
+    def test_mobile_feedback_editor_is_docked_and_does_not_jump_from_article(self) -> None:
+        html = render_html(normalize_briefing_config(config(), require_source_url=True))
+        self.assertIn("@media (max-width: 920px)", html)
+        self.assertIn("aside.feedback-panel {\n        position: fixed;", html)
+        self.assertIn("env(safe-area-inset-bottom)", html)
+        self.assertIn("--feedback-keyboard-offset", html)
+        self.assertIn("window.visualViewport.addEventListener('resize'", html)
+        self.assertIn("function keepFocusedFieldVisible()", html)
+        self.assertIn("max-height: min(70dvh, var(--feedback-available-height, 70dvh))", html)
+        self.assertIn("feedbackPanel.classList.toggle('selection-active', !selectionToolbar.hidden)", html)
+        self.assertIn("onDetails: selected => openFeedback(selected, { focusQuestion: true })", html)
+        self.assertIn("feedbackPanel.addEventListener('keydown'", html)
+        self.assertNotIn("card.scrollIntoView", html)
+        self.assertIn("background: var(--panel);", html)
+        self.assertIn("background: color-mix(in srgb, var(--panel) 75%, var(--accent));", html)
+        for mode in ("light", "cosmic"):
+            themed = apply_design_system(html, "cosmic", mode)
+            self.assertIn(f'data-lean-bg="{mode}"', themed)
+            self.assertIn("--panel:", themed)
+
+    def test_daily_feedback_inline_javascript_parses(self) -> None:
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node.js is not installed")
+        html = render_html(normalize_briefing_config(config(), require_source_url=True))
+        scripts = [
+            match.group(2)
+            for match in re.finditer(r"<script([^>]*)>(.*?)</script>", html, re.S)
+            if 'type="application/json"' not in match.group(1)
+        ]
+        self.assertGreaterEqual(len(scripts), 2)
+        for script in scripts:
+            result = subprocess.run(
+                [node, "--check", "-"], input=script, text=True,
+                encoding="utf-8", capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_html_and_markdown_preserve_more_than_six_story_paragraphs_in_order(self) -> None:
         raw = config()

@@ -1,9 +1,17 @@
 # Changes
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-23
+- Last reviewed: 2026-09-27
 
 This file records dated implementation and local-release milestones. Durable boundaries belong in `AGENTS.md`, commands in `RUNBOOK.md`, data contracts in `CONFIG_SPEC.md`, and architecture/ownership in `ARCHITECTURE.md`.
+
+## 2026-09-27 — Reviewed daily release and recoverable OSS delivery
+
+- Added protocol-2 daily staging with explicit prior-complete-day coverage, collection timestamp, per-day backfill evidence, index snapshot and fail-closed mandatory artifact hashes. Historical manifests remain readable; their display date ranges do not certify full-day coverage.
+- Added source-bound reviews for every selected news item and the complete story/return/example, a sealed preflight record and digest binding into the manifest. Structural checks verify review completeness and freshness but do not claim to prove scientific truth.
+- Moved publication eligibility ahead of both local finalization and standalone OSS publishing. Local commits now use a cross-process lock and recovery journal; interrupted or duplicate runs reconcile with verified state.
+- Changed OSS mirroring to compare approved local HTML, remote HTML, homepage and receipt before writing. Repeat publication is idempotent, lost receipts can be rebuilt, older backfills cannot regress the homepage, and same-day replacement needs an audited explicit correction. Disabled, pending and published remain distinct outcomes.
+- Updated the existing 08:00 automation to use the new review sequence and previous complete Shanghai day. Tests use temporary files and simulated OSS; no live website, credentials, feedback or learner profile were modified.
 
 ## 2026-09-25 — Contextual feedback toolbar dismissal
 
