@@ -185,3 +185,9 @@ This file records dated implementation and local-release milestones. Durable bou
 - Reader Feedback now alternates with Contents inside the right utility pane on desktop; selecting article text remains available while the detail editor is open. Narrow screens retain a bounded bottom drawer.
 - Daily briefings now use immediate status buttons, auto-save detail fields, keep the full default-`unrated` export baseline, and show only user-changed entries in the compact panel.
 - Feedback JSON/import schemas and the explicit portable export boundary remain unchanged; passive selection or opening the editor creates no learner evidence.
+
+## 2026-09-27 - Optional OSS daily-briefing mirror
+
+- Added a reusable, disabled-by-default OSS publisher with an ignored local routing config and a credential-free example. Access credentials remain in a user-level ossutil profile.
+- After strict local finalization, the publisher verifies the existing site, linked briefing, and configured Bucket binding; it uploads only the completed briefing HTML and then the homepage. Neither site-check nor upload failure erases the local release; site-check failure requires manual re-enablement.
+- Documented setup, status, manual enable, retry, and the privacy boundary in the root READMEs and runbook. No personal site settings, feedback, learner data, or generated daily HTML enter the Git commit.

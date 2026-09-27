@@ -271,6 +271,8 @@ The release entry point is <code>daily_pipeline.py</code>. <code>run</code> writ
     python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict
     python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD> --strict
 
+Optional OSS mirroring is disabled on a fresh checkout. Copy `news_publish.example.json` to the ignored `news_publish.local.json`, fill in your own site index URL, bucket, region, object prefix, and ossutil profile, and configure credentials in your user-level ossutil profile (with read/write permission for the two published objects). No AccessKey belongs in the JSON. From the repository root, run `python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py enable` after the existing homepage and its daily link are reachable and the homepage matches the configured Bucket object. Thereafter `finalize` strictly checks the completed local release and automatically mirrors only the HTML and homepage. If the site or Bucket check fails, mirroring stays disabled until another manual `enable`; inspect it with `python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py status`. A failed remote upload does not undo the local release; retry with `publish --run-dir .\news\<YYYY-MM-DD>` after fixing the cause. The local config, state, and receipts are Git-ignored.
+
 Optional discovery and evidence tools:
 
     python .\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <YYYY-MM-DD> --output .\news\<YYYY-MM-DD>\aihot_candidates_<YYYY-MM-DD>.json

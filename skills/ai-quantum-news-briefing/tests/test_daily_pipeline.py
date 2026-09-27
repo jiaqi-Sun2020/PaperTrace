@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -1001,6 +1002,24 @@ class DailyPipelineTests(unittest.TestCase):
             final_root = root / "news" / "2026-07-10"
             self.assertEqual(verify_artifacts(final_root, strict=True)["status"], "pass")
             self.assertEqual(len(index_path.read_text(encoding="utf-8").splitlines()), 1)
+
+    def test_remote_failure_keeps_completed_local_release(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            input_path = root / "candidate.json"
+            input_path.write_text(json.dumps(config(), ensure_ascii=False), encoding="utf-8")
+            output = root / "news" / "2026-07-10"
+            index_path = root / "story_index.jsonl"
+            args = Namespace(
+                config=str(input_path), output_dir=str(output), index=str(index_path), date="2026-07-10",
+                days=7, continuing_mode="one-line", design_system="cosmic", background_mode="light",
+            )
+            self.assertEqual(cmd_run(args), 0)
+            run_dir = next((output / ".staging").iterdir())
+            with patch("publish_daily_to_oss.auto_publish_after_finalize", return_value={"status": "failed", "reason": "simulated upload failure"}):
+                self.assertEqual(cmd_finalize(Namespace(run_dir=str(run_dir), strict=True)), 2)
+            self.assertEqual(verify_artifacts(output, strict=True)["status"], "pass")
+            self.assertTrue(index_path.exists())
 
     def test_local_storage_contract_is_versioned_and_stale_entries_are_filtered(self) -> None:
         canonical = normalize_briefing_config(config(), require_source_url=True)

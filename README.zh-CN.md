@@ -414,6 +414,15 @@ python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --ru
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD> --strict
 ```
 
+可选 OSS 网站同步在新检出项目中默认关闭。首次使用时，将 `news_publish.example.json` 复制为已忽略的 `news_publish.local.json`，手动填写网站首页 URL、Bucket、地域、对象前缀和 ossutil profile；AccessKey 只通过本机 `ossutil config credential` 配置。网站首页及其已有日报链接可访问后，从仓库根目录执行：
+
+```powershell
+python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py enable
+python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py status
+```
+
+启用时还会读取配置 Bucket 中的 `index.html`，确认它与网站首页一致；ossutil profile 因此需要这两个发布对象的读取和写入权限。启用后，`finalize` 会先严格复核本地完整产物，再自动同步本次日报 HTML，并在确认远端内容一致后更新首页。网站、现有日报链接或 Bucket 绑定无法验证时，同步会持续停用，恢复后仍需手动执行 `enable`。远端上传失败不会撤销本地日报；修复后从仓库根目录执行 `python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py publish --run-dir .\news\<YYYY-MM-DD>` 重试。只有日报 HTML 与首页进入上传白名单；本地配置、状态和回执均被 Git 忽略。
+
 `daily_pipeline.py run` 会先执行 `news-ranker-v1`，再做 Delta 压缩。排名器先拒绝缺失/不安全证据、候选页、无效日期和重复身份，再分别计算学术与社会新闻分数，并用来源、主题和机构多样性约束选择最终条目。正式日报必须包含 7–8 篇学术论文和 10–14 条社会新闻（目标 12），同时把 `ranking_policy`、逐条 `ranking`、选择轨迹和淘汰原因保留到最终 delta config。
 
 每次 `run` 都强制要求 `opening_story` 和一个具体实例。学术部分按 `ranking.base_score` 降序排列，寓言默认引用排名第 1 的学术论文；改选必须记录显式覆盖理由。若例子缺少有边界的具体场景、实际输入/状态或明确可观察量，或数学／数值故事正文没有复用这些数值并给出操作、结果和对照，即使逻辑说明正确也会在 staging 前失败。故事至少两段、不设段数上限；单段超过 2000 字符会明确失败并要求自然分段，不会静默截断。HTML 中的例子使用默认关闭的原生折叠控件；选题不以能否写公式为标准，只有真实数学机制才进入公式推导。故事与例子都不会自动进入 feedback。

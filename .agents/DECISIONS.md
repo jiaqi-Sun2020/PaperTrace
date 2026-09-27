@@ -1,7 +1,7 @@
 # Decisions
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-22
+- Last reviewed: 2026-09-27
 
 ## Current Decisions
 
@@ -24,6 +24,7 @@
 | Let AI/quantum briefing feedback share the learner profile. | active | The user wants daily briefing concepts to update the same knowledge boundary; `ai-quantum-news-briefing` generates source-grounded briefings, can render feedback HTML, normalizes explicit feedback, and delegates mutation to `reader-learner`. |
 | Treat news exposure-only concepts as `unrated`. | active | Seeing a concept in a briefing is evidence of exposure, not evidence that the user understands or does not understand it. |
 | Generate recurring daily briefings as delta-first reports. | active | User confirmed that repeated categories/stories across consecutive daily reports should be avoided. `news_delta.py` keeps a compact `news/_index/story_index.jsonl`, expands only new/material-update stories, and compresses or skips stories already present in the configured lookback window to reduce token use. |
+| Make OSS website mirroring opt-in and fail closed. | active | The public repository keeps generic code and an example config; each user supplies an ignored local site/Bucket config while ossutil owns credentials. Manual enable requires an existing reachable site and daily link plus matching Bucket index. A later verification failure disables remote publishing until manually re-enabled; the strictly verified local daily release remains complete. |
 | Rank daily candidates before Delta compaction. | active | `news-ranker-v1` first enforces evidence eligibility, then uses separate academic/social component scores plus deterministic quota and MMR-style diversity selection. Publication preserves item scores, selection trace, quota metrics, and exclusion reasons; AI HOT discovery scores never substitute for this ranking. |
 | Keep dated milestones out of agent rules. | active | `AGENTS.md` contains only durable boundaries, `RUNBOOK.md` owns commands, `CONFIG_SPEC.md` owns data contracts, and `CHANGES.md` owns dated releases such as the verified 2026-07-16 8+12 briefing. This prevents the always-read rule layer from becoming a changelog. |
 | Use learner profile schema v2 with `concepts`, `events`, `sources`, and `review_queue`. | active | The user identified unstable concept keys, bloated notes, mixed evidence, coarse status, and missing learning scheduling; the split schema fixes those boundaries. |

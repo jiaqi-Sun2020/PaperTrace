@@ -472,8 +472,15 @@ def cmd_finalize(args: argparse.Namespace) -> int:
         for backup in backups.values():
             if backup.exists():
                 backup.unlink()
-    print(json.dumps({"status": "complete", "output_dir": str(output_root), "index_path": str(index_path)}, ensure_ascii=False))
-    return 0
+    final_check = verify_artifacts(output_root, strict=True)
+    if final_check["status"] != "pass":
+        print(json.dumps({"status": "local_verification_failed", "output_dir": str(output_root), "failures": final_check["failures"]}, ensure_ascii=False))
+        return 1
+    from publish_daily_to_oss import auto_publish_after_finalize
+
+    remote_publish = auto_publish_after_finalize(output_root)
+    print(json.dumps({"status": "complete", "output_dir": str(output_root), "index_path": str(index_path), "remote_publish": remote_publish}, ensure_ascii=False))
+    return 2 if remote_publish["status"] == "failed" else 0
 
 
 def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:

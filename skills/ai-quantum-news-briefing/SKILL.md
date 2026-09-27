@@ -15,6 +15,8 @@ For a daily or multi-day briefing request, candidate pools, venue ledgers, Markd
 
 Optional news-feedback import is a downstream learner-profile handoff. It does not replace or weaken the daily publication gate.
 
+An opt-in OSS website mirror runs after `finalize` strictly re-verifies the completed local release. Read the OSS publication section in `.agents/RUNBOOK.md` when configuring or operating it. Its local `news_publish.local.json` contains only site and OSS routing fields; `ossutil` owns credentials. Website mirroring starts disabled, requires `publish_daily_to_oss.py enable` after the existing site, daily link, and configured Bucket index agree, and latches disabled when those checks later fail. A failed mirror does not erase the completed local briefing; report the separate remote status.
+
 ## Core Workflow
 
 1. Determine the time window.

@@ -36,6 +36,7 @@ sessions*/
 *.sqlite3
 *.db
 *.local.json
+/news_publish.local.json
 *.local.yaml
 *.local.yml
 *.user.json

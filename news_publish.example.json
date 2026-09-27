@@ -1,0 +1,7 @@
+{
+  "site_index_url": "https://example.org/index.html",
+  "bucket": "example-bucket",
+  "region": "cn-hongkong",
+  "object_prefix": "",
+  "ossutil_profile": "papertrace-publisher"
+}

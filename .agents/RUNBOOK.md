@@ -1,7 +1,7 @@
 # Runbook
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-20
+- Last reviewed: 2026-09-27
 
 ## Choose One Primary Pipeline
 
@@ -38,6 +38,20 @@ python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD> --strict
 ```
+
+### Optional OSS website mirror
+
+The finalizer strictly re-verifies the completed local release, then invokes the OSS mirror when manually enabled. A remote upload failure leaves the local release complete and makes `finalize` exit 2; inspect `remote_publish` and retry with the publisher command rather than finalizing the same staging run again. The final standalone `verify` remains read-only.
+
+From `D:\AI\PaperTrace`, install ossutil 2.x and create a user-level profile with `ossutil config credential`. Keep credentials outside this repository. Copy `news_publish.example.json` to the ignored `news_publish.local.json` and fill in `site_index_url`, `bucket`, `region`, `object_prefix`, and `ossutil_profile`. The URL path must match the prefix and end in `/index.html`.
+
+```powershell
+python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py status
+python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py enable
+python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py publish --run-dir .\news\<YYYY-MM-DD>
+```
+
+The existing index must link to one reachable `briefing_reader_YYYY-MM-DD.html`. `enable` checks both URLs and confirms the website index matches the configured Bucket object; the ossutil profile therefore needs GetObject and PutObject access to the published keys. Every publish repeats the checks; a failure latches the ignored state under `news/_index/` disabled until another manual `enable`. Only verified HTML and `index.html` reach OSS. The receipt stays under `news/_publish/`.
 
 Before running, ensure the candidate config is UTF-8. Do not construct Chinese JSON through a default PowerShell/code-page pipeline. If normalization reports `encoding-corrupted` or `U+FFFD`, regenerate the config from the original source record; do not delete or globally replace `?`.
 

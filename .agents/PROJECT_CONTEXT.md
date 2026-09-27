@@ -1,7 +1,7 @@
 # Project Context
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-22
+- Last reviewed: 2026-09-27
 
 ## Summary
 
@@ -78,6 +78,7 @@ The learner profile exists and uses schema v2, which separates stable concept pr
 5. Run `news-ranker-v1` before Delta compaction. Publish 7–8 academic papers and 10–14 social-news items (target 12) under the quotas in `CONFIG_SPEC.md`; retain item rankings, the selection trace, and every exclusion reason.
 6. Author one complete version-3 Fable and a consistent worked example using `skills/allegory-teach/references/daily-briefing-interface.md`. Preserve source selection and evidence gates; complete the story before its factual return.
 7. Treat candidate config, Markdown, and staging output as internal. Publish through `daily_pipeline.py run -> verify --strict -> finalize --strict -> verify --strict`; Pipeline 2 completes only with the verified briefing HTML, the default-collapsed HTML example, and the required release set.
+   Optional OSS website mirroring runs only after the local finalizer strictly verifies that release. It requires a manually enabled, site- and Bucket-verified local configuration. Site or Bucket check failure disables remote publishing until another manual enable; upload failure leaves the local release complete and can be retried separately. Credentials stay in the user's ossutil profile, outside the repository.
 8. The user clicks concept chips or selects text, uses an immediate status or optional detail editor, then exports the auto-saved result with `Download JSON` or `Copy for Codex`.
 9. Import exported `news_feedback.json` with `skills/reader-learner/scripts/feedback_visible_wiki_pipeline.py news-feedback --feedback <news_feedback.json>`; it retains the news normalizer and strict profile import before synchronizing the visible wiki.
 
