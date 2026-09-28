@@ -22,7 +22,8 @@ from urllib.parse import urlsplit
 
 from briefing_contract import canonical_url, normalize_briefing_config
 from news_delta import classify_item, load_index, recent_records
-from science_coverage_policy import science_journal_candidate, science_skipped
+from science_coverage_policy import NOTICE, science_journal_candidate, science_skipped
+from delivery_expansion import SHORTFALL, disclosure, publication_relation
 
 
 ALGORITHM_VERSION = "news-ranker-v1"
@@ -38,6 +39,8 @@ ACADEMIC_DOMAINS = {
     "aclanthology.org",
     "quantum-journal.org",
     "npjqi.springeropen.com",
+    "eccv.ecva.net",
+    "ecva.net",
 }
 DEFAULT_RANKING_POLICY: dict[str, Any] = {
     "enabled": True,
@@ -94,6 +97,23 @@ def domain_of(value: Any) -> str:
     except ValueError:
         return ""
     return domain[4:] if domain.startswith("www.") else domain
+
+
+def safe_canonical_url(value: Any) -> str:
+    try:
+        return canonical_url(value)
+    except (TypeError, ValueError):
+        return ""
+
+
+def doi_identity(item: dict[str, Any]) -> str:
+    value = clean_text(item.get("doi"), 240).lower()
+    if value.startswith("https://doi.org/"):
+        value = value[len("https://doi.org/"):]
+    if not value:
+        match = re.search(r"10\.\d{4,9}/[^\s?#]+", clean_text(item.get("source_url"), 1600), re.I)
+        value = match.group(0).lower() if match else ""
+    return value.rstrip("/.,")
 
 
 def is_academic_domain(domain: str) -> bool:
@@ -306,6 +326,11 @@ def eligibility_failures(item: dict[str, Any], kind: str) -> list[str]:
         failures.append("candidate_or_unverified_evidence")
     if kind == "academic" and not is_academic_domain(domain):
         failures.append("not_a_paper_level_academic_source")
+    if kind == "academic":
+        path = urlsplit(url).path.lower().rstrip("/")
+        if (path in {"", "/search", "/menu", "/papers.php", "/conferences/2026/acceptedpapers"}
+                or path.endswith(("/articles", "/recent"))):
+            failures.append("academic_listing_is_not_a_paper")
     if kind == "social" and is_academic_domain(domain):
         failures.append("academic_source_in_social_pool")
     return failures
@@ -449,6 +474,19 @@ def rank_briefing_config(
     if not policy.get("enabled", True):
         return canonical
     recent = recent_records(index_records, today, lookback_days)
+    expansion = canonical.get("delivery_expansion") or {}
+    shortfall = isinstance(expansion, dict) and expansion.get("mode") == SHORTFALL
+    try:
+        covered = date.fromisoformat(str(expansion.get("coverage_date"))) if expansion else None
+    except ValueError:
+        covered = None
+    prior_story_ids = {clean_text(row.get("story_id"), 240) for row in index_records if isinstance(row, dict)}
+    prior_urls = {url for row in index_records if isinstance(row, dict)
+                  for url in [safe_canonical_url(row.get("source_url"))] if url}
+    prior_dois = {doi for row in index_records if isinstance(row, dict)
+                  for doi in [doi_identity(row)] if doi}
+    prior_titles = {clean_text(row.get("title"), 500).casefold() for row in index_records
+                    if isinstance(row, dict) and clean_text(row.get("title"), 500)}
     exclude_science = science_skipped(canonical.get("academic_search"))
     candidates: dict[str, list[dict[str, Any]]] = {"academic": [], "social": []}
     for section in canonical.get("sections", []):
@@ -458,12 +496,23 @@ def rank_briefing_config(
             copied["section_title"] = section_title
             kind = "academic" if (is_academic_domain(domain_of(copied.get("source_url")))
                                   or science_journal_candidate(copied)) else "social"
+            if covered is not None:
+                copied["time_relation"] = publication_relation(copied, kind, covered) or ""
             novelty, _ = classify_item(copied, recent)
             copied["novelty"] = novelty
             score = score_item(copied, kind, today, novelty)
             failures = eligibility_failures(copied, kind)
             if kind == "academic" and exclude_science and science_journal_candidate(copied):
                 failures.append("science_daily_inventory_unavailable")
+            if shortfall:
+                if not copied.get("time_relation"):
+                    failures.append("outside_verified_lookback_or_ambiguous_publication_time")
+                title_key = clean_text(copied.get("title"), 500).casefold()
+                if (clean_text(copied.get("story_id"), 240) in prior_story_ids
+                        or safe_canonical_url(copied.get("source_url")) in prior_urls
+                        or (doi_identity(copied) and doi_identity(copied) in prior_dois)
+                        or (title_key and title_key in prior_titles)):
+                    failures.append("previously_published")
             if score["penalties"].get("unverified_language"):
                 failures.append("unverified_language")
             candidates[kind].append({"item": copied, "score": score, "eligibility_failures": sorted(set(failures))})
@@ -483,14 +532,25 @@ def rank_briefing_config(
         )
         seen_story_ids: set[str] = set()
         seen_urls: set[str] = set()
+        seen_dois: set[str] = set()
+        seen_titles: set[str] = set()
         for candidate in ordered:
             story_id = clean_text(candidate["item"].get("story_id"), 240)
-            source_url = canonical_url(candidate["item"].get("source_url"))
-            if story_id in seen_story_ids or source_url in seen_urls:
+            # A malformed candidate belongs in the exclusion ledger, not in
+            # an exception that aborts the entire ranking run.
+            source_url = safe_canonical_url(candidate["item"].get("source_url"))
+            doi = doi_identity(candidate["item"])
+            title = clean_text(candidate["item"].get("title"), 500).casefold()
+            if (story_id in seen_story_ids or source_url in seen_urls or (doi and doi in seen_dois)
+                    or (shortfall and title and title in seen_titles)):
                 candidate["eligibility_failures"] = sorted(set(candidate["eligibility_failures"] + ["duplicate_candidate"]))
             else:
                 seen_story_ids.add(story_id)
                 seen_urls.add(source_url)
+                if doi:
+                    seen_dois.add(doi)
+                if title:
+                    seen_titles.add(title)
 
     selected_by_kind: dict[str, list[dict[str, Any]]] = {}
     trace_by_kind: dict[str, list[dict[str, Any]]] = {}
@@ -554,6 +614,9 @@ def rank_briefing_config(
                 {
                     "story_id": story_id,
                     "kind": kind,
+                    "source_url": candidate["item"].get("source_url"),
+                    "published_at": candidate["item"].get("published_at"),
+                    "time_relation": candidate["item"].get("time_relation"),
                     "eligible": not candidate["eligibility_failures"],
                     "selected": selected,
                     "base_score": candidate["score"]["base_score"],
@@ -580,6 +643,22 @@ def rank_briefing_config(
         "published_order": {"academic": "base_score_desc", "social": "selection_order"},
         "candidate_ledger": ledger,
     }
+    if shortfall:
+        ranked["ranking_manifest"]["shortfall_evidence"] = {
+            "coverage_date": expansion.get("coverage_date"),
+            "normal_minimums": {"academic": 7, "social": 10},
+            "eligible_counts": ranked["ranking_manifest"]["eligible_counts"],
+            "selected_counts": ranked["ranking_manifest"]["selected_counts"],
+            "same_day_counts": {kind: sum(row["item"].get("time_relation") == "covered_day"
+                                          for row in selected_by_kind[kind]) for kind in ("academic", "social")},
+            "recent_context_counts": {kind: sum(row["item"].get("time_relation") == "recent_context"
+                                               for row in selected_by_kind[kind]) for kind in ("academic", "social")},
+            "exclusions": dict(Counter(reason for row in ledger for reason in row["exclusion_reasons"])),
+        }
+        # The initial normalization precedes selection and cannot know the
+        # actual counts. Rebuild the reader notice from the selected ledger.
+        ranked["coverage_notice"] = " ".join(part for part in (
+            NOTICE if exclude_science else "", disclosure(ranked)) if part)
     return ranked
 
 

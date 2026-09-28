@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -224,7 +225,10 @@ def read_bucket_index(config: dict[str, str]) -> bytes:
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise PublishError(f"Cannot inspect the configured OSS bucket: {exc.__class__.__name__}") from exc
         if result.returncode != 0 or not target.is_file():
-            raise PublishError("Cannot read the configured OSS index object")
+            diagnostic = (result.stderr or "") + "\n" + (result.stdout or "")
+            code = ("profile_unavailable" if "SigningContext.Credentials is null or empty" in diagnostic
+                    else "bucket_unavailable")
+            raise PublishError("Cannot read the configured OSS index object", code=code)
         try:
             return target.read_bytes()
         except OSError as exc:
@@ -233,7 +237,50 @@ def read_bucket_index(config: dict[str, str]) -> bytes:
 
 def check_bucket_binding(config: dict[str, str], website_index: bytes) -> None:
     if read_bucket_index(config) != website_index:
-        raise PublishError("Website index does not match the configured OSS bucket object")
+        raise PublishError("Website index does not match the configured OSS bucket object",
+                           code="deployment_mismatch")
+
+
+def doctor(config_path: Path) -> dict[str, Any]:
+    """Read-only checks in the current process; never alter the publish lock."""
+    try:
+        config = load_config(config_path)
+    except PublishError:
+        return {"status": "blocked", "code": "config_unavailable",
+                "next_action": "Check the local publishing configuration without sharing it"}
+    if shutil.which("ossutil") is None:
+        return {"status": "blocked", "code": "ossutil_unavailable",
+                "next_action": "Make ossutil available in this execution environment"}
+    try:
+        linked_url, index_bytes = checked_site(config)
+    except PublishError as exc:
+        return {"status": "blocked", "code": "network_unavailable" if exc.code == "transient" else "site_unverified",
+                "next_action": "Verify the public website from this same execution environment"}
+    try:
+        check_bucket_binding(config, index_bytes)
+    except PublishError as exc:
+        code = exc.code if exc.code in {"profile_unavailable", "deployment_mismatch"} else "bucket_unavailable"
+        return {"status": "blocked", "code": code,
+                "next_action": "Check this environment's ossutil profile and read-only bucket access"}
+    return {"status": "ready", "code": "read_only_checks_passed", "existing_briefing_url": linked_url,
+            "note": "Read-only checks cannot prove PutObject permission"}
+
+
+def inspect_public_release(config: dict[str, str], run_date: str, expected_hash: str) -> dict[str, Any]:
+    """Check public bytes and homepage without OSS access or writes."""
+    target_url = urljoin(config["site_index_url"], f"briefing_reader_{run_date}.html")
+    try:
+        remote_bytes = _remote_html(target_url)
+        if remote_bytes is None or hashlib.sha256(remote_bytes).hexdigest() != expected_hash:
+            return {"status": "mismatch", "reason": "daily_html_missing_or_different"}
+        current_home_url, _ = checked_site(config)
+    except PublishError as exc:
+        return {"status": "unreachable" if exc.code == "transient" else "mismatch",
+                "reason": "public_site_unavailable" if exc.code == "transient" else "public_site_invalid"}
+    current_date = BRIEFING_NAME.fullmatch(current_home_url.rsplit("/", 1)[-1]).group(1)
+    if current_date < run_date or (current_date == run_date and current_home_url != target_url):
+        return {"status": "mismatch", "reason": "homepage_behind_or_wrong_target"}
+    return {"status": "verified", "homepage_points_to_release": current_home_url == target_url}
 
 
 def upload_file(config: dict[str, str], source: Path, filename: str) -> None:
@@ -464,7 +511,7 @@ def auto_publish_after_finalize(output_root: Path, *, correction_reason: str | N
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("status", "enable", "publish"))
+    parser.add_argument("command", choices=("status", "doctor", "enable", "publish"))
     parser.add_argument("--config", type=Path, default=PROJECT_ROOT / "news_publish.local.json")
     parser.add_argument("--run-dir", type=Path, help="Completed local daily release directory; required for publish")
     parser.add_argument("--correction-reason", help="Required to replace different content for an already published date")
@@ -474,6 +521,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "status":
             result = status(config_path)
+        elif args.command == "doctor":
+            result = doctor(config_path)
         elif args.command == "enable":
             result = enable(config_path)
         else:
@@ -485,7 +534,13 @@ def main(argv: list[str] | None = None) -> int:
     except PublishError as exc:
         result = {"status": "failed", "reason": str(exc)}
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 1 if result["status"] in {"failed", "pending"} or (args.command == "enable" and result["status"] != "enabled") else 0
+    if args.command == "doctor":
+        return 0 if result["status"] == "ready" else 1
+    if args.command == "enable":
+        return 0 if result["status"] == "enabled" else 1
+    if args.command == "publish":
+        return 0 if result["status"] in {"published", "no_change"} else 1
+    return 0 if result["status"] != "failed" else 1
 
 
 if __name__ == "__main__":

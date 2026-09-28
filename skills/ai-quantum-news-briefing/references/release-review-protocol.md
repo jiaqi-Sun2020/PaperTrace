@@ -49,6 +49,8 @@ or correction needs current contract-2 coverage evidence. A title or `date_range
 does not establish coverage. The completed manifest records
 `local_finalized_at`; the OSS receipt separately records its actual publish time.
 
+For a single-day low-signal release, keep exact-day coverage evidence unchanged. The optional `delivery_expansion.version=1` uses `mode=standard` or `verified_shortfall` and a `coverage_date` matching the manifest day. Shortfall needs eight optional venue attempts in that day's academic ledger, a separate 14-day academic discovery sweep and digest, both earlier days of the 72-hour social discovery window with full source-class/AI HOT records and digests, and a concrete reason. The 7–8/10–14 counts remain normal targets. Only after reviewing the full expansion and candidate-exclusion ledger may shortfall relax minimum counts and source-category minima. It never relaxes non-Science required-day source checks, selected-item reviews, organization/topic maxima, the Fable or OSS eligibility. At least one academic and one social item must remain. Earlier unseen items may count toward the total but must show `近期回看`, original publication times, and separate covered-day counts in config, Markdown, HTML and embedded JSON. Search hashes prove recorded retrieval, not exhaustive publisher coverage or scientific truth.
+
 The digest is `sha256:` followed by SHA-256 of UTF-8 JSON serialized with
 `sort_keys=True`, `ensure_ascii=False` and compact separators `(',', ':')`.
 `academic_search` is the full venue ledger for that day. `social_search`

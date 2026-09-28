@@ -51,6 +51,12 @@ Tier 3 media / commentary:
 9. Coverage evidence is distinct from content evidence. DOI, title or abstract metadata alone cannot substantiate a paper's mechanism, performance or novelty claim; review the article or another suitable primary source separately.
 10. Use the adversarial audit before finalizing; missing or incomplete `academic_search` is a failure.
 
+## Optional expansion after the required day
+
+When the normal academic target remains unattainable, use `academic_venue_sweep.py --expanded` to inspect PRX Quantum, Nature Physics, Nature Communications, npj Quantum Information, PMLR AISTATS/COLT, CVF ICCV, and ECVA ECCV separately. These eight pages are discovery attempts, not new required daily coverage rows. The ECCV accepted-paper list can be preliminary; verify a final paper-level source before selecting an item. A successful page response never proves a complete dated inventory or an article's claims.
+
+Only after this expansion, search the 14-calendar-day academic context window. Preserve the exact original publication date and label earlier items `近期回看`. The separate lookback sweep is not the required one-day `academic_search` and cannot repair an unavailable non-Science required daily source. A version-1 `delivery_expansion` record binds optional attempts, the lookback sweep, both prior days of 72-hour social discovery and their hashes before a `verified_shortfall` release may relax quantity minima.
+
 ## Academic Evidence Contract
 
 For every item in `Academic frontier` or `Quantum physics / quantum computing`, fill these fields when possible:

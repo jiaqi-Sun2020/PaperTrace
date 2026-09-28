@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import hashlib
+from contextlib import redirect_stdout
+import io
 import json
 from pathlib import Path
 import sys
@@ -17,6 +19,7 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 import publish_daily_to_oss as publisher
+ORIGINAL_READ_BUCKET_INDEX = publisher.read_bucket_index
 
 
 class OssPublisherTests(unittest.TestCase):
@@ -283,6 +286,68 @@ class OssPublisherTests(unittest.TestCase):
         self.assertEqual(result["status"], "disabled")
         self.assertEqual(fetch.call_count, 3)
         upload.assert_not_called()
+
+    def test_doctor_is_read_only_and_reports_environment_failures(self) -> None:
+        state_path, _ = publisher.locations(self.config_path)
+        with patch.object(publisher.shutil, "which", return_value=None), \
+                patch.object(publisher, "fetch_html") as fetch:
+            self.assertEqual(publisher.doctor(self.config_path)["code"], "ossutil_unavailable")
+            fetch.assert_not_called()
+        with patch.object(publisher.shutil, "which", return_value="C:/tools/ossutil.exe"), \
+                patch.object(publisher, "fetch_html", side_effect=self.site_fetch), \
+                patch.object(publisher, "upload_file") as upload:
+            self.assertEqual(publisher.doctor(self.config_path)["status"], "ready")
+            upload.assert_not_called()
+        self.assertFalse(state_path.exists())
+        with patch.object(publisher.shutil, "which", return_value="C:/tools/ossutil.exe"), \
+                patch.object(publisher, "checked_site",
+                             side_effect=publisher.PublishError("connection refused", code="transient")), \
+                patch.object(publisher, "upload_file") as upload:
+            self.assertEqual(publisher.doctor(self.config_path)["code"], "network_unavailable")
+            upload.assert_not_called()
+        self.assertFalse(state_path.exists())
+
+    def test_doctor_reports_missing_ossutil_profile_without_leaking_output(self) -> None:
+        with patch.object(publisher.shutil, "which", return_value="C:/tools/ossutil.exe"), \
+                patch.object(publisher, "fetch_html", side_effect=self.site_fetch), \
+                patch.object(publisher, "read_bucket_index",
+                             side_effect=publisher.PublishError("Cannot read the configured OSS index object",
+                                                                code="profile_unavailable")):
+            result = publisher.doctor(self.config_path)
+        self.assertEqual(result["code"], "profile_unavailable")
+        self.assertNotIn("SigningContext", json.dumps(result))
+
+    def test_bucket_read_classifies_missing_profile_without_echoing_stderr(self) -> None:
+        response = SimpleNamespace(returncode=1, stderr="SigningContext.Credentials is null or empty",
+                                   stdout="")
+        with patch.object(publisher.subprocess, "run", return_value=response):
+            with self.assertRaises(publisher.PublishError) as raised:
+                ORIGINAL_READ_BUCKET_INDEX(self.config)
+        self.assertEqual(raised.exception.code, "profile_unavailable")
+        self.assertNotIn("SigningContext", str(raised.exception))
+
+    def test_publish_disabled_has_nonzero_cli_exit(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = publisher.main(["publish", "--config", str(self.config_path),
+                                   "--run-dir", str(self.run_dir)])
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(output.getvalue())["status"], "disabled")
+
+    def test_public_inspection_separates_html_hash_from_homepage_position(self) -> None:
+        expected_hash = hashlib.sha256(self.new_html).hexdigest()
+        self.new_present = True
+        with patch.object(publisher, "fetch_html", side_effect=self.site_fetch):
+            result = publisher.inspect_public_release(self.config, "2026-09-27", expected_hash)
+        self.assertEqual(result["status"], "mismatch")
+        self.assertEqual(result["reason"], "homepage_behind_or_wrong_target")
+        with patch.object(publisher, "fetch_html", side_effect=self.site_fetch):
+            result = publisher.inspect_public_release(self.config, "2026-09-27", "0" * 64)
+        self.assertEqual(result["reason"], "daily_html_missing_or_different")
+        with patch.object(publisher, "fetch_html",
+                          side_effect=publisher.PublishError("connection refused", code="transient")):
+            self.assertEqual(publisher.inspect_public_release(self.config, "2026-09-27",
+                                                              expected_hash)["status"], "unreachable")
 
 
 if __name__ == "__main__":

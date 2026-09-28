@@ -28,7 +28,7 @@ An opt-in OSS website mirror runs only after the reviewed local release passes s
 1. Determine the time window.
    - "今日" in an interactive request follows the user's current date and timezone. The scheduled 08:00 Asia/Shanghai release instead covers the prior complete local calendar day; do not claim that its release-date label means the current day is fully covered.
    - "近三天", "近4天", "本周": state the exact date range.
-   - If sources are thin for the exact day, say so and include "past 24-48 hours still relevant" items separately.
+   - If the exact day is thin, finish its required source checks first. Then try the optional venue expansion; only afterward widen candidate discovery to 14 academic calendar days and 72 social-news hours. Label older items `近期回看` with their original dates.
 
 2. Search current sources before answering.
    - Use web search for all current news, company reports, model releases, regulations, prices, funding, product changes, and papers.
@@ -80,17 +80,23 @@ python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\news_delta.py co
 
 ### Mandatory Academic Delivery
 
-`daily_pipeline.py run` defaults to a ranked academic delivery of 7–8 distinct paper-level records in a dedicated `Academic research and venue evidence` section. The final delta must contain 4–6 `new` papers absent from the recent story index, at least two non-arXiv formal venue papers, and at most three compact `continuing` records. `material_update` does not substitute for a new-paper quota. Approved sources include PRL/PRA/PRX/PRX Quantum, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv; an all-arXiv academic delivery is invalid.
+`daily_pipeline.py run` normally targets 7–8 distinct paper-level records in a dedicated `Academic research and venue evidence` section: 4–6 `new`, at least two non-arXiv formal papers, and at most three `continuing`. `material_update` does not substitute for a new-paper quota. Approved sources include PRL/PRA/PRX/PRX Quantum, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv. Only a fully evidenced `verified_shortfall` release may relax unattainable count/source-category minima; it still needs at least one claim-reviewed academic paper, and preprints remain labeled as such.
 
 Search PRL, PRA, PRX/PRX Quantum, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv on every daily run; the ledger must account for each with auditable official HTTPS evidence. Only Science may be explicitly skipped when its complete publisher-day scope cannot be established; other venue failures still stop release. Selected new papers must be traceable to the current sweep. A venue landing page or search page cannot count as a formal paper.
 
-If neither the requested window nor clearly labeled recent academic context has a defensible formal academic item, use an explicit opt-out with a concrete `no_signal_reason`; do not silently omit the academic section or invent a publication.
+If no defensible academic item survives, stop the daily release; an opt-out cannot manufacture a rank-1 paper for its source-grounded Fable.
 
 Count seven or eight distinct paper records with a primary article/DOI/preprint URL and a source-specific evidence fingerprint. At least two records must have non-arXiv primary URLs and a formal `evidence_level` such as `peer-reviewed venue` or `conference proceedings`. A journal landing page, search result, company platform update, or repeated paraphrase cannot inflate the delivery. If the requested window lacks enough formal items, widen only to the configured academic context window, label the context, and retain every paper's actual publication date.
 
 ### Mandatory Social News Delivery
 
-Every daily briefing must also contain a separate `Social news` / `社会新闻` section with at least 10 verified, non-academic source-backed items; the default target is 12 and the maximum is 14. At least seven must be `new` or `material_update`, at most three may be `continuing`, and the final selection must contain at least three reputable-media items, three primary-official items, and three source classes. No organization may occupy more than two slots and no topic more than three. A paper, preprint, venue ledger, candidate-only item, or empty placeholder cannot satisfy this section.
+Every daily briefing also needs a separate `Social news` / `社会新闻` section. Normal delivery targets 10–14 verified non-academic items (default 12), with at least seven `new`/`material_update`, at most three `continuing`, three reputable-media, three primary-official, and three source classes. `verified_shortfall` may relax only unattainable lower bounds after complete search evidence; it still requires at least one reviewed social item, preserves the upper bounds, and never admits a candidate-only or duplicate record.
+
+### Evidence-gated low-signal release
+
+Read [the release-review protocol](references/release-review-protocol.md) before using this branch. Keep the covered Shanghai day fixed. First complete all required academic and four social source-class checks; only Science has the documented `skipped_unavailable` exception. Use `academic_venue_sweep.py --expanded` to try eight additional official venue pages without making them new required daily venues. If the normal targets remain unattainable, collect separate source records for the 14-day academic and 72-hour social lookback and set `delivery_expansion.version=1`, `mode=verified_shortfall`. This is additional discovery, not proof that every publisher published nothing else.
+
+For shortfall, `academic_window_start` is covered day minus 13 days and `social_window_start` is minus two days. Attach the full lookback academic sweep plus its canonical digest, both earlier social daily search records plus their digests, and a concrete `shortfall_reason`. The ranker records all eligible, selected and excluded candidates. Original publication time—not an aggregator's resurfacing date—determines `covered_day` versus `recent_context`; social times must be timezone-aware. Older unseen items may count toward total output but must show `近期回看` and their original dates. If either final category is empty, or a required source or claim review fails, do not publish. `--days` remains an index deduplication lookback, not this candidate retrieval window.
 
 ### Deterministic Candidate Ranking
 
@@ -331,7 +337,7 @@ Write in Chinese by default.
 Keep the briefing compact but complete:
 - Place the opening story, compact factual debrief, and default-collapsed worked
   example before `日报正文`.
-- For "今日资讯": 7–8 academic papers plus 10–14 social-news items after ranking.
+- For "今日资讯": target 7–8 academic papers plus 10–14 social-news items; an evidenced low-signal release may be shorter and must disclose its actual counts.
 - For "近三天/近4天": 8-14 main items.
 - For "只要重点": 3-5 items.
 
@@ -348,9 +354,8 @@ Before finalizing:
 - Remove unsourced claims.
 - Separate company self-promotion from independently verified results.
 - Ensure quantum items are not old papers unless the user asked for background.
-- Ensure academic configs include top-level `academic_search`; if missing or incomplete, run `scripts/academic_venue_sweep.py`, search primary venues, and record the compact ledger before finalizing.
-- When academic delivery is required, verify the final delta config contains its dedicated academic section, the configured number of formal venue/arXiv items, and at least two individual non-arXiv formal paper records. A complete venue-search ledger does not excuse an all-arXiv delivery.
-- Verify the final delta config contains a distinct `社会新闻` / `Social news` section with at least ten verified non-academic items and a passing `news-ranker-v1` manifest; do not let academic backfill or delta compaction erase or underfill it.
+- Ensure academic configs include top-level `academic_search`; if missing or incomplete, run `scripts/academic_venue_sweep.py`, search primary venues, and record the compact ledger before finalizing. Optional expanded venues never cure an incomplete required source.
+- Verify both final sections, ranking ledger, item-level source reviews and the normal quotas. If a category is below its normal minimum, require the bound `verified_shortfall` expansion evidence and visible disclosure; a complete search ledger alone is not an item-level content review.
 - Default daily `facts`, `judgment`, and `relevance` to Chinese analysis. Preserve source titles, paper titles, model names, acronyms, and other proper nouns when translation would reduce precision.
 - Ensure arXiv items include `venue_sweep_note` and remain labeled as preprints. Do not finalize a daily briefing whose academic delivery is all arXiv, even if every preprint is correctly labeled.
 - Include a short "给你的科研观察" section.

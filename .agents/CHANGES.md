@@ -211,3 +211,9 @@ This file records dated implementation and local-release milestones. Durable bou
 - Added a reusable, disabled-by-default OSS publisher with an ignored local routing config and a credential-free example. Access credentials remain in a user-level ossutil profile.
 - After strict local finalization, the publisher verifies the existing site, linked briefing, and configured Bucket binding; it uploads only the completed briefing HTML and then the homepage. Neither site-check nor upload failure erases the local release; site-check failure requires manual re-enablement.
 - Documented setup, status, manual enable, retry, and the privacy boundary in the root READMEs and runbook. No personal site settings, feedback, learner data, or generated daily HTML enter the Git commit.
+
+## 2026-09-28 - Evidence-gated shortfall and OSS diagnosis
+
+- Added bounded optional-venue, academic-lookback and social-lookback evidence for a `verified_shortfall` release. It may relax only unattainable lower counts and source-class minima after mandatory searches; original publication dates, exclusions, reader disclosure, claim review and strict release gates remain required.
+- Added a read-only OSS `doctor`, compact/offline-versus-online release status, and nonzero standalone publish exit status for disabled delivery. A scheduled sandbox still needs independently verified narrow access to the website and ossutil profile; these diagnostics do not grant it.
+- Kept the existing local releases, personal routing config, feedback and learner profile outside this source-code sync.

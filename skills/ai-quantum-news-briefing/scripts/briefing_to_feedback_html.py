@@ -138,6 +138,10 @@ def render_item(item: dict[str, Any]) -> str:
         source = esc(item["source_title"])
     evidence = f'<span class="evidence">{esc(item["evidence_level"])}</span>' if item.get("evidence_level") else ""
     novelty = f'<span class="evidence">{esc(item["novelty"])}</span>' if item.get("novelty") else ""
+    temporal = ('<span class="evidence">近期回看</span>'
+                if item.get("time_relation") == "recent_context" else "")
+    publication = (f'<p class="source-line"><strong>原发表时间：</strong>{esc(item["published_at"])}</p>'
+                   if item.get("published_at") else "")
     delta_note = f'<p class="source-line"><strong>Delta: </strong>{esc(item["delta_note"])}</p>' if item.get("delta_note") else ""
     return f"""
 <article class="news-card" id="{esc(item['id'])}" data-item-id="{esc(item['id'])}">
@@ -146,12 +150,14 @@ def render_item(item: dict[str, Any]) -> str:
     <span class="category">{esc(item['category'])}</span>
     {evidence}
     {novelty}
+    {temporal}
   </div>
   <h3>{esc(item['title'])}</h3>
   <p><strong>事实：</strong>{esc(item['facts'])}</p>
   <p><strong>判断：</strong>{esc(item['judgment'])}</p>
   {f'<p><strong>对你的启发：</strong>{esc(item["relevance"])}</p>' if item.get("relevance") else ""}
   {delta_note}
+  {publication}
   <div class="concept-row">{''.join(chips) or '<span class="muted">No concept chips</span>'}</div>
   <p class="source-line"><strong>来源：</strong>{source or "未提供"} </p>
   <div class="mark-strip" data-mark-strip="{esc(item['id'])}"></div>

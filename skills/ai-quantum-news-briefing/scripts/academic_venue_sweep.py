@@ -52,6 +52,20 @@ VENUES: tuple[Venue, ...] = (
     Venue("arxiv", "arXiv", "arxiv.org/abs", "arXiv preprint", "https://export.arxiv.org/api/query?search_query=all:{term}"),
 )
 
+# Additional discovery targets are deliberately not required daily venues.
+# Their pages can surface candidates, but a response is not a dated inventory
+# or article-level evidence. Keep them outside ``rows`` and ``topics``.
+EXPANDED_VENUES: tuple[Venue, ...] = (
+    Venue("aps-prx-quantum", "APS PRX Quantum", "journals.aps.org", "peer-reviewed venue", "https://journals.aps.org/prxquantum/recent"),
+    Venue("nature-physics", "Nature Physics", "nature.com", "peer-reviewed venue", "https://www.nature.com/nphys/articles?sort=PubDate"),
+    Venue("nature-communications", "Nature Communications", "nature.com", "peer-reviewed venue", "https://www.nature.com/ncomms/articles?sort=PubDate"),
+    Venue("npj-quantum-information", "npj Quantum Information", "nature.com", "peer-reviewed venue", "https://www.nature.com/npjqi/articles?sort=PubDate"),
+    Venue("pmlr-aistats", "PMLR AISTATS 2026", "proceedings.mlr.press", "conference proceedings", "https://proceedings.mlr.press/v300/"),
+    Venue("pmlr-colt", "PMLR COLT 2026", "proceedings.mlr.press", "conference proceedings", "https://proceedings.mlr.press/v336/"),
+    Venue("cvf-iccv", "CVF ICCV 2025", "openaccess.thecvf.com", "conference proceedings", "https://openaccess.thecvf.com/ICCV2025?day=all"),
+    Venue("ecva-eccv", "ECVA ECCV 2026 preliminary accepted papers", "eccv.ecva.net", "conference discovery", "https://eccv.ecva.net/Conferences/2026/AcceptedPapers"),
+)
+
 
 def split_terms(raw_terms: Iterable[str]) -> list[str]:
     terms: list[str] = []
@@ -67,10 +81,12 @@ def search_url(domain: str, term: str, date_range: str) -> str:
     return "https://" + domain + "/search?q=" + quote_plus(term)
 
 
-def build_plan(terms: list[str], date_range: str, include_arxiv: bool, mark_checked_no_hit: bool) -> dict[str, object]:
+def build_plan(terms: list[str], date_range: str, include_arxiv: bool, mark_checked_no_hit: bool,
+               include_expanded: bool = False) -> dict[str, object]:
     venues = [venue for venue in VENUES if include_arxiv or venue.key != "arxiv"]
     rows = []
     topics = []
+    expanded_rows: list[dict[str, object]] = []
     for term in terms:
         topic_rows = []
         for venue in venues:
@@ -105,6 +121,16 @@ def build_plan(terms: list[str], date_range: str, include_arxiv: bool, mark_chec
                 "status": "pending",
             }
         )
+        if include_expanded:
+            for venue in EXPANDED_VENUES:
+                expanded_rows.append({
+                    "term": term, "venue": venue.key, "label": venue.label,
+                    "evidence_level": venue.evidence,
+                    "search_url": venue.search_template.format(term=quote_plus(term)),
+                    "result": "unchecked", "url": "",
+                    "note": "Optional discovery only; verify the journal and article date separately.",
+                    "evidence": {},
+                })
     return {
         "academic_search_version": 3,
         "date_range": date_range,
@@ -126,6 +152,7 @@ def build_plan(terms: list[str], date_range: str, include_arxiv: bool, mark_chec
         ],
         "topics": topics,
         "rows": rows,
+        "expanded_rows": expanded_rows,
         "venue_sweep_note_template": "Checked APS PRL/PRA/PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, and Quantum Journal; no stronger venue page found in window; treated as arXiv preprint.",
     }
 
@@ -323,7 +350,7 @@ def fetch_evidence(plan: dict[str, object], timeout: int = 20) -> dict[str, obje
     rows = plan.get("rows") or []
     science_days = _science_days(str(plan.get("date_range") or ""))
     science_snapshots: dict[str, dict[str, object]] = {}
-    for row in rows:
+    for row in [*rows, *(plan.get("expanded_rows") or [])]:
         if not isinstance(row, dict):
             continue
         if row.get("venue") == "science":
@@ -409,7 +436,7 @@ def to_markdown(plan: dict[str, object]) -> str:
         "| Term | Venue | Evidence | Search | Result | URL | Note |",
         "|---|---|---|---|---|---|---|",
     ]
-    for row in plan["rows"]:  # type: ignore[index]
+    for row in [*(plan["rows"]), *(plan.get("expanded_rows") or [])]:  # type: ignore[index]
         assert isinstance(row, dict)
         lines.append(
             "| {term} | {label} | {evidence_level} | [search]({search_url}) | {result} | {url} | {note} |".format(
@@ -434,6 +461,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--format", choices=["json", "markdown"], default="json")
     parser.add_argument("--no-arxiv", action="store_true", help="Exclude arXiv from generated search rows.")
     parser.add_argument("--fetch", action="store_true", help="Fetch official HTTPS venue endpoints and attach auditable evidence.")
+    parser.add_argument("--expanded", action="store_true", help="Also try eight optional journal/conference discovery targets; they do not become daily coverage requirements.")
     parser.add_argument(
         "--mark-checked-no-hit",
         action="store_true",
@@ -447,7 +475,8 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     terms = split_terms(args.term)
     if not terms:
         raise SystemExit("At least one non-empty --term is required.")
-    plan = build_plan(terms, args.date_range, include_arxiv=not args.no_arxiv, mark_checked_no_hit=args.mark_checked_no_hit)
+    plan = build_plan(terms, args.date_range, include_arxiv=not args.no_arxiv,
+                      mark_checked_no_hit=args.mark_checked_no_hit, include_expanded=args.expanded)
     if args.fetch:
         plan = fetch_evidence(plan)
     text = json.dumps(plan, ensure_ascii=False, indent=2) if args.format == "json" else to_markdown(plan)

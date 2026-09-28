@@ -643,7 +643,11 @@ def render_markdown(config: dict[str, Any]) -> str:
             lines.append(f"{index}. **{title_text}**")
             if item.get("category") or item.get("novelty"):
                 bits = [clean_text(item.get("category"), 120), clean_text(item.get("novelty"), 80)]
+                if item.get("time_relation") == "recent_context":
+                    bits.append("近期回看")
                 lines.append("   标签：" + " / ".join(bit for bit in bits if bit))
+            if item.get("published_at"):
+                lines.append(f"   原发表时间：{clean_text(item.get('published_at'), 100)}")
             if item.get("facts"):
                 lines.append(f"   事实：{clean_text(item.get('facts'), 1200)}")
             if item.get("judgment"):

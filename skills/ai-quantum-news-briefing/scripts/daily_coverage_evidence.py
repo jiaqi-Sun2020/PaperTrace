@@ -67,6 +67,40 @@ def _ai_hot_page(value: Any, start: datetime, end: datetime) -> bool:
                 and stamp and stamp >= end.astimezone(stamp.tzinfo))
 
 
+def validate_social_search(social: Any, day: str) -> list[str]:
+    """Validate one day of source-class discovery, including AI HOT pagination."""
+    start, end = _day_bounds(day)
+    failures: list[str] = []
+    if not isinstance(social, dict) or (social.get("coverage_start") != start.isoformat()
+                                          or social.get("coverage_end") != end.isoformat()):
+        return [f"{day}: social search window mismatch"]
+    ai_hot = social.get("ai_hot_window")
+    if (not isinstance(ai_hot, dict) or ai_hot.get("coverage_date") != day
+            or ai_hot.get("coverage_start") != start.isoformat()
+            or ai_hot.get("coverage_end") != end.isoformat()
+            or ai_hot.get("coverage_status") != "verified"
+            or ai_hot.get("pagination_complete") is not True
+            or ai_hot.get("source") != "ai_hot" or ai_hot.get("pool_scope") != "ai_hot_selected"
+            or ai_hot.get("timezone") != "Asia/Shanghai"
+            or ai_hot.get("missing_timestamp_count") != 0
+            or not all(isinstance(ai_hot.get(name), int) and ai_hot[name] >= 0
+                       for name in ("retrieved_count", "inside_window_count", "outside_window_count"))
+            or ai_hot.get("retrieved_count") != ai_hot.get("inside_window_count", -1) + ai_hot.get("outside_window_count", -1)
+            or not isinstance(ai_hot.get("pages"), list) or not ai_hot["pages"]
+            or not all(_ai_hot_page(page, start, end) for page in ai_hot["pages"])
+            or ai_hot.get("response_hash") != hashlib.sha256(json.dumps(ai_hot["pages"], sort_keys=True).encode()).hexdigest()):
+        failures.append(f"{day}: AI HOT daily candidate window is incomplete")
+    records = social.get("source_class_evidence")
+    if not isinstance(records, list):
+        failures.append(f"{day}: social source-class evidence missing")
+    else:
+        classes = {record.get("source_class") for record in records if isinstance(record, dict)
+                   and _http_record(record, start, end)}
+        if not REQUIRED_SOCIAL_CLASSES <= classes:
+            failures.append(f"{day}: social source-class search evidence incomplete")
+    return failures
+
+
 def validate_daily_evidence(rows: Any, coverage_start: datetime, coverage_end: datetime,
                             *, contract_version: int = 1) -> list[str]:
     """Validate scope, real records and hashes; this cannot prove a source's semantics."""
@@ -117,32 +151,5 @@ def validate_daily_evidence(rows: Any, coverage_start: datetime, coverage_end: d
                 for provider in item.get("provider_evidence", []))
         if not science or not all(science_for_day(item) for item in science):
             failures.append(f"{day}: Science publisher-day coverage or documented skip is missing")
-        social = row["social_search"]
-        if social.get("coverage_start") != start.isoformat() or social.get("coverage_end") != end.isoformat():
-            failures.append(f"{day}: social search window mismatch")
-            continue
-        ai_hot = social.get("ai_hot_window")
-        if (not isinstance(ai_hot, dict) or ai_hot.get("coverage_date") != day
-                or ai_hot.get("coverage_start") != start.isoformat()
-                or ai_hot.get("coverage_end") != end.isoformat()
-                or ai_hot.get("coverage_status") != "verified"
-                or ai_hot.get("pagination_complete") is not True
-                or ai_hot.get("source") != "ai_hot" or ai_hot.get("pool_scope") != "ai_hot_selected"
-                or ai_hot.get("timezone") != "Asia/Shanghai"
-                or ai_hot.get("missing_timestamp_count") != 0
-                or not all(isinstance(ai_hot.get(name), int) and ai_hot[name] >= 0
-                           for name in ("retrieved_count", "inside_window_count", "outside_window_count"))
-                or ai_hot.get("retrieved_count") != ai_hot.get("inside_window_count", -1) + ai_hot.get("outside_window_count", -1)
-                or not isinstance(ai_hot.get("pages"), list) or not ai_hot["pages"]
-                or not all(_ai_hot_page(page, start, end) for page in ai_hot["pages"])
-                or ai_hot.get("response_hash") != hashlib.sha256(json.dumps(ai_hot["pages"], sort_keys=True).encode()).hexdigest()):
-            failures.append(f"{day}: AI HOT daily candidate window is incomplete")
-        records = social.get("source_class_evidence")
-        if not isinstance(records, list):
-            failures.append(f"{day}: social source-class evidence missing")
-            continue
-        classes = {record.get("source_class") for record in records if isinstance(record, dict)
-                   and _http_record(record, start, end)}
-        if not REQUIRED_SOCIAL_CLASSES <= classes:
-            failures.append(f"{day}: social source-class search evidence incomplete")
+        failures.extend(validate_social_search(row["social_search"], day))
     return failures

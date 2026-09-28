@@ -54,8 +54,10 @@ python .\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source ap
 The template is deliberately `unreviewed`. Check each selected news claim against its source and perform the protocol-3 story-only trace, source mapping and cross-surface review before sealing. Clear `unresolved` only after each finding is repaired. `seal-review` binds the reviews and preflight audit to the release manifest; it cannot certify semantic truth. Missing, failed or stale review blocks `finalize` and standalone OSS `publish`. Read `skills/ai-quantum-news-briefing/references/release-review-protocol.md`. Older v2 reviews stay locally readable; preserve the old sidecar before replacing and re-sealing it for a first remote upload or correction. Inspect structured coverage (old display-only `date_range` is not full-day evidence):
 
 ```powershell
-python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py status --from-date <YYYY-MM-DD>
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py status --from-date <YYYY-MM-DD> --through-date <YYYY-MM-DD> --compact
 ```
+
+`status` is offline by default: a matching receipt is not proof that public HTML remains available, so `remote_verified: null` means **not checked**. Add `--online` for a read-only public HTML and homepage check; `unreachable` is not the same as `mismatch`. `--compact` omits verbose source evidence without weakening strict local verification.
 
 ### Optional OSS website mirror
 
@@ -65,9 +67,12 @@ From `D:\AI\PaperTrace`, install ossutil 2.x and create a user-level profile wit
 
 ```powershell
 python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py status
+python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py doctor
 python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py enable
 python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py publish --run-dir .\news\<YYYY-MM-DD>
 ```
+
+Run `doctor` in the **same execution environment** that will publish. It checks the website, existing link, `ossutil` availability and read-only Bucket binding without uploading or changing the manual enable lock. Its results never disclose profile contents and cannot prove PutObject permission. A blocked `doctor` or `publish` exits nonzero; an earlier `enable` in another shell or sandbox does not establish this process's capability. The daily scheduled task inherits its sandbox. Grant network and user-level profile access only through a tested, narrow authorization; never broadly allow unsandboxed Python/PowerShell or full filesystem access. If narrow authorization is unavailable, keep local release automation and publish from the user's existing PowerShell environment after manual `enable`; report website delivery only after checking remote bytes and homepage.
 
 The existing index must link to one reachable `briefing_reader_YYYY-MM-DD.html`. `enable` checks both URLs and confirms the website index matches the configured Bucket object; the ossutil profile needs GetObject and PutObject access. Every publish repeats the checks, reconciles remote HTML and the receipt, and never moves the homepage backward during historical backfill. Same-date content replacement requires `--correction-reason`, `--supersedes-hash` and fresh review. Only verified HTML and `index.html` reach OSS; receipts stay under `news/_publish/`.
 
@@ -384,7 +389,9 @@ The skill writes concept-status candidates through strict `reader-learner` valid
 
 ## Daily Academic And Feedback Release Gate
 
-For `daily_pipeline.py`, keep `analysis_language=zh-CN`, `academic_delivery.required=true`, and `ranking_policy.enabled=true`. `news-ranker-v1` must select 7–8 academic papers (4–6 `new`, at least two non-arXiv formal papers, at most three `continuing`) plus 10–14 social items (target 12, at least seven `new`/`material_update`, at most three `continuing`). Social selection also requires at least three reputable-media items, three primary-official items, and three source classes, with at most two items per organization and three per topic. `academic_search` must account for PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv with source-specific evidence. Contract 2 permits a documented skip only for Science, not a zero-hit check; other venue failures stop release. Preserve actual publication dates for wider-window academic context.
+For new low-signal releases, keep the covered Shanghai day fixed and first finish the normal required academic and four social-class searches. Try eight optional venue discovery pages, then at most 14 academic calendar days and 72 social hours. Use `delivery_expansion.version=1`, `mode=verified_shortfall` only with dated source attempts, content digests, candidate exclusions, original publication times, at least one claim-reviewed item in each category and a concrete shortage reason. It relaxes only unattainable quantity and source-class minima; it never waives a required-source failure, claim review or strict publication check. Optional listings are discovery, not article evidence. `--days` remains an index-deduplication lookback, not the retrieval window.
+
+For `daily_pipeline.py`, keep `analysis_language=zh-CN`, `academic_delivery.required=true`, and `ranking_policy.enabled=true`. In standard mode, `news-ranker-v1` must select 7–8 academic papers (4–6 `new`, at least two non-arXiv formal papers, at most three `continuing`) plus 10–14 social items (target 12, at least seven `new`/`material_update`, at most three `continuing`). Standard social selection also requires at least three reputable-media items, three primary-official items, and three source classes, with at most two items per organization and three per topic. A source- and shortage-audited `verified_shortfall` may relax only the documented lower bounds. `academic_search` must account for PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv with source-specific evidence. Contract 2 permits a documented skip only for Science, not a zero-hit check; other venue failures stop release. Preserve actual publication dates for wider-window academic context.
 
 To inspect the ranking before running the transactional release, run from `D:\AI\PaperTrace`:
 
@@ -406,7 +413,7 @@ $manifest = Get-Content -LiteralPath '.\news\<YYYY-MM-DD>\daily_pipeline_manifes
 $manifest | Select-Object status, ranking, delta_counts, expected_concepts, index_commit
 ```
 
-`status` must be `complete`; `ranking.academic` must be 7 or 8 and `ranking.social` must be at least 10. The item-level ranking ledger in `news_feedback_config_delta_<YYYY-MM-DD>.json` must agree with the manifest.
+`status` must be `complete`. In `standard` mode, `ranking.academic` must be 7 or 8 and `ranking.social` must be at least 10. In `verified_shortfall`, inspect the bound expansion evidence and actual counts instead; both categories still require at least one source-reviewed item and a shortage explanation consistent with the manifest. The item-level ranking ledger in `news_feedback_config_delta_<YYYY-MM-DD>.json` must agree with the manifest.
 
 ## Validate Scripts
 

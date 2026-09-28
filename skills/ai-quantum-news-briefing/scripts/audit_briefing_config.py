@@ -10,7 +10,7 @@ import json
 import re
 import sys
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import unquote_plus, urlsplit
@@ -19,6 +19,7 @@ from science_coverage_policy import science_journal_candidate, science_skipped
 
 from briefing_contract import canonical_url, normalize_briefing_config
 from rank_briefing_candidates import ALGORITHM_VERSION, is_primary_official, is_reputable
+from delivery_expansion import SHORTFALL, publication_relation, validate_policy
 
 
 ACADEMIC_DOMAINS = {
@@ -34,6 +35,8 @@ ACADEMIC_DOMAINS = {
     "aclanthology.org": "acl",
     "quantum-journal.org": "quantum-journal",
     "npjqi.springeropen.com": "npj-qi",
+    "eccv.ecva.net": "ecva",
+    "ecva.net": "ecva",
 }
 
 OFFICIAL_RESEARCH_DOMAINS = {
@@ -373,6 +376,7 @@ def audit_academic_delivery(config: dict[str, Any]) -> list[str]:
             return ["academic_delivery opt-out requires no_signal_reason"]
         return []
     failures: list[str] = []
+    shortfall = (config.get("delivery_expansion") or {}).get("mode") == SHORTFALL
     try:
         configured_minimum_items = int(delivery.get("minimum_items", 7))
         minimum_items = max(7, configured_minimum_items)
@@ -395,7 +399,7 @@ def audit_academic_delivery(config: dict[str, Any]) -> list[str]:
         for section in config.get("sections", [])
         if isinstance(section, dict)
     ]
-    if len(formal_items) < minimum_items:
+    if len(formal_items) < minimum_items and not shortfall:
         failures.append(
             f"academic_delivery requires at least {minimum_items} formal venue or arXiv item; found {len(formal_items)}"
         )
@@ -416,7 +420,7 @@ def audit_academic_delivery(config: dict[str, Any]) -> list[str]:
     maximum_continuing = max(0, min(3, configured_maximum_continuing))
     if len(formal_items) > maximum_items:
         failures.append(f"academic_delivery permits at most {maximum_items} paper items; found {len(formal_items)}")
-    if len(primary_venue_items) < minimum_non_arxiv:
+    if len(primary_venue_items) < minimum_non_arxiv and not shortfall:
         failures.append(
             f"academic_delivery requires at least {minimum_non_arxiv} non-arXiv formal venue papers; found {len(primary_venue_items)}"
         )
@@ -444,7 +448,7 @@ def audit_academic_delivery(config: dict[str, Any]) -> list[str]:
             item for item in formal_items
             if clean_text(item.get("novelty"), 80).lower() == "new"
         ]
-        if len(new_items) < minimum_new_items:
+        if len(new_items) < minimum_new_items and not shortfall:
             failures.append(
                 f"academic_delivery final delta requires {minimum_new_items}-{maximum_new_items} new academic paper items; found {len(new_items)}"
             )
@@ -452,6 +456,8 @@ def audit_academic_delivery(config: dict[str, Any]) -> list[str]:
             failures.append(
                 f"academic_delivery final delta permits at most {maximum_new_items} new academic paper items; found {len(new_items)}"
             )
+    if shortfall and not formal_items:
+        failures.append("verified_shortfall still requires at least one audited academic paper")
     return failures
 
 
@@ -473,6 +479,7 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
         if clean_text(value, 120)
     }
     failures: list[str] = []
+    shortfall = (config.get("delivery_expansion") or {}).get("mode") == SHORTFALL
     try:
         configured_minimum_items = int(delivery.get("minimum_items", 10))
         minimum_items = max(10, configured_minimum_items)
@@ -499,9 +506,9 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
     missing_classes = sorted(required_classes - recorded_classes)
     if missing_classes:
         failures.append("social_candidate_pool is missing source classes: " + ", ".join(missing_classes))
-    if len(social_items) < minimum_items:
+    if len(social_items) < minimum_items and not shortfall:
         failures.append(f"social_delivery requires at least {minimum_items} social-news item; found {len(social_items)}")
-    if len(non_academic_items) < minimum_items:
+    if len(non_academic_items) < minimum_items and not shortfall:
         failures.append("social news section requires non-academic source-backed items")
     try:
         configured_maximum_items = int(delivery.get("maximum_items", 14))
@@ -543,15 +550,15 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
     active_items = [item for item in social_items if clean_text(item.get("novelty"), 80).lower() in {"new", "material_update"}]
     continuing_items = [item for item in social_items if clean_text(item.get("novelty"), 80).lower() == "continuing"]
     source_classes = [clean_text((item.get("ranking") or {}).get("source_class") or item.get("source_class"), 120).lower() for item in social_items]
-    if len(active_items) < minimum_active:
+    if len(active_items) < minimum_active and not shortfall:
         failures.append(f"social_delivery requires at least {minimum_active} new or material-update items; found {len(active_items)}")
     if len(continuing_items) > maximum_continuing:
         failures.append(f"social_delivery permits at most {maximum_continuing} continuing items; found {len(continuing_items)}")
-    if sum(is_reputable(value) for value in source_classes) < minimum_reputable:
+    if sum(is_reputable(value) for value in source_classes) < minimum_reputable and not shortfall:
         failures.append(f"social_delivery requires at least {minimum_reputable} reputable-media items")
-    if sum(is_primary_official(value) for value in source_classes) < minimum_official:
+    if sum(is_primary_official(value) for value in source_classes) < minimum_official and not shortfall:
         failures.append(f"social_delivery requires at least {minimum_official} primary-official items")
-    if len({value for value in source_classes if value}) < minimum_classes:
+    if len({value for value in source_classes if value}) < minimum_classes and not shortfall:
         failures.append(f"social_delivery requires at least {minimum_classes} source classes")
     organizations = Counter(clean_text((item.get("ranking") or {}).get("organization") or item.get("organization"), 200).lower() for item in social_items)
     topics = Counter(clean_text((item.get("ranking") or {}).get("topic") or item.get("topic"), 200).lower() for item in social_items)
@@ -569,6 +576,8 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
         ]
         if missing_fields:
             failures.append("social news item is missing required evidence fields: " + ", ".join(missing_fields))
+    if shortfall and not non_academic_items:
+        failures.append("verified_shortfall still requires at least one audited social item")
     return failures
 
 
@@ -666,6 +675,41 @@ def audit_ranking_delivery(config: dict[str, Any]) -> list[str]:
         for row in ledger:
             if isinstance(row, dict) and not row.get("selected") and not row.get("exclusion_reasons"):
                 failures.append("ranking candidate exclusion requires an explicit reason")
+    if (config.get("delivery_expansion") or {}).get("mode") == SHORTFALL:
+        short = manifest.get("shortfall_evidence") or {}
+        if not isinstance(short, dict):
+            short = {}
+        if (not isinstance(short, dict) or short.get("coverage_date") != config["delivery_expansion"].get("coverage_date")
+                or short.get("selected_counts") != selected_counts
+                or short.get("eligible_counts") != manifest.get("eligible_counts")
+                or not isinstance(short.get("exclusions"), dict)):
+            failures.append("shortfall ranking evidence is missing or does not match the candidate ledger")
+        if isinstance(ledger, list):
+            actual_eligible = {kind: sum(isinstance(row, dict) and row.get("kind") == kind
+                                         and row.get("eligible") is True for row in ledger)
+                               for kind in ("academic", "social")}
+            actual_exclusions = dict(Counter(reason for row in ledger if isinstance(row, dict)
+                                             for reason in row.get("exclusion_reasons", [])))
+            if manifest.get("eligible_counts") != actual_eligible or short.get("exclusions") != actual_exclusions:
+                failures.append("shortfall candidate counts or exclusions do not match the ledger")
+        if len(ranked_items["academic"]) >= 7 and len(ranked_items["social"]) >= 10:
+            failures.append("verified_shortfall cannot be used when both normal item minimums are met")
+        try:
+            covered = date.fromisoformat(str(config["delivery_expansion"]["coverage_date"]))
+        except (KeyError, TypeError, ValueError):
+            failures.append("shortfall coverage date is invalid")
+            return failures
+        for kind, items in ranked_items.items():
+            for item in items:
+                if item.get("time_relation") != publication_relation(item, kind, covered):
+                    failures.append(f"{item.get('id')}: time relation disagrees with original publication time")
+            same_day = sum(item.get("time_relation") == "covered_day" for item in items)
+            recent = sum(item.get("time_relation") == "recent_context" for item in items)
+            if same_day + recent != len(items):
+                failures.append(f"{kind}: published shortfall item has no verified time relation")
+            if isinstance(short, dict) and (short.get("same_day_counts", {}).get(kind) != same_day
+                                            or short.get("recent_context_counts", {}).get(kind) != recent):
+                failures.append(f"{kind}: shortfall temporal counts do not match published items")
     return failures
 
 
@@ -687,6 +731,7 @@ def audit(config: dict[str, Any], *, legacy_science: bool = False,
     item_count = 0
     academic_item_count = 0
     requires_chinese_analysis = clean_text(config.get("analysis_language"), 40).lower() in {"zh", "zh-cn", "chinese"}
+    failures.extend(validate_policy(config))
 
     opening_story = config.get("opening_story") or {}
     if opening_story and requires_chinese_analysis:

@@ -420,7 +420,43 @@ class ReviewedReleaseTests(unittest.TestCase):
         status = json.loads(output.getvalue())
         self.assertEqual(status["missing_days"], ["2026-07-10"])
         self.assertEqual(status["covered_days"]["2026-07-09"], [self.date])
-        self.assertFalse(status["releases"][0]["remote_verified"])
+        self.assertIsNone(status["releases"][0]["remote_verified"])
+        self.assertEqual(status["releases"][0]["remote_status"], "not_checked")
+
+    def test_compact_and_online_status_do_not_confuse_receipt_with_remote_bytes(self) -> None:
+        self._seal()
+        with patch("publish_daily_to_oss.auto_publish_after_finalize", return_value={"status": "disabled"}):
+            cmd_finalize(Namespace(run_dir=str(self.stage), strict=True))
+        options = Namespace(news_root=str(self.root / "news"), from_date="2026-07-09",
+                            through_date="2026-07-09", compact=True, online=True,
+                            publish_config=str(self.root / "news_publish.local.json"))
+        output = io.StringIO()
+        with patch("publish_daily_to_oss.load_config", return_value={"site_index_url": "https://example.org/index.html"}), \
+                patch("publish_daily_to_oss.inspect_public_release",
+                      return_value={"status": "unreachable", "reason": "public_site_unavailable"}), \
+                redirect_stdout(output):
+            cmd_status(options)
+        result = json.loads(output.getvalue())["releases"][0]
+        self.assertIsNone(result["remote_verified"])
+        self.assertEqual(result["remote_status"], "unreachable")
+        self.assertNotIn("daily_search_evidence", result["coverage"])
+        output = io.StringIO()
+        with patch("publish_daily_to_oss.load_config", return_value={"site_index_url": "https://example.org/index.html"}), \
+                patch("publish_daily_to_oss.inspect_public_release",
+                      return_value={"status": "mismatch", "reason": "daily_html_missing_or_different"}), \
+                redirect_stdout(output):
+            cmd_status(options)
+        result = json.loads(output.getvalue())["releases"][0]
+        self.assertIs(result["remote_verified"], False)
+        output = io.StringIO()
+        with patch("publish_daily_to_oss.load_config", return_value={"site_index_url": "https://example.org/index.html"}), \
+                patch("publish_daily_to_oss.inspect_public_release",
+                      return_value={"status": "verified", "homepage_points_to_release": True}), \
+                redirect_stdout(output):
+            cmd_status(options)
+        result = json.loads(output.getvalue())["releases"][0]
+        self.assertIs(result["remote_verified"], True)
+        self.assertTrue(result["homepage_points_to_release"])
 
     def test_status_reads_legacy_release_without_claiming_day_coverage(self) -> None:
         legacy = self.root / "news" / "2026-07-11"

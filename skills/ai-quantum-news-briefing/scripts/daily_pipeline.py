@@ -33,7 +33,8 @@ from briefing_contract import (
 )
 from briefing_to_feedback_html import render_html, worked_example_has_formula
 from config_to_news_feedback import export_feedback
-from daily_coverage_evidence import validate_daily_evidence
+from daily_coverage_evidence import evidence_digest, validate_daily_evidence
+from delivery_expansion import SHORTFALL, default_policy, validate_policy
 from lean_html import apply_design_system, design_audit_issues
 from news_delta import (
     load_index,
@@ -243,6 +244,16 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
             coverage_contract_version=contract_version if contract_version in (1, 2) else 1)
         failures.extend(config_audit["failures"])
         warnings.extend(config_audit["warnings"])
+        expansion = config.get("delivery_expansion")
+        if manifest.get("delivery_expansion_version") == 1:
+            if (manifest.get("delivery_expansion_ref") != evidence_digest(expansion)
+                    or manifest.get("delivery_expansion") != expansion):
+                failures.append("delivery expansion differs between reviewed manifest and config")
+            if (isinstance(expansion, dict) and expansion.get("coverage_date") !=
+                    str((manifest.get("coverage") or {}).get("start") or "")[:10]):
+                failures.append("delivery expansion date differs from the manifest coverage day")
+        elif isinstance(expansion, dict) and expansion.get("mode") == SHORTFALL:
+            failures.append("shortfall release lacks a versioned manifest binding")
         if contract_version == 2:
             notice = config.get("coverage_notice") or ""
             daily_records = ((manifest.get("coverage") or {}).get("daily_search_evidence") or [])
@@ -252,13 +263,30 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
             embedded_match = re.search(r'<script\b[^>]*\bid="briefing-data"[^>]*>(.*?)</script>',
                                        html_text, flags=re.I | re.S)
             try:
-                embedded_notice = json.loads(embedded_match.group(1)).get("coverage_notice") if embedded_match else None
+                embedded_data = json.loads(embedded_match.group(1)) if embedded_match else None
+                embedded_notice = embedded_data.get("coverage_notice") if isinstance(embedded_data, dict) else None
             except (ValueError, AttributeError):
+                embedded_data = None
                 embedded_notice = None
             if (embedded_notice != notice or (notice and (notice not in markdown_text
                     or html.escape(notice, quote=True) not in html_text
                     or 'data-coverage-notice="true"' not in html_text))):
-                failures.append("Science coverage notice differs across config, Markdown, visible HTML or embedded data")
+                failures.append("coverage notice differs across config, Markdown, visible HTML or embedded data")
+            if (config.get("delivery_expansion") or {}).get("mode") == SHORTFALL:
+                if not isinstance(embedded_data, dict) or embedded_data.get("sections") != config.get("sections"):
+                    failures.append("shortfall embedded items differ from the reviewed config")
+                for section in config.get("sections", []):
+                    for item in section.get("items", []):
+                        if item.get("time_relation") != "recent_context":
+                            continue
+                        article = re.search(
+                            r'<article\b[^>]*\bid="' + re.escape(html.escape(str(item.get("id")))) + r'"[^>]*>.*?</article>',
+                            html_text, flags=re.I | re.S)
+                        if (not article or "近期回看" not in article.group(0)
+                                or html.escape(str(item.get("published_at") or "")) not in article.group(0)
+                                or "近期回看" not in markdown_text
+                                or str(item.get("published_at") or "") not in markdown_text):
+                            failures.append(f"recent-context item is not fully disclosed: {item.get('id')}")
         if strict and config_audit["warnings"]:
             failures.extend(f"strict audit warning: {warning}" for warning in config_audit["warnings"])
 
@@ -477,10 +505,20 @@ def cmd_run(args: argparse.Namespace) -> int:
     protocol = int(getattr(args, "release_protocol", 1))
     if protocol >= 2:
         coverage_start, coverage_end = _coverage_window(args, raw_config, run_date)
+        covered = date.fromisoformat(coverage_start[:10])
+        if raw_config.get("delivery_expansion") is None and (
+            datetime.fromisoformat(coverage_end) - datetime.fromisoformat(coverage_start)
+        ) == timedelta(days=1):
+            raw_config["delivery_expansion"] = default_policy(covered.isoformat())
+        expansion = raw_config.get("delivery_expansion")
+        if isinstance(expansion, dict) and expansion.get("coverage_date") != covered.isoformat():
+            raise ValueError("delivery_expansion.coverage_date must match the reviewed Shanghai day")
+        expansion_failures = validate_policy(raw_config)
+        if expansion_failures:
+            raise ValueError("; ".join(expansion_failures))
     output_root = Path(args.output_dir or (config_path.parents[2] / "news" / run_date)).expanduser().resolve()
     run_id = f"{run_date}-{uuid.uuid4().hex[:12]}"
     run_root = output_root / ".staging" / run_id
-    run_root.mkdir(parents=True, exist_ok=False)
     index_path = Path(args.index).expanduser().resolve() if args.index else output_root.parent / "_index" / "story_index.jsonl"
 
     index_records = load_index(index_path)
@@ -501,6 +539,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     for record in index_updates:
         record["briefing_path"] = str(final_paths["html"])
     canonical = normalize_briefing_config(transformed, config_path, require_source_url=True)
+    if (canonical.get("delivery_expansion") or {}).get("mode") == SHORTFALL:
+        shortfall_audit = audit_config(canonical, coverage_contract_version=2)
+        if shortfall_audit["failures"]:
+            raise ValueError("shortfall release is ineligible: " + "; ".join(shortfall_audit["failures"]))
+    run_root.mkdir(parents=True, exist_ok=False)
     feedback = export_feedback(canonical, config_path, "unrated", "none")
     html_config = dict(canonical)
     html_config.update({"default_status": "unrated", "initial_feedback_items": feedback["items"]})
@@ -542,6 +585,10 @@ def cmd_run(args: argparse.Namespace) -> int:
                                 "timezone": "Asia/Shanghai",
                                 "collection_completed_at": raw_config["collection_completed_at"],
                                 "daily_search_evidence": raw_config.get("coverage_evidence") or []}
+        if canonical.get("delivery_expansion"):
+            manifest["delivery_expansion_version"] = 1
+            manifest["delivery_expansion"] = canonical["delivery_expansion"]
+            manifest["delivery_expansion_ref"] = evidence_digest(canonical["delivery_expansion"])
     atomic_json(names["manifest"], manifest)
     print(json.dumps({"status": "staged", "run_id": run_id, "run_dir": str(run_root)}, ensure_ascii=False))
     return 0
@@ -735,8 +782,10 @@ def cmd_review_template(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    """Report evidenced calendar-day coverage; do not infer it from old titles."""
+    """Report evidenced coverage; a local receipt is not a remote check."""
     news_root = Path(args.news_root).expanduser().resolve()
+    compact = bool(getattr(args, "compact", False))
+    online = bool(getattr(args, "online", False))
     shanghai = timezone(timedelta(hours=8), "Asia/Shanghai")
     through = date.fromisoformat(args.through_date) if args.through_date else datetime.now(shanghai).date() - timedelta(days=1)
     start = date.fromisoformat(args.from_date)
@@ -760,7 +809,8 @@ def cmd_status(args: argparse.Namespace) -> int:
             protocol = int(manifest.get("pipeline_version") or 1)
             if protocol < 2:
                 releases.append({"date": date_value, "local_status": "legacy-unverified",
-                                 "coverage": "legacy-unverified", "remote_verified": False})
+                                 "coverage": "legacy-unverified", "remote_status": "not_checked",
+                                 "remote_verified": None})
                 continue
             result = verify_artifacts(run_dir, strict=True)
             if result["status"] != "pass":
@@ -776,10 +826,32 @@ def cmd_status(args: argparse.Namespace) -> int:
             receipt_matches = (receipt.get("status") == "published"
                                and receipt.get("date") == date_value
                                and receipt.get("html_sha256") == manifest.get("artifact_sha256", {}).get("html"))
-            releases.append({"date": date_value, "local_status": "complete",
-                             "coverage": coverage or "legacy-unverified",
-                             "receipt_matches_local": receipt_matches,
-                             "remote_verified": False})
+            release = {"date": date_value, "local_status": "complete",
+                       "coverage": ({"start": coverage.get("start"), "end": coverage.get("end")}
+                                    if compact and isinstance(coverage, dict) else coverage or "legacy-unverified"),
+                       "receipt_matches_local": receipt_matches,
+                       "remote_status": "not_checked", "remote_verified": None}
+            if compact:
+                release["ranking"] = manifest.get("ranking")
+            if online:
+                from publish_daily_to_oss import PublishError, inspect_public_release, load_config
+
+                config_path = Path(getattr(args, "publish_config", None)
+                                   or news_root.parent / "news_publish.local.json").expanduser().resolve()
+                try:
+                    config = load_config(config_path)
+                    remote = inspect_public_release(config, date_value,
+                                                    manifest.get("artifact_sha256", {}).get("html", ""))
+                except PublishError:
+                    remote = {"status": "unavailable", "reason": "local_publish_config_unavailable"}
+                release["remote_status"] = remote["status"]
+                release["remote_verified"] = (True if remote["status"] == "verified" else
+                                              False if remote["status"] == "mismatch" else None)
+                if remote.get("reason"):
+                    release["remote_reason"] = remote["reason"]
+                if "homepage_points_to_release" in remote:
+                    release["homepage_points_to_release"] = remote["homepage_points_to_release"]
+            releases.append(release)
             if isinstance(coverage, dict):
                 left = datetime.fromisoformat(coverage["start"]).astimezone(shanghai).date()
                 right = datetime.fromisoformat(coverage["end"]).astimezone(shanghai).date()
@@ -995,10 +1067,13 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     template = subparsers.add_parser("review-template", help="Create unreviewed templates without approving content.")
     template.add_argument("--run-dir", required=True)
     template.set_defaults(func=cmd_review_template)
-    status = subparsers.add_parser("status", help="Inspect verified day coverage without accessing OSS.")
+    status = subparsers.add_parser("status", help="Inspect verified day coverage; online public check is opt-in.")
     status.add_argument("--news-root", default=str(SCRIPT_DIR.parents[2] / "news"))
     status.add_argument("--from-date", required=True)
     status.add_argument("--through-date")
+    status.add_argument("--compact", action="store_true", help="Omit verbose source evidence from coverage output")
+    status.add_argument("--online", action="store_true", help="Check public HTML and homepage without OSS credentials")
+    status.add_argument("--publish-config", help="Local publishing route for --online; defaults next to news/")
     status.set_defaults(func=cmd_status)
     return parser.parse_args(list(argv) if argv is not None else None)
 

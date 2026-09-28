@@ -12,6 +12,7 @@ from typing import Any, Iterable
 from urllib.parse import urlsplit, urlunsplit
 
 from science_coverage_policy import NOTICE, science_skipped
+from delivery_expansion import disclosure
 
 
 VALID_STATUSES = {"mastered", "known", "learning", "unknown", "unrated"}
@@ -813,6 +814,8 @@ def normalize_briefing_config(
 ) -> dict[str, Any]:
     if not isinstance(config, dict):
         raise ValueError("briefing config must be an object")
+    if config.get("delivery_expansion") is not None and not isinstance(config["delivery_expansion"], dict):
+        raise ValueError("delivery_expansion must be an object")
     if "sections" not in config:
         top_items = config.get("items")
         if isinstance(top_items, list):
@@ -891,6 +894,7 @@ def normalize_briefing_config(
             "evidence_level": clean_text(raw_item.get("evidence_level"), 200),
             "evidence_fingerprint": clean_text(raw_item.get("evidence_fingerprint") or raw_item.get("source_fingerprint"), 200),
             "published_at": clean_text(raw_item.get("published_at") or raw_item.get("publishedAt"), 100),
+            "time_relation": clean_text(raw_item.get("time_relation"), 40),
             "verified_at": clean_text(raw_item.get("verified_at"), 100),
             "venue_sweep_note": clean_text(raw_item.get("venue_sweep_note"), 1000),
             "source_class": clean_text(raw_item.get("source_class"), 120),
@@ -913,7 +917,11 @@ def normalize_briefing_config(
         "opening_story": opening_story,
         "sections": normalized_sections,
         "academic_search": config.get("academic_search") or config.get("academic_venue_sweep") or {},
-        "coverage_notice": NOTICE if science_skipped(config.get("academic_search") or config.get("academic_venue_sweep")) else "",
+        "coverage_notice": " ".join(part for part in (
+            NOTICE if science_skipped(config.get("academic_search") or config.get("academic_venue_sweep")) else "",
+            disclosure(config),
+        ) if part),
+        "delivery_expansion": config.get("delivery_expansion"),
         "academic_delivery": config.get("academic_delivery") or {},
         "delta_policy": config.get("delta_policy") or {},
         "social_delivery": config.get("social_delivery") or {},
