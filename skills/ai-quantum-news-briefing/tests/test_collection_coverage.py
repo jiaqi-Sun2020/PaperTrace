@@ -5,8 +5,11 @@ from __future__ import annotations
 
 import json
 import hashlib
+import io
 import sys
 import unittest
+import urllib.error
+import urllib.request
 from argparse import Namespace
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -17,7 +20,7 @@ sys.path.insert(0, str(SCRIPTS))
 
 import academic_venue_sweep as sweep
 import aihot_candidates as hot
-from audit_briefing_config import valid_venue_evidence
+from audit_briefing_config import academic_search_venues, valid_science_skip_v2, valid_venue_evidence
 
 
 class ScienceCoverageTests(unittest.TestCase):
@@ -34,8 +37,11 @@ class ScienceCoverageTests(unittest.TestCase):
                 sweep, "_crossref_science_snapshot", return_value=snapshot):
             sweep._science_row(row, ["2026-09-27"], 1, {})
         self.assertEqual(row["retrieval_status"], "success")
-        self.assertEqual(row["coverage_status"], "pending")
+        self.assertEqual(row["coverage_status"], "unavailable")
+        self.assertEqual(row["result"], "skipped_unavailable")
+        self.assertEqual(row["skip_reason_code"], "no_complete_dated_listing")
         self.assertFalse(valid_venue_evidence(row))
+        self.assertEqual(row["provider_evidence"][1]["role"], "official_toc_discovery")
         self.assertEqual(row["provider_evidence"][2]["role"], "corroboration")
 
     def test_403_crossref_complete_preserves_block_and_does_not_pass(self) -> None:
@@ -51,9 +57,57 @@ class ScienceCoverageTests(unittest.TestCase):
                 sweep, "_crossref_science_snapshot", return_value=snapshot):
             sweep._science_row(row, ["2026-09-27"], 1, {})
         self.assertEqual(row["retrieval_status"], "blocked")
-        self.assertEqual(row["coverage_status"], "pending")
+        self.assertEqual(row["coverage_status"], "unavailable")
+        self.assertEqual(row["skip_reason_code"], "access_denied")
         self.assertEqual(row["provider_evidence"][0]["status_code"], 403)
         self.assertFalse(valid_venue_evidence(row))
+
+    def test_v2_skip_requires_both_official_attempts_and_correct_day(self) -> None:
+        day = "2026-09-27"
+        providers = [
+            {"provider": "science", "role": role, "proves_daily_coverage": False,
+             "query_url": url, "final_url": url, "retrieved_at": "2026-09-28T00:00:00Z",
+             "status_code": code, "response_hash": "a" * 64}
+            for role, url, code in (
+                ("official_search", "https://www.science.org/action/doSearch?AllField=quantum", 403),
+                ("official_toc_discovery", "https://www.science.org/toc/science/0/0", 200),
+            )]
+        row = {"venue": "science", "result": "skipped_unavailable", "coverage_status": "unavailable",
+               "verification_method": "none", "coverage_date": day, "retrieval_status": "blocked",
+               "skip_reason_code": "access_denied", "provider_evidence": providers, "evidence": providers[0]}
+        self.assertTrue(valid_science_skip_v2(row, day))
+        self.assertFalse(valid_science_skip_v2(row, "2026-09-26"))
+        self.assertFalse(valid_science_skip_v2({**row, "provider_evidence": providers[:1]}, day))
+        self.assertFalse(valid_science_skip_v2({**row, "skip_reason_code": "no_complete_dated_listing"}, day))
+        self.assertFalse(valid_science_skip_v2({**row, "provider_evidence": [
+            {**providers[0], "response_hash": ""}, providers[1]]}, day))
+        self.assertFalse(valid_science_skip_v2({**row, "provider_evidence": [
+            {**providers[0], "retrieved_at": "2026-09-27T00:00:00Z"}, providers[1]]}, day))
+
+    def test_arxiv_rate_limit_retries_only_twice_then_remains_blocked(self) -> None:
+        url = "https://export.arxiv.org/api/query?search_query=all:quantum"
+        request = urllib.request.Request(url)
+        def limited():
+            return urllib.error.HTTPError(url, 429, "rate limited", {"Retry-After": "9"}, io.BytesIO(b""))
+        with patch.object(sweep.urllib.request, "urlopen", side_effect=[limited(), limited(), limited()]) as fetch, patch.object(sweep.time, "sleep") as sleep:
+            with self.assertRaises(urllib.error.HTTPError):
+                sweep._open_venue_with_retry(request, 1, "arxiv")
+        self.assertEqual(fetch.call_count, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [3.0, 3.0])
+
+    def test_self_hashed_synthetic_listing_cannot_authorize_v2(self) -> None:
+        day = "2026-09-27"
+        row = {"venue": "science", "term": "quantum", "result": "checked",
+               "coverage_status": "verified", "verification_method": "official_complete_listing",
+               "evidence": {"query_url": "https://www.science.org/action/doSearch?AllField=quantum",
+                            "final_url": "https://www.science.org/action/doSearch?AllField=quantum",
+                            "retrieved_at": "2026-09-28T00:00:00Z", "status_code": 200,
+                            "response_hash": "a" * 64}}
+        ledger = {"date_range": day, "topics": [{"term": "quantum"}], "rows": [row]}
+        venues, _, _, problems = academic_search_venues(
+            {"academic_search": ledger}, coverage_contract_version=2)
+        self.assertNotIn("science", venues)
+        self.assertTrue(problems)
 
     def test_crossref_pagination_complete_vs_partial(self) -> None:
         article = {"DOI": "10.1126/science.one", "ISSN": ["0036-8075"],

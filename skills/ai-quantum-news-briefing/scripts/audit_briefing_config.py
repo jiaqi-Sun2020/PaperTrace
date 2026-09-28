@@ -10,10 +10,12 @@ import json
 import re
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import unquote_plus, urlsplit
+
+from science_coverage_policy import science_journal_candidate, science_skipped
 
 from briefing_contract import canonical_url, normalize_briefing_config
 from rank_briefing_candidates import ALGORITHM_VERSION, is_primary_official, is_reputable
@@ -250,7 +252,57 @@ def valid_venue_evidence(row: dict[str, Any]) -> bool:
     return False
 
 
-def academic_search_venues(config: dict[str, Any], *, legacy_science: bool = False) -> tuple[set[str], int, int, list[str]]:
+def valid_science_skip_v2(row: dict[str, Any], day: str) -> bool:
+    """Validate a bounded unavailable claim, never a zero-publication claim."""
+    if (row.get("venue") != "science" or row.get("result") != "skipped_unavailable"
+            or row.get("coverage_status") != "unavailable"
+            or row.get("verification_method") != "none"
+            or row.get("coverage_date") != day
+            or row.get("skip_reason_code") not in {"access_denied", "no_complete_dated_listing"}):
+        return False
+    try:
+        end = datetime.fromisoformat(day + "T00:00:00+08:00") + timedelta(days=1)
+    except ValueError:
+        return False
+    providers = row.get("provider_evidence")
+    if not isinstance(providers, list):
+        return False
+    official: dict[str, dict[str, Any]] = {}
+    for provider in providers:
+        if not isinstance(provider, dict) or provider.get("provider") != "science":
+            continue
+        role = provider.get("role")
+        if role not in {"official_search", "official_toc_discovery"}:
+            continue
+        query = urlsplit(str(provider.get("query_url") or ""))
+        final = urlsplit(str(provider.get("final_url") or ""))
+        try:
+            stamp = datetime.fromisoformat(str(provider.get("retrieved_at") or "").replace("Z", "+00:00"))
+            status = int(provider.get("status_code"))
+        except (TypeError, ValueError):
+            return False
+        if (query.scheme != final.scheme or query.scheme != "https"
+                or query.hostname not in {"science.org", "www.science.org"}
+                or final.hostname not in {"science.org", "www.science.org"}
+                or not 200 <= status < 600 or stamp.tzinfo is None or stamp < end
+                or not re.fullmatch(r"[0-9a-f]{64}", str(provider.get("response_hash") or ""))
+                or provider.get("proves_daily_coverage") is not False):
+            return False
+        if role == "official_search" and query.path != "/action/doSearch":
+            return False
+        if role == "official_toc_discovery" and query.path != "/toc/science/0/0":
+            return False
+        official[role] = provider
+    if set(official) != {"official_search", "official_toc_discovery"}:
+        return False
+    blocked = any(int(provider["status_code"]) == 403 for provider in official.values())
+    if row.get("retrieval_status") != ("blocked" if blocked else "success"):
+        return False
+    return row["skip_reason_code"] == ("access_denied" if blocked else "no_complete_dated_listing")
+
+
+def academic_search_venues(config: dict[str, Any], *, legacy_science: bool = False,
+                           coverage_contract_version: int = 1) -> tuple[set[str], int, int, list[str]]:
     raw = config.get("academic_search") or config.get("academic_venue_sweep") or {}
     if not isinstance(raw, dict):
         return set(), 0, 0, ["academic_search ledger is missing"]
@@ -261,6 +313,10 @@ def academic_search_venues(config: dict[str, Any], *, legacy_science: bool = Fal
     checked_topics = 0
     evidence_failures: list[str] = []
     def evidenced(row: dict[str, Any]) -> bool:
+        if coverage_contract_version == 2 and normalize_venue(row.get("venue")) == "science":
+            # No publisher-complete Science parser exists yet.  In particular,
+            # the old hand-authored JSON body cannot authorize a v2 release.
+            return valid_science_skip_v2(row, str(row.get("coverage_date") or raw.get("date_range") or ""))
         return (valid_http_evidence(row.get("evidence")) if legacy_science
                 and normalize_venue(row.get("venue")) == "science" else valid_venue_evidence(row))
     if isinstance(topics, list):
@@ -272,7 +328,10 @@ def academic_search_venues(config: dict[str, Any], *, legacy_science: bool = Fal
             for row in raw.get("rows", []) or []:
                 if isinstance(row, dict) and row.get("term") == topic.get("term"):
                     evidence = row.get("evidence")
-                    if row.get("result") in {"checked", "hit", "checked_no_hit"} and isinstance(evidence, dict):
+                    allowed = {"checked", "hit", "checked_no_hit"}
+                    if coverage_contract_version == 2 and normalize_venue(row.get("venue")) == "science":
+                        allowed = {"skipped_unavailable"}
+                    if row.get("result") in allowed and isinstance(evidence, dict):
                         if evidenced(row):
                             valid_rows.append(row)
                         else:
@@ -294,7 +353,10 @@ def academic_search_venues(config: dict[str, Any], *, legacy_science: bool = Fal
             result = clean_text(row.get("result"), 80).lower()
             venue = normalize_venue(row.get("venue"))
             evidence = row.get("evidence")
-            if result in {"checked", "hit", "checked_no_hit"} and evidenced(row):
+            allowed = {"checked", "hit", "checked_no_hit"}
+            if coverage_contract_version == 2 and venue == "science":
+                allowed = {"skipped_unavailable"}
+            if result in allowed and evidenced(row):
                     venues.add(venue)
             if venue != "arxiv" and clean_text(row.get("url"), 1000):
                 primary_hits += 1
@@ -611,7 +673,8 @@ def contains_cjk(value: Any) -> bool:
     return any("\u4e00" <= char <= "\u9fff" for char in clean_text(value, 4000))
 
 
-def audit(config: dict[str, Any], *, legacy_science: bool = False) -> dict[str, Any]:
+def audit(config: dict[str, Any], *, legacy_science: bool = False,
+          coverage_contract_version: int = 1) -> dict[str, Any]:
     failures: list[str] = []
     warnings: list[str] = []
     try:
@@ -730,11 +793,16 @@ def audit(config: dict[str, Any], *, legacy_science: bool = False) -> dict[str, 
             warnings.append(f"duplicate story_id x{count}: {story_id}")
 
     total_academic = sum(count for kind, count in academic_counts.items() if kind not in {"official", "other"})
+    if coverage_contract_version == 2 and science_skipped(config.get("academic_search")):
+        for section, item in iter_items(config):
+            if is_academic_item(section, item) and science_journal_candidate(item):
+                failures.append(f"{item.get('id') or item.get('title')}: Science candidate cannot be published while its daily inventory is skipped")
     failures.extend(audit_academic_delivery(config))
     failures.extend(audit_social_delivery(config))
     failures.extend(audit_ranking_delivery(config))
     if total_academic:
-        checked_venues, checked_topics, primary_hits, evidence_failures = academic_search_venues(config, legacy_science=legacy_science)
+        checked_venues, checked_topics, primary_hits, evidence_failures = academic_search_venues(
+            config, legacy_science=legacy_science, coverage_contract_version=coverage_contract_version)
         failures.extend(evidence_failures)
         if not checked_venues:
             failures.append("academic_search ledger is missing; record PRA/PRL/Nature/Science/CVPR/ICLR and related venue checks before finalizing")

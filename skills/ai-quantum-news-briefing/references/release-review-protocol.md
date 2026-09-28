@@ -40,12 +40,12 @@ Every new release, including a single-day release, needs `coverage_evidence`
 with one ordered row per covered Shanghai date. Each row embeds its dated
 `academic_search` and `social_search` records and binds them using canonical
 `sha256:` values in `academic_search_ref` and `social_search_ref`. The validator
-checks the embedded records, actual window, Science publisher-day proof, AI HOT
+checks the embedded records, actual window, Science publisher-day disposition, AI HOT
 cursor completion and social source-class search records; arbitrary nonempty
-references no longer count. `coverage_evidence_contract_version=1` in a new
+references no longer count. `coverage_evidence_contract_version=2` in a new
 manifest makes the same check run during strict verification, finalization and
-direct publishing. Legacy releases remain readable, but a first remote upload
-or correction needs current coverage evidence. A title or `date_range` alone
+direct publishing. Legacy contract-1 releases remain locally readable, but a first remote upload
+or correction needs current contract-2 coverage evidence. A title or `date_range` alone
 does not establish coverage. The completed manifest records
 `local_finalized_at`; the OSS receipt separately records its actual publish time.
 
@@ -59,14 +59,17 @@ HTTP status, response SHA-256, retrieval time after the window, and the exact
 window boundaries. The structural validator cannot prove a source's claims or
 authenticate a hand-authored record; the source review must examine the
 underlying response. Do not mark Science verified by manually changing a
-status field. The current Science sweep records official attempts and a
-Crossref snapshot but does not emit a publisher-complete listing proof. Until
-an actual source and parser establish that proof, Science remains pending.
+status field. The v3 Science sweep records official search and TOC attempts plus
+RSS/Crossref discovery evidence. Without a complete dated publisher listing,
+it records `skipped_unavailable`, excludes Science-journal candidates before
+ranking and shows the reader an omission notice. This does not establish zero
+publications. A self-authored listing JSON cannot authorize a contract-2
+verified claim; Science re-enters only after a publisher-backed parser exists.
 
 Retrieval and coverage have separate statuses. Science HTTP 403 remains in the
 audit trail; a complete Crossref query only verifies the currently indexed
-metadata snapshot and cannot alone make Science day coverage pass. Science RSS
-cannot pass it either. AI HOT's complete dated selected pool is discovery
+metadata snapshot and cannot alone make Science day coverage verified. Science RSS
+cannot verify it either. AI HOT's complete dated selected pool is discovery
 coverage for that source, not complete social-news coverage or item-level claim
 verification. Missing, partial, stale or contradictory evidence stops release.
 

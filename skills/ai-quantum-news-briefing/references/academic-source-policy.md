@@ -46,8 +46,8 @@ Tier 3 media / commentary:
 4. Add top-level `academic_search` to the briefing config. This is mandatory when the config contains academic or quantum items. It must list the checked venues and compact topic-level results.
 5. For each arXiv-only item, add `venue_sweep_note` to the config. Keep it short, e.g. `Checked APS PRL/PRA/PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal; no venue page found in window; treated as preprint.`
 6. Mark arXiv-only items as `preprint` and avoid overclaiming peer-reviewed status.
-7. A venue ledger row is not checked merely because it contains a search URL, HTTP 200, or `checked_no_hit`. Preserve retrieval failures separately from coverage conclusions. A required venue remains pending until the requested publication window is evidenced.
-8. Science's official search and First Release pages are attempted; the eTOC RSS only corroborates items. The Crossref ISSN `0036-8075` query is a dated, paginated discovery snapshot. Even when every Crossref page is retrieved, late or changed deposits mean it is **not** proof of Science's complete publisher-day inventory. Do not set Science `coverage_status=verified` without a complete, date-scoped publisher listing. If no such listing is available, stop strict publication rather than inventing a zero-hit result.
+7. A venue ledger row is not checked merely because it contains a search URL, HTTP 200, or `checked_no_hit`. Preserve retrieval failures separately from coverage conclusions. Non-Science required venues still stop publication when their evidence fails.
+8. Science's official search and `/toc/science/0/0` discovery page are attempted separately; the eTOC RSS only corroborates items. The Crossref ISSN `0036-8075` query is a dated, paginated discovery snapshot, not proof of a complete publisher-day inventory. Without a complete, date-scoped publisher listing, record `skipped_unavailable`, exclude Science-journal candidates before ranking, and show the omission notice. Never call this zero Science publications. Restoring `verified` requires a new publisher-backed parser, not a hand-authored listing payload.
 9. Coverage evidence is distinct from content evidence. DOI, title or abstract metadata alone cannot substantiate a paper's mechanism, performance or novelty claim; review the article or another suitable primary source separately.
 10. Use the adversarial audit before finalizing; missing or incomplete `academic_search` is a failure.
 
@@ -68,15 +68,15 @@ Top-level config must also include:
 ```json
 {
   "academic_search": {
-    "academic_search_version": 2,
-    "date_range": "YYYY-MM-DD..YYYY-MM-DD",
+    "academic_search_version": 3,
+    "date_range": "YYYY-MM-DD",
     "required_venues": ["aps-prl", "aps-pra", "aps-prx", "nature", "science", "openreview-iclr", "cvf-cvpr", "pmlr-icml", "neurips", "acl", "quantum-journal", "arxiv"],
     "topics": [
       {
         "term": "quantum walk graph neural network",
-        "checked_venues": ["aps-prl", "aps-pra", "aps-prx", "nature", "science", "openreview-iclr", "cvf-cvpr", "pmlr-icml", "neurips", "acl", "quantum-journal", "arxiv"],
+        "checked_venues": ["aps-prl", "aps-pra", "aps-prx", "nature", "openreview-iclr", "cvf-cvpr", "pmlr-icml", "neurips", "acl", "quantum-journal", "arxiv"],
         "primary_hits": [],
-        "status": "evidenced"
+        "status": "evidenced_with_science_gap"
       }
     ]
   }
@@ -108,7 +108,7 @@ When token budget matters, do not paste long search results into context. Use co
 ```text
 topic: quantum walk graph neural network
 window: 2026-07-07..2026-07-09
-checked: APS=0, Nature=0, Science=0, OpenReview=0, CVF=0, PMLR=0, NeurIPS=0, QuantumJournal=0, arXiv=2
+checked: APS=0, Nature=0, Science=unavailable, OpenReview=0, CVF=0, PMLR=0, NeurIPS=0, QuantumJournal=0, arXiv=2
 promote: arXiv:2607.xxxxx because directly relevant to CTQW/QWTA; label as preprint
 ```
 

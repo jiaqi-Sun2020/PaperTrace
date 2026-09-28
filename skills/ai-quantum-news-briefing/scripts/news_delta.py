@@ -614,6 +614,9 @@ def render_markdown(config: dict[str, Any]) -> str:
 
     lines.append("## 日报正文")
     lines.append("")
+    if config.get("coverage_notice"):
+        lines.append(f"- 来源覆盖说明：{clean_text(config['coverage_notice'], 500)}")
+        lines.append("")
     policy = config.get("delta_policy")
     if isinstance(policy, dict):
         lines.append(

@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlsplit, urlunsplit
 
+from science_coverage_policy import NOTICE, science_skipped
+
 
 VALID_STATUSES = {"mastered", "known", "learning", "unknown", "unrated"}
 VALID_NOVELTY = {"new", "material_update", "continuing", "duplicate"}
@@ -883,6 +885,8 @@ def normalize_briefing_config(
             "relevance": clean_text(raw_item.get("relevance") or raw_item.get("research_relevance"), 1800),
             "source_title": clean_text(raw_item.get("source_title") or raw_item.get("title"), 600),
             "source_url": source_url,
+            "doi": clean_text(raw_item.get("doi"), 240),
+            "journal_title": clean_text(raw_item.get("journal_title"), 240),
             "source_excerpt": clean_text(raw_item.get("source_excerpt") or raw_item.get("facts") or raw_item.get("summary"), 2000),
             "evidence_level": clean_text(raw_item.get("evidence_level"), 200),
             "evidence_fingerprint": clean_text(raw_item.get("evidence_fingerprint") or raw_item.get("source_fingerprint"), 200),
@@ -909,6 +913,7 @@ def normalize_briefing_config(
         "opening_story": opening_story,
         "sections": normalized_sections,
         "academic_search": config.get("academic_search") or config.get("academic_venue_sweep") or {},
+        "coverage_notice": NOTICE if science_skipped(config.get("academic_search") or config.get("academic_venue_sweep")) else "",
         "academic_delivery": config.get("academic_delivery") or {},
         "delta_policy": config.get("delta_policy") or {},
         "social_delivery": config.get("social_delivery") or {},

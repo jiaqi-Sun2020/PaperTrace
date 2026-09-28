@@ -361,7 +361,7 @@ def _publish_locked(run_dir: Path, config_path: Path, *, correction_reason: str 
         except (OSError, ValueError) as exc:
             raise PublishError("Remote delivery requires current daily coverage evidence",
                                code="content_ineligible") from exc
-        if coverage_manifest.get("coverage_evidence_contract_version") != 1:
+        if coverage_manifest.get("coverage_evidence_contract_version") != 2:
             raise PublishError("First upload or correction requires content-bound daily coverage evidence",
                                code="content_ineligible")
         try:

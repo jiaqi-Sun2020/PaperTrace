@@ -22,6 +22,7 @@ from urllib.parse import urlsplit
 
 from briefing_contract import canonical_url, normalize_briefing_config
 from news_delta import classify_item, load_index, recent_records
+from science_coverage_policy import science_journal_candidate, science_skipped
 
 
 ALGORITHM_VERSION = "news-ranker-v1"
@@ -448,17 +449,21 @@ def rank_briefing_config(
     if not policy.get("enabled", True):
         return canonical
     recent = recent_records(index_records, today, lookback_days)
+    exclude_science = science_skipped(canonical.get("academic_search"))
     candidates: dict[str, list[dict[str, Any]]] = {"academic": [], "social": []}
     for section in canonical.get("sections", []):
         section_title = clean_text(section.get("title"), 200)
         for item in section.get("items", []):
             copied = dict(item)
             copied["section_title"] = section_title
-            kind = "academic" if is_academic_domain(domain_of(copied.get("source_url"))) else "social"
+            kind = "academic" if (is_academic_domain(domain_of(copied.get("source_url")))
+                                  or science_journal_candidate(copied)) else "social"
             novelty, _ = classify_item(copied, recent)
             copied["novelty"] = novelty
             score = score_item(copied, kind, today, novelty)
             failures = eligibility_failures(copied, kind)
+            if kind == "academic" and exclude_science and science_journal_candidate(copied):
+                failures.append("science_daily_inventory_unavailable")
             if score["penalties"].get("unverified_language"):
                 failures.append("unverified_language")
             candidates[kind].append({"item": copied, "score": score, "eligibility_failures": sorted(set(failures))})

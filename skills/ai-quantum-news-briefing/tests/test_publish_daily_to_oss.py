@@ -42,7 +42,7 @@ class OssPublisherTests(unittest.TestCase):
         self.story_review_path = self.run_dir / "opening_story_review_2026-09-27.json"
         self.story_review_path.write_text(json.dumps({"review_protocol_version": 3}), encoding="utf-8")
         (self.run_dir / "daily_pipeline_manifest_2026-09-27.json").write_text(
-            json.dumps({"coverage_evidence_contract_version": 1}), encoding="utf-8")
+            json.dumps({"coverage_evidence_contract_version": 2}), encoding="utf-8")
         self.old_index = b'<html><meta http-equiv="refresh" content="0; url=briefing_reader_2026-09-26.html"><a href="briefing_reader_2026-09-26.html">old</a></html>'
         self.new_index = b'<html><meta http-equiv="refresh" content="0; url=briefing_reader_2026-09-27.html"><a href="briefing_reader_2026-09-27.html">new</a></html>'
         self.bucket_index = self.old_index
@@ -127,6 +127,19 @@ class OssPublisherTests(unittest.TestCase):
         with patch.object(publisher, "fetch_html", side_effect=self.site_fetch):
             publisher.enable(self.config_path)
         (self.run_dir / "daily_pipeline_manifest_2026-09-27.json").write_text("{}", encoding="utf-8")
+        expected_hash = hashlib.sha256(self.new_html).hexdigest()
+        with patch.object(publisher, "verified_release", return_value=("2026-09-27", self.html_path, expected_hash)), \
+                patch.object(publisher, "fetch_html", side_effect=self.site_fetch), \
+                patch.object(publisher, "upload_file") as upload:
+            with self.assertRaisesRegex(publisher.PublishError, "content-bound daily coverage"):
+                publisher.publish(self.run_dir, self.config_path)
+            upload.assert_not_called()
+
+    def test_contract_one_cannot_bypass_current_first_upload_gate(self) -> None:
+        with patch.object(publisher, "fetch_html", side_effect=self.site_fetch):
+            publisher.enable(self.config_path)
+        (self.run_dir / "daily_pipeline_manifest_2026-09-27.json").write_text(
+            json.dumps({"coverage_evidence_contract_version": 1}), encoding="utf-8")
         expected_hash = hashlib.sha256(self.new_html).hexdigest()
         with patch.object(publisher, "verified_release", return_value=("2026-09-27", self.html_path, expected_hash)), \
                 patch.object(publisher, "fetch_html", side_effect=self.site_fetch), \

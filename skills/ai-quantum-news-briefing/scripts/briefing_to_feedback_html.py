@@ -857,6 +857,7 @@ def render_html(config: dict[str, Any]) -> str:
       {opening_story_html}
       <div class="briefing-body" data-briefing-body="true">
         <h2>日报正文</h2>
+        {f'<div class="summary" data-coverage-notice="true"><strong>来源覆盖说明：</strong>{esc(config["coverage_notice"])}</div>' if config.get("coverage_notice") else ""}
         {f'<div class="summary"><strong>一句话：</strong>{esc(config["summary"])}</div>' if config.get("summary") else ""}
         {''.join(sections_html)}
       </div>

@@ -59,23 +59,18 @@ def daily_evidence(day: str) -> dict:
                               "evidence": {"query_url": url, "final_url": url,
                                            "status_code": 200, "retrieved_at": end,
                                            "response_hash": "c" * 64}})
-    listing_body = json.dumps({"source": "Science", "coverage_start": start, "coverage_end": end,
-                               "total_count": 0, "has_next": False, "items": []})
-    listing_hash = hashlib.sha256(listing_body.encode()).hexdigest()
-    science_url = f"https://www.science.org/action/doSearch?from={day}&until={date.fromisoformat(day) + timedelta(days=1)}"
+    science_url = f"https://www.science.org/action/doSearch?AllField=test"
+    toc_url = "https://www.science.org/toc/science/0/0"
     science = next(row for row in academic_rows if row["venue"] == "science")
-    science.update(coverage_status="verified", verification_method="official_complete_listing",
-                   provider_evidence=[{"provider": "science", "role": "official_search",
-                                       "proves_daily_coverage": True, "pagination_complete": True,
-                                       "total_count": 0, "retrieved_count": 0,
-                                       "coverage_start": start, "coverage_end": end,
-                                       "query_url": science_url, "final_url": science_url,
-                                       "retrieved_at": end, "status_code": 200,
-                                       "response_hash": listing_hash,
-                                       "listing_pages": [{"query_url": science_url,
-                                                          "response_hash": listing_hash,
-                                                          "response_body": listing_body}]}])
-    academic = {"academic_search_version": 2, "date_range": day,
+    science.update(result="skipped_unavailable", coverage_status="unavailable",
+                   verification_method="none", coverage_date=day, retrieval_status="blocked",
+                   skip_reason_code="access_denied", provider_evidence=[
+                       {"provider": "science", "role": role, "proves_daily_coverage": False,
+                        "query_url": url, "final_url": url, "retrieved_at": end,
+                        "status_code": code, "response_hash": "d" * 64}
+                       for role, url, code in (("official_search", science_url, 403),
+                                                ("official_toc_discovery", toc_url, 200))])
+    academic = {"academic_search_version": 3, "date_range": day,
                 "required_venues": venues, "topics": [{"term": "test", "status": "evidenced"}],
                 "rows": academic_rows}
     return {"date": day, "academic_search": academic, "social_search": social,
@@ -92,6 +87,7 @@ class ReviewedReleaseTests(unittest.TestCase):
         raw["date_range"] = "2026-07-09"
         raw["collection_completed_at"] = "2026-07-10T08:00:00+08:00"
         raw["coverage_evidence"] = [daily_evidence("2026-07-09")]
+        raw["academic_search"] = raw["coverage_evidence"][0]["academic_search"]
         candidate = self.root / "candidate.json"
         candidate.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
         self.output = self.root / "news" / self.date
@@ -181,6 +177,25 @@ class ReviewedReleaseTests(unittest.TestCase):
         self.assertEqual(manifest["coverage"]["start"], "2026-07-09T00:00:00+08:00")
         self.assertEqual(manifest["coverage"]["end"], "2026-07-10T00:00:00+08:00")
         self.assertEqual(manifest["required_story_review_protocol"], 3)
+        self.assertEqual(manifest["coverage_evidence_contract_version"], 2)
+
+    def test_coverage_notice_and_daily_ledger_cannot_drift(self) -> None:
+        manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+        config_path = self.stage / manifest["artifacts"]["delta_config"]
+        config_data = json.loads(config_path.read_text(encoding="utf-8"))
+        config_data["coverage_notice"] = ""
+        config_path.write_text(json.dumps(config_data, ensure_ascii=False), encoding="utf-8")
+        manifest["artifact_sha256"]["delta_config"] = sha256_file(config_path)
+        self.manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        failures = verify_artifacts(self.stage, strict=True, structure_only=True)["failures"]
+        self.assertTrue(any("coverage notice differs" in failure for failure in failures))
+        config_data["coverage_notice"] = "本期未能核验 Science 当日完整目录，因此未纳入其论文；这不表示当日零发表。"
+        config_data["academic_search"]["rows"][0]["term"] = "tampered"
+        config_path.write_text(json.dumps(config_data, ensure_ascii=False), encoding="utf-8")
+        manifest["artifact_sha256"]["delta_config"] = sha256_file(config_path)
+        self.manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        failures = verify_artifacts(self.stage, strict=True, structure_only=True)["failures"]
+        self.assertIn("published academic search differs from reviewed daily coverage evidence", failures)
 
     def test_new_release_rejects_v2_story_review_but_legacy_v2_remains_readable(self) -> None:
         self._write_reviews(story_protocol=2)

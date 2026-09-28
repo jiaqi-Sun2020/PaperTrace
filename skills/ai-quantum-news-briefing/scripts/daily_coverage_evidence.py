@@ -67,7 +67,8 @@ def _ai_hot_page(value: Any, start: datetime, end: datetime) -> bool:
                 and stamp and stamp >= end.astimezone(stamp.tzinfo))
 
 
-def validate_daily_evidence(rows: Any, coverage_start: datetime, coverage_end: datetime) -> list[str]:
+def validate_daily_evidence(rows: Any, coverage_start: datetime, coverage_end: datetime,
+                            *, contract_version: int = 1) -> list[str]:
     """Validate scope, real records and hashes; this cannot prove a source's semantics."""
     failures: list[str] = []
     shanghai = timezone(timedelta(hours=8), "Asia/Shanghai")
@@ -91,10 +92,14 @@ def validate_daily_evidence(rows: Any, coverage_start: datetime, coverage_end: d
         if missing_digest:
             continue
         academic = row["academic_search"]
-        from audit_briefing_config import REQUIRED_ACADEMIC_VENUES, academic_search_venues, valid_venue_evidence
+        from audit_briefing_config import (REQUIRED_ACADEMIC_VENUES, academic_search_venues,
+                                           valid_venue_evidence, valid_science_skip_v2)
         if academic.get("date_range") != day:
             failures.append(f"{day}: academic search is not date-scoped")
-        venues, checked, _, problems = academic_search_venues({"academic_search": academic})
+        if contract_version == 2 and academic.get("academic_search_version") != 3:
+            failures.append(f"{day}: new academic search evidence requires version 3")
+        venues, checked, _, problems = academic_search_venues(
+            {"academic_search": academic}, coverage_contract_version=contract_version)
         required = set(academic.get("required_venues") or [])
         if (not academic.get("topics") or not REQUIRED_ACADEMIC_VENUES <= required
                 or not required <= venues or checked != len(academic.get("topics") or []) or problems):
@@ -102,6 +107,8 @@ def validate_daily_evidence(rows: Any, coverage_start: datetime, coverage_end: d
         science = [item for item in academic.get("rows", [])
                    if isinstance(item, dict) and item.get("venue") == "science"]
         def science_for_day(item: dict[str, Any]) -> bool:
+            if contract_version == 2:
+                return valid_science_skip_v2(item, day)
             return valid_venue_evidence(item) and any(
                 isinstance(provider, dict) and provider.get("provider") == "science"
                 and provider.get("proves_daily_coverage") is True
@@ -109,7 +116,7 @@ def validate_daily_evidence(rows: Any, coverage_start: datetime, coverage_end: d
                 and provider.get("coverage_end") == end.isoformat()
                 for provider in item.get("provider_evidence", []))
         if not science or not all(science_for_day(item) for item in science):
-            failures.append(f"{day}: Science publisher-day coverage is pending")
+            failures.append(f"{day}: Science publisher-day coverage or documented skip is missing")
         social = row["social_search"]
         if social.get("coverage_start") != start.isoformat() or social.get("coverage_end") != end.isoformat():
             failures.append(f"{day}: social search window mismatch")

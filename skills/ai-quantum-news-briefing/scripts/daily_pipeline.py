@@ -237,11 +237,28 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
         for marker in ('<meta charset="utf-8">', "事实：", "判断：", "来源："):
             if marker not in html_text:
                 failures.append(f"HTML encoding/UI marker missing: {marker}")
+        contract_version = manifest.get("coverage_evidence_contract_version")
         config_audit = audit_config(
-            config, legacy_science=(manifest.get("status") == "complete"
-                                    and manifest.get("coverage_evidence_contract_version") != 1))
+            config, legacy_science=(manifest.get("status") == "complete" and contract_version is None),
+            coverage_contract_version=contract_version if contract_version in (1, 2) else 1)
         failures.extend(config_audit["failures"])
         warnings.extend(config_audit["warnings"])
+        if contract_version == 2:
+            notice = config.get("coverage_notice") or ""
+            daily_records = ((manifest.get("coverage") or {}).get("daily_search_evidence") or [])
+            if (len(daily_records) == 1 and isinstance(daily_records[0], dict)
+                    and config.get("academic_search") != daily_records[0].get("academic_search")):
+                failures.append("published academic search differs from reviewed daily coverage evidence")
+            embedded_match = re.search(r'<script\b[^>]*\bid="briefing-data"[^>]*>(.*?)</script>',
+                                       html_text, flags=re.I | re.S)
+            try:
+                embedded_notice = json.loads(embedded_match.group(1)).get("coverage_notice") if embedded_match else None
+            except (ValueError, AttributeError):
+                embedded_notice = None
+            if (embedded_notice != notice or (notice and (notice not in markdown_text
+                    or html.escape(notice, quote=True) not in html_text
+                    or 'data-coverage-notice="true"' not in html_text))):
+                failures.append("Science coverage notice differs across config, Markdown, visible HTML or embedded data")
         if strict and config_audit["warnings"]:
             failures.extend(f"strict audit warning: {warning}" for warning in config_audit["warnings"])
 
@@ -519,7 +536,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
     }
     if protocol >= 2:
-        manifest["coverage_evidence_contract_version"] = 1
+        manifest["coverage_evidence_contract_version"] = 2
         manifest["required_story_review_protocol"] = 3
         manifest["coverage"] = {"start": coverage_start, "end": coverage_end,
                                 "timezone": "Asia/Shanghai",
@@ -565,10 +582,13 @@ def _coverage_window(args: argparse.Namespace, config: dict[str, Any], run_date:
     if described_dates and set(described_dates) != covered_dates:
         raise ValueError("date_range does not match the declared complete-day coverage")
     evidence_failures = validate_daily_evidence(
-        config.get("coverage_evidence"), start, end,
+        config.get("coverage_evidence"), start, end, contract_version=2,
     )
     if evidence_failures:
         raise ValueError("daily coverage evidence: " + "; ".join(evidence_failures))
+    daily_records = config.get("coverage_evidence") or []
+    if (len(daily_records) == 1 and config.get("academic_search") != daily_records[0].get("academic_search")):
+        raise ValueError("published academic search must match the reviewed daily coverage record")
     collected = config.get("collection_completed_at")
     if not isinstance(collected, str) or not collected.strip():
         raise ValueError("new releases require collection_completed_at")
@@ -583,7 +603,7 @@ def _validate_coverage_manifest(manifest: dict[str, Any]) -> list[str]:
     if not isinstance(coverage, dict) or coverage.get("timezone") != "Asia/Shanghai":
         return ["version-2 release lacks Asia/Shanghai coverage metadata"]
     contract = manifest.get("coverage_evidence_contract_version")
-    if contract not in (None, 1) or (contract is None and manifest.get("status") != "complete"):
+    if contract not in (None, 1, 2) or (contract is None and manifest.get("status") != "complete"):
         return ["new release lacks the current daily coverage evidence contract"]
     try:
         shanghai = timezone(timedelta(hours=8), "Asia/Shanghai")
@@ -599,10 +619,10 @@ def _validate_coverage_manifest(manifest: dict[str, Any]) -> list[str]:
                 or collected < end):
             raise ValueError("invalid coverage interval")
         days = (end.astimezone(shanghai).date() - start.astimezone(shanghai).date()).days
-        if contract == 1:
+        if contract in (1, 2):
             evidence = coverage.get("daily_search_evidence")
             failures = validate_daily_evidence(
-                evidence, start, end,
+                evidence, start, end, contract_version=contract,
             )
             if failures:
                 return ["daily coverage evidence: " + "; ".join(failures)]

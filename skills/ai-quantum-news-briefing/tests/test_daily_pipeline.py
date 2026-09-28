@@ -27,6 +27,7 @@ from daily_pipeline import cmd_finalize, cmd_run, story_surface_failures, verify
 from lean_html import apply_design_system, design_audit_issues
 from news_delta import render_markdown, transform_config, upsert_index
 from rank_briefing_candidates import DEFAULT_RANKING_POLICY, rank_briefing_config
+from science_coverage_policy import NOTICE
 
 
 def item(item_id: str = "N001", *, concept: str = "QSVT", url: str = "https://example.org/story") -> dict:
@@ -824,6 +825,34 @@ class DailyPipelineTests(unittest.TestCase):
             academic_items[0]["story_id"],
         )
         self.assertEqual(audit_ranking_delivery(ranked), [])
+
+    def test_science_skip_excludes_journal_before_ranking_and_discloses_gap(self) -> None:
+        raw, prior = ranking_fixture()
+        raw["academic_search"] = {"academic_search_version": 3, "rows": [
+            {"venue": "science", "result": "skipped_unavailable"}]}
+        candidate = dict(raw["sections"][0]["items"][0])
+        candidate.update(id="A999", story_id="a999", source_url="https://www.science.org/doi/10.1126/science.example")
+        raw["sections"][0]["items"].append(candidate)
+        mirror = dict(candidate, id="A998", story_id="a998",
+                      source_url="https://doi.org/10.1126/science.mirror")
+        raw["sections"][0]["items"].append(mirror)
+        ranked = rank_briefing_config(raw, prior, __import__("datetime").date(2026, 7, 10), 7)
+        rejected = next(row for row in ranked["ranking_manifest"]["candidate_ledger"] if row["story_id"] == "a999")
+        self.assertFalse(rejected["selected"])
+        self.assertIn("science_daily_inventory_unavailable", rejected["exclusion_reasons"])
+        mirror_rejected = next(row for row in ranked["ranking_manifest"]["candidate_ledger"] if row["story_id"] == "a998")
+        self.assertEqual(mirror_rejected["kind"], "academic")
+        self.assertIn("science_daily_inventory_unavailable", mirror_rejected["exclusion_reasons"])
+        self.assertEqual(ranked["coverage_notice"], NOTICE)
+        self.assertIn(NOTICE, render_markdown(ranked))
+        self.assertIn(NOTICE, render_html(ranked))
+        bypassed = dict(ranked)
+        bypassed["sections"] = [dict(section) for section in ranked["sections"]]
+        academic_items = list(bypassed["sections"][0]["items"])
+        academic_items[-1] = {**candidate, "ranking": academic_items[-1]["ranking"]}
+        bypassed["sections"][0]["items"] = academic_items
+        self.assertTrue(any("Science candidate cannot be published" in failure
+                            for failure in audit(bypassed, coverage_contract_version=2)["failures"]))
 
     def test_ranked_daily_story_rejects_a_non_top_academic_default(self) -> None:
         raw, prior = ranking_fixture()

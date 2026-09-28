@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -85,7 +86,7 @@ def build_plan(terms: list[str], date_range: str, include_arxiv: bool, mark_chec
                 "result": result,
                 "url": "",
                 "note": (
-                    "Official venue listing only; it does not search this term or date range."
+                    "Official query is a discovery attempt, not proof of a complete dated inventory."
                     if venue.key == "science" else ""
                 ),
                 "evidence": {},
@@ -105,7 +106,7 @@ def build_plan(terms: list[str], date_range: str, include_arxiv: bool, mark_chec
             }
         )
     return {
-        "academic_search_version": 2,
+        "academic_search_version": 3,
         "date_range": date_range,
         "terms": terms,
         "venues": [venue.key for venue in venues],
@@ -144,7 +145,7 @@ def extract_result_count(text: str) -> int:
 
 
 SCIENCE_RSS = "https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=science"
-SCIENCE_FIRST_RELEASE = "https://www.science.org/journal/science/first-release"
+SCIENCE_TOC = "https://www.science.org/toc/science/0/0"
 SCIENCE_ISSN = "0036-8075"
 
 
@@ -174,6 +175,24 @@ def _request_evidence(url: str, timeout: int) -> tuple[dict[str, object], bytes]
     except Exception as exc:
         evidence["error"] = str(exc)[:300]
         return evidence, b""
+
+
+def _open_venue_with_retry(request: urllib.request.Request, timeout: int, venue: str):
+    """Retry only a bounded arXiv rate-limit response; never infer a hit from it."""
+    for attempt in range(3):
+        try:
+            return urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            if venue != "arxiv" or exc.code != 429 or attempt == 2:
+                raise
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            try:
+                delay = min(3.0, max(0.0, float(retry_after))) if retry_after else float(attempt + 1)
+            except ValueError:
+                delay = float(attempt + 1)
+            exc.close()
+            time.sleep(delay)
+    raise AssertionError("unreachable")
 
 
 def _science_days(date_range: str) -> list[str]:
@@ -266,13 +285,14 @@ def _science_row(row: dict[str, object], days: list[str], timeout: int,
                  snapshots: dict[str, dict[str, object]]) -> None:
     providers = []
     for url, role in ((str(row["search_url"]), "official_search"),
-                      (SCIENCE_FIRST_RELEASE, "official_first_release"),
+                      (SCIENCE_TOC, "official_toc_discovery"),
                       (SCIENCE_RSS, "corroboration")):
         evidence, body = _request_evidence(url, timeout)
         evidence["provider"] = "science"
         evidence["role"] = role
         evidence["result_count"] = extract_result_count(body.decode("utf-8", errors="replace"))
         evidence["proves_daily_coverage"] = False
+        evidence["response_bytes"] = len(body)
         providers.append(evidence)
     for day in days:
         if day not in snapshots:
@@ -289,11 +309,14 @@ def _science_row(row: dict[str, object], days: list[str], timeout: int,
         for provider in providers if provider.get("provider") == "science") else
         "success" if any(200 <= int(provider["status_code"]) < 300
                          for provider in providers if provider.get("provider") == "science") else "error")
-    row["coverage_status"] = "pending"
+    row["coverage_status"] = "unavailable"
     row["verification_method"] = "none"
-    row["result"] = "blocked" if row["retrieval_status"] == "blocked" else "listing_only"
+    row["result"] = "skipped_unavailable"
+    row["skip_reason_code"] = ("access_denied" if row["retrieval_status"] == "blocked"
+                               else "no_complete_dated_listing")
+    row["coverage_date"] = days[0] if len(days) == 1 else ""
     row["evidence"] = providers[0]
-    row["note"] = "Official pages and Crossref were queried; none alone proves the complete publisher-day inventory."
+    row["note"] = "Science was not included: official pages did not prove a complete dated inventory; RSS and Crossref are discovery only."
 
 
 def fetch_evidence(plan: dict[str, object], timeout: int = 20) -> dict[str, object]:
@@ -322,7 +345,7 @@ def fetch_evidence(plan: dict[str, object], timeout: int = 20) -> dict[str, obje
             if parsed.scheme != "https" or not parsed.netloc:
                 raise ValueError("official search URL must be https")
             request = urllib.request.Request(url, headers={"User-Agent": "PaperTrace-academic-venue-sweep/1.0"})
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with _open_venue_with_retry(request, timeout, str(row.get("venue") or "")) as response:
                 body = response.read(2_000_000)
                 text = body.decode("utf-8", errors="replace")
                 count = extract_result_count(text)
@@ -362,10 +385,14 @@ def fetch_evidence(plan: dict[str, object], timeout: int = 20) -> dict[str, obje
             continue
         term = topic.get("term")
         topic_rows = [row for row in rows if isinstance(row, dict) and row.get("term") == term]
-        valid = [row for row in topic_rows if row.get("result") == "checked" and isinstance(row.get("evidence"), dict)]
-        topic["checked_venues"] = [row.get("venue") for row in valid]
-        topic["primary_hits"] = [{"venue": row.get("venue"), "url": row.get("url")} for row in valid if row.get("url") and row.get("venue") != "arxiv"]
-        topic["status"] = "evidenced" if len(valid) == len(topic_rows) else "pending"
+        checked = [row for row in topic_rows if row.get("result") == "checked"
+                   and isinstance(row.get("evidence"), dict)]
+        skipped = [row for row in topic_rows if row.get("result") == "skipped_unavailable"
+                   and isinstance(row.get("evidence"), dict)]
+        topic["checked_venues"] = [row.get("venue") for row in checked]
+        topic["skipped_venues"] = [row.get("venue") for row in skipped]
+        topic["primary_hits"] = [{"venue": row.get("venue"), "url": row.get("url")} for row in checked if row.get("url") and row.get("venue") != "arxiv"]
+        topic["status"] = ("evidenced_with_science_gap" if skipped else "evidenced") if len(checked) + len(skipped) == len(topic_rows) else "pending"
     plan["retrieved_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     plan["evidence_policy"] = ("A successful HTTP response is retrieval evidence, not daily coverage. "
                                "Science RSS and a complete Crossref indexed snapshot cannot alone verify "
