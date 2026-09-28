@@ -43,9 +43,35 @@ class AllegoryTeachContractTests(unittest.TestCase):
         self.assertIn("lower-bound argument", story)
         self.assertIn("previous state ->", story)
         self.assertIn("question -> observable -> steps -> result", worked)
-        self.assertIn("review_protocol_version=2", daily)
+        self.assertIn("review_protocol_version=3", daily)
         self.assertIn('review_method="self"', daily)
         self.assertIn("renderer adds", daily)
+
+    def test_literal_state_trace_regressions_are_explicit(self) -> None:
+        cases = {case["id"]: case for case in json.loads(self.read("tests/regression_cases.json"))["cases"]}
+        for name in ("quantity-kind-stays-stable", "trigger-is-not-update",
+                     "capacity-is-not-overflow-policy"):
+            with self.subTest(case=name):
+                self.assertEqual(cases[name]["mode"], "fable")
+                self.assertGreaterEqual(len(cases[name]["must_preserve"]), 3)
+                self.assertGreaterEqual(len(cases[name]["must_avoid"]), 3)
+        story = self.read("references/story-output-contract.md")
+        daily = self.read("references/daily-briefing-interface.md")
+        self.assertIn("representation capacity", story)
+        self.assertIn("literal_trace", daily)
+        self.assertIn("technical_edges", daily)
+        self.assertIn("example_alignment", daily)
+
+    def test_four_carriers_and_ordinary_workflow_are_required(self) -> None:
+        skill = self.read("SKILL.md")
+        story = self.read("references/story-output-contract.md")
+        cases = {case["id"] for case in json.loads(self.read("tests/regression_cases.json"))["cases"]}
+        self.assertIn("four-carrier-information-handoff", cases)
+        self.assertIn("ordinary-workflow-and-honest-alternative", cases)
+        self.assertIn("what the actor has observed or knows", skill)
+        self.assertIn("what a later user receives", skill)
+        self.assertIn("Begin with the ordinary workflow", skill)
+        self.assertIn("the message the next person receives", story)
 
     def read(self, relative_path: str) -> str:
         return (SKILL_DIR / relative_path).read_text(encoding="utf-8")

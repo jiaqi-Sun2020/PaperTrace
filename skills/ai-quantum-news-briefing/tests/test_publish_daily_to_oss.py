@@ -39,6 +39,10 @@ class OssPublisherTests(unittest.TestCase):
         self.new_html = b"<!doctype html><html><body>new daily</body></html>"
         self.old_html = b"<!doctype html><html><body>old daily</body></html>"
         self.html_path.write_bytes(self.new_html)
+        self.story_review_path = self.run_dir / "opening_story_review_2026-09-27.json"
+        self.story_review_path.write_text(json.dumps({"review_protocol_version": 3}), encoding="utf-8")
+        (self.run_dir / "daily_pipeline_manifest_2026-09-27.json").write_text(
+            json.dumps({"coverage_evidence_contract_version": 1}), encoding="utf-8")
         self.old_index = b'<html><meta http-equiv="refresh" content="0; url=briefing_reader_2026-09-26.html"><a href="briefing_reader_2026-09-26.html">old</a></html>'
         self.new_index = b'<html><meta http-equiv="refresh" content="0; url=briefing_reader_2026-09-27.html"><a href="briefing_reader_2026-09-27.html">new</a></html>'
         self.bucket_index = self.old_index
@@ -119,6 +123,18 @@ class OssPublisherTests(unittest.TestCase):
         receipt = self.root / "news" / "_publish" / "oss_publish_receipt_2026-09-27.json"
         self.assertEqual(json.loads(receipt.read_text(encoding="utf-8"))["html_sha256"], expected_hash)
 
+    def test_legacy_first_upload_requires_current_coverage_contract(self) -> None:
+        with patch.object(publisher, "fetch_html", side_effect=self.site_fetch):
+            publisher.enable(self.config_path)
+        (self.run_dir / "daily_pipeline_manifest_2026-09-27.json").write_text("{}", encoding="utf-8")
+        expected_hash = hashlib.sha256(self.new_html).hexdigest()
+        with patch.object(publisher, "verified_release", return_value=("2026-09-27", self.html_path, expected_hash)), \
+                patch.object(publisher, "fetch_html", side_effect=self.site_fetch), \
+                patch.object(publisher, "upload_file") as upload:
+            with self.assertRaisesRegex(publisher.PublishError, "content-bound daily coverage"):
+                publisher.publish(self.run_dir, self.config_path)
+            upload.assert_not_called()
+
     def test_failed_html_upload_never_updates_index(self) -> None:
         with patch.object(publisher, "fetch_html", side_effect=self.site_fetch):
             publisher.enable(self.config_path)
@@ -126,6 +142,16 @@ class OssPublisherTests(unittest.TestCase):
         with patch.object(publisher, "verified_release", return_value=("2026-09-27", self.html_path, expected_hash)), patch.object(publisher, "fetch_html", side_effect=self.site_fetch), patch.object(publisher, "upload_file", side_effect=publisher.PublishError("upload failed")) as upload:
             self.assertEqual(publisher.publish(self.run_dir, self.config_path)["status"], "pending")
         self.assertEqual(upload.call_count, 1)
+
+    def test_old_review_cannot_authorize_a_new_remote_upload(self) -> None:
+        with patch.object(publisher, "fetch_html", side_effect=self.site_fetch):
+            publisher.enable(self.config_path)
+        self.story_review_path.write_text(json.dumps({"review_protocol_version": 2}), encoding="utf-8")
+        expected_hash = hashlib.sha256(self.new_html).hexdigest()
+        with patch.object(publisher, "verified_release", return_value=("2026-09-27", self.html_path, expected_hash)), patch.object(publisher, "fetch_html", side_effect=self.site_fetch), patch.object(publisher, "upload_file") as upload:
+            with self.assertRaisesRegex(publisher.PublishError, "protocol 3"):
+                publisher.publish(self.run_dir, self.config_path)
+        upload.assert_not_called()
 
     def test_remote_html_mismatch_requires_explicit_correction_before_upload(self) -> None:
         with patch.object(publisher, "fetch_html", side_effect=self.site_fetch):
@@ -194,6 +220,7 @@ class OssPublisherTests(unittest.TestCase):
         receipt_path.write_text(json.dumps({"status": "published", "date": "2026-09-27",
                                             "html_sha256": expected_hash,
                                             "deployment_id": publisher.deployment_id(self.config)}), encoding="utf-8")
+        self.story_review_path.write_text(json.dumps({"review_protocol_version": 2}), encoding="utf-8")
         def current(url: str) -> tuple[str, bytes]:
             if url == self.config["site_index_url"]:
                 return url, self.new_index

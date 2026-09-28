@@ -124,26 +124,56 @@ semantic-and-source, cross-surface-and-display. Each records reviewed text,
 judgment, reason, source_or_rule and limitation. Re-author the judgment after an
 edit, not just its hash. The validator checks provenance, not truth.
 
-For a newly authored review, use sidecar `review_protocol_version=2`,
+For a newly authored review, use sidecar `review_protocol_version=3`,
 `review_method="self"` or `"independent"`, and a private `task_card` with
 `teaching_question`, `source_task_and_constraint`, `learner_bridge`,
 `actor_goal_and_success`, `shortcut_and_limit`, `decisive_rule_and_action`, and
 `counterfactual_and_boundary`. Do not put this card in `opening_story` or the
 published teaching prose. Existing review sidecars remain valid without these
 fields; their provenance check must not be relabelled semantic certification.
+New staging manifests declare `required_story_review_protocol=3`. This is a
+review-only requirement: `opening_story.version=3` and its fields do not change.
+Historical v2 reviews remain locally readable. A historical release needs a
+fresh v3 review before a first remote upload or correction; re-seal an existing
+completed release only after deliberately preserving its old review sidecar.
 
 Review in this order, recording `materials_seen` for each new round:
 
 1. `story-completeness`: see only `title` and `paragraphs`, not the task card,
    author mapping, factual return or worked example. Quote the sentence that
    supplies the goal, success condition, reason for action and counterfactual;
-   report any link that cannot be recovered from the story alone.
+   report any link that cannot be recovered from the story alone. In v3, record
+   `literal_trace` for every decisive action. Each entry has an exact
+   `story_quote`, `tracked_object`, `kind` (`physical_quantity`,
+   `representation_label`, `control_event`, `knowledge_state`, or
+   `other_state`), `before`, `trigger`, `operation`, `after`, and in-world
+   `rule_origin`. A separate `counterfactual` records `changed_condition`,
+   `predicted_result`, and `reason`. A missing event-to-update rule or a
+   quantity/label switch remains in `unresolved`, never a pass.
 2. `semantic-and-source`: see the full factual return and original source.
    Check task identity, object and operation types, rule origin, theorem versus
    application, alternatives and claim strength. Use primary source anchors.
+   In v3, `technical_edges` maps each first-round `story_quote` exactly once to
+   `technical_operation`, `source_anchor`, `claim_class` (`source_fact`,
+   `derivation`, or `teaching_assumption`), and `scope_and_nonconclusion`.
+   For a teaching assumption, `source_anchor` identifies the explicitly
+   declared example assumption, not a fabricated paper citation.
+   Capacity does not license a specific overflow policy; a necessary bound
+   does not establish attainability; an observation does not uniquely prove
+   a cause. Mark unsupported edges unresolved.
 3. `cross-surface-and-display`: compare the revised story, debrief, worked
    example and rendered HTML. Check field responsibility, question/observable/
    steps/result, same-case quantities, visible order and collapsed example.
+   In v3, `example_alignment` quotes the example's exact `question`,
+   `observable`, one decisive `step_quote`, and `result`, then explains their
+   relation in `consistency_reason`. If the steps do not actually compute or
+   observe the promised quantity, leave the finding unresolved.
+
+Each v3 round has an `unresolved` list; it must be empty for `judgment=pass`.
+The validator checks field presence, exact story/example quotes, mapping
+coverage and digest freshness. It cannot determine whether the typed objects,
+source attribution or pedagogical explanation are true. Keep that semantic
+judgment explicit and separate from structural validation.
 
 An independent review requires a genuinely separate review pass with its input
 and output retained; otherwise label the record `self`. The code can validate

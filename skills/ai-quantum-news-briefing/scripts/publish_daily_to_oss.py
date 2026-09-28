@@ -354,6 +354,22 @@ def _publish_locked(run_dir: Path, config_path: Path, *, correction_reason: str 
     index_needed = current_home_date < run_date or (current_home_date == run_date and current_home_url != target_url)
     if current_home_date == run_date and current_home_url == target_url and remote_hash != expected_hash:
         index_needed = True
+    if remote_hash != expected_hash or index_needed:
+        manifest_path = run_dir / f"daily_pipeline_manifest_{run_date}.json"
+        try:
+            coverage_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise PublishError("Remote delivery requires current daily coverage evidence",
+                               code="content_ineligible") from exc
+        if coverage_manifest.get("coverage_evidence_contract_version") != 1:
+            raise PublishError("First upload or correction requires content-bound daily coverage evidence",
+                               code="content_ineligible")
+        try:
+            review = json.loads((run_dir / f"opening_story_review_{run_date}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise PublishError("Remote delivery requires a current story review", code="content_ineligible") from exc
+        if not isinstance(review, dict) or review.get("review_protocol_version") != 3:
+            raise PublishError("Remote delivery requires story review protocol 3", code="content_ineligible")
     if remote_hash == expected_hash and not index_needed:
         if prior and prior.get("html_sha256") == expected_hash and prior.get("deployment_id") == identity:
             return {"status": "no_change", "date": run_date, "html_sha256": expected_hash,

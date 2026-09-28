@@ -663,12 +663,52 @@
       "must_avoid": ["promising a state-distance calculation but only checking elapsed time", "repeating story prose in place of an operation"]
     },
     {
+      "id": "quantity-kind-stays-stable",
+      "mode": "fable",
+      "concept": "a finite representation of a changing physical count",
+      "expected_device": "story-only reconstruction of the tracked quantity and its label",
+      "must_preserve": ["the physical count and its representation are separately identifiable", "the first out-of-range physical state is unambiguous", "every transition retains the same quantity kind"],
+      "must_avoid": ["switching between item count and stack height", "calling the next state a new layer when only its label is new", "using the debrief to repair an ambiguous story quantity"]
+    },
+    {
+      "id": "trigger-is-not-update",
+      "mode": "fable",
+      "concept": "an event-driven state update",
+      "expected_device": "explicit trigger, licensed operation, and resulting state",
+      "must_preserve": ["the operation connecting a trigger to a state change", "a counterfactual in which the trigger occurs without the presumed update", "time trends only when the source or stated input sequence supports them"],
+      "must_avoid": ["an opened gate automatically increments inventory", "elapsed time alone guarantees growth", "an unmentioned control action changes the tracked quantity"]
+    },
+    {
+      "id": "capacity-is-not-overflow-policy",
+      "mode": "fable",
+      "concept": "finite labels and a separately chosen out-of-range rule",
+      "expected_device": "capacity limit, optional replacement rule, and feasible expansion kept distinct",
+      "must_preserve": ["the number of distinguishable labels", "which physical state lacks a label", "the declared choice among saturation, deletion, error, or expansion", "the consequence only under that choice"],
+      "must_avoid": ["deriving saturation from finite capacity alone", "forbidding additional capacity without evidence", "presenting a teaching overflow rule as the paper's implementation"]
+    },
+    {
       "id": "first-round-story-only-review",
       "mode": "fable",
       "concept": "narrative comprehensibility before author mapping is shown",
       "expected_device": "story-only reviewer reconstructs goal, choice, consequence and missing link",
       "must_preserve": ["title and complete narrative as first-round input", "actual quoted causal evidence", "self-review labeled honestly", "source and cross-surface rounds kept distinct"],
       "must_avoid": ["debrief used to repair an unclear story during the first round", "hash validation described as semantic proof", "unsupported claim of improved reader retention"]
+    },
+    {
+      "id": "four-carrier-information-handoff",
+      "mode": "fable",
+      "concept": "a physical change recorded for a later operator",
+      "expected_device": "ordinary receipt, observation, recording and handoff remain distinct",
+      "must_preserve": ["actual inventory", "the actor's observed or known count", "the tool's representable record", "what the later operator receives", "the action that changes each carrier"],
+      "must_avoid": ["checking a receipt creates an item", "knowing the correct count implies the tool can display it", "a stale label silently becomes a physical change"]
+    },
+    {
+      "id": "ordinary-workflow-and-honest-alternative",
+      "mode": "fable",
+      "concept": "choosing a representation when a simpler expansion remains possible",
+      "expected_device": "start from routine work, compare feasible options and close the original task",
+      "must_preserve": ["an ordinary task and success condition", "the specific tool limit", "a feasible expansion and another usable representation", "source-supported trade-off or admission that both work", "an ending that answers the opening task"],
+      "must_avoid": ["invented special trial day", "unsupported disaster or prohibition", "new tool declared universally better from one case"]
     }
   ]
 }

@@ -15,6 +15,12 @@ For a daily or multi-day briefing request, candidate pools, venue ledgers, Markd
 
 Optional news-feedback import is a downstream learner-profile handoff. It does not replace or weaken the daily publication gate.
 
+New releases keep pipeline protocol 2 but require story-review protocol 3 in the
+review sidecar and manifest. The reviewer must reconstruct decisive state
+changes from the story alone, then map those actions to source-backed technical
+operations and verify the same worked example. Old v2 reviews remain locally
+readable; a new remote upload or correction requires a fresh v3 review.
+
 An opt-in OSS website mirror runs only after the reviewed local release passes strict verification. Direct `publish` applies the same content gate. Read the OSS section in `.agents/RUNBOOK.md` when operating it. The local `news_publish.local.json` contains only site routing; `ossutil` owns credentials. Website mirroring starts disabled, requires manual `enable`, and latches disabled when the site or link cannot be verified after bounded retries. A failed mirror does not erase the completed local briefing; report the separate remote status.
 
 ## Core Workflow
@@ -29,10 +35,10 @@ An opt-in OSS website mirror runs only after the reviewed local release passes s
    - Prefer primary sources for company reports, research papers, safety frameworks, and technical releases.
    - Prefer Reuters/AP/FT/WSJ/Bloomberg/Nature/Science/Phys.org/official blogs for confirmation.
    - Treat Reddit/X/community summaries as "社区热议" only, not as confirmed facts.
-   - For broad AI candidate discovery, read `references/integration-aihot.md` and fetch the latest AI HOT selected pool:
+   - For daily AI candidate discovery, read `references/integration-aihot.md` and fetch the selected pool for the covered Shanghai day:
 
 ```powershell
-python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <YYYY-MM-DD> --output D:\AI\PaperTrace\news\<YYYY-MM-DD>\aihot_candidates_<YYYY-MM-DD>.json
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <RELEASE-YYYY-MM-DD> --coverage-date <PREVIOUS-SHANGHAI-YYYY-MM-DD> --output D:\AI\PaperTrace\news\<RELEASE-YYYY-MM-DD>\aihot_candidates_<RELEASE-YYYY-MM-DD>.json
 ```
 
    - Treat AI HOT as a candidate source. Verify important final claims against original URLs, official blogs, publisher pages, paper pages, or reliable media.
@@ -42,7 +48,7 @@ python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\aihot_candidates
 python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\academic_venue_sweep.py --term "<topic keywords>" --date-range "<YYYY-MM-DD..YYYY-MM-DD>" --format json --fetch --output D:\AI\PaperTrace\news\<YYYY-MM-DD>\academic_search.json
 ```
 
-   - Copy the resulting ledger into top-level `academic_search` in the final briefing config. A venue is checked only when the ledger contains auditable official HTTP evidence; generated search URLs or a manually asserted `checked_no_hit` are not evidence.
+   - Use an explicit one-day `--date-range` per dated sweep. Copy the resulting ledger into top-level `academic_search` in the final briefing config. Science's official query, RSS and Crossref snapshot remain separate evidence; a complete Crossref snapshot is not complete publisher-day coverage. The current sweep does not emit a publisher-complete Science listing proof, so a 403 leaves that day pending. A venue is checked only when its dated coverage evidence passes, never from a URL or asserted `checked_no_hit` alone. Add content-bound `coverage_evidence` for **every** Shanghai day before `run`; read the release-review protocol for the row contract.
 
 3. For recurring daily briefings, make the report delta-first.
    - Before drafting, read only the compact recent story context, not whole previous Markdown reports:

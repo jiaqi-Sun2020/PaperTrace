@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import json
 import re
@@ -12,7 +13,7 @@ import sys
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -41,10 +42,39 @@ def clean_text(value: Any, limit: int = 4000) -> str:
     return text[:limit]
 
 
-def fetch_text(url: str) -> str:
+def fetch_response(url: str) -> tuple[str, dict[str, Any]]:
     request = urllib.request.Request(url, headers={"User-Agent": UA})
     with urllib.request.urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8", errors="replace")
+        body = response.read()
+        return body.decode("utf-8", errors="replace"), {
+            "query_url": url, "final_url": response.geturl(),
+            "status_code": int(response.status),
+            "response_hash": hashlib.sha256(body).hexdigest(),
+            "retrieved_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        }
+
+
+def fetch_text(url: str) -> str:
+    return fetch_response(url)[0]
+
+
+def coverage_window(day: str) -> tuple[datetime, datetime]:
+    zone = timezone(timedelta(hours=8), "Asia/Shanghai")
+    start = datetime.combine(date.fromisoformat(day), time.min, zone)
+    return start, start + timedelta(days=1)
+
+
+def published_in_window(raw: dict[str, Any], start: datetime, end: datetime) -> bool | None:
+    value = raw.get("publishedAt")
+    if not isinstance(value, str):
+        return None
+    try:
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if stamp.tzinfo is None:
+        return None
+    return start <= stamp.astimezone(start.tzinfo) < end
 
 
 def iso_from_rss_date(value: str) -> str:
@@ -53,7 +83,7 @@ def iso_from_rss_date(value: str) -> str:
     except (TypeError, ValueError, IndexError):
         return ""
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        return ""  # Do not invent a timezone for a daily coverage decision.
     return parsed.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
@@ -81,7 +111,9 @@ def extract_concepts(*parts: str) -> list[str]:
     return concepts
 
 
-def api_items(args: argparse.Namespace) -> list[dict[str, Any]]:
+def api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    coverage_day = getattr(args, "coverage_date", None)
+    start, end = coverage_window(coverage_day) if coverage_day else (None, None)
     params = {
         "mode": args.mode,
         "take": str(args.take),
@@ -90,12 +122,83 @@ def api_items(args: argparse.Namespace) -> list[dict[str, Any]]:
         params["category"] = args.category
     if args.since:
         params["since"] = args.since
+    elif start:
+        params["since"] = start.astimezone(timezone.utc).isoformat()
     if args.query:
         params["q"] = args.query
-    url = BASE_URL + "/api/public/items?" + urllib.parse.urlencode(params)
-    data = json.loads(fetch_text(url))
-    items = data.get("items", [])
-    return items if isinstance(items, list) else []
+    pages: list[dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
+    cursor: str | None = None
+    seen_cursors: set[str] = set()
+    finished = False
+    failure = ""
+    for _ in range(100 if coverage_day else 1):
+        page_params = dict(params)
+        if cursor:
+            page_params["cursor"] = cursor
+        url = BASE_URL + "/api/public/items?" + urllib.parse.urlencode(page_params)
+        try:
+            body, evidence = fetch_response(url)
+            data = json.loads(body)
+            page_items = data["items"]
+            if not isinstance(page_items, list):
+                raise ValueError("items is not a list")
+            pages.append(evidence)
+            items.extend(item for item in page_items if isinstance(item, dict))
+            next_cursor = data.get("nextCursor")
+            has_next = data.get("hasNext")
+            if has_next is False or (has_next is None and not next_cursor):
+                finished = True
+                break
+            if not isinstance(next_cursor, str) or not next_cursor or next_cursor in seen_cursors:
+                raise ValueError("missing or repeated cursor")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            failure = str(exc)[:300]
+            break
+    inside: list[dict[str, Any]] = []
+    outside = missing = 0
+    if start and end:
+        for item in items:
+            match = published_in_window(item, start, end)
+            if match is True:
+                inside.append(item)
+            elif match is False:
+                outside += 1
+            else:
+                missing += 1
+    else:
+        inside = items[:args.take]
+    # The API retains at most seven days. An older query is clipped server-side.
+    retention_ok = bool(start and end and end <= datetime.now(timezone.utc)
+                        and start.astimezone(timezone.utc) >= datetime.now(timezone.utc) - timedelta(days=7))
+    since_ok = True
+    if start and args.since:
+        try:
+            since = datetime.fromisoformat(args.since.replace("Z", "+00:00"))
+            since_ok = since.tzinfo is not None and since <= start.astimezone(since.tzinfo)
+        except ValueError:
+            since_ok = False
+    pages_valid = bool(pages and all(
+        page.get("status_code") == 200
+        and urllib.parse.urlsplit(str(page.get("final_url") or "")).hostname == "aihot.virxact.com"
+        and len(str(page.get("response_hash") or "")) == 64
+        for page in pages))
+    complete = bool(start and finished and not failure and not missing and retention_ok and since_ok and pages_valid)
+    evidence = {
+        "source": "ai_hot", "pool_scope": f"ai_hot_{args.mode}",
+        "coverage_date": coverage_day, "coverage_start": start.isoformat() if start else None,
+        "coverage_end": end.isoformat() if end else None, "timezone": "Asia/Shanghai" if start else None,
+        "retrieval_status": "success" if finished else "partial",
+        "coverage_status": "verified" if complete else "partial" if start else "unscoped",
+        "pagination_complete": finished, "retrieved_count": len(items),
+        "inside_window_count": len(inside), "outside_window_count": outside,
+        "missing_timestamp_count": missing, "pages": pages,
+        "response_hash": hashlib.sha256(json.dumps(pages, sort_keys=True).encode()).hexdigest(),
+        "failure": failure or ("outside API retention or invalid since" if start and not (retention_ok and since_ok) else ""),
+    }
+    return inside, evidence
 
 
 def feed_items(args: argparse.Namespace) -> list[dict[str, Any]]:
@@ -162,19 +265,24 @@ def item_to_briefing_item(raw: dict[str, Any], index: int, source_kind: str) -> 
     }
 
 
-def build_config(items: list[dict[str, Any]], args: argparse.Namespace, source_kind: str) -> dict[str, Any]:
+def build_config(items: list[dict[str, Any]], args: argparse.Namespace, source_kind: str,
+                 window_evidence: dict[str, Any] | None = None) -> dict[str, Any]:
     today = args.date or datetime.now().date().isoformat()
     normalized = [item_to_briefing_item(item, index, source_kind) for index, item in enumerate(items, start=1)]
+    daily = bool(getattr(args, "coverage_date", None))
     return {
         "news_feedback_version": 1,
         "briefing_title": f"AI HOT Candidate Pool - {today}",
         "date_range": clean_text(args.date_range or today, 240),
-        "summary": f"AI HOT latest {len(normalized)} selected candidate items for the daily briefing pipeline.",
+        "summary": (f"AI HOT {len(normalized)} candidate items in {args.coverage_date}."
+                    if daily else f"AI HOT latest {len(normalized)} selected candidate items for the daily briefing pipeline."),
         "candidate_source": "AI HOT",
         "candidate_policy": "Candidate pool only: cross-check primary sources before final briefing inclusion.",
+        "ai_hot_window": window_evidence or {"coverage_status": "unscoped"},
         "sections": [
             {
-                "title": f"AI HOT 精编候选池（最新 {len(normalized)} 条）",
+                "title": (f"AI HOT 逐日候选池（{args.coverage_date}，{len(normalized)} 条）"
+                          if daily else f"AI HOT 精编候选池（最新 {len(normalized)} 条）"),
                 "items": normalized,
             }
         ],
@@ -190,6 +298,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--since", help="Optional ISO-8601 lower bound for API items.")
     parser.add_argument("--query", help="Optional server-side keyword search.")
     parser.add_argument("--date", help="Briefing date, YYYY-MM-DD.")
+    parser.add_argument("--coverage-date", help="Candidate publication day in Asia/Shanghai, YYYY-MM-DD; distinct from --date.")
     parser.add_argument("--date-range", help="Human-readable date range for the config.")
     parser.add_argument("--output", required=True, help="Output news_feedback_config JSON path.")
     return parser.parse_args(list(argv))
@@ -197,8 +306,21 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
 
 def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     args = parse_args(argv)
-    items = api_items(args) if args.source == "api" else feed_items(args)
-    config = build_config(items[: args.take], args, args.source)
+    if not 1 <= args.take <= 100:
+        raise SystemExit("--take must be between 1 and 100")
+    if args.coverage_date:
+        coverage_window(args.coverage_date)
+    if args.source == "api":
+        items, evidence = api_items(args)
+    else:
+        items = feed_items(args)
+        if args.coverage_date:
+            start, end = coverage_window(args.coverage_date)
+            items = [item for item in items if published_in_window(item, start, end) is True]
+        evidence = {"source": "ai_hot_feed", "coverage_date": args.coverage_date,
+                    "coverage_status": "partial" if args.coverage_date else "unscoped",
+                    "pagination_complete": False}
+    config = build_config(items, args, args.source, evidence)
     output = Path(args.output).expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")

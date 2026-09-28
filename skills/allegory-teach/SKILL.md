@@ -92,6 +92,21 @@ it as a second preface. Use the question to align the title, narrative, factual
 return and example. A card that cannot name the reason for the actor's next
 action is not ready for literary polishing.
 
+Before prose, make a private literal state trace for each decisive action:
+`tracked object and kind -> prior state -> trigger -> actual operation -> next
+state -> in-world rule origin`. Keep four carriers separate: the actual object
+or quantity, what the actor has observed or knows, what the tool records, and
+what a later user receives. Say which carrier each action changes. Checking a
+record can change knowledge; it does not itself move or create the physical
+object. Distinguish a physical quantity from its label and a control event
+from an event that changes the quantity.
+Do not infer an update merely because a control event occurs, time passes, or a
+carrier exists. A finite label set does not itself choose saturation, deletion, or
+expansion; declare the chosen replacement rule and its consequence separately.
+Run a natural counterfactual before drafting the debrief. The daily review
+records this story-only reconstruction under review protocol 3; see the daily
+interface. This is an authoring and review gate, not a new story JSON field.
+
 Before choosing story objects, prepare the minimum real case, choose one
 relation, and turn it into a complete causal story. Do not add a second system
 of invented rules. A caveat may be the selected relation, but it must not
@@ -112,7 +127,12 @@ observable stakes -> actor choice -> mechanism consequence
 The background is part of the explanation. Each setup paragraph must make the
 later choice, consequence, or need for the mechanism more intelligible. If the
 paragraph can be removed without changing any of those, rewrite it instead of
-keeping it as decorative lore.
+keeping it as decorative lore. Begin with the ordinary workflow before its
+failure; do not manufacture a special trial day, catastrophe, or prohibition
+to force a choice. If a simple alternative also solves this bounded case,
+acknowledge it. Prefer one option only when a source or explicit teaching
+assumption supplies a relevant trade-off; otherwise say both work here. The
+ending must complete the actor's stated task, not just the analogy's mechanism.
 
 Use a concept already known by the learner only as an anchor; do not pretend it
 proves mastery. Every causal transition must follow from a visible rule,

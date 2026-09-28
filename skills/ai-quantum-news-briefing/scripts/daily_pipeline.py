@@ -33,6 +33,7 @@ from briefing_contract import (
 )
 from briefing_to_feedback_html import render_html, worked_example_has_formula
 from config_to_news_feedback import export_feedback
+from daily_coverage_evidence import validate_daily_evidence
 from lean_html import apply_design_system, design_audit_issues
 from news_delta import (
     load_index,
@@ -138,6 +139,74 @@ def parse_chip_identities(html_text: str) -> set[str]:
     return identities
 
 
+def story_surface_failures(config: dict[str, Any], html_text: str, markdown_text: str) -> list[str]:
+    """Check that all three published story surfaces come from one version-3 handoff."""
+    story = config.get("opening_story") or {}
+    if not isinstance(story, dict) or story.get("version") != 3:
+        return []  # Preserve the historical version-1/2/4 presentation contracts.
+    failures: list[str] = []
+    embedded_match = re.search(
+        r'<script\b[^>]*\bid="briefing-data"[^>]*>(.*?)</script>',
+        html_text, flags=re.I | re.S,
+    )
+    if embedded_match is None:
+        failures.append("HTML embedded briefing-data is missing")
+    else:
+        try:
+            embedded = json.loads(embedded_match.group(1))
+            if embedded.get("opening_story") != story:
+                failures.append("HTML embedded opening_story differs from delta config")
+        except (ValueError, TypeError, AttributeError):
+            failures.append("HTML embedded briefing-data is not valid JSON")
+
+    before_body, body_sep, _ = html_text.partition('<div class="briefing-body"')
+    narrative = re.search(r'<div class="story-narrative">(.*?)</div>', before_body, flags=re.S)
+    expected_paragraphs = ''.join(f'<p>{html.escape(p, quote=True)}</p>' for p in story.get('paragraphs', []))
+    if not body_sep or not narrative or narrative.group(1) != expected_paragraphs:
+        failures.append("HTML visible story paragraphs differ from delta config")
+    if f'<h2>{html.escape(story.get("title", ""), quote=True)}</h2>' not in before_body:
+        failures.append("HTML visible story title differs from delta config")
+    for field in ('concept_name', 'concept_definition', 'logic_chain', 'analogy_boundary', 'misleading_risk'):
+        if html.escape(story.get(field, ''), quote=True) not in before_body:
+            failures.append(f"HTML visible story {field} differs from delta config")
+    example = story.get('worked_example') or {}
+    def example_leaves(value: Any, path: str = 'worked_example') -> Iterable[tuple[str, str]]:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                yield from example_leaves(child, f'{path}.{key}')
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                yield from example_leaves(child, f'{path}[{index}]')
+        elif isinstance(value, str) and value:
+            yield path, value
+    if isinstance(example, dict):
+        for field, value in example_leaves(example):
+            if html.escape(value, quote=True) not in before_body:
+                failures.append(f"HTML visible {field} differs from delta config")
+
+    actual_head, actual_sep, _ = markdown_text.partition("## 日报正文")
+    if not actual_sep:
+        failures.append("Markdown opening_story is missing")
+    else:
+        cursor = 0
+        for paragraph in story.get('paragraphs', []):
+            position = actual_head.find(paragraph, cursor)
+            if position < 0:
+                failures.append("Markdown story paragraphs differ from delta config")
+                break
+            cursor = position + len(paragraph)
+        for field in ('concept_name', 'concept_definition', 'logic_chain', 'analogy_boundary', 'misleading_risk'):
+            if story.get(field, '') not in actual_head:
+                failures.append(f"Markdown story {field} differs from delta config")
+        if isinstance(example, dict):
+            for field, value in example_leaves(example):
+                if field.endswith('.kind') or field.endswith('.units'):
+                    continue  # Markdown intentionally omits display-only metadata.
+                if value not in actual_head:
+                    failures.append(f"Markdown {field} differs from delta config")
+    return failures
+
+
 def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: bool = False) -> dict[str, Any]:
     manifest_files = list(run_root.glob("daily_pipeline_manifest_*.json"))
     if len(manifest_files) != 1:
@@ -168,7 +237,9 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
         for marker in ('<meta charset="utf-8">', "事实：", "判断：", "来源："):
             if marker not in html_text:
                 failures.append(f"HTML encoding/UI marker missing: {marker}")
-        config_audit = audit_config(config)
+        config_audit = audit_config(
+            config, legacy_science=(manifest.get("status") == "complete"
+                                    and manifest.get("coverage_evidence_contract_version") != 1))
         failures.extend(config_audit["failures"])
         warnings.extend(config_audit["warnings"])
         if strict and config_audit["warnings"]:
@@ -211,6 +282,7 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
         story_required = bool(story_delivery.get("required"))
         worked_example_required = bool(story_delivery.get("worked_example_required"))
         if story_required:
+            failures.extend(story_surface_failures(config, html_text, markdown_text))
             story_marker = 'data-opening-story="true"'
             briefing_marker = 'data-briefing-body="true"'
             if story_marker not in html_text:
@@ -447,6 +519,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
     }
     if protocol >= 2:
+        manifest["coverage_evidence_contract_version"] = 1
+        manifest["required_story_review_protocol"] = 3
         manifest["coverage"] = {"start": coverage_start, "end": coverage_end,
                                 "timezone": "Asia/Shanghai",
                                 "collection_completed_at": raw_config["collection_completed_at"],
@@ -490,12 +564,11 @@ def _coverage_window(args: argparse.Namespace, config: dict[str, Any], run_date:
                      for offset in range(days)}
     if described_dates and set(described_dates) != covered_dates:
         raise ValueError("date_range does not match the declared complete-day coverage")
-    if days > 1:
-        evidence = config.get("coverage_evidence")
-        if (not isinstance(evidence, list) or len(evidence) != len(covered_dates)
-                or {row.get("date") for row in evidence if isinstance(row, dict)} != covered_dates
-                or any(not row.get("academic_search_ref") or not row.get("social_search_ref") for row in evidence if isinstance(row, dict))):
-            raise ValueError("multi-day coverage requires per-day academic and social search evidence")
+    evidence_failures = validate_daily_evidence(
+        config.get("coverage_evidence"), start, end,
+    )
+    if evidence_failures:
+        raise ValueError("daily coverage evidence: " + "; ".join(evidence_failures))
     collected = config.get("collection_completed_at")
     if not isinstance(collected, str) or not collected.strip():
         raise ValueError("new releases require collection_completed_at")
@@ -509,6 +582,9 @@ def _validate_coverage_manifest(manifest: dict[str, Any]) -> list[str]:
     coverage = manifest.get("coverage")
     if not isinstance(coverage, dict) or coverage.get("timezone") != "Asia/Shanghai":
         return ["version-2 release lacks Asia/Shanghai coverage metadata"]
+    contract = manifest.get("coverage_evidence_contract_version")
+    if contract not in (None, 1) or (contract is None and manifest.get("status") != "complete"):
+        return ["new release lacks the current daily coverage evidence contract"]
     try:
         shanghai = timezone(timedelta(hours=8), "Asia/Shanghai")
         start = datetime.fromisoformat(coverage["start"])
@@ -523,7 +599,14 @@ def _validate_coverage_manifest(manifest: dict[str, Any]) -> list[str]:
                 or collected < end):
             raise ValueError("invalid coverage interval")
         days = (end.astimezone(shanghai).date() - start.astimezone(shanghai).date()).days
-        if days > 1:
+        if contract == 1:
+            evidence = coverage.get("daily_search_evidence")
+            failures = validate_daily_evidence(
+                evidence, start, end,
+            )
+            if failures:
+                return ["daily coverage evidence: " + "; ".join(failures)]
+        elif days > 1:
             evidence = coverage.get("daily_search_evidence")
             expected = {(start.astimezone(shanghai).date() + timedelta(days=offset)).isoformat()
                         for offset in range(days)}
@@ -539,21 +622,31 @@ def _validate_coverage_manifest(manifest: dict[str, Any]) -> list[str]:
 
 def cmd_seal_review(args: argparse.Namespace) -> int:
     run_root = Path(args.run_dir).expanduser().resolve()
+    news_root = run_root.parents[2] if run_root.parent.name == ".staging" else run_root.parent
+    with release_lock(news_root):
+        return _seal_review_locked(run_root)
+
+
+def _seal_review_locked(run_root: Path) -> int:
     base = verify_artifacts(run_root, strict=True, structure_only=True)
     if base["status"] != "pass":
         print(json.dumps(base, ensure_ascii=False, indent=2))
         return 1
     manifest = base["manifest"]
     protocol = int(manifest.get("pipeline_version") or 1)
-    if not ((protocol >= 2 and manifest.get("status") == "staged")
+    if not ((protocol >= 2 and manifest.get("status") in {"staged", "complete"})
             or (protocol == 1 and manifest.get("status") == "complete")):
-        raise ValueError("seal-review requires a staged protocol-2 release or a completed legacy release")
+        raise ValueError("seal-review requires a staged or completed release")
     report_path = run_root / REVIEW_NAMES["release_audit"].format(date=manifest["date"])
+    prior_report = report_path.read_bytes() if report_path.exists() else None
     report = make_report(run_root, manifest)
     atomic_json(report_path, report)
     failures = validate_bundle(run_root, manifest, require_manifest_binding=False)
     if failures:
-        report_path.unlink()
+        if prior_report is None:
+            report_path.unlink()
+        else:
+            atomic_text(report_path, prior_report.decode("utf-8"))
         print(json.dumps({"status": "fail", "failures": failures}, ensure_ascii=False, indent=2))
         return 1
     if protocol >= 2:
@@ -578,14 +671,26 @@ def cmd_review_template(args: argparse.Namespace) -> int:
         raise ValueError("review-template requires a staged protocol-2 release")
     config = load_json(run_root / manifest["artifacts"]["delta_config"])
     story = config["opening_story"]
+    review_version = manifest.get("required_story_review_protocol", 2)
+    story_rounds = []
+    for key, materials in ROUND_MATERIALS.items():
+        row = {"id": key, "materials_seen": sorted(materials),
+               "judgment": "unreviewed", "reviewed_text": "", "reason": "",
+               "source_or_rule": "", "limitation": ""}
+        if review_version == 3:
+            row["unresolved"] = ["pending review"]
+            if key == "story-completeness":
+                row.update(literal_trace=[], counterfactual={})
+            elif key == "semantic-and-source":
+                row["technical_edges"] = []
+            else:
+                row["example_alignment"] = {}
+        story_rounds.append(row)
     story_review = {
-        "review_protocol_version": 2, "review_method": "self",
+        "review_protocol_version": review_version, "review_method": "self",
         "story_sha256": story_digest(story),
         "task_card": {key: "" for key in TASK_CARD_KEYS},
-        "rounds": [{"id": key, "materials_seen": sorted(materials),
-                    "judgment": "unreviewed", "reviewed_text": "", "reason": "",
-                    "source_or_rule": "", "limitation": ""}
-                   for key, materials in ROUND_MATERIALS.items()],
+        "rounds": story_rounds,
     }
     news_review = {
         "version": 1, "review_method": "self", "content_digest": content_digest(manifest),

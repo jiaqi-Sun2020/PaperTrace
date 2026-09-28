@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import shutil
 import subprocess
@@ -22,7 +23,7 @@ from audit_briefing_config import audit, audit_ranking_delivery
 from briefing_contract import concept_identity, normalize_briefing_config
 from briefing_to_feedback_html import render_html
 from config_to_news_feedback import export_feedback
-from daily_pipeline import cmd_finalize, cmd_run, verify_artifacts
+from daily_pipeline import cmd_finalize, cmd_run, story_surface_failures, verify_artifacts
 from lean_html import apply_design_system, design_audit_issues
 from news_delta import render_markdown, transform_config, upsert_index
 from rank_briefing_candidates import DEFAULT_RANKING_POLICY, rank_briefing_config
@@ -375,6 +376,25 @@ def ranking_fixture() -> tuple[dict, list[dict]]:
             for venue in venues
         ],
     }
+    science = next(row for row in raw["academic_search"]["rows"] if row["venue"] == "science")
+    science["coverage_status"] = "verified"
+    science["verification_method"] = "official_complete_listing"
+    listing_body = json.dumps({"source": "Science", "coverage_start": "2026-07-10T00:00:00+08:00",
+                               "coverage_end": "2026-07-11T00:00:00+08:00", "total_count": 0,
+                               "has_next": False, "items": []})
+    listing_hash = hashlib.sha256(listing_body.encode()).hexdigest()
+    science["provider_evidence"] = [{
+        "provider": "science", "role": "official_search", "proves_daily_coverage": True,
+        "pagination_complete": True, "total_count": 0, "retrieved_count": 0,
+        "coverage_start": "2026-07-10T00:00:00+08:00",
+        "coverage_end": "2026-07-11T00:00:00+08:00",
+        "query_url": "https://www.science.org/action/doSearch?AllField=quantum&from=2026-07-10&until=2026-07-11",
+        "final_url": "https://www.science.org/action/doSearch?AllField=quantum&from=2026-07-10&until=2026-07-11",
+        "retrieved_at": "2026-07-11T00:00:00+08:00", "status_code": 200,
+        "response_hash": listing_hash,
+        "listing_pages": [{"query_url": "https://www.science.org/action/doSearch?AllField=quantum&from=2026-07-10&until=2026-07-11",
+                           "response_hash": listing_hash, "response_body": listing_body}],
+    }]
     raw["social_candidate_pool"] = {
         "required_source_classes": ["ai_hot", "reputable_media", "official_company_social", "executive_social"],
         "checked_at": "2026-07-10T00:00:00Z",
@@ -394,6 +414,12 @@ def ranking_fixture() -> tuple[dict, list[dict]]:
 
 
 class DailyPipelineTests(unittest.TestCase):
+    def test_crossref_api_metadata_cannot_be_final_article_content_source(self) -> None:
+        raw = config([item(url="https://api.crossref.org/works/10.1126/science.example")])
+        result = audit(raw)
+        self.assertTrue(any("Crossref metadata is discovery/coverage evidence" in issue
+                            for issue in result["failures"]))
+
     def test_daily_pipeline_requires_an_opening_story_before_creating_staging(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -623,6 +649,28 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertLess(markdown.index(debrief_labels[-1]), markdown.index("### 完整例子"))
         self.assertEqual(len(feedback["items"]), 1)
         self.assertFalse(any(entry["concept"] == "spectral gap" for entry in feedback["items"]))
+
+    def test_story_surface_gate_rejects_stale_embedded_or_visible_story(self) -> None:
+        canonical = normalize_briefing_config(config(), require_source_url=True)
+        html = render_html(canonical)
+        markdown = render_markdown(canonical)
+        self.assertEqual(story_surface_failures(canonical, html, markdown), [])
+        stale_embedded = re.sub(
+            r'(<script id="briefing-data" type="application/json">)(.*?)(</script>)',
+            lambda match: match.group(1) + match.group(2).replace(
+                canonical["opening_story"]["title"], "旧版故事", 1
+            ) + match.group(3),
+            html, count=1, flags=re.S,
+        )
+        self.assertIn("HTML embedded opening_story differs from delta config",
+                      story_surface_failures(canonical, stale_embedded, markdown))
+        stale_visible = html.replace(canonical["opening_story"]["paragraphs"][0], "旧版故事段落", 1)
+        self.assertIn("HTML visible story paragraphs differ from delta config",
+                      story_surface_failures(canonical, stale_visible, markdown))
+        stale_example = html.replace(canonical["opening_story"]["worked_example"]["result"],
+                                     "旧版例子结果", 1)
+        self.assertIn("HTML visible worked_example.result differs from delta config",
+                      story_surface_failures(canonical, stale_example, markdown))
 
     def test_mobile_feedback_editor_is_docked_and_does_not_jump_from_article(self) -> None:
         html = render_html(normalize_briefing_config(config(), require_source_url=True))

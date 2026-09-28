@@ -36,10 +36,13 @@ def digest(value: Any) -> str:
 
 def content_digest(manifest: dict[str, Any]) -> str:
     hashes = manifest.get("artifact_sha256") or {}
-    return digest({"date": manifest.get("date"), "run_id": manifest.get("run_id"),
-                   "coverage": manifest.get("coverage"),
-                   "index_snapshot_sha256": manifest.get("index_snapshot_sha256"),
-                   "artifacts": {key: hashes.get(key) for key in BASE_KEYS}})
+    payload = {"date": manifest.get("date"), "run_id": manifest.get("run_id"),
+               "coverage": manifest.get("coverage"),
+               "index_snapshot_sha256": manifest.get("index_snapshot_sha256"),
+               "artifacts": {key: hashes.get(key) for key in BASE_KEYS}}
+    if "required_story_review_protocol" in manifest:
+        payload["required_story_review_protocol"] = manifest["required_story_review_protocol"]
+    return digest(payload)
 
 
 def selected_items(config: dict[str, Any]) -> list[dict[str, Any]]:
@@ -80,8 +83,11 @@ def validate_bundle(run_dir: Path, manifest: dict[str, Any], *, require_manifest
     story = config.get("opening_story")
     if not isinstance(story, dict):
         return ["opening story missing from release config"]
-    if story_review.get("review_protocol_version") != 2:
-        failures.append("new release requires story review protocol 2")
+    required = manifest.get("required_story_review_protocol", 2)
+    if required not in (2, 3):
+        failures.append("unsupported required story review protocol")
+    elif story_review.get("review_protocol_version") not in ((2, 3) if required == 2 else (3,)):
+        failures.append(f"release requires story review protocol {required}")
     failures.extend(f"story review: {issue}" for issue in validate_review(story, story_review))
     narrative = re.search(r'<div class="story-narrative">(.*?)</div>', page, re.S)
     expected = "".join("<p>" + html.escape(paragraph, quote=True) + "</p>"

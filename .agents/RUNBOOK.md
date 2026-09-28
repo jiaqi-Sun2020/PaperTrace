@@ -30,7 +30,7 @@ The first three commands only read the profile and create private teaching artif
 
 ## Daily Briefing Encoding Gate
 
-Run daily briefing commands from `D:\AI\PaperTrace`. New protocol-2 releases require timezone-aware `collection_completed_at` in the candidate config. The 08:00 Asia/Shanghai scheduled run covers the previous complete calendar day; `--date` is the release date, not proof of coverage. Multi-day backfill needs explicit midnight `--coverage-start`/`--coverage-end` and per-day `coverage_evidence`. The authoritative path is:
+Run daily briefing commands from `D:\AI\PaperTrace`. New protocol-2 releases require timezone-aware `collection_completed_at` and content-bound `coverage_evidence` for **every** covered Asia/Shanghai calendar day, including a one-day release. The 08:00 scheduled run covers the previous complete day; `--date` is the release label, not proof of coverage. Multi-day backfills additionally need explicit midnight `--coverage-start`/`--coverage-end`. Before `run`, collect the daily academic venue ledger and social search records, then bind each daily `academic_search` and `social_search` object with its SHA-256 reference as specified in `CONFIG_SPEC.md`. The authoritative release path is:
 
 ```powershell
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py run --config <candidate_config.json> --date <YYYY-MM-DD> --design-system cosmic --background-mode light
@@ -43,7 +43,15 @@ python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --ru
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD> --strict
 ```
 
-The template is deliberately `unreviewed`. Check each selected news claim against its source and perform the protocol-2 story rounds before sealing. `seal-review` binds the reviews and preflight audit to the release manifest; it cannot certify semantic truth. Missing, failed or stale review blocks `finalize` and standalone OSS `publish`. Read `skills/ai-quantum-news-briefing/references/release-review-protocol.md`. Older releases stay readable but require fresh review before new OSS upload. Inspect structured coverage (old display-only `date_range` is not full-day evidence):
+For AI HOT candidate collection, run from `D:\AI\PaperTrace` with the publication day set separately from the release label:
+
+```powershell
+python .\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <RELEASE-YYYY-MM-DD> --coverage-date <COVERED-YYYY-MM-DD> --output .\news\<RELEASE-YYYY-MM-DD>\aihot_candidates_<RELEASE-YYYY-MM-DD>.json
+```
+
+`--coverage-date` filters the Asia/Shanghai half-open day across API cursor pages; `--take` is a page size, `--since` is only a retrieval lower bound, and `--date` does not filter candidates. A partial page run, missing/ambiguous timestamp, expired API window, or RSS fallback cannot establish complete AI HOT daily coverage. Separately record the required reputable-media, official-company/social and executive-social searches; selected social claims still need their original sources. For Science, the current sweep queries official pages, RSS and a Crossref snapshot (which may itself be partial), but leaves publisher-day coverage `pending`: HTTP 200, RSS and even complete Crossref pagination do not certify Science's complete dated publication list. Until a date-scoped, complete publisher listing is evidenced, strict release must stop; do not mark zero hits or `verified` by hand without that proof. Coverage records establish search scope, not article mechanism or performance claims.
+
+The template is deliberately `unreviewed`. Check each selected news claim against its source and perform the protocol-3 story-only trace, source mapping and cross-surface review before sealing. Clear `unresolved` only after each finding is repaired. `seal-review` binds the reviews and preflight audit to the release manifest; it cannot certify semantic truth. Missing, failed or stale review blocks `finalize` and standalone OSS `publish`. Read `skills/ai-quantum-news-briefing/references/release-review-protocol.md`. Older v2 reviews stay locally readable; preserve the old sidecar before replacing and re-sealing it for a first remote upload or correction. Inspect structured coverage (old display-only `date_range` is not full-day evidence):
 
 ```powershell
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py status --from-date <YYYY-MM-DD>
@@ -86,6 +94,7 @@ python -B -m unittest discover -s skills/allegory-teach/tests -p "test_*.py"
 python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p test_daily_pipeline.py
 python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p test_publish_daily_to_oss.py
 python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p test_release_protocol.py
+python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p test_collection_coverage.py
 ```
 
 The final verify must report visible HTML `?=0`, replacement-character `=0`, Chinese UI markers, concept/feedback identity equality, all default statuses `unrated`, light default/Cosmic option, and no feedback2 panel. A failed encoding check blocks finalize and therefore blocks story-index updates.
@@ -375,7 +384,7 @@ The skill writes concept-status candidates through strict `reader-learner` valid
 
 ## Daily Academic And Feedback Release Gate
 
-For `daily_pipeline.py`, keep `analysis_language=zh-CN`, `academic_delivery.required=true`, and `ranking_policy.enabled=true`. `news-ranker-v1` must select 7–8 academic papers (4–6 `new`, at least two non-arXiv formal papers, at most three `continuing`) plus 10–14 social items (target 12, at least seven `new`/`material_update`, at most three `continuing`). Social selection also requires at least three reputable-media items, three primary-official items, and three source classes, with at most two items per organization and three per topic. `academic_search` must still cover PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv with HTTP evidence. Preserve actual publication dates for wider-window academic context.
+For `daily_pipeline.py`, keep `analysis_language=zh-CN`, `academic_delivery.required=true`, and `ranking_policy.enabled=true`. `news-ranker-v1` must select 7–8 academic papers (4–6 `new`, at least two non-arXiv formal papers, at most three `continuing`) plus 10–14 social items (target 12, at least seven `new`/`material_update`, at most three `continuing`). Social selection also requires at least three reputable-media items, three primary-official items, and three source classes, with at most two items per organization and three per topic. `academic_search` must still cover PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv with source-specific coverage evidence; HTTP success alone is insufficient, especially for Science. Preserve actual publication dates for wider-window academic context.
 
 To inspect the ranking before running the transactional release, run from `D:\AI\PaperTrace`:
 

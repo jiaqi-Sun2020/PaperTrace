@@ -67,3 +67,51 @@ class ReviewEvidenceTests(unittest.TestCase):
         mislabeled = copy.deepcopy(review)
         mislabeled["review_method"] = "blind independent certification"
         self.assertTrue(any("review method" in failure for failure in validate_review(self.story, mislabeled)))
+
+    def test_v3_requires_a_literal_trace_source_mapping_and_example_alignment(self):
+        self.story = {
+            "title": "A bounded choice", "paragraphs": ["A fourth item arrives; the four labels stop at three."],
+            "worked_example": {"question": "What is recorded?", "observable": "The stored count.",
+                               "steps": [{"action": "Compare four with the largest label."}],
+                               "result": "The chosen saturation rule records three."},
+        }
+        quote = self.story["paragraphs"][0]
+        review = copy.deepcopy(self.review)
+        review.update(story_sha256=story_digest(self.story), review_protocol_version=3,
+                      review_method="self", task_card={key: "A bounded decision." for key in TASK_CARD_KEYS})
+        for row in review["rounds"]:
+            row.update(materials_seen=sorted(ROUND_MATERIALS[row["id"]]), reviewed_text=quote, unresolved=[])
+            if row["id"] == "story-completeness":
+                row["literal_trace"] = [{"story_quote": quote, "tracked_object": "item count",
+                    "kind": "representation_label", "before": "three items; label three",
+                    "trigger": "a fourth item arrives", "operation": "look for label four",
+                    "after": "four items, no matching label", "rule_origin": "only four labels exist"}]
+                row["counterfactual"] = {"changed_condition": "add a fifth label",
+                    "predicted_result": "four can be recorded", "reason": "the missing label now exists"}
+            elif row["id"] == "semantic-and-source":
+                row["technical_edges"] = [{"story_quote": quote,
+                    "technical_operation": "finite encoding excludes the next count",
+                    "source_anchor": "source statement on finite representation",
+                    "claim_class": "teaching_assumption",
+                    "scope_and_nonconclusion": "saturation is optional, not caused by capacity alone"}]
+            else:
+                row["example_alignment"] = {"question": self.story["worked_example"]["question"],
+                    "observable": self.story["worked_example"]["observable"],
+                    "step_quote": self.story["worked_example"]["steps"][0]["action"],
+                    "result": self.story["worked_example"]["result"],
+                    "consistency_reason": "The example states its chosen overflow rule."}
+        self.assertEqual(validate_review(self.story, review), [])
+        for mutate, expected in (
+            (lambda value: value["story-completeness"].pop("literal_trace"), "literal_trace"),
+            (lambda value: value["story-completeness"]["literal_trace"][0].update(kind="count-or-height"), "invalid kind"),
+            (lambda value: value["story-completeness"]["literal_trace"][0].update(kind=[]), "invalid kind"),
+            (lambda value: value["story-completeness"]["literal_trace"][0].update(story_quote="phantom event"), "quote is absent"),
+            (lambda value: value["semantic-and-source"].pop("technical_edges"), "technical_edges"),
+            (lambda value: value["semantic-and-source"]["technical_edges"][0].update(claim_class={}), "invalid claim_class"),
+            (lambda value: value["cross-surface-and-display"]["example_alignment"].update(observable="A different result."), "observable differs"),
+            (lambda value: value["story-completeness"].update(unresolved=["the event has no rule"]), "unresolved findings"),
+        ):
+            with self.subTest(expected=expected):
+                damaged = copy.deepcopy(review)
+                mutate({row["id"]: row for row in damaged["rounds"]})
+                self.assertTrue(any(expected in failure for failure in validate_review(self.story, damaged)))

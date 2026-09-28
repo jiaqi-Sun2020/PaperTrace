@@ -17,10 +17,10 @@ import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import quote_plus, urlsplit
+from urllib.parse import quote_plus, urlencode, urlsplit
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -84,7 +84,10 @@ def build_plan(terms: list[str], date_range: str, include_arxiv: bool, mark_chec
                 "search_url": venue.search_template.format(term=quote_plus(term)),
                 "result": result,
                 "url": "",
-                "note": "",
+                "note": (
+                    "Official venue listing only; it does not search this term or date range."
+                    if venue.key == "science" else ""
+                ),
                 "evidence": {},
             }
             rows.append(row)
@@ -127,6 +130,8 @@ def build_plan(terms: list[str], date_range: str, include_arxiv: bool, mark_chec
 
 
 def extract_result_count(text: str) -> int:
+    if "<rss" in text[:500].lower() or "<rdf:rdf" in text[:500].lower():
+        return len(re.findall(r"<item(?:\s|>)", text, re.I))
     patterns = (
         r"(?:about|total|resultCount|resultsCount|totalResults)[^0-9]{0,30}([0-9][0-9,]*)",
         r"([0-9][0-9,]*)\s+(?:results|papers|articles)",
@@ -138,10 +143,168 @@ def extract_result_count(text: str) -> int:
     return -1
 
 
+SCIENCE_RSS = "https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=science"
+SCIENCE_FIRST_RELEASE = "https://www.science.org/journal/science/first-release"
+SCIENCE_ISSN = "0036-8075"
+
+
+def _request_evidence(url: str, timeout: int) -> tuple[dict[str, object], bytes]:
+    """Keep failed requests as evidence; a successful response is not a coverage proof."""
+    evidence: dict[str, object] = {
+        "query_url": url,
+        "retrieved_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "status_code": 0,
+        "final_url": "",
+        "response_hash": "",
+    }
+    try:
+        if urlsplit(url).scheme != "https":
+            raise ValueError("source URL must be https")
+        request = urllib.request.Request(url, headers={"User-Agent": "PaperTrace-academic-venue-sweep/1.0"})
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = response.read(2_000_000)
+            evidence.update(status_code=int(response.status), final_url=response.geturl(),
+                            response_hash=hashlib.sha256(body).hexdigest())
+            return evidence, body
+    except urllib.error.HTTPError as exc:
+        body = exc.read(2_000_000)
+        evidence.update(status_code=int(exc.code), final_url=exc.geturl(),
+                        response_hash=hashlib.sha256(body).hexdigest(), error=str(exc)[:300])
+        return evidence, body
+    except Exception as exc:
+        evidence["error"] = str(exc)[:300]
+        return evidence, b""
+
+
+def _science_days(date_range: str) -> list[str]:
+    values = re.findall(r"20\d{2}-\d{2}-\d{2}", date_range)
+    if not values:
+        return []
+    start, end = date.fromisoformat(values[0]), date.fromisoformat(values[-1])
+    if end < start or (end - start).days > 31:
+        raise ValueError("Science sweep needs an ordered window of at most 32 days")
+    return [(start + timedelta(days=index)).isoformat() for index in range((end - start).days + 1)]
+
+
+def _crossref_science_snapshot(day: str, timeout: int, rows_per_page: int = 100) -> dict[str, object]:
+    """Complete an indexed-metadata query, never a publisher-publication census."""
+    endpoint = f"https://api.crossref.org/journals/{SCIENCE_ISSN}/works"
+    cursor = "*"
+    seen_cursors: set[str] = set()
+    records: dict[str, dict[str, object]] = {}
+    pages: list[dict[str, object]] = []
+    total: int | None = None
+    raw_count = 0
+    complete = False
+    for _ in range(100):
+        if cursor in seen_cursors:
+            break
+        seen_cursors.add(cursor)
+        # Crossref date filters are inclusive. Recheck the actual date locally.
+        params = {"filter": f"from-online-pub-date:{day},until-online-pub-date:{day}",
+                  "rows": rows_per_page, "cursor": cursor,
+                  "select": "DOI,title,abstract,subject,ISSN,prefix,published-online,type"}
+        url = endpoint + "?" + urlencode(params)
+        evidence, body = _request_evidence(url, timeout)
+        pages.append(evidence)
+        if (not 200 <= int(evidence["status_code"]) < 300
+                or not re.fullmatch(r"[0-9a-f]{64}", str(evidence.get("response_hash") or ""))):
+            break
+        try:
+            message = json.loads(body)["message"]
+            items = message["items"]
+            count = message["total-results"]
+            if not isinstance(items, list) or not isinstance(count, int) or count < 0:
+                break
+            if total is None:
+                total = count
+            elif total != count:
+                break  # The index changed during pagination.
+            raw_count += len(items)
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                doi = str(item.get("DOI") or "").lower()
+                if (doi.startswith("10.1126/") and SCIENCE_ISSN in item.get("ISSN", [])
+                        and item.get("type") == "journal-article"):
+                    records[doi] = item
+            if len(items) < rows_per_page:
+                complete = raw_count == total
+                break
+            next_cursor = message.get("next-cursor")
+            if not isinstance(next_cursor, str) or not next_cursor:
+                break
+            cursor = next_cursor
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            break
+    return {
+        "provider": "crossref", "role": "indexed_metadata_discovery",
+        "journal": "Science", "issn": SCIENCE_ISSN, "doi_prefix": "10.1126",
+        "publication_date_field": "published-online", "coverage_date": day,
+        "query_complete": complete, "publisher_day_coverage_complete": False,
+        "total_count": total, "retrieved_count": raw_count,
+        "unique_science_count": len(records), "pages": pages,
+        "response_hash": hashlib.sha256(json.dumps(pages, sort_keys=True).encode()).hexdigest(),
+        "items": [{"doi": doi, "title": item.get("title", []), "abstract": item.get("abstract", ""),
+                   "subject": item.get("subject", []), "published_online": item.get("published-online", {})}
+                  for doi, item in sorted(records.items())],
+    }
+
+
+def _topic_matches(item: dict[str, object], term: str) -> bool:
+    tokens = re.findall(r"[\w-]+", term.lower(), re.UNICODE)
+    if not tokens:
+        return False
+    haystack = " ".join((" ".join(str(part) for part in item.get("title", [])),
+                         re.sub(r"<[^>]+>", " ", str(item.get("abstract") or "")),
+                         " ".join(str(part) for part in item.get("subject", [])))).lower()
+    words = set(re.findall(r"[\w-]+", haystack, re.UNICODE))
+    return all(token in words for token in tokens)
+
+
+def _science_row(row: dict[str, object], days: list[str], timeout: int,
+                 snapshots: dict[str, dict[str, object]]) -> None:
+    providers = []
+    for url, role in ((str(row["search_url"]), "official_search"),
+                      (SCIENCE_FIRST_RELEASE, "official_first_release"),
+                      (SCIENCE_RSS, "corroboration")):
+        evidence, body = _request_evidence(url, timeout)
+        evidence["provider"] = "science"
+        evidence["role"] = role
+        evidence["result_count"] = extract_result_count(body.decode("utf-8", errors="replace"))
+        evidence["proves_daily_coverage"] = False
+        providers.append(evidence)
+    for day in days:
+        if day not in snapshots:
+            snapshots[day] = _crossref_science_snapshot(day, timeout)
+    providers.extend(snapshots[day] for day in days)
+    term = str(row.get("term") or "")
+    row["crossref_topic_matches"] = {
+        day: [item["doi"] for item in snapshots[day]["items"] if _topic_matches(item, term)]
+        for day in days
+    }
+    row["provider_evidence"] = providers
+    row["retrieval_status"] = ("blocked" if any(
+        provider["role"] != "corroboration" and provider["status_code"] == 403
+        for provider in providers if provider.get("provider") == "science") else
+        "success" if any(200 <= int(provider["status_code"]) < 300
+                         for provider in providers if provider.get("provider") == "science") else "error")
+    row["coverage_status"] = "pending"
+    row["verification_method"] = "none"
+    row["result"] = "blocked" if row["retrieval_status"] == "blocked" else "listing_only"
+    row["evidence"] = providers[0]
+    row["note"] = "Official pages and Crossref were queried; none alone proves the complete publisher-day inventory."
+
+
 def fetch_evidence(plan: dict[str, object], timeout: int = 20) -> dict[str, object]:
     rows = plan.get("rows") or []
+    science_days = _science_days(str(plan.get("date_range") or ""))
+    science_snapshots: dict[str, dict[str, object]] = {}
     for row in rows:
         if not isinstance(row, dict):
+            continue
+        if row.get("venue") == "science":
+            _science_row(row, science_days, timeout, science_snapshots)
             continue
         url = str(row.get("search_url") or "")
         evidence: dict[str, object] = {
@@ -204,7 +367,9 @@ def fetch_evidence(plan: dict[str, object], timeout: int = 20) -> dict[str, obje
         topic["primary_hits"] = [{"venue": row.get("venue"), "url": row.get("url")} for row in valid if row.get("url") and row.get("venue") != "arxiv"]
         topic["status"] = "evidenced" if len(valid) == len(topic_rows) else "pending"
     plan["retrieved_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    plan["evidence_policy"] = "A venue is checked only when an official HTTPS endpoint returned auditable HTTP evidence."
+    plan["evidence_policy"] = ("A successful HTTP response is retrieval evidence, not daily coverage. "
+                               "Science RSS and a complete Crossref indexed snapshot cannot alone verify "
+                               "the publisher's complete daily inventory.")
     return plan
 
 

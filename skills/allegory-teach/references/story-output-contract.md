@@ -43,8 +43,21 @@ alternative cost or unique cause, leave that part unknown rather than inventing
 one to complete the scene.
 
 At each decisive turn, the reader must be able to recover `previous state ->
-operation or constraint -> next state -> reason`. An actor's assertion, a named
-rule, or a repeated metaphor noun is not the reason. Answer an obvious
+trigger -> actual operation or constraint -> next state -> rule origin` from
+the story alone. Privately type each tracked object as a physical quantity,
+representation label, control event, or knowledge state; do not switch its
+meaning mid-story. A trigger is not an update unless the story states the
+operation connecting them. For information-transfer stories, trace separately
+the physical object, the actor's observation or knowledge, the device's record,
+and the message the next person receives. Inspection can update knowledge
+without changing inventory; name the operation that changes each carrier and
+close the story by answering the opening task. Distinguish representation capacity (which states
+are available) from a separately chosen out-of-range policy (what to do when
+one is missing). Saturation, deletion, and expansion are alternatives, not
+automatic consequences of finite capacity. An actor's assertion, a named
+rule, or a repeated metaphor noun is not the reason. Test one natural changed
+condition before approving the story; if its outcome is indeterminate, repair
+the missing rule instead of relying on the debrief. Answer an obvious
 alternative such as adding capacity or preparing the answer beforehand by
 showing its source-supported cost or the way it changes the task; do not create
 an unsupported prohibition. A supplied theorem may be applied in the story

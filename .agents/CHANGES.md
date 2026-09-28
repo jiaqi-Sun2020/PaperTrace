@@ -1,9 +1,21 @@
 # Changes
 
 - Project root: `D:\AI\PaperTrace`
-- Last reviewed: 2026-09-27
+- Last reviewed: 2026-09-28
 
 This file records dated implementation and local-release milestones. Durable boundaries belong in `AGENTS.md`, commands in `RUNBOOK.md`, data contracts in `CONFIG_SPEC.md`, and architecture/ownership in `ARCHITECTURE.md`.
+
+## 2026-09-28 — Content-bound daily search evidence
+
+- New releases require one hash-bound academic and social search record for each covered Shanghai calendar day, including single-day runs. AI HOT now filters timezone-aware publication timestamps across API cursors with a separate `--coverage-date`; its feed remains a candidate source, not final claim evidence.
+- Science official attempts, RSS and Crossref snapshots retain separate retrieval and coverage conclusions. Even complete Crossref pagination does not prove the publisher's full-day list, so the current collector leaves Science coverage pending without independent publisher-complete evidence.
+- Strict local verification and first OSS upload or correction recheck the current coverage contract; completed historical releases remain locally readable. Synthetic regressions and Skill validation passed, but no live publisher-day completeness, historical HTML reissue or OSS delivery was verified in this change.
+
+## 2026-09-27 — Literal story-state review gate
+
+- Added a typed story-only state trace and changed-condition counterfactual to the allegory authoring/review contract; representation capacity, optional overflow policy, event triggers and actual updates must be distinguished.
+- New daily runs require protocol-3 story review evidence bound to the manifest. Historical v2 reviews remain locally readable; remote first upload or correction requires fresh v3 evidence. The opening-story schema, ranking, feedback and learner state are unchanged.
+- Review validation checks quoted evidence, alignment, unresolved findings and content freshness, not semantic truth. No historical daily HTML was republished and no live OSS operation was performed.
 
 ## 2026-09-27 — Reviewed daily release and recoverable OSS delivery
 

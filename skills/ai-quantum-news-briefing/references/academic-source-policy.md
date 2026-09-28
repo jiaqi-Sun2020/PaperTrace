@@ -46,8 +46,10 @@ Tier 3 media / commentary:
 4. Add top-level `academic_search` to the briefing config. This is mandatory when the config contains academic or quantum items. It must list the checked venues and compact topic-level results.
 5. For each arXiv-only item, add `venue_sweep_note` to the config. Keep it short, e.g. `Checked APS PRL/PRA/PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal; no venue page found in window; treated as preprint.`
 6. Mark arXiv-only items as `preprint` and avoid overclaiming peer-reviewed status.
-7. A venue ledger row is not checked merely because it contains a search URL or `checked_no_hit`. It must contain official HTTPS HTTP evidence with `query_url`, `retrieved_at`, `status_code`, `final_url`, `result_count`, `response_hash`, and an auditable excerpt. Network errors remain `pending` and block strict finalization.
-7. Use the adversarial audit before finalizing; missing or incomplete `academic_search` is a failure.
+7. A venue ledger row is not checked merely because it contains a search URL, HTTP 200, or `checked_no_hit`. Preserve retrieval failures separately from coverage conclusions. A required venue remains pending until the requested publication window is evidenced.
+8. Science's official search and First Release pages are attempted; the eTOC RSS only corroborates items. The Crossref ISSN `0036-8075` query is a dated, paginated discovery snapshot. Even when every Crossref page is retrieved, late or changed deposits mean it is **not** proof of Science's complete publisher-day inventory. Do not set Science `coverage_status=verified` without a complete, date-scoped publisher listing. If no such listing is available, stop strict publication rather than inventing a zero-hit result.
+9. Coverage evidence is distinct from content evidence. DOI, title or abstract metadata alone cannot substantiate a paper's mechanism, performance or novelty claim; review the article or another suitable primary source separately.
+10. Use the adversarial audit before finalizing; missing or incomplete `academic_search` is a failure.
 
 ## Academic Evidence Contract
 

@@ -5,13 +5,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import urlsplit
+from urllib.parse import unquote_plus, urlsplit
 
 from briefing_contract import canonical_url, normalize_briefing_config
 from rank_briefing_candidates import ALGORITHM_VERSION, is_primary_official, is_reputable
@@ -151,7 +153,104 @@ def valid_http_evidence(value: Any) -> bool:
         return False
 
 
-def academic_search_venues(config: dict[str, Any]) -> tuple[set[str], int, int, list[str]]:
+def valid_venue_evidence(row: dict[str, Any]) -> bool:
+    """Validate adapter-produced listing data; the current sweep does not emit such a proof.
+
+    A Science retrieval or Crossref snapshot cannot assert publisher-day coverage.
+    The source review must independently inspect the captured publisher response.
+    """
+    evidence = row.get("evidence")
+    if normalize_venue(row.get("venue")) != "science":
+        return valid_http_evidence(evidence)
+    if row.get("coverage_status") != "verified" or row.get("verification_method") != "official_complete_listing":
+        return False
+    providers = row.get("provider_evidence")
+    if not isinstance(providers, list):
+        return False
+    for provider in providers:
+        if not isinstance(provider, dict) or provider.get("provider") != "science":
+            continue
+        if provider.get("role") not in {"official_search", "official_first_release"}:
+            continue
+        if provider.get("proves_daily_coverage") is not True or provider.get("pagination_complete") is not True:
+            continue
+        if not valid_http_evidence(provider):
+            continue
+        try:
+            query = urlsplit(provider["query_url"])
+            final = urlsplit(provider["final_url"])
+            total = int(provider["total_count"])
+            retrieved = int(provider["retrieved_count"])
+            start = datetime.fromisoformat(provider["coverage_start"])
+            end = datetime.fromisoformat(provider["coverage_end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if start.tzinfo is None or end.tzinfo is None or start >= end:
+            continue
+        try:
+            retrieved_at = datetime.fromisoformat(str(provider["retrieved_at"]).replace("Z", "+00:00"))
+        except (KeyError, ValueError):
+            continue
+        if retrieved_at.tzinfo is None or retrieved_at < end:
+            continue
+        pages = provider.get("listing_pages")
+        if not isinstance(pages, list) or not pages:
+            continue
+        publication_ids: list[str] = []
+        page_ok = True
+        for index, page in enumerate(pages):
+            if not isinstance(page, dict) or not isinstance(page.get("response_body"), str):
+                page_ok = False
+                break
+            page_url = urlsplit(str(page.get("query_url") or ""))
+            if (page_url.scheme != "https" or page_url.hostname not in {"science.org", "www.science.org"}
+                    or page.get("response_hash") != hashlib.sha256(page["response_body"].encode("utf-8")).hexdigest()):
+                page_ok = False
+                break
+            try:
+                payload = json.loads(page["response_body"])
+            except ValueError:
+                page_ok = False
+                break
+            if (not isinstance(payload, dict) or payload.get("source") != "Science"
+                    or payload.get("coverage_start") != start.isoformat()
+                    or payload.get("coverage_end") != end.isoformat()
+                    or payload.get("total_count") != total
+                    or payload.get("has_next") is not (index < len(pages) - 1)
+                    or not isinstance(payload.get("items"), list)):
+                page_ok = False
+                break
+            for item in payload["items"]:
+                if not isinstance(item, dict) or not str(item.get("doi") or "").lower().startswith("10.1126/"):
+                    page_ok = False
+                    break
+                try:
+                    published = datetime.fromisoformat(str(item["published_at"]).replace("Z", "+00:00"))
+                except (KeyError, ValueError):
+                    page_ok = False
+                    break
+                if published.tzinfo is None or not start <= published.astimezone(start.tzinfo) < end:
+                    page_ok = False
+                    break
+                publication_ids.append(str(item["doi"]).lower())
+            if not page_ok:
+                break
+        query_text = unquote_plus(query.query)
+        if (page_ok and provider.get("response_hash") == pages[0].get("response_hash")
+                and provider.get("query_url") == pages[0].get("query_url")
+                and len(publication_ids) == len(set(publication_ids)) == total
+                and start.date().isoformat() in query_text
+                and end.date().isoformat() in query_text
+                and query.scheme == final.scheme == "https"
+                and query.hostname in {"science.org", "www.science.org"}
+                and final.hostname in {"science.org", "www.science.org"}
+                and total >= 0 and retrieved == total
+                and re.fullmatch(r"[0-9a-f]{64}", str(provider["response_hash"]))):
+            return True
+    return False
+
+
+def academic_search_venues(config: dict[str, Any], *, legacy_science: bool = False) -> tuple[set[str], int, int, list[str]]:
     raw = config.get("academic_search") or config.get("academic_venue_sweep") or {}
     if not isinstance(raw, dict):
         return set(), 0, 0, ["academic_search ledger is missing"]
@@ -161,6 +260,9 @@ def academic_search_venues(config: dict[str, Any]) -> tuple[set[str], int, int, 
     primary_hits = 0
     checked_topics = 0
     evidence_failures: list[str] = []
+    def evidenced(row: dict[str, Any]) -> bool:
+        return (valid_http_evidence(row.get("evidence")) if legacy_science
+                and normalize_venue(row.get("venue")) == "science" else valid_venue_evidence(row))
     if isinstance(topics, list):
         for topic in topics:
             if not isinstance(topic, dict):
@@ -171,10 +273,10 @@ def academic_search_venues(config: dict[str, Any]) -> tuple[set[str], int, int, 
                 if isinstance(row, dict) and row.get("term") == topic.get("term"):
                     evidence = row.get("evidence")
                     if row.get("result") in {"checked", "hit", "checked_no_hit"} and isinstance(evidence, dict):
-                        if valid_http_evidence(evidence):
+                        if evidenced(row):
                             valid_rows.append(row)
                         else:
-                            evidence_failures.append(f"{topic.get('term')}/{row.get('venue')}: incomplete HTTP evidence")
+                            evidence_failures.append(f"{topic.get('term')}/{row.get('venue')}: incomplete venue coverage evidence")
                     else:
                         evidence_failures.append(f"{topic.get('term')}/{row.get('venue')}: venue result is not evidenced")
             checked.update(normalize_venue(row.get("venue")) for row in valid_rows)
@@ -192,7 +294,7 @@ def academic_search_venues(config: dict[str, Any]) -> tuple[set[str], int, int, 
             result = clean_text(row.get("result"), 80).lower()
             venue = normalize_venue(row.get("venue"))
             evidence = row.get("evidence")
-            if result and result != "unchecked" and valid_http_evidence(evidence):
+            if result in {"checked", "hit", "checked_no_hit"} and evidenced(row):
                     venues.add(venue)
             if venue != "arxiv" and clean_text(row.get("url"), 1000):
                 primary_hits += 1
@@ -509,7 +611,7 @@ def contains_cjk(value: Any) -> bool:
     return any("\u4e00" <= char <= "\u9fff" for char in clean_text(value, 4000))
 
 
-def audit(config: dict[str, Any]) -> dict[str, Any]:
+def audit(config: dict[str, Any], *, legacy_science: bool = False) -> dict[str, Any]:
     failures: list[str] = []
     warnings: list[str] = []
     try:
@@ -593,6 +695,8 @@ def audit(config: dict[str, Any]) -> dict[str, Any]:
                 canonical_url(source_url)
             except ValueError as exc:
                 failures.append(f"{label}: {exc}")
+            if urlsplit(source_url).hostname in {"api.crossref.org", "search.crossref.org"}:
+                failures.append(f"{label}: Crossref metadata is discovery/coverage evidence, not article-level content evidence")
         if not clean_text(item.get("source_title")):
             warnings.append(f"{label}: missing source_title")
         if not evidence:
@@ -630,7 +734,7 @@ def audit(config: dict[str, Any]) -> dict[str, Any]:
     failures.extend(audit_social_delivery(config))
     failures.extend(audit_ranking_delivery(config))
     if total_academic:
-        checked_venues, checked_topics, primary_hits, evidence_failures = academic_search_venues(config)
+        checked_venues, checked_topics, primary_hits, evidence_failures = academic_search_venues(config, legacy_science=legacy_science)
         failures.extend(evidence_failures)
         if not checked_venues:
             failures.append("academic_search ledger is missing; record PRA/PRL/Nature/Science/CVPR/ICLR and related venue checks before finalizing")
