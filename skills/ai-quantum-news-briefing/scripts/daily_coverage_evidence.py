@@ -75,17 +75,31 @@ def validate_social_search(social: Any, day: str) -> list[str]:
                                           or social.get("coverage_end") != end.isoformat()):
         return [f"{day}: social search window mismatch"]
     ai_hot = social.get("ai_hot_window")
+    excluded = ai_hot.get("undated_exclusions", []) if isinstance(ai_hot, dict) else []
+    exclusion_valid = (isinstance(excluded, list) and len(excluded) == 1
+                       and isinstance(excluded[0], dict)
+                       and excluded[0].get("reason") == "missing_or_ambiguous_publishedAt"
+                       and re.fullmatch(r"[0-9a-f]{64}", str(excluded[0].get("item_sha256") or "")))
+    dated_scope_ok = bool(isinstance(ai_hot, dict) and (
+        (ai_hot.get("coverage_status") == "verified"
+         and ai_hot.get("missing_timestamp_count") == 0 and not excluded)
+        or (ai_hot.get("coverage_status") == "qualified_with_exclusion"
+            and ai_hot.get("coverage_claim") == "dated_candidates_only"
+            and ai_hot.get("missing_timestamp_count") == 1
+            and isinstance(ai_hot.get("inside_window_count"), int)
+            and ai_hot["inside_window_count"] > 0 and exclusion_valid)))
     if (not isinstance(ai_hot, dict) or ai_hot.get("coverage_date") != day
             or ai_hot.get("coverage_start") != start.isoformat()
             or ai_hot.get("coverage_end") != end.isoformat()
-            or ai_hot.get("coverage_status") != "verified"
+            or not dated_scope_ok
             or ai_hot.get("pagination_complete") is not True
             or ai_hot.get("source") != "ai_hot" or ai_hot.get("pool_scope") != "ai_hot_selected"
             or ai_hot.get("timezone") != "Asia/Shanghai"
-            or ai_hot.get("missing_timestamp_count") != 0
             or not all(isinstance(ai_hot.get(name), int) and ai_hot[name] >= 0
-                       for name in ("retrieved_count", "inside_window_count", "outside_window_count"))
-            or ai_hot.get("retrieved_count") != ai_hot.get("inside_window_count", -1) + ai_hot.get("outside_window_count", -1)
+                       for name in ("retrieved_count", "inside_window_count", "outside_window_count", "missing_timestamp_count"))
+            or ai_hot.get("retrieved_count") != (ai_hot.get("inside_window_count", -1)
+                                                  + ai_hot.get("outside_window_count", -1)
+                                                  + ai_hot.get("missing_timestamp_count", -1))
             or not isinstance(ai_hot.get("pages"), list) or not ai_hot["pages"]
             or not all(_ai_hot_page(page, start, end) for page in ai_hot["pages"])
             or ai_hot.get("response_hash") != hashlib.sha256(json.dumps(ai_hot["pages"], sort_keys=True).encode()).hexdigest()):
@@ -132,12 +146,18 @@ def validate_daily_evidence(rows: Any, coverage_start: datetime, coverage_end: d
             failures.append(f"{day}: academic search is not date-scoped")
         if contract_version == 2 and academic.get("academic_search_version") != 3:
             failures.append(f"{day}: new academic search evidence requires version 3")
+        if contract_version == 3 and academic.get("academic_search_version") != 4:
+            failures.append(f"{day}: pipeline v4 requires academic search evidence version 4")
         venues, checked, _, problems = academic_search_venues(
             {"academic_search": academic}, coverage_contract_version=contract_version)
-        required = set(academic.get("required_venues") or [])
-        if (not academic.get("topics") or not REQUIRED_ACADEMIC_VENUES <= required
-                or not required <= venues or checked != len(academic.get("topics") or []) or problems):
-            failures.append(f"{day}: academic venue sweep is incomplete")
+        if contract_version == 3:
+            if checked != 1 or problems:
+                failures.append(f"{day}: academic source family gate is incomplete")
+        else:
+            required = set(academic.get("required_venues") or [])
+            if (not academic.get("topics") or not REQUIRED_ACADEMIC_VENUES <= required
+                    or not required <= venues or checked != len(academic.get("topics") or []) or problems):
+                failures.append(f"{day}: academic venue sweep is incomplete")
         science = [item for item in academic.get("rows", [])
                    if isinstance(item, dict) and item.get("venue") == "science"]
         def science_for_day(item: dict[str, Any]) -> bool:
@@ -149,7 +169,7 @@ def validate_daily_evidence(rows: Any, coverage_start: datetime, coverage_end: d
                 and provider.get("coverage_start") == start.isoformat()
                 and provider.get("coverage_end") == end.isoformat()
                 for provider in item.get("provider_evidence", []))
-        if not science or not all(science_for_day(item) for item in science):
+        if contract_version != 3 and (not science or not all(science_for_day(item) for item in science)):
             failures.append(f"{day}: Science publisher-day coverage or documented skip is missing")
         failures.extend(validate_social_search(row["social_search"], day))
     return failures

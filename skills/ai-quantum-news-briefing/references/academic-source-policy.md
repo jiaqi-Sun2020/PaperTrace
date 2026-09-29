@@ -2,6 +2,16 @@
 
 Use this reference when the daily briefing needs academic frontier coverage. The goal is to avoid arXiv-only tunnel vision while keeping claims source-grounded.
 
+## Pipeline v4 source capability model
+
+New releases load `references/academic_sources.v1.json`. A source declares its publisher family, adapter, tier and capabilities; a successful request proves retrieval only. The collector separately records `retrieval_status`, `parse_status`, `window_status`, `coverage_claim`, candidate count and quarantined count.
+
+Publication requires at least one healthy publisher in both `quantum_publisher` and `ai_peer_review`. APS, Nature quantum sources and Quantum Journal can satisfy the former; OpenReview/PMLR, JMLR and Nature machine learning can satisfy the latter. arXiv, Science, IOP, IEEE, AAAI and other enhancement sources improve discovery but their individual failure does not stop an issue. One malformed item is quarantined; it does not invalidate valid peers. A whole malformed response degrades only that source.
+
+The first expanded set includes APS PRX, Physical Review Applied, Physical Review Research, PRB, PRD and RMP feeds; Nature quantum and machine-learning RSS; JMLR; IOP Quantum Science and Technology; IEEE Transactions on Quantum Engineering; AAAI proceedings; and category-specific arXiv queries. IOP, IEEE and AAAI begin as probationary sources and cannot silently become hard gates. Crossref remains identity/metadata discovery only.
+
+Normal delivery is 6–8 academic and 6–12 social items. After the 14-day/72-hour expansion is exhausted, `delivery_expansion.version=2` may document a quality-first shortfall, but it never waives both family gates, article-level evidence, semantic review, deduplication or the requirement for at least one audited item in each category.
+
 ## First Principle
 
 Treat arXiv as fast discovery, not final authority. For important academic claims, prefer venue or publisher pages when available, then use arXiv as preprint context. The daily briefing should answer two separate questions:
@@ -15,7 +25,7 @@ Those are not the same question. arXiv is excellent for speed; PRL/PRA/Nature/Sc
 
 Tier 1 primary venues and publishers:
 
-- APS: PRL, PRA, PRX, PRX Quantum via `journals.aps.org`
+- APS: PRL, PRA and PRX Quantum via their separate official recent-publication RSS feeds (`feeds.aps.org/rss/recent/prl.xml`, `pra.xml`, `prxquantum.xml`). These rolling feeds discover dated article identities; they are not complete historical-day inventories. Verify the selected paper at its article-level source. Other APS journals can be searched separately when relevant.
 - Nature Portfolio: `nature.com`, including Nature, Nature Physics, Nature Machine Intelligence, Nature Communications, npj Quantum Information
 - Science / AAAS: `science.org`
 - OpenReview: ICLR and some workshop / conference review pages. If a user says "ICLA", usually treat it as ICLR unless context suggests another venue.
@@ -46,7 +56,7 @@ Tier 3 media / commentary:
 4. Add top-level `academic_search` to the briefing config. This is mandatory when the config contains academic or quantum items. It must list the checked venues and compact topic-level results.
 5. For each arXiv-only item, add `venue_sweep_note` to the config. Keep it short, e.g. `Checked APS PRL/PRA/PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal; no venue page found in window; treated as preprint.`
 6. Mark arXiv-only items as `preprint` and avoid overclaiming peer-reviewed status.
-7. A venue ledger row is not checked merely because it contains a search URL, HTTP 200, or `checked_no_hit`. Preserve retrieval failures separately from coverage conclusions. Non-Science required venues still stop publication when their evidence fails.
+7. A venue ledger row is not checked merely because it contains a search URL, HTTP 200, or `checked_no_hit`. Preserve retrieval failures separately from coverage conclusions. In v4, optional single-source failures are isolated; only a missing required source family blocks publication.
 8. Science's official search and `/toc/science/0/0` discovery page are attempted separately; the eTOC RSS only corroborates items. The Crossref ISSN `0036-8075` query is a dated, paginated discovery snapshot, not proof of a complete publisher-day inventory. Without a complete, date-scoped publisher listing, record `skipped_unavailable`, exclude Science-journal candidates before ranking, and show the omission notice. Never call this zero Science publications. Restoring `verified` requires a new publisher-backed parser, not a hand-authored listing payload.
 9. Coverage evidence is distinct from content evidence. DOI, title or abstract metadata alone cannot substantiate a paper's mechanism, performance or novelty claim; review the article or another suitable primary source separately.
 10. Use the adversarial audit before finalizing; missing or incomplete `academic_search` is a failure.
@@ -69,7 +79,7 @@ For every item in `Academic frontier` or `Quantum physics / quantum computing`, 
 
 If the source is arXiv but the topic is likely to have a venue version, search before finalizing. If no venue page is found, say so instead of silently relying on arXiv.
 
-Top-level config must also include:
+Historical v3 configs used the following per-URL shape; it remains readable but must not be copied into a new v4 release:
 
 ```json
 {

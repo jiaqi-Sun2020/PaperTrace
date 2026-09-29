@@ -924,13 +924,13 @@ class DailyPipelineTests(unittest.TestCase):
         result = audit(ranked)
         self.assertEqual(result["status"], "fail")
         for expected in (
-            "academic_delivery.minimum_items must be at least 7",
+            "academic_delivery.minimum_items must be at least 6",
             "academic_delivery.minimum_new_items must be at least 4",
             "academic_delivery.minimum_non_arxiv_items must be at least 2",
             "academic_delivery.maximum_continuing_items must be at most 3",
-            "social_delivery.minimum_items must be at least 10",
-            "social_delivery publication range must stay within 10-14 items",
-            "social_delivery.minimum_new_or_material_update must be at least 7",
+            "social_delivery.minimum_items must be at least 6",
+            "social_delivery publication range must stay within 6-12 items",
+            "social_delivery.minimum_new_or_material_update must be at least 4",
             "social_delivery.maximum_items_per_organization must be at most 2",
         ):
             self.assertIn(expected, result["failures"])
@@ -1054,7 +1054,7 @@ class DailyPipelineTests(unittest.TestCase):
         raw["delta_policy"] = {"mode": "delta_first"}
         result = audit(raw)
         self.assertEqual(result["status"], "fail")
-        self.assertIn("academic_delivery.minimum_items must be at least 7", result["failures"])
+        self.assertIn("academic_delivery.minimum_items must be at least 6", result["failures"])
         self.assertIn("academic_delivery.minimum_new_items must be at least 4", result["failures"])
         self.assertTrue(any("4-4 new academic paper items; found 0" in message for message in result["failures"]))
 

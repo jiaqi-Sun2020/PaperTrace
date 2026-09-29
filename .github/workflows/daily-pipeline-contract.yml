@@ -1,0 +1,31 @@
+name: Daily pipeline contract
+
+on:
+  push:
+    paths:
+      - 'skills/ai-quantum-news-briefing/**'
+      - 'skills/allegory-teach/**'
+      - '.github/workflows/daily-pipeline-contract.yml'
+  pull_request:
+    paths:
+      - 'skills/ai-quantum-news-briefing/**'
+      - 'skills/allegory-teach/**'
+      - '.github/workflows/daily-pipeline-contract.yml'
+
+jobs:
+  contract:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Unit and fault-injection tests, offline
+        shell: pwsh
+        run: |
+          python -m unittest discover -s skills\ai-quantum-news-briefing\tests -p "test_*.py"
+          python -m unittest discover -s skills\allegory-teach\tests -p "test_*.py"
+          python -m compileall -q skills\ai-quantum-news-briefing\scripts
+          git diff --check

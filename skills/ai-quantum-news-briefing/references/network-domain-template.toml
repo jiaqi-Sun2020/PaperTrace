@@ -1,0 +1,24 @@
+# Public template only. Copy the domains you need into the machine-local
+# ignored .codex/config.toml. Never add proxies, credentials or OSS profiles.
+[sandbox_workspace_write]
+network_access = true
+
+[features.network_proxy]
+enabled = true
+allow_upstream_proxy = true
+
+[features.network_proxy.domains]
+"feeds.aps.org" = "allow"
+"www.nature.com" = "allow"
+"quantum-journal.org" = "allow"
+"proceedings.mlr.press" = "allow"
+"www.jmlr.org" = "allow"
+"api2.openreview.net" = "allow"
+"openreview.net" = "allow"
+"export.arxiv.org" = "allow"
+"www.science.org" = "allow"
+"api.crossref.org" = "allow"
+"iopscience.iop.org" = "allow"
+"ieeexplore.ieee.org" = "allow"
+"ojs.aaai.org" = "allow"
+"aihot.virxact.com" = "allow"

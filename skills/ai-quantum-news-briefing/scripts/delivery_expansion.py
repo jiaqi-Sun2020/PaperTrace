@@ -15,9 +15,10 @@ from urllib.parse import urlsplit
 
 from academic_venue_sweep import EXPANDED_VENUES, VENUES
 from daily_coverage_evidence import evidence_digest, validate_social_search
+from academic_sources import family_gate
 
 
-VERSION = 1
+VERSION = 2
 NORMAL = "standard"
 SHORTFALL = "verified_shortfall"
 ACADEMIC_DAYS = 14
@@ -112,8 +113,9 @@ def validate_policy(config: dict[str, Any], *, required: bool = False) -> list[s
         return ["delivery_expansion must be an object"]
     errors: list[str] = []
     day = _date(policy.get("coverage_date"))
-    if policy.get("version") != VERSION or day is None or policy.get("mode") not in {NORMAL, SHORTFALL}:
-        return ["delivery_expansion requires version 1, a coverage date and a supported mode"]
+    version = policy.get("version")
+    if version not in {1, VERSION} or day is None or policy.get("mode") not in {NORMAL, SHORTFALL}:
+        return ["delivery_expansion requires version 1 or 2, a coverage date and a supported mode"]
     if policy["mode"] == NORMAL:
         return errors
     end = datetime.combine(day + timedelta(days=1), time.min, SHANGHAI)
@@ -126,9 +128,9 @@ def validate_policy(config: dict[str, Any], *, required: bool = False) -> list[s
 
     daily = config.get("academic_search") or {}
     expanded = daily.get("expanded_rows") if isinstance(daily, dict) else None
-    if not isinstance(expanded, list):
+    if version == 1 and not isinstance(expanded, list):
         errors.append("shortfall requires the dated eight-venue expansion ledger")
-    else:
+    elif version == 1:
         for venue, domain in OPTIONAL_DOMAINS.items():
             rows = [row for row in expanded if isinstance(row, dict) and row.get("venue") == venue]
             if not any(_http_attempt(row, domain, end, success=False) for row in rows):
@@ -139,17 +141,20 @@ def validate_policy(config: dict[str, Any], *, required: bool = False) -> list[s
         errors.append("shortfall academic lookback ledger or digest is missing")
     else:
         expected = f"{day - timedelta(days=ACADEMIC_DAYS - 1)}..{day}"
-        if lookback.get("academic_search_version") != 3 or lookback.get("date_range") != expected:
+        expected_version = 4 if version == VERSION else 3
+        if lookback.get("academic_search_version") != expected_version or lookback.get("date_range") != expected:
             errors.append("shortfall academic lookback has the wrong window or version")
         rows = lookback.get("rows")
         if not isinstance(rows, list):
             errors.append("shortfall academic lookback rows are missing")
-        else:
+        elif version == 1:
             for venue, domain in REQUIRED_DOMAINS.items():
                 venue_rows = [row for row in rows if isinstance(row, dict) and row.get("venue") == venue]
                 required_success = venue != "science"
                 if not any(_http_attempt(row, domain, end, success=required_success) for row in venue_rows):
                     errors.append(f"shortfall academic lookback source is incomplete: {venue}")
+        elif family_gate(rows)["status"] != "pass":
+            errors.append("shortfall academic lookback lacks a healthy quantum and AI source family")
 
     social_rows = policy.get("social_lookback")
     previous = [(day - timedelta(days=2)).isoformat(), (day - timedelta(days=1)).isoformat()]

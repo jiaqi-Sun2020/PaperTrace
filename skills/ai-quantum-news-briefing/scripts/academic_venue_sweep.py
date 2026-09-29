@@ -11,17 +11,25 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import re
+import socket
 import sys
 import time
 import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Iterable
 from urllib.parse import quote_plus, urlencode, urlsplit
+
+from academic_sources import (SEARCH_VERSION, family_gate, health_table,
+                              load_registry, markdown_health_table)
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -38,9 +46,9 @@ class Venue:
 
 
 VENUES: tuple[Venue, ...] = (
-    Venue("aps-prl", "APS Physical Review Letters", "journals.aps.org", "peer-reviewed venue", "https://journals.aps.org/search?q={term}"),
-    Venue("aps-pra", "APS Physical Review A", "journals.aps.org", "peer-reviewed venue", "https://journals.aps.org/search?q={term}"),
-    Venue("aps-prx", "APS PRX / PRX Quantum", "journals.aps.org", "peer-reviewed venue", "https://journals.aps.org/search?q={term}"),
+    Venue("aps-prl", "APS Physical Review Letters", "feeds.aps.org", "peer-reviewed venue", "https://feeds.aps.org/rss/recent/prl.xml"),
+    Venue("aps-pra", "APS Physical Review A", "feeds.aps.org", "peer-reviewed venue", "https://feeds.aps.org/rss/recent/pra.xml"),
+    Venue("aps-prx", "APS PRX Quantum", "feeds.aps.org", "peer-reviewed venue", "https://feeds.aps.org/rss/recent/prxquantum.xml"),
     Venue("nature", "Nature Portfolio", "nature.com", "peer-reviewed venue", "https://www.nature.com/search?q={term}"),
     Venue("science", "Science / AAAS", "science.org", "peer-reviewed venue", "https://www.science.org/action/doSearch?AllField={term}"),
     Venue("openreview-iclr", "OpenReview / ICLR", "openreview.net", "conference review page", "https://openreview.net/search?term={term}"),
@@ -174,6 +182,115 @@ def extract_result_count(text: str) -> int:
 SCIENCE_RSS = "https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=science"
 SCIENCE_TOC = "https://www.science.org/toc/science/0/0"
 SCIENCE_ISSN = "0036-8075"
+APS_RECENT_FEEDS = {
+    "aps-prl": ("https://feeds.aps.org/rss/recent/prl.xml", "Physical Review Letters"),
+    "aps-pra": ("https://feeds.aps.org/rss/recent/pra.xml", "Physical Review A"),
+    "aps-prx": ("https://feeds.aps.org/rss/recent/prxquantum.xml", "PRX Quantum"),
+}
+APS_RSS_NS = {
+    "rss": "http://purl.org/rss/1.0/",
+    "dc": "http://purl.org/dc/elements/1.1/",
+    "prism": "http://prismstandard.org/namespaces/basic/2.0/",
+}
+MAX_RESPONSE_BYTES = 8_000_000
+
+
+def build_plan_v4(terms: list[str], date_range: str, include_arxiv: bool = True) -> dict[str, object]:
+    """Build one capability-aware row per source; topics are filters, not duplicate requests."""
+    registry = load_registry()
+    sources = [source for source in registry["sources"]
+               if include_arxiv or source["adapter"] != "arxiv_atom"]
+    rows: list[dict[str, object]] = []
+    for source in sources:
+        url = str(source["url"])
+        rows.append({
+            "source_id": source["source_id"], "venue": source["source_id"],
+            "label": source["label"], "publisher": source["publisher"],
+            "family": source["family"], "tier": source["tier"],
+            "adapter": source["adapter"], "capabilities": source["capabilities"],
+            "search_url": url, "coverage_window": date_range,
+            "retrieval_status": "not_attempted", "parse_status": "not_attempted",
+            "window_status": "not_checked", "coverage_claim": "none",
+            "candidate_count": 0, "quarantined_count": 0,
+            "result": "unchecked", "matches": [], "evidence": {},
+            "note": "Retrieval, parsing and coverage claims are independent.",
+        })
+    return {
+        "academic_search_version": SEARCH_VERSION,
+        "source_registry_version": registry["version"],
+        "date_range": date_range,
+        "terms": terms,
+        "sources": [source["source_id"] for source in sources],
+        "rows": rows,
+        "family_gate": {"status": "pending", "required_families": registry["policy"]["required_families"]},
+        "source_health": [],
+        "evidence_policy": ("HTTP success proves retrieval only. Candidate discovery, dated listing, "
+                            "article evidence and publisher completeness are separate capabilities."),
+    }
+
+
+def _aps_recent_items(body: bytes, expected_journal: str) -> tuple[list[dict[str, str]], int]:
+    """Extract bounded article identities; malformed items are quarantined, not dated by guesswork."""
+    root = ET.fromstring(body)
+    if root.tag != "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF":
+        raise ValueError("APS recent feed is not RSS 1.0 RDF")
+    channel = root.findtext("rss:channel/rss:title", namespaces=APS_RSS_NS) or ""
+    if not channel.startswith("Recent Articles in "):
+        raise ValueError("APS recent feed has an unexpected channel")
+    entries = root.findall("rss:item", APS_RSS_NS)
+    if not entries:
+        raise ValueError("APS recent feed contains no article items")
+    items: list[dict[str, str]] = []
+    quarantined = 0
+    for entry in entries:
+        title = (entry.findtext("rss:title", namespaces=APS_RSS_NS) or "").strip()
+        doi = (entry.findtext("prism:doi", namespaces=APS_RSS_NS) or "").strip().lower()
+        journal = (entry.findtext("prism:publicationName", namespaces=APS_RSS_NS) or "").strip()
+        published = (entry.findtext("dc:date", namespaces=APS_RSS_NS) or "").strip()
+        try:
+            timestamp = datetime.fromisoformat(published.replace("Z", "+00:00"))
+        except ValueError:
+            timestamp = None
+        if (not title or not doi.startswith("10.1103/") or journal != expected_journal
+                or timestamp is None or timestamp.tzinfo is None):
+            quarantined += 1
+            continue
+        items.append({"title": title, "doi": doi, "published_at": timestamp.isoformat(),
+                      "description": (entry.findtext("rss:description", namespaces=APS_RSS_NS) or "")[:1500]})
+    if not items:
+        raise ValueError("APS recent feed has no valid dated article items")
+    return items, quarantined
+
+
+def _aps_recent_row(row: dict[str, object], body: bytes, evidence: dict[str, object],
+                    target_days: set[str]) -> None:
+    url, journal = APS_RECENT_FEEDS[str(row["venue"])]
+    if (row.get("search_url") != url or evidence.get("query_url") != url
+            or evidence.get("final_url") != url or evidence.get("status_code") != 200
+            or evidence.get("response_hash") != hashlib.sha256(body).hexdigest()):
+        raise ValueError("APS recent feed URL, status or body hash is not the expected official source")
+    items, quarantined = _aps_recent_items(body, journal)
+    shanghai = timezone(timedelta(hours=8))
+    dates = [datetime.fromisoformat(item["published_at"]).astimezone(shanghai).date().isoformat()
+             for item in items]
+    if target_days and min(target_days) < min(dates):
+        raise ValueError("target date is older than the retained APS recent feed")
+    term = str(row.get("term") or "")
+    matches = [item for item, day in zip(items, dates)
+               if (not target_days or day in target_days)
+               and _topic_matches({"title": [item["title"]], "abstract": item["description"]}, term)]
+    evidence.update(source_kind="official_recent_rss", coverage_claim="discovery_only",
+                    journal=journal, feed_item_count=len(items) + quarantined,
+                    dated_item_count=len(items), quarantined_item_count=quarantined,
+                    matched_article_count=len(matches), oldest_item_date=min(dates),
+                    newest_item_date=max(dates))
+    row["evidence"] = evidence
+    row["matches"] = [{key: item[key] for key in ("title", "doi", "published_at")}
+                      for item in matches[:20]]
+    row["result"] = "checked"
+    row["url"] = "https://doi.org/" + matches[0]["doi"] if matches else ""
+    row["note"] = ("Journal-specific official recent feed; discovery only, not a complete dated inventory. "
+                   "Malformed items are quarantined.")
 
 
 def _request_evidence(url: str, timeout: int) -> tuple[dict[str, object], bytes]:
@@ -190,17 +307,23 @@ def _request_evidence(url: str, timeout: int) -> tuple[dict[str, object], bytes]
             raise ValueError("source URL must be https")
         request = urllib.request.Request(url, headers={"User-Agent": "PaperTrace-academic-venue-sweep/1.0"})
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read(2_000_000)
+            body = response.read(MAX_RESPONSE_BYTES + 1)
+            if len(body) > MAX_RESPONSE_BYTES:
+                raise ValueError("response_too_large")
             evidence.update(status_code=int(response.status), final_url=response.geturl(),
                             response_hash=hashlib.sha256(body).hexdigest())
             return evidence, body
     except urllib.error.HTTPError as exc:
-        body = exc.read(2_000_000)
+        body = exc.read(min(2_000_000, MAX_RESPONSE_BYTES) + 1)
+        if len(body) > min(2_000_000, MAX_RESPONSE_BYTES):
+            body = body[:min(2_000_000, MAX_RESPONSE_BYTES)]
         evidence.update(status_code=int(exc.code), final_url=exc.geturl(),
-                        response_hash=hashlib.sha256(body).hexdigest(), error=str(exc)[:300])
+                        response_hash=hashlib.sha256(body).hexdigest(), error=str(exc)[:300],
+                        retry_after=(exc.headers.get("Retry-After") if exc.headers else None))
         return evidence, body
     except Exception as exc:
-        evidence["error"] = str(exc)[:300]
+        evidence["error"] = ("incomplete_read" if isinstance(exc, http.client.IncompleteRead)
+                             else str(exc)[:300])
         return evidence, b""
 
 
@@ -220,6 +343,227 @@ def _open_venue_with_retry(request: urllib.request.Request, timeout: int, venue:
             exc.close()
             time.sleep(delay)
     raise AssertionError("unreachable")
+
+
+def _read_venue_with_retry(request: urllib.request.Request, timeout: int,
+                           venue: str) -> tuple[int, str, bytes]:
+    """Retry bounded arXiv transport timeouts around both open and body read."""
+    attempts = 3 if venue == "arxiv" else 1
+    for attempt in range(attempts):
+        try:
+            with _open_venue_with_retry(request, timeout, venue) as response:
+                body = response.read(MAX_RESPONSE_BYTES + 1)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise ValueError("response_too_large")
+                return int(response.status), response.geturl(), body
+        except (TimeoutError, socket.timeout, urllib.error.URLError) as exc:
+            reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+            retryable = isinstance(reason, (TimeoutError, socket.timeout))
+            if not retryable or attempt == attempts - 1:
+                raise
+            time.sleep(float(attempt + 1))
+    raise AssertionError("unreachable")
+
+
+def _request_source_with_retry(url: str, timeout: int, attempts: int = 3) -> tuple[dict[str, object], bytes]:
+    """Retry transient source failures; 403/404 are evidence, not retry signals."""
+    last: tuple[dict[str, object], bytes] = ({}, b"")
+    for attempt in range(attempts):
+        last = _request_evidence(url, timeout)
+        evidence, _ = last
+        status = int(evidence.get("status_code") or 0)
+        error = str(evidence.get("error") or "")
+        retryable = status in {0, 429} or 500 <= status < 600
+        if status in {403, 404} or not retryable or attempt == attempts - 1:
+            return last
+        try:
+            delay = min(30.0, max(0.0, float(evidence.get("retry_after") or attempt + 1)))
+        except (TypeError, ValueError):
+            delay = min(3.0, float(attempt + 1))
+        if "response_too_large" in error:
+            return last
+        time.sleep(delay)
+    return last
+
+
+def _generic_feed_items(body: bytes) -> tuple[list[dict[str, str]], int]:
+    """Parse RSS/Atom defensively; one malformed item never invalidates its peers."""
+    root = ET.fromstring(body)
+    nodes = [node for node in root.iter() if node.tag.rsplit("}", 1)[-1].lower() in {"item", "entry"}]
+    if not nodes:
+        raise ValueError("feed_has_no_items")
+    items: list[dict[str, str]] = []
+    quarantined = 0
+    for node in nodes:
+        fields: dict[str, str] = {}
+        link = ""
+        for child in node.iter():
+            name = child.tag.rsplit("}", 1)[-1].lower()
+            value = " ".join((child.text or "").split())
+            if name in {"title", "published", "updated", "date", "pubdate", "doi", "description", "summary"} and value:
+                fields.setdefault(name, value)
+            if name == "link":
+                link = value or str(child.attrib.get("href") or "")
+        title = fields.get("title", "")
+        published = next((fields[key] for key in ("published", "updated", "date", "pubdate") if fields.get(key)), "")
+        timestamp = _parse_published_timestamp(published)
+        if not title or timestamp is None:
+            quarantined += 1
+            continue
+        items.append({"title": title, "published_at": timestamp.isoformat(), "url": link,
+                      "description": fields.get("description", fields.get("summary", "")),
+                      "doi": fields.get("doi", "")})
+    if not items:
+        raise ValueError("feed_has_no_valid_items")
+    return items, quarantined
+
+
+def _parse_published_timestamp(value: str) -> datetime | None:
+    """Accept ISO/RFC timestamps only when they identify an absolute instant."""
+    if not value:
+        return None
+    try:
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            stamp = parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+    return stamp if stamp.tzinfo is not None else None
+
+
+def _fetch_v4_row(row: dict[str, object], source: dict[str, object], terms: list[str],
+                  target_days: set[str], timeout: int) -> dict[str, object]:
+    result = dict(row)
+    raw_url = str(source["url"])
+    url = raw_url.format(term=quote_plus(terms[0] if terms else "quantum"))
+    evidence, body = _request_source_with_retry(url, timeout, int(source.get("maximum_attempts") or 3))
+    result["search_url"] = url
+    result["evidence"] = evidence
+    status = int(evidence.get("status_code") or 0)
+    if not 200 <= status < 300:
+        result.update(retrieval_status=("blocked" if status in {403, 404} else "error"),
+                      parse_status="not_attempted", window_status="unknown",
+                      coverage_claim="none", result="blocked" if status in {403, 404} else "error",
+                      next_action="retry_or_use_peer_source")
+        return result
+    result["retrieval_status"] = "success"
+    adapter = str(source.get("adapter") or "")
+    if adapter == "science":
+        result.update(parse_status="not_applicable", window_status="unknown",
+                      coverage_claim="discovery_only", result="skipped_unavailable",
+                      next_action="use_only_after_complete_publisher_listing_is_proven",
+                      note="Science retrieval is discovery only; it does not prove a complete dated inventory.")
+        return result
+    try:
+        items: list[dict[str, str]] = []
+        quarantined = 0
+        if adapter == "aps_rss":
+            items, quarantined = _aps_recent_items(body, str(source.get("expected_journal") or ""))
+        elif adapter in {"rss", "arxiv_atom"}:
+            items, quarantined = _generic_feed_items(body)
+        elif adapter == "openreview_api":
+            payload = json.loads(body)
+            notes = payload.get("notes", []) if isinstance(payload, dict) else []
+            if not isinstance(notes, list):
+                raise ValueError("openreview_notes_missing")
+            for note in notes:
+                if not isinstance(note, dict):
+                    quarantined += 1
+                    continue
+                content = note.get("content") or {}
+                title = content.get("title", "") if isinstance(content, dict) else ""
+                if isinstance(title, dict):
+                    title = title.get("value", "")
+                published = note.get("pdate")
+                if not str(title).strip() or published in {None, ""}:
+                    quarantined += 1
+                    continue
+                try:
+                    published_at = datetime.fromtimestamp(float(published) / 1000, timezone.utc).isoformat()
+                except (TypeError, ValueError, OSError):
+                    quarantined += 1
+                    continue
+                items.append({"title": str(title), "published_at": published_at,
+                              "url": "https://openreview.net/forum?id=" + str(note.get("id") or "")})
+        else:
+            text = body.decode("utf-8", errors="replace")
+            if not text.strip():
+                raise ValueError("empty_response")
+            result.update(parse_status="unstructured", window_status="unknown",
+                          coverage_claim="discovery_only", candidate_count=0,
+                          quarantined_count=0, result="degraded",
+                          next_action="add_structured_adapter_or_use_peer_source")
+            result["note"] = ("HTML listing retrieved, but no structured article identities were parsed; "
+                              "candidate_count stays zero, the source does not satisfy a family gate, "
+                              "and no completeness is claimed.")
+            return result
+        shanghai = timezone(timedelta(hours=8))
+        item_days: list[str] = []
+        for item in items:
+            try:
+                stamp = datetime.fromisoformat(item.get("published_at", "").replace("Z", "+00:00"))
+                if stamp.tzinfo:
+                    item_days.append(stamp.astimezone(shanghai).date().isoformat())
+            except ValueError:
+                item_days.append("")
+        matches: list[dict[str, str]] = []
+        for item, item_day in zip(items, item_days):
+            haystack = (item.get("title", "") + " " + item.get("description", "")).lower()
+            in_window = not target_days or item_day in target_days
+            if in_window and any(all(token in haystack for token in re.findall(r"[\w-]+", term.lower()))
+                                 for term in terms):
+                matches.append(item)
+        dated_days = [day for day in item_days if day]
+        window = "rolling_window"
+        if target_days and dated_days:
+            if max(target_days) < min(dated_days) or min(target_days) > max(dated_days):
+                window = "expired"
+            else:
+                window = "matched" if any(day in target_days for day in dated_days) else "empty"
+        result.update(parse_status="success", window_status=window,
+                      coverage_claim="discovery_only", candidate_count=len(matches),
+                      quarantined_count=quarantined, matches=matches[:100],
+                      result="checked" if window != "expired" else "degraded",
+                      next_action="article_level_review" if window != "expired" else "use_dated_api_or_archive")
+    except (ET.ParseError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        result.update(parse_status="error", window_status="unknown", coverage_claim="none",
+                      result="degraded", next_action="retry_or_use_peer_source")
+        result["evidence"] = {**evidence, "parse_error": str(exc)[:300]}
+    return result
+
+
+def fetch_evidence_v4(plan: dict[str, object], timeout: int = 30, max_workers: int = 4) -> dict[str, object]:
+    """Collect independent source rows concurrently and calculate the family gate."""
+    if plan.get("academic_search_version") != SEARCH_VERSION:
+        raise ValueError("fetch_evidence_v4 requires an academic search v4 plan")
+    registry = load_registry()
+    declared = {source["source_id"]: source for source in registry["sources"]}
+    terms = [str(term) for term in plan.get("terms", [])]
+    target_days = set(_science_days(str(plan.get("date_range") or "")))
+    rows = [dict(row) for row in plan.get("rows", []) if isinstance(row, dict)]
+    completed: dict[str, dict[str, object]] = {}
+    with ThreadPoolExecutor(max_workers=min(4, max(1, max_workers))) as pool:
+        futures = {pool.submit(_fetch_v4_row, row, declared[str(row["source_id"])], terms,
+                               target_days, min(30, timeout)): str(row["source_id"])
+                   for row in rows}
+        for future in as_completed(futures):
+            source_id = futures[future]
+            try:
+                completed[source_id] = future.result()
+            except Exception as exc:
+                original = next(row for row in rows if row["source_id"] == source_id)
+                completed[source_id] = {**original, "retrieval_status": "error",
+                                        "parse_status": "not_attempted", "window_status": "unknown",
+                                        "coverage_claim": "none", "result": "error",
+                                        "next_action": "retry_or_use_peer_source",
+                                        "evidence": {"error": str(exc)[:300]}}
+    plan["rows"] = [completed[str(row["source_id"])] for row in rows]
+    plan["family_gate"] = family_gate(plan["rows"], registry)
+    plan["source_health"] = health_table(plan["rows"], registry)
+    plan["source_health_markdown"] = markdown_health_table(plan["rows"], registry)
+    plan["retrieved_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return plan
 
 
 def _science_days(date_range: str) -> list[str]:
@@ -350,11 +694,23 @@ def fetch_evidence(plan: dict[str, object], timeout: int = 20) -> dict[str, obje
     rows = plan.get("rows") or []
     science_days = _science_days(str(plan.get("date_range") or ""))
     science_snapshots: dict[str, dict[str, object]] = {}
+    aps_responses: dict[str, tuple[dict[str, object], bytes]] = {}
     for row in [*rows, *(plan.get("expanded_rows") or [])]:
         if not isinstance(row, dict):
             continue
         if row.get("venue") == "science":
             _science_row(row, science_days, timeout, science_snapshots)
+            continue
+        if row.get("venue") in APS_RECENT_FEEDS:
+            url = APS_RECENT_FEEDS[str(row["venue"])][0]
+            if url not in aps_responses:
+                aps_responses[url] = _request_evidence(url, timeout)
+            evidence, body = aps_responses[url]
+            try:
+                _aps_recent_row(row, body, dict(evidence), set(science_days))
+            except (ET.ParseError, ValueError) as exc:
+                row["result"] = "error"
+                row["evidence"] = {**evidence, "error": str(exc)[:300]}
             continue
         url = str(row.get("search_url") or "")
         evidence: dict[str, object] = {
@@ -372,24 +728,24 @@ def fetch_evidence(plan: dict[str, object], timeout: int = 20) -> dict[str, obje
             if parsed.scheme != "https" or not parsed.netloc:
                 raise ValueError("official search URL must be https")
             request = urllib.request.Request(url, headers={"User-Agent": "PaperTrace-academic-venue-sweep/1.0"})
-            with _open_venue_with_retry(request, timeout, str(row.get("venue") or "")) as response:
-                body = response.read(2_000_000)
-                text = body.decode("utf-8", errors="replace")
-                count = extract_result_count(text)
-                evidence.update(
-                    {
-                        "status_code": int(response.status),
-                        "final_url": response.geturl(),
-                        "result_count": count,
-                        "result_count_known": count >= 0,
-                        "response_hash": hashlib.sha256(body).hexdigest(),
-                        "excerpt": " ".join(text[:500].split()),
-                    }
-                )
-                row["result"] = "checked" if response.status < 400 else "error"
-                row["url"] = response.geturl() if response.status < 400 and row.get("venue") != "arxiv" and count > 0 else ""
+            venue = str(row.get("venue") or "")
+            status_code, final_url, body = _read_venue_with_retry(request, timeout, venue)
+            text = body.decode("utf-8", errors="replace")
+            count = extract_result_count(text)
+            evidence.update(
+                {
+                    "status_code": status_code,
+                    "final_url": final_url,
+                    "result_count": count,
+                    "result_count_known": count >= 0,
+                    "response_hash": hashlib.sha256(body).hexdigest(),
+                    "excerpt": " ".join(text[:500].split()),
+                }
+            )
+            row["result"] = "checked" if status_code < 400 else "error"
+            row["url"] = final_url if status_code < 400 and row.get("venue") != "arxiv" and count > 0 else ""
         except urllib.error.HTTPError as exc:
-            body = exc.read(2_000_000)
+            body = exc.read(MAX_RESPONSE_BYTES)
             evidence.update(
                 {
                     "status_code": int(exc.code),
@@ -422,12 +778,16 @@ def fetch_evidence(plan: dict[str, object], timeout: int = 20) -> dict[str, obje
         topic["status"] = ("evidenced_with_science_gap" if skipped else "evidenced") if len(checked) + len(skipped) == len(topic_rows) else "pending"
     plan["retrieved_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     plan["evidence_policy"] = ("A successful HTTP response is retrieval evidence, not daily coverage. "
+                               "APS journal-specific recent RSS is discovery only; a malformed feed item is "
+                               "quarantined, and a rolling feed cannot prove a complete historical day. "
                                "Science RSS and a complete Crossref indexed snapshot cannot alone verify "
                                "the publisher's complete daily inventory.")
     return plan
 
 
 def to_markdown(plan: dict[str, object]) -> str:
+    if plan.get("academic_search_version") == SEARCH_VERSION:
+        return "# Academic Source Health\n\n" + str(plan.get("source_health_markdown") or markdown_health_table(plan.get("rows") or [])) + "\n"
     lines = [
         "# Academic Venue Sweep",
         "",
@@ -462,6 +822,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--no-arxiv", action="store_true", help="Exclude arXiv from generated search rows.")
     parser.add_argument("--fetch", action="store_true", help="Fetch official HTTPS venue endpoints and attach auditable evidence.")
     parser.add_argument("--expanded", action="store_true", help="Also try eight optional journal/conference discovery targets; they do not become daily coverage requirements.")
+    parser.add_argument("--legacy-v3", action="store_true", help="Generate the historical per-URL v3 ledger for read-only compatibility tests.")
     parser.add_argument(
         "--mark-checked-no-hit",
         action="store_true",
@@ -475,10 +836,11 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     terms = split_terms(args.term)
     if not terms:
         raise SystemExit("At least one non-empty --term is required.")
-    plan = build_plan(terms, args.date_range, include_arxiv=not args.no_arxiv,
-                      mark_checked_no_hit=args.mark_checked_no_hit, include_expanded=args.expanded)
+    plan = (build_plan(terms, args.date_range, include_arxiv=not args.no_arxiv,
+                       mark_checked_no_hit=args.mark_checked_no_hit, include_expanded=args.expanded)
+            if args.legacy_v3 else build_plan_v4(terms, args.date_range, include_arxiv=not args.no_arxiv))
     if args.fetch:
-        plan = fetch_evidence(plan)
+        plan = fetch_evidence(plan) if args.legacy_v3 else fetch_evidence_v4(plan)
     text = json.dumps(plan, ensure_ascii=False, indent=2) if args.format == "json" else to_markdown(plan)
     if args.output:
         Path(args.output).expanduser().resolve().write_text(text, encoding="utf-8")

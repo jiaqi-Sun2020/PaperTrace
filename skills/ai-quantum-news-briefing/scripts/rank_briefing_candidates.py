@@ -24,9 +24,11 @@ from briefing_contract import canonical_url, normalize_briefing_config
 from news_delta import classify_item, load_index, recent_records
 from science_coverage_policy import NOTICE, science_journal_candidate, science_skipped
 from delivery_expansion import SHORTFALL, disclosure, publication_relation
+from paper_identity import academic_host_kind, doi_for, host, paper_kind
 
 
 ALGORITHM_VERSION = "news-ranker-v1"
+SOURCE_ALGORITHM_VERSION = "news-ranker-v2"
 ACADEMIC_DOMAINS = {
     "arxiv.org",
     "journals.aps.org",
@@ -41,26 +43,27 @@ ACADEMIC_DOMAINS = {
     "npjqi.springeropen.com",
     "eccv.ecva.net",
     "ecva.net",
+    "jmlr.org", "iopscience.iop.org", "ieeexplore.ieee.org", "ojs.aaai.org", "api2.openreview.net",
 }
 DEFAULT_RANKING_POLICY: dict[str, Any] = {
     "enabled": True,
     "algorithm_version": ALGORITHM_VERSION,
     "deterministic": True,
     "academic": {
-        "minimum_items": 7,
+        "minimum_items": 6,
         "target_items": 8,
         "maximum_items": 8,
         "minimum_new_items": 4,
-        "maximum_new_items": 6,
+        "maximum_new_items": 8,
         "minimum_non_arxiv_items": 2,
         "maximum_continuing_items": 3,
         "maximum_items_per_topic": 3,
         "ordering": "base_score_desc",
     },
     "social": {
-        "minimum_items": 10,
+        "minimum_items": 6,
         "target_items": 12,
-        "maximum_items": 14,
+        "maximum_items": 12,
         "minimum_new_or_material_update": 7,
         "maximum_continuing_items": 3,
         "minimum_reputable_media_items": 3,
@@ -86,7 +89,8 @@ def merged_policy(value: Any) -> dict[str, Any]:
     merged.update({key: val for key, val in raw.items() if key not in {"academic", "social"}})
     merged["academic"] = {**DEFAULT_RANKING_POLICY["academic"], **(raw.get("academic") or {})}
     merged["social"] = {**DEFAULT_RANKING_POLICY["social"], **(raw.get("social") or {})}
-    merged["algorithm_version"] = ALGORITHM_VERSION
+    merged["algorithm_version"] = (SOURCE_ALGORITHM_VERSION if raw.get("algorithm_version") == SOURCE_ALGORITHM_VERSION
+                                   else ALGORITHM_VERSION)
     merged["deterministic"] = True
     return merged
 
@@ -107,17 +111,11 @@ def safe_canonical_url(value: Any) -> str:
 
 
 def doi_identity(item: dict[str, Any]) -> str:
-    value = clean_text(item.get("doi"), 240).lower()
-    if value.startswith("https://doi.org/"):
-        value = value[len("https://doi.org/"):]
-    if not value:
-        match = re.search(r"10\.\d{4,9}/[^\s?#]+", clean_text(item.get("source_url"), 1600), re.I)
-        value = match.group(0).lower() if match else ""
-    return value.rstrip("/.,")
+    return doi_for(item)
 
 
 def is_academic_domain(domain: str) -> bool:
-    return any(domain == known or domain.endswith("." + known) for known in ACADEMIC_DOMAINS)
+    return bool(academic_host_kind("https://" + domain))
 
 
 def parse_iso_date(value: Any) -> date | None:
@@ -206,7 +204,12 @@ def evidence_fraction(item: dict[str, Any], kind: str, source_class: str) -> flo
     return mapping.get(source_class, 0.50)
 
 
-def text_signals(item: dict[str, Any]) -> tuple[str, set[str]]:
+def text_signals(item: dict[str, Any], *, source_only: bool = False) -> tuple[str, set[str]]:
+    if source_only:
+        evidence = item.get("source_capture") or {}
+        text = " ".join(str(value) for value in (evidence.get("quoted_excerpt"), evidence.get("source_title")) if value).lower()
+        tokens = set(re.findall(r"[a-z0-9][a-z0-9+_.-]{2,}|[\u4e00-\u9fff]{2,}", text))
+        return text, tokens
     text = " ".join(
         clean_text(item.get(field), 3000)
         for field in ("title", "facts", "judgment", "relevance", "source_excerpt", "category")
@@ -235,9 +238,12 @@ def novelty_fraction(novelty: str) -> float:
     return {"new": 1.0, "material_update": 0.85, "continuing": 0.25}.get(novelty, 0.0)
 
 
-def score_item(item: dict[str, Any], kind: str, today: date, novelty: str) -> dict[str, Any]:
-    source_class = source_class_for(item, kind)
-    text, _ = text_signals(item)
+def score_item(item: dict[str, Any], kind: str, today: date, novelty: str,
+               algorithm_version: str = ALGORITHM_VERSION) -> dict[str, Any]:
+    source_only = algorithm_version == SOURCE_ALGORITHM_VERSION
+    source_class = source_class_for(item if not source_only else {
+        **item, "source_class": (item.get("source_capture") or {}).get("source_class"), "evidence_level": ""}, kind)
+    text, _ = text_signals(item, source_only=source_only)
     recency = recency_fraction(item, today)
     novelty_value = 0.65 * novelty_fraction(novelty) + 0.35 * recency
     number_specificity = clamp(len(re.findall(r"\b\d+(?:\.\d+)?%?|\[\[\d+|doi|arxiv", text)) / 4.0)
@@ -246,7 +252,11 @@ def score_item(item: dict[str, Any], kind: str, today: date, novelty: str) -> di
         ["quantum", "量子", "hamilton", "哈密顿", "dynamics", "动力学", "graph", "图", "error correction", "纠错", "agent", "智能体"],
         5,
     )
-    evidence = evidence_fraction(item, kind, source_class)
+    evidence = evidence_fraction(item, kind, source_class) if not source_only else (
+        (evidence_fraction({**item, "evidence_level": ""}, kind, "other_verified") if kind == "academic" else 0.60)
+        if (item.get("source_capture") or {}).get("status_code") == 200 else 0.0)
+    def signal(name: str, fallback: float) -> float:
+        return fallback if source_only else explicit_signal(item, name, fallback)
 
     if kind == "academic":
         technical_default = keyword_fraction(
@@ -262,10 +272,10 @@ def score_item(item: dict[str, Any], kind: str, today: date, novelty: str) -> di
         components = {
             "evidence": 25 * evidence,
             "novelty": 15 * novelty_value,
-            "technical_contribution": 20 * explicit_signal(item, "technical_contribution", technical_default),
-            "specificity": 15 * explicit_signal(item, "specificity", number_specificity),
-            "relevance": 15 * explicit_signal(item, "relevance", relevance_default),
-            "reproducibility": 10 * explicit_signal(item, "reproducibility", reproducibility_default),
+            "technical_contribution": 20 * signal("technical_contribution", technical_default),
+            "specificity": 15 * signal("specificity", number_specificity),
+            "relevance": 15 * signal("relevance", relevance_default),
+            "reproducibility": 10 * signal("reproducibility", reproducibility_default),
         }
     else:
         impact_default = keyword_fraction(
@@ -278,15 +288,15 @@ def score_item(item: dict[str, Any], kind: str, today: date, novelty: str) -> di
             ["released", "launched", "announced", "approved", "signed", "invested", "发布", "上线", "宣布", "批准", "签署", "投资"],
             3,
         )
-        corroboration_default = clamp(float(item.get("corroborating_source_count") or 0) / 2.0)
+        corroboration_default = clamp(float(item.get("corroborating_source_count") or 0) / 2.0) if not source_only else 0.0
         components = {
             "evidence": 25 * evidence,
-            "public_impact": 20 * explicit_signal(item, "public_impact", impact_default),
-            "materiality": 15 * explicit_signal(item, "materiality", materiality_default),
+            "public_impact": 20 * signal("public_impact", impact_default),
+            "materiality": 15 * signal("materiality", materiality_default),
             "novelty": 15 * novelty_value,
-            "relevance": 10 * explicit_signal(item, "relevance", relevance_default),
-            "corroboration": 10 * explicit_signal(item, "corroboration", corroboration_default),
-            "specificity": 5 * explicit_signal(item, "specificity", number_specificity),
+            "relevance": 10 * signal("relevance", relevance_default),
+            "corroboration": 10 * signal("corroboration", corroboration_default),
+            "specificity": 5 * signal("specificity", number_specificity),
         }
 
     penalties: dict[str, float] = {}
@@ -296,7 +306,7 @@ def score_item(item: dict[str, Any], kind: str, today: date, novelty: str) -> di
         penalties["promotional_language"] = -7.0
     base_score = clamp(sum(components.values()) + sum(penalties.values()), 0.0, 100.0)
     return {
-        "algorithm_version": ALGORITHM_VERSION,
+        "algorithm_version": algorithm_version,
         "base_score": round(base_score, 3),
         "components": {key: round(value, 3) for key, value in components.items()},
         "penalties": {key: round(value, 3) for key, value in penalties.items()},
@@ -307,7 +317,8 @@ def score_item(item: dict[str, Any], kind: str, today: date, novelty: str) -> di
     }
 
 
-def eligibility_failures(item: dict[str, Any], kind: str) -> list[str]:
+def eligibility_failures(item: dict[str, Any], kind: str,
+                         algorithm_version: str = ALGORITHM_VERSION) -> list[str]:
     failures: list[str] = []
     url = clean_text(item.get("source_url"), 1600)
     domain = domain_of(url)
@@ -324,21 +335,23 @@ def eligibility_failures(item: dict[str, Any], kind: str) -> list[str]:
         failures.append("missing_fact_judgment_or_relevance")
     if any(word in evidence for word in ["candidate", "rumor", "unverified"]):
         failures.append("candidate_or_unverified_evidence")
-    if kind == "academic" and not is_academic_domain(domain):
+    if algorithm_version == SOURCE_ALGORITHM_VERSION and (item.get("source_capture") or {}).get("status_code") != 200:
+        failures.append("missing_retrieved_article_capture")
+    if kind == "academic" and not paper_kind(item):
         failures.append("not_a_paper_level_academic_source")
     if kind == "academic":
         path = urlsplit(url).path.lower().rstrip("/")
         if (path in {"", "/search", "/menu", "/papers.php", "/conferences/2026/acceptedpapers"}
                 or path.endswith(("/articles", "/recent"))):
             failures.append("academic_listing_is_not_a_paper")
-    if kind == "social" and is_academic_domain(domain):
+    if kind == "social" and (academic_host_kind(url) or domain == "doi.org"):
         failures.append("academic_source_in_social_pool")
     return failures
 
 
-def similarity(left: dict[str, Any], right: dict[str, Any]) -> float:
-    _, left_tokens = text_signals(left)
-    _, right_tokens = text_signals(right)
+def similarity(left: dict[str, Any], right: dict[str, Any], *, source_only: bool = False) -> float:
+    _, left_tokens = text_signals(left, source_only=source_only)
+    _, right_tokens = text_signals(right, source_only=source_only)
     if not left_tokens or not right_tokens:
         return 0.0
     return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
@@ -398,7 +411,8 @@ def need_bonus(candidate: dict[str, Any], selected: list[dict[str, Any]], kind: 
     return bonus
 
 
-def select_candidates(candidates: list[dict[str, Any]], kind: str, policy: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def select_candidates(candidates: list[dict[str, Any]], kind: str, policy: dict[str, Any],
+                      *, source_only: bool = False) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     eligible = [candidate for candidate in candidates if not candidate["eligibility_failures"]]
     selected: list[dict[str, Any]] = []
     trace: list[dict[str, Any]] = []
@@ -410,7 +424,8 @@ def select_candidates(candidates: list[dict[str, Any]], kind: str, policy: dict[
             cap_reason = constraint_reason(candidate, selected, kind, policy)
             if cap_reason:
                 continue
-            max_similarity = max((similarity(candidate["item"], row["item"]) for row in selected), default=0.0)
+            max_similarity = max((similarity(candidate["item"], row["item"], source_only=source_only)
+                                  for row in selected), default=0.0)
             score = candidate["score"]
             source_classes = {row["score"]["source_class"] for row in selected}
             topics = {row["score"]["topic"] for row in selected}
@@ -494,14 +509,14 @@ def rank_briefing_config(
         for item in section.get("items", []):
             copied = dict(item)
             copied["section_title"] = section_title
-            kind = "academic" if (is_academic_domain(domain_of(copied.get("source_url")))
+            kind = "academic" if (paper_kind(copied) or host(copied.get("source_url")) == "doi.org"
                                   or science_journal_candidate(copied)) else "social"
             if covered is not None:
                 copied["time_relation"] = publication_relation(copied, kind, covered) or ""
             novelty, _ = classify_item(copied, recent)
             copied["novelty"] = novelty
-            score = score_item(copied, kind, today, novelty)
-            failures = eligibility_failures(copied, kind)
+            score = score_item(copied, kind, today, novelty, policy["algorithm_version"])
+            failures = eligibility_failures(copied, kind, policy["algorithm_version"])
             if kind == "academic" and exclude_science and science_journal_candidate(copied):
                 failures.append("science_daily_inventory_unavailable")
             if shortfall:
@@ -510,9 +525,10 @@ def rank_briefing_config(
                 title_key = clean_text(copied.get("title"), 500).casefold()
                 if (clean_text(copied.get("story_id"), 240) in prior_story_ids
                         or safe_canonical_url(copied.get("source_url")) in prior_urls
-                        or (doi_identity(copied) and doi_identity(copied) in prior_dois)
-                        or (title_key and title_key in prior_titles)):
+                        or (doi_identity(copied) and doi_identity(copied) in prior_dois)):
                     failures.append("previously_published")
+                elif title_key and title_key in prior_titles:
+                    copied["identity_review_hint"] = "same_title_requires_manual_identity_review"
             if score["penalties"].get("unverified_language"):
                 failures.append("unverified_language")
             candidates[kind].append({"item": copied, "score": score, "eligibility_failures": sorted(set(failures))})
@@ -555,7 +571,9 @@ def rank_briefing_config(
     selected_by_kind: dict[str, list[dict[str, Any]]] = {}
     trace_by_kind: dict[str, list[dict[str, Any]]] = {}
     for kind in ("academic", "social"):
-        selected_by_kind[kind], trace_by_kind[kind] = select_candidates(candidates[kind], kind, policy[kind])
+        selected_by_kind[kind], trace_by_kind[kind] = select_candidates(
+            candidates[kind], kind, policy[kind],
+            source_only=policy["algorithm_version"] == SOURCE_ALGORITHM_VERSION)
 
     selected_by_kind["academic"] = sorted(
         selected_by_kind["academic"],
@@ -622,6 +640,7 @@ def rank_briefing_config(
                     "base_score": candidate["score"]["base_score"],
                     "novelty": candidate["score"]["novelty"],
                     "source_class": candidate["score"]["source_class"],
+                    "identity_review_hint": candidate["item"].get("identity_review_hint", ""),
                     "organization": candidate["score"]["organization"],
                     "topic": candidate["score"]["topic"],
                     "exclusion_reasons": reasons,
@@ -632,7 +651,7 @@ def rank_briefing_config(
     ranked["sections"] = sections
     ranked["ranking_policy"] = policy
     ranked["ranking_manifest"] = {
-        "algorithm_version": ALGORITHM_VERSION,
+        "algorithm_version": policy["algorithm_version"],
         "generated_for_date": today.isoformat(),
         "lookback_days": lookback_days,
         "candidate_counts": {kind: len(rows) for kind, rows in candidates.items()},
@@ -646,7 +665,7 @@ def rank_briefing_config(
     if shortfall:
         ranked["ranking_manifest"]["shortfall_evidence"] = {
             "coverage_date": expansion.get("coverage_date"),
-            "normal_minimums": {"academic": 7, "social": 10},
+            "normal_minimums": {"academic": 6, "social": 6},
             "eligible_counts": ranked["ranking_manifest"]["eligible_counts"],
             "selected_counts": ranked["ranking_manifest"]["selected_counts"],
             "same_day_counts": {kind: sum(row["item"].get("time_relation") == "covered_day"

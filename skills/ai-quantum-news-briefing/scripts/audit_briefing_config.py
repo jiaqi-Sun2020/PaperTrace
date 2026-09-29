@@ -18,8 +18,10 @@ from urllib.parse import unquote_plus, urlsplit
 from science_coverage_policy import science_journal_candidate, science_skipped
 
 from briefing_contract import canonical_url, normalize_briefing_config
-from rank_briefing_candidates import ALGORITHM_VERSION, is_primary_official, is_reputable
+from rank_briefing_candidates import ALGORITHM_VERSION, SOURCE_ALGORITHM_VERSION, is_primary_official, is_reputable, score_item
 from delivery_expansion import SHORTFALL, publication_relation, validate_policy
+from paper_identity import academic_host_kind, host, paper_kind
+from academic_sources import family_gate as academic_family_gate, row_is_healthy
 
 
 ACADEMIC_DOMAINS = {
@@ -37,6 +39,11 @@ ACADEMIC_DOMAINS = {
     "npjqi.springeropen.com": "npj-qi",
     "eccv.ecva.net": "ecva",
     "ecva.net": "ecva",
+    "jmlr.org": "jmlr",
+    "iopscience.iop.org": "iop",
+    "ieeexplore.ieee.org": "ieee",
+    "ojs.aaai.org": "aaai",
+    "api2.openreview.net": "openreview",
 }
 
 OFFICIAL_RESEARCH_DOMAINS = {
@@ -110,7 +117,11 @@ def domain_of(url: str) -> str:
     return parsed.netloc.lower().replace("www.", "")
 
 
-def academic_kind(url: str) -> str:
+def academic_kind(url: str, item: dict[str, Any] | None = None) -> str:
+    if item is not None:
+        return paper_kind(item)
+    if host(url) == "doi.org":
+        return ""
     domain = domain_of(url)
     for known, kind in ACADEMIC_DOMAINS.items():
         if domain == known or domain.endswith("." + known):
@@ -309,6 +320,20 @@ def academic_search_venues(config: dict[str, Any], *, legacy_science: bool = Fal
     raw = config.get("academic_search") or config.get("academic_venue_sweep") or {}
     if not isinstance(raw, dict):
         return set(), 0, 0, ["academic_search ledger is missing"]
+    if raw.get("academic_search_version") == 4:
+        rows = raw.get("rows")
+        if not isinstance(rows, list) or not rows:
+            return set(), 0, 0, ["academic search v4 source rows are missing"]
+        gate = academic_family_gate(rows)
+        failures = [] if gate["status"] == "pass" else [
+            "academic source family gate failed: " + ", ".join(gate["missing_families"])]
+        if raw.get("family_gate") != gate:
+            failures.append("academic source family gate is stale or inconsistent")
+        venues = {normalize_venue(row.get("source_id") or row.get("venue"))
+                  for row in rows if isinstance(row, dict) and row_is_healthy(row)}
+        hits = sum(int(row.get("candidate_count") or 0) for row in rows
+                   if isinstance(row, dict) and row_is_healthy(row))
+        return venues, 1 if gate["status"] == "pass" else 0, hits, failures
     venues: set[str] = set()
     # Declared venue lists are policy metadata, never proof that a search ran.
     topics = raw.get("topics") or []
@@ -378,21 +403,21 @@ def audit_academic_delivery(config: dict[str, Any]) -> list[str]:
     failures: list[str] = []
     shortfall = (config.get("delivery_expansion") or {}).get("mode") == SHORTFALL
     try:
-        configured_minimum_items = int(delivery.get("minimum_items", 7))
-        minimum_items = max(7, configured_minimum_items)
+        configured_minimum_items = int(delivery.get("minimum_items", 6))
+        minimum_items = max(6, configured_minimum_items)
     except (TypeError, ValueError):
         return ["academic_delivery.minimum_items must be a positive integer"]
-    if configured_minimum_items < 7:
-        failures.append("academic_delivery.minimum_items must be at least 7")
+    if configured_minimum_items < 6:
+        failures.append("academic_delivery.minimum_items must be at least 6")
     formal_items = [
         item
         for _, item in iter_items(config)
-        if academic_kind(clean_text(item.get("source_url"), 1000)) in ACADEMIC_DOMAINS.values()
+        if academic_kind(clean_text(item.get("source_url"), 1000), item) in ACADEMIC_DOMAINS.values()
     ]
     primary_venue_items = [
         item
         for item in formal_items
-        if academic_kind(clean_text(item.get("source_url"), 1000)) != "preprint"
+        if academic_kind(clean_text(item.get("source_url"), 1000), item) != "preprint"
     ]
     academic_sections = [
         clean_text(section.get("title"), 200).lower()
@@ -410,7 +435,7 @@ def audit_academic_delivery(config: dict[str, Any]) -> list[str]:
     except (TypeError, ValueError):
         return failures + ["academic_delivery item limits must be integers"]
     if configured_maximum_items > 8 or configured_maximum_items < minimum_items:
-        failures.append("academic_delivery publication range must stay within 7-8 items")
+        failures.append("academic_delivery publication range must stay within 6-8 items")
     if configured_minimum_non_arxiv < 2:
         failures.append("academic_delivery.minimum_non_arxiv_items must be at least 2")
     if configured_maximum_continuing > 3:
@@ -435,15 +460,15 @@ def audit_academic_delivery(config: dict[str, Any]) -> list[str]:
     if isinstance(delta_policy, dict) and delta_policy.get("mode") == "delta_first":
         try:
             configured_minimum_new = int(delivery.get("minimum_new_items", 4))
-            configured_maximum_new = int(delivery.get("maximum_new_items", 6))
+            configured_maximum_new = int(delivery.get("maximum_new_items", 8))
         except (TypeError, ValueError):
             return failures + ["academic_delivery.minimum_new_items and maximum_new_items must be positive integers"]
         if configured_minimum_new < 4:
             failures.append("academic_delivery.minimum_new_items must be at least 4")
-        if configured_maximum_new > 6 or configured_maximum_new < max(4, configured_minimum_new):
-            failures.append("academic_delivery new-item range must stay within 4-6 items")
+        if configured_maximum_new > 8 or configured_maximum_new < max(4, configured_minimum_new):
+            failures.append("academic_delivery new-item range must stay within 4-8 items")
         minimum_new_items = max(4, configured_minimum_new)
-        maximum_new_items = min(6, max(minimum_new_items, configured_maximum_new))
+        maximum_new_items = min(8, max(minimum_new_items, configured_maximum_new))
         new_items = [
             item for item in formal_items
             if clean_text(item.get("novelty"), 80).lower() == "new"
@@ -480,13 +505,14 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
     }
     failures: list[str] = []
     shortfall = (config.get("delivery_expansion") or {}).get("mode") == SHORTFALL
+    legacy_shortfall = shortfall and (config.get("delivery_expansion") or {}).get("version") == 1
     try:
-        configured_minimum_items = int(delivery.get("minimum_items", 10))
-        minimum_items = max(10, configured_minimum_items)
+        configured_minimum_items = int(delivery.get("minimum_items", 6))
+        minimum_items = max(6, configured_minimum_items)
     except (TypeError, ValueError):
         return ["social_delivery.minimum_items must be a positive integer"]
-    if configured_minimum_items < 10:
-        failures.append("social_delivery.minimum_items must be at least 10")
+    if configured_minimum_items < 6:
+        failures.append("social_delivery.minimum_items must be at least 6")
     social_sections = [
         section
         for section in config.get("sections", [])
@@ -499,7 +525,7 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
     non_academic_items = [
         item
         for item in social_items
-        if academic_kind(clean_text(item.get("source_url"), 1000)) not in ACADEMIC_DOMAINS.values()
+        if not academic_host_kind(item.get("source_url")) and host(item.get("source_url")) != "doi.org"
     ]
     if not clean_text(candidate_pool.get("checked_at"), 120):
         failures.append("social_candidate_pool requires checked_at")
@@ -511,8 +537,8 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
     if len(non_academic_items) < minimum_items and not shortfall:
         failures.append("social news section requires non-academic source-backed items")
     try:
-        configured_maximum_items = int(delivery.get("maximum_items", 14))
-        configured_minimum_active = int(delivery.get("minimum_new_or_material_update", 7))
+        configured_maximum_items = int(delivery.get("maximum_items", 12))
+        configured_minimum_active = int(delivery.get("minimum_new_or_material_update", 4))
         configured_maximum_continuing = int(delivery.get("maximum_continuing_items", 3))
         configured_minimum_reputable = int(delivery.get("minimum_reputable_media_items", 3))
         configured_minimum_official = int(delivery.get("minimum_primary_official_items", 3))
@@ -521,10 +547,11 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
         configured_maximum_topic = int(delivery.get("maximum_items_per_topic", 3))
     except (TypeError, ValueError):
         return failures + ["social_delivery limits must be integers"]
-    if configured_maximum_items > 14 or configured_maximum_items < minimum_items:
-        failures.append("social_delivery publication range must stay within 10-14 items")
-    if configured_minimum_active < 7:
-        failures.append("social_delivery.minimum_new_or_material_update must be at least 7")
+    maximum_ceiling = 14 if legacy_shortfall else 12
+    if configured_maximum_items > maximum_ceiling or configured_maximum_items < minimum_items:
+        failures.append("social_delivery publication range must stay within 6-12 items")
+    if configured_minimum_active < 4:
+        failures.append("social_delivery.minimum_new_or_material_update must be at least 4")
     if configured_maximum_continuing > 3:
         failures.append("social_delivery.maximum_continuing_items must be at most 3")
     if configured_minimum_reputable < 3:
@@ -537,8 +564,8 @@ def audit_social_delivery(config: dict[str, Any]) -> list[str]:
         failures.append("social_delivery.maximum_items_per_organization must be at most 2")
     if configured_maximum_topic > 3:
         failures.append("social_delivery.maximum_items_per_topic must be at most 3")
-    maximum_items = min(14, max(minimum_items, configured_maximum_items))
-    minimum_active = max(7, configured_minimum_active)
+    maximum_items = min(maximum_ceiling, max(minimum_items, configured_maximum_items))
+    minimum_active = max(4, configured_minimum_active)
     maximum_continuing = max(0, min(3, configured_maximum_continuing))
     minimum_reputable = max(3, configured_minimum_reputable)
     minimum_official = max(3, configured_minimum_official)
@@ -589,35 +616,52 @@ def audit_ranking_delivery(config: dict[str, Any]) -> list[str]:
     policy = config.get("ranking_policy") or {}
     manifest = config.get("ranking_manifest") or {}
     failures: list[str] = []
+    recorded_minimums = ((manifest.get("shortfall_evidence") or {}).get("normal_minimums")
+                         if isinstance(manifest, dict) else None)
+    legacy_policy = recorded_minimums == {"academic": 7, "social": 10}
     if not isinstance(policy, dict) or not policy.get("enabled"):
         return ["daily briefing requires ranking_policy.enabled=true"]
-    if clean_text(policy.get("algorithm_version"), 120) != ALGORITHM_VERSION:
-        failures.append(f"ranking_policy.algorithm_version must be {ALGORITHM_VERSION}")
-    if not isinstance(manifest, dict) or clean_text(manifest.get("algorithm_version"), 120) != ALGORITHM_VERSION:
-        failures.append(f"ranking_manifest.algorithm_version must be {ALGORITHM_VERSION}")
+    algorithm = clean_text(policy.get("algorithm_version"), 120)
+    if algorithm not in {ALGORITHM_VERSION, SOURCE_ALGORITHM_VERSION}:
+        failures.append("ranking_policy.algorithm_version is unsupported")
+    if not isinstance(manifest, dict) or clean_text(manifest.get("algorithm_version"), 120) != algorithm:
+        failures.append("ranking_manifest.algorithm_version differs from policy")
         return failures
     academic_policy = policy.get("academic") or {}
     social_policy = policy.get("social") or {}
     try:
-        if int(academic_policy.get("minimum_items", 0)) < 7 or int(academic_policy.get("maximum_items", 99)) > 8:
-            failures.append("ranking_policy academic publication range must be 7-8 items")
+        academic_floor = 7 if legacy_policy else 6
+        social_floor = 10 if legacy_policy else 6
+        social_ceiling = 14 if legacy_policy else 12
+        if int(academic_policy.get("minimum_items", 0)) < academic_floor or int(academic_policy.get("maximum_items", 99)) > 8:
+            failures.append(f"ranking_policy academic publication range must be {academic_floor}-8 items")
         if clean_text(academic_policy.get("ordering"), 120) != "base_score_desc":
             failures.append("ranking_policy academic ordering must be base_score_desc")
-        if int(social_policy.get("minimum_items", 0)) < 10:
-            failures.append("ranking_policy social minimum must be at least 10 items")
+        if (int(social_policy.get("minimum_items", 0)) < social_floor
+                or int(social_policy.get("maximum_items", 99)) > social_ceiling):
+            failures.append(f"ranking_policy social publication range must be {social_floor}-{social_ceiling} items")
     except (TypeError, ValueError):
         failures.append("ranking_policy item limits must be integers")
 
     ranked_items: dict[str, list[dict[str, Any]]] = {"academic": [], "social": []}
     for section, item in iter_items(config):
-        kind = "academic" if academic_kind(clean_text(item.get("source_url"), 1000)) in ACADEMIC_DOMAINS.values() else "social"
+        kind = "academic" if academic_kind(clean_text(item.get("source_url"), 1000), item) in ACADEMIC_DOMAINS.values() else "social"
         ranking = item.get("ranking") or {}
         label = clean_text(item.get("story_id") or item.get("id"), 240)
         if not isinstance(ranking, dict) or not ranking:
             failures.append(f"{label}: selected item is missing ranking evidence")
             continue
-        if clean_text(ranking.get("algorithm_version"), 120) != ALGORITHM_VERSION:
+        if clean_text(ranking.get("algorithm_version"), 120) != algorithm:
             failures.append(f"{label}: ranking algorithm version mismatch")
+        if algorithm == SOURCE_ALGORITHM_VERSION:
+            try:
+                ranking_day = date.fromisoformat(str(manifest.get("generated_for_date")))
+                recomputed = score_item(item, kind, ranking_day,
+                                        clean_text(ranking.get("novelty"), 80), SOURCE_ALGORITHM_VERSION)
+                if ranking.get("components") != recomputed["components"] or ranking.get("penalties") != recomputed["penalties"]:
+                    failures.append(f"{label}: source-only ranking signals differ from the captured source")
+            except (ValueError, TypeError):
+                failures.append(f"{label}: cannot reproduce source-only ranking")
         if ranking.get("eligible") is not True or ranking.get("selected") is not True:
             failures.append(f"{label}: published item must be eligible and selected")
         components = ranking.get("components") or {}
@@ -692,7 +736,9 @@ def audit_ranking_delivery(config: dict[str, Any]) -> list[str]:
                                              for reason in row.get("exclusion_reasons", [])))
             if manifest.get("eligible_counts") != actual_eligible or short.get("exclusions") != actual_exclusions:
                 failures.append("shortfall candidate counts or exclusions do not match the ledger")
-        if len(ranked_items["academic"]) >= 7 and len(ranked_items["social"]) >= 10:
+        shortfall_minimums = (7, 10) if legacy_policy else (6, 6)
+        if (len(ranked_items["academic"]) >= shortfall_minimums[0]
+                and len(ranked_items["social"]) >= shortfall_minimums[1]):
             failures.append("verified_shortfall cannot be used when both normal item minimums are met")
         try:
             covered = date.fromisoformat(str(config["delivery_expansion"]["coverage_date"]))
@@ -825,7 +871,7 @@ def audit(config: dict[str, Any], *, legacy_science: bool = False,
             warnings.append(f"{label}: candidate evidence appears outside a candidate-pool section")
         if is_academic_item(section, item):
             academic_item_count += 1
-            kind = academic_kind(source_url)
+            kind = academic_kind(source_url, item)
             academic_counts[kind or "other"] += 1
             if kind == "preprint" and not clean_text(item.get("venue_sweep_note"), 500):
                 warnings.append(f"{label}: arXiv preprint lacks venue_sweep_note; record APS/Nature/Science/OpenReview/CVF/PMLR/NeurIPS/ACL/Quantum Journal check")

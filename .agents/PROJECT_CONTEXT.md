@@ -139,3 +139,7 @@ The 2026-07-16 briefing contains 8 academic and 12 social-news items with 60 def
 
 - Confirm whether future generated reader bundles should always use `_reader` suffix.
 - Confirm whether generated HTML should default to CDN MathJax or a local MathJax file for offline reading.
+
+## Daily pipeline v4 decision (2026-09-29)
+
+Daily delivery optimizes for trustworthy selection, not exhaustive-web claims. New releases use a declared source-capability registry and require one healthy `quantum_publisher` plus one healthy `ai_peer_review` family. Individual optional/probationary failures and malformed records are isolated and reported; family failure, missing article evidence or publication inconsistency remains blocking. Standard output is 6–8 academic and 6–12 social items, with evidence-bound `verified_shortfall` after the 14-day/72-hour expansion. `orchestrate_daily.py` is the sole routine status/preflight/collect/resume entry point and never auto-approves semantic review.

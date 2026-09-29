@@ -41,11 +41,13 @@ from news_delta import (
     render_markdown,
     transform_config,
     upsert_index,
+    replace_release_index,
 )
-from rank_briefing_candidates import DEFAULT_RANKING_POLICY, merged_policy, rank_briefing_config
+from rank_briefing_candidates import DEFAULT_RANKING_POLICY, SOURCE_ALGORITHM_VERSION, merged_policy, rank_briefing_config
 from release_audit import REVIEW_NAMES, claim_digest, content_digest, make_report, selected_items, validate_bundle
 from release_lock import release_lock
 from review_evidence import ROUND_MATERIALS, TASK_CARD_KEYS, story_digest
+from source_capture import capture_path, validate_capture
 
 
 ARTIFACT_NAMES = {
@@ -56,6 +58,45 @@ ARTIFACT_NAMES = {
     "manifest": "daily_pipeline_manifest_{date}.json",
     "index_updates": "daily_pipeline_index_updates_{date}.json",
 }
+CAPTURE_BUNDLE_NAME = "source_captures_{date}.json"
+NEWS_ROOT = SCRIPT_DIR.parents[2] / "news"
+RUN_ID_PATTERN = re.compile(r"^(20\d{2}-\d{2}-\d{2})-[0-9a-f]{12}$")
+
+
+def publication_layout(manifest: dict[str, Any], run_root: Path, *, news_root: Path | None = None) -> tuple[Path, Path]:
+    """Derive v3 destinations; untrusted manifest paths are assertions, never targets."""
+    day = str(manifest.get("date") or "")
+    try:
+        if date.fromisoformat(day).isoformat() != day:
+            raise ValueError
+    except ValueError as exc:
+        raise ValueError("invalid release date") from exc
+    run_id = str(manifest.get("run_id") or "")
+    if not RUN_ID_PATTERN.fullmatch(run_id) or not run_id.startswith(day + "-"):
+        raise ValueError("invalid release run_id")
+    root = (news_root or NEWS_ROOT).absolute()
+    output = root / day
+    index = root / "_index" / "story_index.jsonl"
+    expected_run = output / ".staging" / run_id
+    if run_root.absolute() not in (expected_run, output):
+        raise ValueError("staging path differs from the canonical release layout")
+    for path in (root, output, output / ".staging", run_root, root / "_index",
+                 index, output / ".release_transactions"):
+        if path.is_symlink():
+            raise ValueError("publication path contains a symbolic link")
+    if Path(str(manifest.get("output_dir") or "")) != output or Path(str(manifest.get("index_path") or "")) != index:
+        raise ValueError("manifest destination differs from the canonical release layout")
+    expected = {key: path.name for key, path in artifact_paths(run_root, day).items()}
+    actual = manifest.get("artifacts")
+    if not isinstance(actual, dict) or any(actual.get(key) != name for key, name in expected.items()):
+        raise ValueError("manifest artifact identities are invalid")
+    if any(actual.get(key) not in (None, template.format(date=day)) for key, template in REVIEW_NAMES.items()):
+        raise ValueError("manifest review artifact identities are invalid")
+    if actual.get("source_captures") not in (None, CAPTURE_BUNDLE_NAME.format(date=day)):
+        raise ValueError("manifest capture artifact identity is invalid")
+    if set(actual) - set(expected) - set(REVIEW_NAMES) - {"source_captures"}:
+        raise ValueError("manifest artifact identities are invalid")
+    return output, index
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -214,6 +255,11 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
         return {"status": "fail", "failures": [f"manifest missing in {run_root}"], "warnings": []}
     manifest_path = manifest_files[0]
     manifest = load_json(manifest_path)
+    if int(manifest.get("pipeline_version") or 1) >= 3:
+        try:
+            publication_layout(manifest, run_root)
+        except ValueError as exc:
+            return {"status": "fail", "failures": [str(exc)], "warnings": []}
     run_date = str(manifest.get("date") or "")
     paths = artifact_paths(run_root, run_date)
     failures: list[str] = []
@@ -226,6 +272,32 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
 
     if not failures:
         config = load_json(paths["delta_config"])
+        if int(manifest.get("pipeline_version") or 1) >= 3:
+            bundle_path = run_root / CAPTURE_BUNDLE_NAME.format(date=run_date)
+            if not bundle_path.is_file() or manifest.get("artifacts", {}).get("source_captures") != bundle_path.name:
+                failures.append("new release lacks source capture bundle")
+            elif (manifest.get("artifact_sha256") or {}).get("source_captures") != sha256_file(bundle_path):
+                failures.append("source capture bundle hash differs")
+            else:
+                bundle = load_json(bundle_path)
+                captures = bundle.get("items") or {}
+                for section in config.get("sections", []):
+                    for item in section.get("items", []):
+                        capture_id = (item.get("source_capture") or {}).get("item_id")
+                        record = captures.get(capture_id) if isinstance(captures, dict) else None
+                        if not isinstance(record, dict):
+                            failures.append(f"source capture missing for {item.get('id')}")
+                        else:
+                            failures.extend(f"source capture {item.get('id')}: {issue}"
+                                            for issue in validate_capture(item, record))
+                            if item.get("source_capture") != record:
+                                failures.append(f"source capture {item.get('id')} differs from reviewed config")
+            delivery = config.get("academic_delivery")
+            if not isinstance(delivery, dict) or delivery.get("required") is not True:
+                failures.append("new release requires academic_delivery.required=true")
+            ranking = config.get("ranking_policy")
+            if not isinstance(ranking, dict) or ranking.get("enabled") is not True:
+                failures.append("new release requires enabled candidate ranking")
         feedback = load_json(paths["feedback"])
         html_text = paths["html"].read_text(encoding="utf-8-sig")
         markdown_text = paths["markdown"].read_text(encoding="utf-8-sig")
@@ -241,11 +313,11 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
         contract_version = manifest.get("coverage_evidence_contract_version")
         config_audit = audit_config(
             config, legacy_science=(manifest.get("status") == "complete" and contract_version is None),
-            coverage_contract_version=contract_version if contract_version in (1, 2) else 1)
+            coverage_contract_version=contract_version if contract_version in (1, 2, 3) else 1)
         failures.extend(config_audit["failures"])
         warnings.extend(config_audit["warnings"])
         expansion = config.get("delivery_expansion")
-        if manifest.get("delivery_expansion_version") == 1:
+        if manifest.get("delivery_expansion_version") in (1, 2):
             if (manifest.get("delivery_expansion_ref") != evidence_digest(expansion)
                     or manifest.get("delivery_expansion") != expansion):
                 failures.append("delivery expansion differs between reviewed manifest and config")
@@ -254,7 +326,7 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
                 failures.append("delivery expansion date differs from the manifest coverage day")
         elif isinstance(expansion, dict) and expansion.get("mode") == SHORTFALL:
             failures.append("shortfall release lacks a versioned manifest binding")
-        if contract_version == 2:
+        if contract_version in (2, 3):
             notice = config.get("coverage_notice") or ""
             daily_records = ((manifest.get("coverage") or {}).get("daily_search_evidence") or [])
             if (len(daily_records) == 1 and isinstance(daily_records[0], dict)
@@ -426,6 +498,12 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    protocol = int(getattr(args, "release_protocol", 1))
+    if protocol >= 3:
+        if not getattr(args, "date", None):
+            raise ValueError("new daily releases require an explicit --date")
+        if getattr(args, "output_dir", None) or getattr(args, "index", None):
+            raise ValueError("custom publication destinations are not supported")
     config_path = Path(args.config).expanduser().resolve()
     raw_config = load_json(config_path)
     raw_story_delivery = raw_config.get("story_delivery") or {}
@@ -444,49 +522,56 @@ def cmd_run(args: argparse.Namespace) -> int:
         raw_config = dict(raw_config)
         raw_config["academic_delivery"] = {
             "required": True,
-            "minimum_items": 7,
+            "minimum_items": 6,
             "target_items": 8,
             "maximum_items": 8,
             "minimum_new_items": 4,
-            "maximum_new_items": 6,
+            "maximum_new_items": 8,
             "minimum_non_arxiv_items": 2,
             "maximum_continuing_items": 3,
             "context_days": 7,
-            "policy": "Rank an academic candidate pool and publish seven or eight papers, including four to six new papers and at least two non-arXiv formal venue papers.",
+            "policy": "Rank an academic candidate pool and publish six to eight papers, quality first, with at least two non-arXiv formal venue papers in standard mode.",
         }
     if "social_delivery" not in raw_config:
         raw_config = dict(raw_config)
         raw_config["social_delivery"] = {
-            "minimum_items": 10,
+            "minimum_items": 6,
             "target_items": 12,
-            "maximum_items": 14,
-            "minimum_new_or_material_update": 7,
+            "maximum_items": 12,
+            "minimum_new_or_material_update": 4,
             "maximum_continuing_items": 3,
             "minimum_reputable_media_items": 3,
             "minimum_primary_official_items": 3,
             "minimum_source_classes": 3,
             "maximum_items_per_organization": 2,
             "maximum_items_per_topic": 3,
-            "policy": "Rank a verified social-news candidate pool and publish at least ten items with source, organization, and topic diversity.",
+            "policy": "Rank a verified social-news candidate pool and publish six to twelve items with source, organization, and topic diversity.",
         }
     academic_delivery = raw_config.get("academic_delivery") or {}
+    if protocol >= 3 and (not isinstance(academic_delivery, dict) or academic_delivery.get("required") is not True):
+        raise ValueError("academic_delivery.required must be true for a new release")
+    if protocol >= 3 and isinstance(raw_config.get("ranking_policy"), dict) and raw_config["ranking_policy"].get("enabled") is False:
+        raise ValueError("candidate ranking cannot be disabled for a new release")
+    if protocol >= 3:
+        raw_config["ranking_policy"] = {**(raw_config.get("ranking_policy") or {}),
+                                        "algorithm_version": SOURCE_ALGORITHM_VERSION, "enabled": True}
     if isinstance(academic_delivery, dict) and academic_delivery.get("required"):
         raw_config = dict(raw_config)
         academic_delivery = dict(academic_delivery)
-        academic_delivery["minimum_items"] = max(7, int(academic_delivery.get("minimum_items", 7)))
+        academic_delivery["minimum_items"] = max(6, int(academic_delivery.get("minimum_items", 6)))
         academic_delivery["target_items"] = max(academic_delivery["minimum_items"], int(academic_delivery.get("target_items", 8)))
         academic_delivery["maximum_items"] = max(academic_delivery["target_items"], int(academic_delivery.get("maximum_items", 8)))
         academic_delivery["minimum_new_items"] = max(4, int(academic_delivery.get("minimum_new_items", 4)))
-        academic_delivery["maximum_new_items"] = max(academic_delivery["minimum_new_items"], 6, int(academic_delivery.get("maximum_new_items", 6)))
+        academic_delivery["maximum_new_items"] = min(8, max(academic_delivery["minimum_new_items"], int(academic_delivery.get("maximum_new_items", 8))))
         academic_delivery["minimum_non_arxiv_items"] = max(2, int(academic_delivery.get("minimum_non_arxiv_items", 2)))
         academic_delivery["maximum_continuing_items"] = min(3, int(academic_delivery.get("maximum_continuing_items", 3)))
         raw_config["academic_delivery"] = academic_delivery
 
         social_delivery = dict(raw_config.get("social_delivery") or {})
-        social_delivery["minimum_items"] = max(10, int(social_delivery.get("minimum_items", 10)))
-        social_delivery["target_items"] = max(social_delivery["minimum_items"], int(social_delivery.get("target_items", 12)))
-        social_delivery["maximum_items"] = max(social_delivery["target_items"], int(social_delivery.get("maximum_items", 14)))
-        social_delivery["minimum_new_or_material_update"] = max(7, int(social_delivery.get("minimum_new_or_material_update", 7)))
+        social_delivery["minimum_items"] = max(6, int(social_delivery.get("minimum_items", 6)))
+        social_delivery["target_items"] = min(12, max(social_delivery["minimum_items"], int(social_delivery.get("target_items", 12))))
+        social_delivery["maximum_items"] = min(12, max(social_delivery["target_items"], int(social_delivery.get("maximum_items", 12))))
+        social_delivery["minimum_new_or_material_update"] = max(4, int(social_delivery.get("minimum_new_or_material_update", 4)))
         social_delivery["maximum_continuing_items"] = min(3, int(social_delivery.get("maximum_continuing_items", 3)))
         social_delivery["minimum_reputable_media_items"] = max(3, int(social_delivery.get("minimum_reputable_media_items", 3)))
         social_delivery["minimum_primary_official_items"] = max(3, int(social_delivery.get("minimum_primary_official_items", 3)))
@@ -502,7 +587,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     assert_config_text_integrity(raw_config)
     normalize_briefing_config(raw_config, config_path, require_source_url=True)
     run_date = infer_date(raw_config, args.date).isoformat()
-    protocol = int(getattr(args, "release_protocol", 1))
     if protocol >= 2:
         coverage_start, coverage_end = _coverage_window(args, raw_config, run_date)
         covered = date.fromisoformat(coverage_start[:10])
@@ -516,18 +600,67 @@ def cmd_run(args: argparse.Namespace) -> int:
         expansion_failures = validate_policy(raw_config)
         if expansion_failures:
             raise ValueError("; ".join(expansion_failures))
-    output_root = Path(args.output_dir or (config_path.parents[2] / "news" / run_date)).expanduser().resolve()
+    capture_bundle: dict[str, Any] | None = None
+    if protocol >= 3:
+        capture_bundle = {}
+        coverage_day = coverage_start[:10]
+        for section in raw_config.get("sections", []):
+            for item in section.get("items", []):
+                path = capture_path(NEWS_ROOT, coverage_day, str(item.get("id") or ""))
+                if not path.is_file():
+                    continue
+                record = load_json(path)
+                issues = validate_capture(item, record)
+                if issues:
+                    raise ValueError(f"source capture {item.get('id')}: " + "; ".join(issues))
+                item["source_capture"] = record
+                capture_bundle[str(item["id"])] = record
+    output_root = (NEWS_ROOT / run_date) if protocol >= 3 else Path(args.output_dir or (config_path.parents[2] / "news" / run_date)).expanduser().resolve()
     run_id = f"{run_date}-{uuid.uuid4().hex[:12]}"
     run_root = output_root / ".staging" / run_id
-    index_path = Path(args.index).expanduser().resolve() if args.index else output_root.parent / "_index" / "story_index.jsonl"
+    index_path = (NEWS_ROOT / "_index" / "story_index.jsonl") if protocol >= 3 else (Path(args.index).expanduser().resolve() if args.index else output_root.parent / "_index" / "story_index.jsonl")
+    if protocol >= 3 and any(path.is_symlink() for path in (NEWS_ROOT, output_root,
+            output_root / ".staging", output_root / ".release_transactions",
+            NEWS_ROOT / "_index", index_path)):
+        raise ValueError("publication path contains a symbolic link")
 
     index_records = load_index(index_path)
     index_snapshot = sha256_file(index_path) if index_path.exists() else None
+    correction = None
+    if protocol >= 3:
+        prior_manifest_path = artifact_paths(output_root, run_date)["manifest"]
+        prior_manifest = load_json(prior_manifest_path) if prior_manifest_path.exists() else None
+        if prior_manifest is not None and prior_manifest.get("status") == "complete":
+            if verify_artifacts(output_root, strict=True)["status"] != "pass":
+                raise ValueError("existing release is not strictly verified; correction cannot proceed")
+            old_hash = (prior_manifest.get("artifact_sha256") or {}).get("html")
+            if (not getattr(args, "correction_reason", None)
+                    or getattr(args, "supersedes_hash", None) != old_hash):
+                raise ValueError("existing release requires a correction reason and its current HTML hash")
+            old_updates_path = artifact_paths(output_root, run_date)["index_updates"]
+            if not old_updates_path.is_file():
+                raise ValueError("existing release has no index update ledger for a safe correction")
+            old_updates = load_json(old_updates_path).get("items")
+            if not isinstance(old_updates, list):
+                raise ValueError("existing release index update ledger is invalid")
+            replaced_keys = sorted({(str(row.get("story_id") or ""), str(row.get("last_seen") or ""))
+                                    for row in old_updates if isinstance(row, dict)})
+            correction = {"reason": args.correction_reason, "supersedes_run_id": prior_manifest.get("run_id"),
+                          "supersedes_html_sha256": old_hash,
+                          "replaced_index_keys": [list(key) for key in replaced_keys]}
+            index_records = [row for row in index_records
+                             if (str(row.get("story_id") or ""), str(row.get("last_seen") or "")) not in replaced_keys]
+        elif getattr(args, "correction_reason", None) or getattr(args, "supersedes_hash", None):
+            raise ValueError("correction flags require an existing complete release")
     ranked_config = (
         rank_briefing_config(raw_config, index_records, date.fromisoformat(run_date), args.days)
         if isinstance(raw_config.get("academic_delivery"), dict) and raw_config["academic_delivery"].get("required")
         else raw_config
     )
+    if protocol >= 3:
+        selected_counts = (ranked_config.get("ranking_manifest") or {}).get("selected_counts") or {}
+        if not selected_counts.get("academic") or not selected_counts.get("social"):
+            raise ValueError("source captures and reviewed evidence must support at least one academic and one social item")
     transformed, delta_manifest, index_updates = transform_config(
         ranked_config,
         index_records,
@@ -539,6 +672,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     for record in index_updates:
         record["briefing_path"] = str(final_paths["html"])
     canonical = normalize_briefing_config(transformed, config_path, require_source_url=True)
+    if protocol >= 3:
+        preflight = audit_config(canonical, coverage_contract_version=2)
+        if preflight["failures"]:
+            raise ValueError("new release preflight failed: " + "; ".join(preflight["failures"][:8]))
     if (canonical.get("delivery_expansion") or {}).get("mode") == SHORTFALL:
         shortfall_audit = audit_config(canonical, coverage_contract_version=2)
         if shortfall_audit["failures"]:
@@ -554,6 +691,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     atomic_json(names["feedback"], feedback)
     atomic_text(names["html"], rendered_html)
     atomic_json(names["index_updates"], {"run_id": run_id, "items": index_updates})
+    if capture_bundle is not None:
+        capture_file = run_root / CAPTURE_BUNDLE_NAME.format(date=run_date)
+        atomic_json(capture_file, {"version": 1, "items": capture_bundle})
     manifest = {
         "pipeline_version": protocol,
         "status": "staged",
@@ -578,15 +718,20 @@ def cmd_run(args: argparse.Namespace) -> int:
         "artifact_sha256": {key: sha256_file(path) for key, path in names.items() if key != "manifest"},
         "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
     }
+    if correction is not None:
+        manifest["correction"] = correction
+    if capture_bundle is not None:
+        manifest["artifacts"]["source_captures"] = capture_file.name
+        manifest["artifact_sha256"]["source_captures"] = sha256_file(capture_file)
     if protocol >= 2:
-        manifest["coverage_evidence_contract_version"] = 2
+        manifest["coverage_evidence_contract_version"] = 3 if protocol >= 4 else 2
         manifest["required_story_review_protocol"] = 3
         manifest["coverage"] = {"start": coverage_start, "end": coverage_end,
                                 "timezone": "Asia/Shanghai",
                                 "collection_completed_at": raw_config["collection_completed_at"],
                                 "daily_search_evidence": raw_config.get("coverage_evidence") or []}
         if canonical.get("delivery_expansion"):
-            manifest["delivery_expansion_version"] = 1
+            manifest["delivery_expansion_version"] = int(canonical["delivery_expansion"].get("version") or 1)
             manifest["delivery_expansion"] = canonical["delivery_expansion"]
             manifest["delivery_expansion_ref"] = evidence_digest(canonical["delivery_expansion"])
     atomic_json(names["manifest"], manifest)
@@ -650,7 +795,7 @@ def _validate_coverage_manifest(manifest: dict[str, Any]) -> list[str]:
     if not isinstance(coverage, dict) or coverage.get("timezone") != "Asia/Shanghai":
         return ["version-2 release lacks Asia/Shanghai coverage metadata"]
     contract = manifest.get("coverage_evidence_contract_version")
-    if contract not in (None, 1, 2) or (contract is None and manifest.get("status") != "complete"):
+    if contract not in (None, 1, 2, 3) or (contract is None and manifest.get("status") != "complete"):
         return ["new release lacks the current daily coverage evidence contract"]
     try:
         shanghai = timezone(timedelta(hours=8), "Asia/Shanghai")
@@ -666,7 +811,7 @@ def _validate_coverage_manifest(manifest: dict[str, Any]) -> list[str]:
                 or collected < end):
             raise ValueError("invalid coverage interval")
         days = (end.astimezone(shanghai).date() - start.astimezone(shanghai).date()).days
-        if contract in (1, 2):
+        if contract in (1, 2, 3):
             evidence = coverage.get("daily_search_evidence")
             failures = validate_daily_evidence(
                 evidence, start, end, contract_version=contract,
@@ -689,6 +834,11 @@ def _validate_coverage_manifest(manifest: dict[str, Any]) -> list[str]:
 
 def cmd_seal_review(args: argparse.Namespace) -> int:
     run_root = Path(args.run_dir).expanduser().resolve()
+    manifest_files = list(run_root.glob("daily_pipeline_manifest_*.json"))
+    if len(manifest_files) == 1:
+        manifest = load_json(manifest_files[0])
+        if int(manifest.get("pipeline_version") or 1) >= 3:
+            publication_layout(manifest, run_root)
     news_root = run_root.parents[2] if run_root.parent.name == ".staging" else run_root.parent
     with release_lock(news_root):
         return _seal_review_locked(run_root)
@@ -870,6 +1020,8 @@ def cmd_status(args: argparse.Namespace) -> int:
 def _recover_pending_transactions(output_root: Path, index_path: Path) -> None:
     """Roll back an interrupted local commit before another commit starts."""
     root = output_root / ".release_transactions"
+    if root.is_symlink():
+        raise ValueError("release transaction path is a symbolic link")
     if not root.exists():
         return
     for journal_path in sorted(root.glob("*/state.json")):
@@ -889,8 +1041,17 @@ def _recover_pending_transactions(output_root: Path, index_path: Path) -> None:
                 continue
         transaction = journal_path.parent
         partial = transaction / "partial"
+        targets = journal.get("targets", [])
+        allowed = {template.format(date=output_root.name) for template in ARTIFACT_NAMES.values()}
+        allowed.update(template.format(date=output_root.name) for template in REVIEW_NAMES.values())
+        allowed.add(CAPTURE_BUNDLE_NAME.format(date=output_root.name))
+        if (not isinstance(targets, list) or any(not isinstance(name, str) or name not in allowed
+                                                for name in targets)):
+            raise ValueError("interrupted release journal has an unsafe target")
+        if any(path.is_symlink() for path in (transaction, transaction / "backups", partial, journal_path)):
+            raise ValueError("interrupted release transaction contains a symbolic link")
         partial.mkdir(exist_ok=True)
-        for name in journal.get("targets", []):
+        for name in targets:
             if not isinstance(name, str) or Path(name).name != name:
                 raise ValueError("interrupted release journal has an unsafe target")
             target = output_root / name
@@ -916,15 +1077,28 @@ def _commit_local(args: argparse.Namespace) -> dict[str, Any]:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return {"status": "local_verification_failed", "failures": result["failures"]}
     manifest = result["manifest"]
+    if int(manifest.get("pipeline_version") or 1) >= 3:
+        recorded_correction = manifest.get("correction")
+        if recorded_correction is not None and (
+            not isinstance(recorded_correction, dict)
+            or recorded_correction.get("reason") != getattr(args, "correction_reason", None)
+            or recorded_correction.get("supersedes_html_sha256") != getattr(args, "supersedes_hash", None)
+        ):
+            raise ValueError("finalize correction differs from the reviewed staged release")
     run_date = str(manifest["date"])
-    output_root = Path(manifest["output_dir"])
-    index_path = Path(manifest["index_path"])
+    if int(manifest.get("pipeline_version") or 1) >= 3:
+        output_root, index_path = publication_layout(manifest, run_root)
+    else:
+        output_root = Path(manifest["output_dir"])
+        index_path = Path(manifest["index_path"])
     _recover_pending_transactions(output_root, index_path)
     staged = {key: run_root / name for key, name in manifest["artifacts"].items()}
     final = {key: output_root / name for key, name in manifest["artifacts"].items()}
     expected_names = {key: path.name for key, path in artifact_paths(run_root, run_date).items()}
     if int(manifest.get("pipeline_version") or 1) >= 2:
         expected_names.update({key: template.format(date=run_date) for key, template in REVIEW_NAMES.items()})
+    if int(manifest.get("pipeline_version") or 1) >= 3:
+        expected_names["source_captures"] = CAPTURE_BUNDLE_NAME.format(date=run_date)
     if manifest["artifacts"] != expected_names:
         raise ValueError("manifest artifact identities are invalid")
     current_index_hash = sha256_file(index_path) if index_path.exists() else None
@@ -945,6 +1119,16 @@ def _commit_local(args: argparse.Namespace) -> dict[str, Any]:
             if (not getattr(args, "correction_reason", None)
                     or getattr(args, "supersedes_hash", None) != old_hash):
                 raise ValueError("existing release differs; explicit audited correction is required")
+            if int(manifest.get("pipeline_version") or 1) >= 3:
+                old_updates = load_json(artifact_paths(output_root, run_date)["index_updates"]).get("items")
+                expected_keys = sorted({(str(row.get("story_id") or ""), str(row.get("last_seen") or ""))
+                                        for row in old_updates if isinstance(row, dict)})
+                correction = manifest.get("correction") or {}
+                if (correction.get("reason") != args.correction_reason
+                        or correction.get("supersedes_run_id") != prior.get("run_id")
+                        or correction.get("supersedes_html_sha256") != old_hash
+                        or correction.get("replaced_index_keys") != [list(key) for key in expected_keys]):
+                    raise ValueError("staged correction no longer matches the current release")
     output_root.mkdir(parents=True, exist_ok=True)
     backups: dict[Path, Path] = {}
     created_targets: set[Path] = set()
@@ -971,16 +1155,23 @@ def _commit_local(args: argparse.Namespace) -> dict[str, Any]:
         for key, staged_path in staged.items():
             target = final[key]
             atomic_copy(staged_path, target)
-        upsert_index(index_path, updates)
+        if prior is not None and int(manifest.get("pipeline_version") or 1) >= 3:
+            replaced_keys = {tuple(key) for key in manifest["correction"]["replaced_index_keys"]}
+            replace_release_index(index_path, final["html"], updates, replaced_keys)
+        else:
+            upsert_index(index_path, updates)
         final_manifest = load_json(final["manifest"])
         final_manifest.update({"status": "complete", "index_commit": {"committed": True, "records": len(updates), "index_sha256": sha256_file(index_path)}})
         final_manifest["local_finalized_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         if prior is not None and getattr(args, "correction_reason", None):
-            final_manifest["correction"] = {
-                "reason": args.correction_reason,
-                "supersedes_run_id": prior.get("run_id"),
-                "supersedes_html_sha256": (prior.get("artifact_sha256") or {}).get("html"),
-            }
+            if int(manifest.get("pipeline_version") or 1) >= 3:
+                final_manifest["correction"] = manifest["correction"]
+            else:
+                final_manifest["correction"] = {
+                    "reason": args.correction_reason,
+                    "supersedes_run_id": prior.get("run_id"),
+                    "supersedes_html_sha256": (prior.get("artifact_sha256") or {}).get("html"),
+                }
         atomic_json(final["manifest"], final_manifest)
     except Exception:
         if index_before is None:
@@ -1018,8 +1209,10 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     if len(manifest_files) != 1:
         raise ValueError("staged release manifest missing or ambiguous")
     manifest = load_json(manifest_files[0])
-    index_path = Path(manifest["index_path"])
-    with release_lock(Path(manifest["output_dir"]).parent):
+    news_root = (publication_layout(manifest, run_root)[0].parent
+                 if int(manifest.get("pipeline_version") or 1) >= 3
+                 else Path(manifest["output_dir"]).parent)
+    with release_lock(news_root):
         local = _commit_local(args)
     if local["status"] != "complete":
         return 1
@@ -1039,14 +1232,14 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
     run = subparsers.add_parser("run", help="Generate a staged daily briefing without touching story_index.")
     run.add_argument("--config", required=True)
-    run.add_argument("--output-dir")
-    run.add_argument("--index")
-    run.add_argument("--date")
+    run.add_argument("--date", required=True)
     run.add_argument("--days", type=int, default=7)
     run.add_argument("--continuing-mode", choices=["one-line", "skip"], default="one-line")
     run.add_argument("--design-system", choices=["cosmic", "classic", "none"], default="cosmic")
     run.add_argument("--background-mode", choices=["light", "cosmic"], default="light")
-    run.add_argument("--release-protocol", type=int, choices=(2,), default=2)
+    run.set_defaults(release_protocol=4)
+    run.add_argument("--correction-reason")
+    run.add_argument("--supersedes-hash")
     run.add_argument("--coverage-start", help="Inclusive ISO 8601 boundary with UTC offset")
     run.add_argument("--coverage-end", help="Exclusive ISO 8601 boundary with UTC offset")
     run.set_defaults(func=cmd_run)
@@ -1080,6 +1273,11 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.command in {"review-template", "seal-review", "finalize"}:
+        run_root = Path(args.run_dir).expanduser().resolve()
+        manifests = list(run_root.glob("daily_pipeline_manifest_*.json"))
+        if len(manifests) != 1 or int(load_json(manifests[0]).get("pipeline_version") or 1) < 3:
+            raise ValueError("historical releases are read-only; regenerate and review under publication contract v3")
     return args.func(args)
 
 

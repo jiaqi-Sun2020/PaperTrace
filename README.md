@@ -264,12 +264,14 @@ Expected daily artifacts:
     news\YYYY-MM-DD\release_preflight_audit_YYYY-MM-DD.json
     news\YYYY-MM-DD\daily_pipeline_manifest_YYYY-MM-DD.json
     news\YYYY-MM-DD\daily_pipeline_index_updates_YYYY-MM-DD.json
+    news\YYYY-MM-DD\source_captures_YYYY-MM-DD.json
     news\_index\story_index.jsonl
 
 The release entry point is <code>daily_pipeline.py</code>. <code>run</code> writes staging only. New releases require source- and story-bound reviews before <code>finalize</code> can commit the index or invoke OSS. The story-review sidecar uses protocol 3: reconstruct the narrative's state changes before reading its factual return, then map actions to source evidence and check the example. This does not change <code>opening_story.version=3</code> or certify semantic truth automatically. Run from <code>D:\AI\PaperTrace</code>:
 
     cd D:\AI\PaperTrace
-    python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py run --config <candidate_news_feedback_config.json> --output-dir <news\YYYY-MM-DD> --index .\news\_index\story_index.jsonl
+    python .\skills\ai-quantum-news-briefing\scripts\source_capture.py --config <candidate_news_feedback_config.json> --coverage-date <COVERED_YYYY-MM-DD>
+    python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py run --config <candidate_news_feedback_config.json> --date <RELEASE_YYYY-MM-DD>
     python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict --structure-only
     python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py review-template --run-dir <news\YYYY-MM-DD\.staging\RUN_ID>
     # Author the pending news and story reviews from the actual sources.
@@ -278,7 +280,11 @@ The release entry point is <code>daily_pipeline.py</code>. <code>run</code> writ
     python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict --require-remote
     python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD> --strict
 
+New releases use publication contract v4. `run` derives its only destination from the repository's `news/` directory; manifest paths cannot redirect finalization. The source-capture command records bounded, article-level HTTP evidence under `news/_collection/<covered-day>/source_captures/`; a captured quote and its digest are prerequisites, not proof that the scientific interpretation is correct. New ranking uses `news-ranker-v2` source evidence rather than authored `facts`, `judgment`, or `relevance` text. To regenerate an existing release, pass `--correction-reason` and `--supersedes-hash` to both `run` and `finalize`; do not re-upload an already verified release. `orchestrate_daily.py status --date <RELEASE_YYYY-MM-DD>` reports the next evidence-bound phase without approving review or claiming an offline site check is remote verification.
+
 The candidate config must include timezone-aware `collection_completed_at` and content-bound academic/social search evidence for every covered Asia/Shanghai day, including a single-day release. An 08:00 scheduled release covers the prior complete calendar day; `manifest.date` is the release identity, not the search window. Science RSS or a complete Crossref snapshot does not prove the publisher's complete daily inventory. When a complete dated publisher listing is unavailable, the new contract records an explicit Science skip, excludes its papers from ranking, and discloses that gap to readers; other required sources still fail closed. See [the review protocol](skills/ai-quantum-news-briefing/references/release-review-protocol.md). Use `daily_pipeline.py status --from-date <YYYY-MM-DD>` to inspect evidenced coverage; old display-only date ranges are not full-day proof.
+
+The APS PRL, PRA, and PRX Quantum sweep now reads their separate [official recent-paper RSS feeds](https://journals.aps.org/feeds), not a shared generic search page. It records dated DOI matches and quarantines malformed feed items; a rolling feed is discovery, not a complete historical-day listing. AI HOT may preserve a fully paginated dated candidate pool when exactly one undated item is hash-identified and excluded (`qualified_with_exclusion`); it must not be described as complete AI HOT coverage. Source-level exclusions never bypass article-level review.
 
 Optional OSS mirroring is disabled on a fresh checkout. Copy `news_publish.example.json` to the ignored `news_publish.local.json`, fill in your own site index URL, bucket, region, object prefix, and ossutil profile, and configure credentials in your user-level ossutil profile (with read/write permission for the two published objects). No AccessKey belongs in the JSON. From the repository root, run `python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py doctor` in the same environment that will publish, then manually `enable` after the existing homepage, its daily link, and the configured Bucket index match. `doctor` is read-only and does not unlock publishing or prove PutObject permission. Thereafter `finalize` strictly checks the reviewed local release and mirrors only the HTML and homepage. The publisher reconciles remote content and receipts before uploading; historical backfill does not move a newer homepage backward. If the site or Bucket check fails after bounded retries, mirroring stays disabled until another manual `enable`; inspect it with `python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py status`. A failed remote upload does not undo the local release; retry with `publish --run-dir .\news\<YYYY-MM-DD>` after fixing the cause. An offline `daily_pipeline.py status` reports remote verification as not checked, even when a receipt matches; use its opt-in `--online` check to inspect public HTML and homepage. The local config, state, and receipts are Git-ignored.
 
@@ -294,7 +300,7 @@ Key rules:
 - Every run requires a source-grounded <code>opening_story</code> and a complete worked example. New authoring uses complete Fable version 3; source binding, full-text name concealment, field transport limits, and concrete example validation remain enforced. Human/agent content review separately checks the selected causal relation and readability; schema success is not teaching approval. HTML keeps the example collapsed by default.
 - AI HOT is a candidate source, never final evidence.
 - <code>news-ranker-v1</code> runs before Delta compaction; AI HOT scores cannot replace it.
-- Normally publish 7–8 academic records and 10–14 social-news records (target 12), preserving source, topic, and organization diversity. When the covered day's required searches pass but eligible items remain scarce, try the eight optional venue discovery pages, then a bounded 14-calendar-day academic / 72-hour social lookback. A `verified_shortfall` release may relax only unattainable lower counts and source-class minima after those attempts are recorded with dated evidence and candidate exclusions; it must still include at least one reviewed item in each category. Its original publication dates, actual counts, and shortfall reason appear in Markdown, HTML and embedded data. `--days` remains an index-deduplication setting, not the retrieval window; an optional listing page is not article evidence. No failed required source other than the separately governed Science omission is waived.
+- Normally publish 6–8 academic records and 6–12 social-news records, preserving source, topic, and organization diversity. When eligible items remain scarce, use the declared optional/probationary sources and then a bounded 14-calendar-day academic / 72-hour social lookback. A `verified_shortfall` release may relax only unattainable lower counts and source-class minima after those attempts are recorded with dated evidence and candidate exclusions; it must still include at least one reviewed item in each category and pass both core source-family gates. Its original publication dates, actual counts, and shortfall reason appear in Markdown, HTML and embedded data. `--days` remains an index-deduplication setting, not the retrieval window; an optional listing page is not article evidence.
 - arXiv-only academic entries must say <code>preprint</code> and include a venue-sweep note.
 - Exposure-only news concepts remain <code>unrated</code>. HTML only gathers and exports feedback; it never writes <code>.agents</code> directly.
 
@@ -344,6 +350,17 @@ The workflow also creates <code>conversation_summaries.json</code> for at-a-glan
 <a id="validation"></a>
 
 ## Validation
+
+The daily briefing now has one v4 orchestration entry point. Run these commands from `D:\AI\PaperTrace`; they inspect or collect only and never approve semantic review automatically:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py status --date <RELEASE-DATE>
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py preflight --date <RELEASE-DATE>
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py collect --date <RELEASE-DATE> --record
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py resume --date <RELEASE-DATE> --record
+```
+
+Academic search v4 gates publisher families rather than every optional URL, quarantines malformed records, and reports source faults separately. Standard delivery is 6–8 academic papers and 6–12 social items; evidence-backed shortfall still requires one audited item in each category.
 
 Useful static checks:
 

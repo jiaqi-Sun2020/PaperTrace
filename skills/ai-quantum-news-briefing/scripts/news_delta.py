@@ -26,6 +26,7 @@ from briefing_contract import canonical_url as contract_canonical_url
 from briefing_contract import is_lossless_text
 from briefing_contract import normalize_briefing_config
 from briefing_contract import story_id_for_item as contract_story_id_for_item
+from paper_identity import arxiv_for, doi_for, paper_kind, same_paper
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -121,13 +122,7 @@ def canonical_url(value: Any) -> str:
 
 def is_academic_delivery_item(item: dict[str, Any]) -> bool:
     """Return whether an item is backed by a formal academic venue/preprint."""
-    try:
-        domain = urlsplit(canonical_url(item.get("source_url"))).netloc.lower()
-        if domain.startswith("www."):
-            domain = domain[4:]
-    except ValueError:
-        return False
-    return any(domain == known or domain.endswith("." + known) for known in ACADEMIC_SOURCE_DOMAINS)
+    return bool(paper_kind(item))
 
 
 def is_social_news_item(item: dict[str, Any]) -> bool:
@@ -275,6 +270,23 @@ def upsert_index(path: Path, records: list[dict[str, Any]]) -> int:
         return len(records)
 
 
+def replace_release_index(path: Path, briefing_path: Path, records: list[dict[str, Any]],
+                          replaced_keys: set[tuple[str, str]] | None = None) -> int:
+    """Replace exactly one release's records; preserve every other release."""
+    with index_lock(path):
+        previous = [row for row in load_index(path) if not (
+            (clean_text(row.get("story_id"), 240), clean_text(row.get("last_seen") or row.get("date"), 40))
+            in replaced_keys if replaced_keys is not None else
+            str(row.get("briefing_path") or "") == str(briefing_path))]
+        by_key = {(clean_text(row.get("story_id"), 240), clean_text(row.get("last_seen") or row.get("date"), 40)): row
+                  for row in previous}
+        for row in records:
+            by_key[(clean_text(row.get("story_id"), 240), clean_text(row.get("last_seen") or row.get("date"), 40))] = row
+        payload = "".join(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n" for row in by_key.values())
+        atomic_write_text(path, payload)
+        return len(records)
+
+
 def append_index(path: Path, records: list[dict[str, Any]]) -> None:
     """Compatibility alias; writes are now idempotent atomic upserts."""
     upsert_index(path, records)
@@ -294,6 +306,8 @@ def prior_for(item: dict[str, Any], recent: list[dict[str, Any]]) -> dict[str, A
     sid = story_id_for_item(item)
     url = canonical_url(item.get("source_url"))
     for record in reversed(recent):
+        if is_academic_delivery_item(item) and same_paper(item, record):
+            return record
         if clean_text(record.get("story_id")) == sid:
             return record
         if url and canonical_url(record.get("source_url")) == url:
@@ -354,6 +368,13 @@ def compact_continuing_item(item: dict[str, Any], prior: dict[str, Any] | None, 
         "evidence_level": clean_text(item.get("evidence_level"), 120),
         "source_title": clean_text(item.get("source_title") or item.get("title"), 300),
         "source_url": canonical_url(item.get("source_url")),
+        "doi": item.get("doi"),
+        "arxiv_id": item.get("arxiv_id"),
+        "authors": item.get("authors"),
+        "related_identifiers": item.get("related_identifiers"),
+        "publication_type": item.get("publication_type"),
+        "article_source_url": item.get("article_source_url"),
+        "source_capture": item.get("source_capture") if isinstance(item.get("source_capture"), dict) else {},
         "source_excerpt": clean_text(item.get("source_excerpt") or item_summary(item), 500),
         "evidence_fingerprint": clean_text(item.get("evidence_fingerprint") or item.get("source_fingerprint"), 200),
         "published_at": clean_text(item.get("published_at") or item.get("publishedAt"), 100),
@@ -398,6 +419,10 @@ def index_record_for(item: dict[str, Any], config: dict[str, Any], seen_date: da
         "category": clean_text(item.get("category") or item.get("section_title"), 160),
         "source_title": clean_text(item.get("source_title"), 300),
         "source_url": canonical_url(item.get("source_url")),
+        "doi": doi_for(item),
+        "arxiv_id": arxiv_for(item),
+        "authors": item.get("authors") if isinstance(item.get("authors"), list) else [],
+        "related_identifiers": item.get("related_identifiers") if isinstance(item.get("related_identifiers"), dict) else {},
         "briefing_title": clean_text(config.get("briefing_title") or config.get("title"), 300),
         "briefing_path": clean_text(config.get("briefing_path"), 1000),
         "date_range": clean_text(config.get("date_range") or config.get("date"), 300),

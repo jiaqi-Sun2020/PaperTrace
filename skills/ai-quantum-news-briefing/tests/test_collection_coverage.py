@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import hashlib
 import io
+import socket
 import sys
 import unittest
 import urllib.error
@@ -21,6 +22,82 @@ sys.path.insert(0, str(SCRIPTS))
 import academic_venue_sweep as sweep
 import aihot_candidates as hot
 from audit_briefing_config import academic_search_venues, valid_science_skip_v2, valid_venue_evidence
+from daily_coverage_evidence import validate_social_search
+
+
+class APSRecentFeedTests(unittest.TestCase):
+    @staticmethod
+    def feed(journal: str = "Physical Review A") -> bytes:
+        return (f'''<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:prism="http://prismstandard.org/namespaces/basic/2.0/">
+ <channel><title>Recent Articles in {journal}</title></channel>
+ <item><title>Quantum estimation</title><description>A quantum method</description>
+  <dc:date>2026-09-28T10:00:00+00:00</dc:date>
+  <prism:doi>10.1103/k7m2-vyqq</prism:doi>
+  <prism:publicationName>{journal}</prism:publicationName></item>
+ <item><title>Undated item</title><dc:date></dc:date>
+  <prism:doi>10.1103/undated</prism:doi>
+  <prism:publicationName>{journal}</prism:publicationName></item>
+</rdf:RDF>''').encode()
+
+    def test_journal_specific_urls_and_one_bad_item_does_not_discard_feed(self) -> None:
+        plan = sweep.build_plan(["quantum", "method quantum"], "2026-09-28", True, False)
+        urls = {row["venue"]: row["search_url"] for row in plan["rows"]}
+        self.assertEqual(urls["aps-prl"], "https://feeds.aps.org/rss/recent/prl.xml")
+        self.assertEqual(urls["aps-pra"], "https://feeds.aps.org/rss/recent/pra.xml")
+        self.assertEqual(urls["aps-prx"], "https://feeds.aps.org/rss/recent/prxquantum.xml")
+        rows = [row for row in plan["rows"] if row["venue"] == "aps-pra"]
+        plan["rows"] = rows
+        plan["topics"] = [{"term": term} for term in ("quantum", "method quantum")]
+        def fetch(url: str, _timeout: int):
+            body = self.feed()
+            return ({"query_url": url, "final_url": url, "status_code": 200,
+                     "retrieved_at": "2026-09-29T00:00:00Z",
+                     "response_hash": hashlib.sha256(body).hexdigest()}, body)
+        with patch.object(sweep, "_request_evidence", side_effect=fetch) as request:
+            sweep.fetch_evidence(plan)
+        self.assertEqual(request.call_count, 1)  # One fetch per journal, not per topic.
+        for row in rows:
+            self.assertEqual(row["result"], "checked")
+            self.assertEqual(row["url"], "https://doi.org/10.1103/k7m2-vyqq")
+            self.assertEqual(row["evidence"]["quarantined_item_count"], 1)
+            self.assertEqual(row["evidence"]["coverage_claim"], "discovery_only")
+            self.assertEqual(len(row["matches"]), 1)
+            self.assertTrue(valid_venue_evidence(row))
+
+    def test_wrong_journal_and_expired_rolling_feed_fail_closed(self) -> None:
+        row = {"venue": "aps-prl", "term": "quantum",
+               "search_url": "https://feeds.aps.org/rss/recent/prl.xml"}
+        url = row["search_url"]
+        evidence = {"query_url": url, "final_url": url, "status_code": 200,
+                    "response_hash": hashlib.sha256(self.feed()).hexdigest()}
+        with self.assertRaisesRegex(ValueError, "no valid dated"):
+            sweep._aps_recent_row(row, self.feed(), evidence, {"2026-09-28"})
+        pra = {**row, "venue": "aps-pra", "search_url": "https://feeds.aps.org/rss/recent/pra.xml"}
+        pra_url = pra["search_url"]
+        with self.assertRaisesRegex(ValueError, "older than"):
+            sweep._aps_recent_row(pra, self.feed(),
+                                  {"query_url": pra_url, "final_url": pra_url, "status_code": 200,
+                                   "response_hash": hashlib.sha256(self.feed()).hexdigest()},
+                                  {"2026-09-01"})
+        with self.assertRaisesRegex(ValueError, "body hash"):
+            sweep._aps_recent_row(pra, self.feed(),
+                                  {"query_url": pra_url, "final_url": pra_url, "status_code": 200,
+                                   "response_hash": "0" * 64}, {"2026-09-28"})
+
+    def test_failed_aps_fetch_never_becomes_a_checked_venue(self) -> None:
+        plan = sweep.build_plan(["quantum"], "2026-09-28", True, False)
+        plan["rows"] = [row for row in plan["rows"] if row["venue"] == "aps-prl"]
+        url = plan["rows"][0]["search_url"]
+        with patch.object(sweep, "_request_evidence", return_value=(
+                {"query_url": url, "final_url": "", "status_code": 0,
+                 "response_hash": "", "error": "IncompleteRead"}, b"")):
+            sweep.fetch_evidence(plan)
+        row = plan["rows"][0]
+        self.assertEqual(row["result"], "error")
+        self.assertFalse(valid_venue_evidence(row))
 
 
 class ScienceCoverageTests(unittest.TestCase):
@@ -94,6 +171,36 @@ class ScienceCoverageTests(unittest.TestCase):
                 sweep._open_venue_with_retry(request, 1, "arxiv")
         self.assertEqual(fetch.call_count, 3)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [3.0, 3.0])
+
+    def test_arxiv_body_timeout_retries_the_complete_request(self) -> None:
+        class Response:
+            status = 200
+
+            def __init__(self, body=None, error=None):
+                self.body, self.error = body, error
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def geturl(self):
+                return "https://export.arxiv.org/api/query?search_query=all:quantum"
+
+            def read(self, _limit):
+                if self.error:
+                    raise self.error
+                return self.body
+
+        request = urllib.request.Request("https://export.arxiv.org/api/query?search_query=all:quantum")
+        with patch.object(sweep, "_open_venue_with_retry", side_effect=[
+                Response(error=socket.timeout("timed out")), Response(body=b"<feed/>")]) as opened, \
+             patch.object(sweep.time, "sleep") as sleep:
+            status, final_url, body = sweep._read_venue_with_retry(request, 1, "arxiv")
+        self.assertEqual((status, final_url, body), (200, request.full_url, b"<feed/>"))
+        self.assertEqual(opened.call_count, 2)
+        sleep.assert_called_once_with(1.0)
 
     def test_self_hashed_synthetic_listing_cannot_authorize_v2(self) -> None:
         day = "2026-09-27"
@@ -210,6 +317,30 @@ class AiHotWindowTests(unittest.TestCase):
         self.assertEqual(items, [])
         self.assertEqual(evidence["coverage_status"], "partial")
         self.assertEqual(evidence["missing_timestamp_count"], 2)
+
+    def test_one_undated_candidate_is_quarantined_without_disabling_dated_pool(self) -> None:
+        from test_release_protocol import daily_evidence
+        day = (datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8))).date()
+               - timedelta(days=1)).isoformat()
+        start, end = hot.coverage_window(day)
+        records = [{"id": "dated", "publishedAt": (start + timedelta(hours=1)).isoformat()},
+                   {"id": "undated"}]
+        def fetch(url: str):
+            return (json.dumps({"items": records, "hasNext": False}),
+                    {"query_url": url, "final_url": url, "status_code": 200,
+                     "retrieved_at": end.isoformat(), "response_hash": "a" * 64})
+        with patch.object(hot, "fetch_response", side_effect=fetch):
+            items, evidence = hot.api_items(self._args(day))
+        self.assertEqual([item["id"] for item in items], ["dated"])
+        self.assertEqual(evidence["coverage_status"], "qualified_with_exclusion")
+        self.assertEqual(evidence["coverage_claim"], "dated_candidates_only")
+        social = daily_evidence(day)["social_search"]
+        social["ai_hot_window"] = evidence
+        self.assertEqual(validate_social_search(social, day), [])
+        social["ai_hot_window"] = {**evidence, "undated_exclusions": []}
+        self.assertTrue(validate_social_search(social, day))
+        social["ai_hot_window"] = {**evidence, "pagination_complete": False}
+        self.assertTrue(validate_social_search(social, day))
 
     def test_older_than_api_retention_cannot_be_verified(self) -> None:
         day = (datetime.now(timezone.utc).date() - timedelta(days=8)).isoformat()

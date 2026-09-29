@@ -49,7 +49,7 @@ For AI HOT candidate collection, run from `D:\AI\PaperTrace` with the publicatio
 python .\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <RELEASE-YYYY-MM-DD> --coverage-date <COVERED-YYYY-MM-DD> --output .\news\<RELEASE-YYYY-MM-DD>\aihot_candidates_<RELEASE-YYYY-MM-DD>.json
 ```
 
-`--coverage-date` filters the Asia/Shanghai half-open day across API cursor pages; `--take` is a page size, `--since` is only a retrieval lower bound, and `--date` does not filter candidates. A partial page run, missing/ambiguous timestamp, expired API window, or RSS fallback cannot establish complete AI HOT daily coverage. Separately record the required reputable-media, official-company/social and executive-social searches; selected social claims still need their original sources. For Science, the v3 sweep records official search and TOC attempts separately from RSS/Crossref discovery. If no complete dated publisher listing can be proved, contract 2 permits only `skipped_unavailable`: exclude Science-journal candidates before ranking and display the omission notice. Neither HTTP 200, RSS nor complete Crossref pagination certifies a complete publication list or zero hits. Every other required venue, including arXiv, remains a hard gate; arXiv 429 receives only bounded retries. Coverage records establish search scope, not article mechanism or performance claims.
+`--coverage-date` filters the Asia/Shanghai half-open day across API cursor pages; `--take` is a page size, `--since` is only a retrieval lower bound, and `--date` does not filter candidates. A partial page run, missing/ambiguous timestamp, expired API window, or RSS fallback cannot establish complete AI HOT daily coverage. Separately record the required social source classes; selected claims still need original sources. Academic-search v4 isolates source failures and requires one healthy `quantum_publisher` plus one healthy `ai_peer_review` publisher family. Science without a complete publisher-day listing is `skipped_unavailable`; this never means zero publications. HTTP 200, RSS and Crossref do not certify completeness or article claims.
 
 The template is deliberately `unreviewed`. Check each selected news claim against its source and perform the protocol-3 story-only trace, source mapping and cross-surface review before sealing. Clear `unresolved` only after each finding is repaired. `seal-review` binds the reviews and preflight audit to the release manifest; it cannot certify semantic truth. Missing, failed or stale review blocks `finalize` and standalone OSS `publish`. Read `skills/ai-quantum-news-briefing/references/release-review-protocol.md`. Older v2 reviews stay locally readable; preserve the old sidecar before replacing and re-sealing it for a first remote upload or correction. Inspect structured coverage (old display-only `date_range` is not full-day evidence):
 
@@ -389,18 +389,44 @@ The skill writes concept-status candidates through strict `reader-learner` valid
 
 ## Daily Academic And Feedback Release Gate
 
-For new low-signal releases, keep the covered Shanghai day fixed and first finish the normal required academic and four social-class searches. Try eight optional venue discovery pages, then at most 14 academic calendar days and 72 social hours. Use `delivery_expansion.version=1`, `mode=verified_shortfall` only with dated source attempts, content digests, candidate exclusions, original publication times, at least one claim-reviewed item in each category and a concrete shortage reason. It relaxes only unattainable quantity and source-class minima; it never waives a required-source failure, claim review or strict publication check. Optional listings are discovery, not article evidence. `--days` remains an index-deduplication lookback, not the retrieval window.
+APS PRL, PRA and PRX Quantum use separate official recent-publication feeds under `https://feeds.aps.org/rss/recent/` (`prl.xml`, `pra.xml`, `prxquantum.xml`). The collector validates each feed's journal, DOI and publication date, quarantines malformed individual items, and fetches each feed once per sweep. A rolling RSS feed is a discovery source, not proof of a complete historical-day inventory or of an article's scientific claims; selected articles still require article-level capture and review.
 
-For `daily_pipeline.py`, keep `analysis_language=zh-CN`, `academic_delivery.required=true`, and `ranking_policy.enabled=true`. In standard mode, `news-ranker-v1` must select 7–8 academic papers (4–6 `new`, at least two non-arXiv formal papers, at most three `continuing`) plus 10–14 social items (target 12, at least seven `new`/`material_update`, at most three `continuing`). Standard social selection also requires at least three reputable-media items, three primary-official items, and three source classes, with at most two items per organization and three per topic. A source- and shortage-audited `verified_shortfall` may relax only the documented lower bounds. `academic_search` must account for PRL, PRA, PRX, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL, Quantum Journal, and arXiv with source-specific evidence. Contract 2 permits a documented skip only for Science, not a zero-hit check; other venue failures stop release. Preserve actual publication dates for wider-window academic context.
+AI HOT may retain a completed daily cursor scan with exactly one undated item as `qualified_with_exclusion` when at least one dated in-window item remains. The undated item is hash-identified and excluded from the selected-day pool; the record claims only `dated_candidates_only`, never complete AI HOT coverage. Interrupted pagination, retention failures, multiple undated items, or absent exclusion evidence still fail. An older `partial` file without the excluded item's identity cannot be relabeled by hand; recollect it when network access is available.
 
-To inspect the ranking before running the transactional release, run from `D:\AI\PaperTrace`:
+New publication-contract-v3 runs must use an explicit release date and the canonical project `news/` layout; public `run` no longer accepts `--output-dir` or `--index`. Capture viable candidates' article-level sources first; uncaptured candidates stay ineligible. The capture records request/final URL, HTTP status, timestamp, response and extracted-text hashes, plus a short quote found in the retrieved text; hashes do not prove scientific interpretation. New scoring uses `news-ranker-v2`: authored `facts`, `judgment`, `relevance` and `ranking_signals` cannot increase candidate scores. Human source/story review remains mandatory. The read-only orchestrator reports actual phase and remote-pending status; it cannot approve content or turn an offline receipt into website verification. Historical v1/v2 releases remain readable; first OSS upload or correction requires a regenerated, reviewed v3 release.
+
+Run from `D:\AI\PaperTrace`:
 
 ```powershell
-python .\skills\ai-quantum-news-briefing\scripts\rank_briefing_candidates.py --config <candidate_config.json> --output <ranked_config.json> --index .\news\_index\story_index.jsonl --date <YYYY-MM-DD> --days 7
-python .\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py --config <ranked_config.json> --fail-on-warning
+python .\skills\ai-quantum-news-briefing\scripts\source_capture.py --config .\news\_collection\<RELEASE-DATE>\candidate_<RELEASE-DATE>.json --coverage-date <COVERED-DATE>
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py run --config .\news\_collection\<RELEASE-DATE>\candidate_<RELEASE-DATE>.json --date <RELEASE-DATE>
+python .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py status --date <RELEASE-DATE> --record
 ```
 
-The normal `daily_pipeline.py run` command performs the same ranking internally before Delta compaction. Candidate-only evidence, invalid dates, unsafe URLs, duplicates, and missing fact/judgment/relevance fields remain in the ranking ledger with exclusion reasons but cannot enter the publication.
+For an existing date, pass `--correction-reason` and `--supersedes-hash` at both `run` and `finalize`; review the new staging before committing. Never re-upload an already verified release just to update its receipt.
+
+For new low-signal releases, keep the covered Shanghai day fixed. Pipeline v4 requires one healthy publisher in each core family: `quantum_publisher` and `ai_peer_review`. A single optional or probationary source may fail without stopping the issue; an entire required family failure still blocks publication. Only after the normal day is collected may the pipeline expand to 14 academic calendar days and 72 social hours. Use `delivery_expansion.version=2`, `mode=verified_shortfall` only with content-bound ledgers, candidate exclusions, original publication times, at least one claim-reviewed item in each category and a concrete shortage reason.
+
+For `daily_pipeline.py`, keep `analysis_language=zh-CN`, `academic_delivery.required=true`, and `ranking_policy.enabled=true`. In standard mode, select 6–8 academic papers and 6–12 social items. `verified_shortfall` may relax only documented lower bounds and still requires one audited academic and one audited social item. `academic_search_version=4` records retrieval, parsing, window, coverage claim, candidates and quarantines separately. HTTP 200 is never completeness or article-truth proof. Science remains optional discovery and may be `skipped_unavailable`; this never means zero publications.
+
+Use the single v4 orchestrator from `D:\AI\PaperTrace`:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py status --date <RELEASE-DATE>
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py preflight --date <RELEASE-DATE>
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py collect --date <RELEASE-DATE> --record
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py resume --date <RELEASE-DATE> --record
+```
+
+`collect` runs only repository-controlled collectors. `resume` restarts only a missing collection stage; it never approves semantic review or publishes. Source failures are shown as a compact health table without proxy addresses, credential paths or stack traces.
+
+For a v3 release, inspect the `ranking_manifest` and `candidate_ledger` in the staged delta config after `run`; the standalone ranker CLI without captured-source enrichment is a historical v1 preview, not an exact v3 replay. Run from `D:\AI\PaperTrace`:
+
+```powershell
+python .\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py --config .\news\<RELEASE-DATE>\.staging\<RUN-ID>\news_feedback_config_delta_<RELEASE-DATE>.json --fail-on-warning
+```
+
+The normal `daily_pipeline.py run` command performs captured-source v2 ranking internally before Delta compaction. Candidate-only evidence, invalid dates, unsafe URLs, duplicates, and missing fact/judgment/relevance fields remain in the ranking ledger with exclusion reasons but cannot enter the publication.
 
 Before `finalize`, run the strict config audit. It blocks English-only `facts`/`judgment`/`relevance`, encoding-corrupted Chinese (`U+FFFD` or corruption-pattern `?`), and insufficient academic delivery. On failure, rebuild the UTF-8 input from source records; never repair strings with global replacements or publish a visually rendered but semantically corrupted HTML file.
 
@@ -413,7 +439,7 @@ $manifest = Get-Content -LiteralPath '.\news\<YYYY-MM-DD>\daily_pipeline_manifes
 $manifest | Select-Object status, ranking, delta_counts, expected_concepts, index_commit
 ```
 
-`status` must be `complete`. In `standard` mode, `ranking.academic` must be 7 or 8 and `ranking.social` must be at least 10. In `verified_shortfall`, inspect the bound expansion evidence and actual counts instead; both categories still require at least one source-reviewed item and a shortage explanation consistent with the manifest. The item-level ranking ledger in `news_feedback_config_delta_<YYYY-MM-DD>.json` must agree with the manifest.
+`status` must be `complete`. In `standard` mode, `ranking.academic` must be 6–8 and `ranking.social` must be 6–12. In `verified_shortfall`, inspect the bound expansion evidence and actual counts instead; both categories still require at least one source-reviewed item and a shortage explanation consistent with the manifest. The item-level ranking ledger in `news_feedback_config_delta_<YYYY-MM-DD>.json` must agree with the manifest.
 
 ## Validate Scripts
 

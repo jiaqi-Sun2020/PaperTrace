@@ -159,6 +159,7 @@ def api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str,
             break
     inside: list[dict[str, Any]] = []
     outside = missing = 0
+    undated_exclusions: list[dict[str, str]] = []
     if start and end:
         for item in items:
             match = published_in_window(item, start, end)
@@ -168,6 +169,11 @@ def api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str,
                 outside += 1
             else:
                 missing += 1
+                undated_exclusions.append({
+                    "item_sha256": hashlib.sha256(json.dumps(
+                        item, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest(),
+                    "reason": "missing_or_ambiguous_publishedAt",
+                })
     else:
         inside = items[:args.take]
     # The API retains at most seven days. An older query is clipped server-side.
@@ -186,15 +192,19 @@ def api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str,
         and len(str(page.get("response_hash") or "")) == 64
         for page in pages))
     complete = bool(start and finished and not failure and not missing and retention_ok and since_ok and pages_valid)
+    qualified = bool(start and finished and not failure and missing == 1 and inside
+                     and retention_ok and since_ok and pages_valid)
     evidence = {
         "source": "ai_hot", "pool_scope": f"ai_hot_{args.mode}",
         "coverage_date": coverage_day, "coverage_start": start.isoformat() if start else None,
         "coverage_end": end.isoformat() if end else None, "timezone": "Asia/Shanghai" if start else None,
         "retrieval_status": "success" if finished else "partial",
-        "coverage_status": "verified" if complete else "partial" if start else "unscoped",
+        "coverage_status": ("verified" if complete else "qualified_with_exclusion" if qualified
+                            else "partial" if start else "unscoped"),
+        "coverage_claim": "dated_candidates_only" if qualified else "complete_dated_scan" if complete else "none",
         "pagination_complete": finished, "retrieved_count": len(items),
         "inside_window_count": len(inside), "outside_window_count": outside,
-        "missing_timestamp_count": missing, "pages": pages,
+        "missing_timestamp_count": missing, "undated_exclusions": undated_exclusions, "pages": pages,
         "response_hash": hashlib.sha256(json.dumps(pages, sort_keys=True).encode()).hexdigest(),
         "failure": failure or ("outside API retention or invalid since" if start and not (retention_ok and since_ok) else ""),
     }

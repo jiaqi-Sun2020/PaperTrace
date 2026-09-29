@@ -45,7 +45,7 @@ class OssPublisherTests(unittest.TestCase):
         self.story_review_path = self.run_dir / "opening_story_review_2026-09-27.json"
         self.story_review_path.write_text(json.dumps({"review_protocol_version": 3}), encoding="utf-8")
         (self.run_dir / "daily_pipeline_manifest_2026-09-27.json").write_text(
-            json.dumps({"coverage_evidence_contract_version": 2}), encoding="utf-8")
+            json.dumps({"pipeline_version": 3, "coverage_evidence_contract_version": 2}), encoding="utf-8")
         self.old_index = b'<html><meta http-equiv="refresh" content="0; url=briefing_reader_2026-09-26.html"><a href="briefing_reader_2026-09-26.html">old</a></html>'
         self.new_index = b'<html><meta http-equiv="refresh" content="0; url=briefing_reader_2026-09-27.html"><a href="briefing_reader_2026-09-27.html">new</a></html>'
         self.bucket_index = self.old_index

@@ -411,6 +411,9 @@ def _publish_locked(run_dir: Path, config_path: Path, *, correction_reason: str 
         if coverage_manifest.get("coverage_evidence_contract_version") != 2:
             raise PublishError("First upload or correction requires content-bound daily coverage evidence",
                                code="content_ineligible")
+        if int(coverage_manifest.get("pipeline_version") or 1) < 3:
+            raise PublishError("Legacy releases require regeneration and current review before first upload or correction",
+                               code="content_ineligible")
         try:
             review = json.loads((run_dir / f"opening_story_review_{run_date}.json").read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:

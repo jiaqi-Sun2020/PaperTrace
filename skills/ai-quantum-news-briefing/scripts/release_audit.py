@@ -42,6 +42,8 @@ def content_digest(manifest: dict[str, Any]) -> str:
                "artifacts": {key: hashes.get(key) for key in BASE_KEYS}}
     if "required_story_review_protocol" in manifest:
         payload["required_story_review_protocol"] = manifest["required_story_review_protocol"]
+    if int(manifest.get("pipeline_version") or 1) >= 3:
+        payload["correction"] = manifest.get("correction")
     return digest(payload)
 
 
