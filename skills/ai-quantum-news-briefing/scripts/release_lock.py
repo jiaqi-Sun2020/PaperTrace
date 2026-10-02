@@ -11,10 +11,6 @@ def release_lock(news_root: Path, *, timeout: float = 30.0):
     path = news_root / "_index" / ".release.lock"
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+b") as handle:
-        handle.seek(0, os.SEEK_END)
-        if handle.tell() == 0:
-            handle.write(b"0")
-            handle.flush()
         deadline = time.monotonic() + timeout
         while True:
             try:
@@ -31,6 +27,13 @@ def release_lock(news_root: Path, *, timeout: float = 30.0):
                     raise TimeoutError("another daily release or publisher holds the project lock")
                 time.sleep(0.1)
         try:
+            # Windows permits locking past EOF. Initialize only after taking
+            # the byte lock: concurrent startup must not flush into a region
+            # another process already locked while this file was empty.
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"0")
+                handle.flush()
             yield
         finally:
             handle.seek(0)

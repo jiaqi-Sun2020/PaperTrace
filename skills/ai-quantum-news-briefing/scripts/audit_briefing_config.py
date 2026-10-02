@@ -21,7 +21,7 @@ from briefing_contract import canonical_url, normalize_briefing_config
 from rank_briefing_candidates import ALGORITHM_VERSION, SOURCE_ALGORITHM_VERSION, is_primary_official, is_reputable, score_item
 from delivery_expansion import SHORTFALL, publication_relation, validate_policy
 from paper_identity import academic_host_kind, host, paper_kind
-from academic_sources import family_gate as academic_family_gate, row_is_healthy
+from academic_sources import family_gate as academic_family_gate, row_is_healthy, row_evidence_failures, HEALTHY_RESULTS
 
 
 ACADEMIC_DOMAINS = {
@@ -320,19 +320,35 @@ def academic_search_venues(config: dict[str, Any], *, legacy_science: bool = Fal
     raw = config.get("academic_search") or config.get("academic_venue_sweep") or {}
     if not isinstance(raw, dict):
         return set(), 0, 0, ["academic_search ledger is missing"]
+    if coverage_contract_version == 3 and raw.get("academic_search_version") != 4:
+        return set(), 0, 0, ["coverage contract 3 requires academic search version 4"]
     if raw.get("academic_search_version") == 4:
+        if coverage_contract_version != 3:
+            return set(), 0, 0, ["academic search version 4 requires coverage contract 3"]
         rows = raw.get("rows")
         if not isinstance(rows, list) or not rows:
             return set(), 0, 0, ["academic search v4 source rows are missing"]
-        gate = academic_family_gate(rows)
+        window = raw.get("date_range")
+        gate = academic_family_gate(rows, coverage_window=window)
         failures = [] if gate["status"] == "pass" else [
             "academic source family gate failed: " + ", ".join(gate["missing_families"])]
         if raw.get("family_gate") != gate:
             failures.append("academic source family gate is stale or inconsistent")
+        if not isinstance(window, str) or not window:
+            failures.append("academic coverage window is missing")
+        identities = [row.get("source_id") for row in rows if isinstance(row, dict)]
+        if len(set(str(value) for value in identities)) != len(identities):
+            failures.append("academic source identities are duplicated")
+        for row in rows:
+            if not isinstance(row, dict):
+                failures.append("academic source row is not an object")
+            elif row.get("result") in HEALTHY_RESULTS:
+                failures.extend("academic " + str(row.get("source_id")) + ": " + reason
+                                for reason in row_evidence_failures(row, window))
         venues = {normalize_venue(row.get("source_id") or row.get("venue"))
-                  for row in rows if isinstance(row, dict) and row_is_healthy(row)}
+                  for row in rows if isinstance(row, dict) and row_is_healthy(row, window)}
         hits = sum(int(row.get("candidate_count") or 0) for row in rows
-                   if isinstance(row, dict) and row_is_healthy(row))
+                   if isinstance(row, dict) and row_is_healthy(row, window))
         return venues, 1 if gate["status"] == "pass" else 0, hits, failures
     venues: set[str] = set()
     # Declared venue lists are policy metadata, never proof that a search ran.
@@ -898,7 +914,7 @@ def audit(config: dict[str, Any], *, legacy_science: bool = False,
         if not checked_venues:
             failures.append("academic_search ledger is missing; record PRA/PRL/Nature/Science/CVPR/ICLR and related venue checks before finalizing")
         else:
-            missing = sorted(REQUIRED_ACADEMIC_VENUES - checked_venues)
+            missing = sorted(REQUIRED_ACADEMIC_VENUES - checked_venues) if coverage_contract_version != 3 else []
             if missing:
                 failures.append("academic_search ledger is incomplete; missing venue checks: " + ", ".join(missing))
             if checked_topics == 0:
@@ -922,6 +938,8 @@ def audit(config: dict[str, Any], *, legacy_science: bool = False,
 def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, help="Briefing config JSON.")
+    parser.add_argument("--coverage-contract-version", type=int, choices=(1, 2, 3), default=1,
+                        help="Use 3 for pipeline v4; 2 for pipeline v2/v3; 1 for historical evidence")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     parser.add_argument("--fail-on-warning", action="store_true", help="Treat warnings as blocking in strict finalization.")
     return parser.parse_args(list(argv))
@@ -929,7 +947,8 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
 
 def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     args = parse_args(argv)
-    result = audit(load_json(Path(args.config).expanduser().resolve()))
+    result = audit(load_json(Path(args.config).expanduser().resolve()),
+                   coverage_contract_version=args.coverage_contract_version)
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:

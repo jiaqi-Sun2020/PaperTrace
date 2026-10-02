@@ -46,6 +46,7 @@ from news_delta import (
 from rank_briefing_candidates import DEFAULT_RANKING_POLICY, SOURCE_ALGORITHM_VERSION, merged_policy, rank_briefing_config
 from release_audit import REVIEW_NAMES, claim_digest, content_digest, make_report, selected_items, validate_bundle
 from release_lock import release_lock
+from publication_contracts import coverage_contract_for_manifest, coverage_contract_for_protocol
 from review_evidence import ROUND_MATERIALS, TASK_CARD_KEYS, story_digest
 from source_capture import capture_path, validate_capture
 
@@ -255,6 +256,14 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
         return {"status": "fail", "failures": [f"manifest missing in {run_root}"], "warnings": []}
     manifest_path = manifest_files[0]
     manifest = load_json(manifest_path)
+    try:
+        coverage_contract = coverage_contract_for_manifest(manifest)
+    except ValueError as exc:
+        return {"status": "fail", "failures": [str(exc)], "warnings": []}
+    if manifest.get("pipeline_version") == 4 and (
+            type(manifest.get("required_story_review_protocol")) is not int
+            or manifest["required_story_review_protocol"] != 3):
+        return {"status": "fail", "failures": ["pipeline v4 requires story review protocol 3"], "warnings": []}
     if int(manifest.get("pipeline_version") or 1) >= 3:
         try:
             publication_layout(manifest, run_root)
@@ -313,7 +322,7 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
         contract_version = manifest.get("coverage_evidence_contract_version")
         config_audit = audit_config(
             config, legacy_science=(manifest.get("status") == "complete" and contract_version is None),
-            coverage_contract_version=contract_version if contract_version in (1, 2, 3) else 1)
+            coverage_contract_version=coverage_contract)
         failures.extend(config_audit["failures"])
         warnings.extend(config_audit["warnings"])
         expansion = config.get("delivery_expansion")
@@ -498,7 +507,8 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    protocol = int(getattr(args, "release_protocol", 1))
+    protocol = getattr(args, "release_protocol", 1)
+    coverage_contract = coverage_contract_for_protocol(protocol)
     if protocol >= 3:
         if not getattr(args, "date", None):
             raise ValueError("new daily releases require an explicit --date")
@@ -673,11 +683,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         record["briefing_path"] = str(final_paths["html"])
     canonical = normalize_briefing_config(transformed, config_path, require_source_url=True)
     if protocol >= 3:
-        preflight = audit_config(canonical, coverage_contract_version=2)
+        preflight = audit_config(canonical, coverage_contract_version=coverage_contract)
         if preflight["failures"]:
             raise ValueError("new release preflight failed: " + "; ".join(preflight["failures"][:8]))
     if (canonical.get("delivery_expansion") or {}).get("mode") == SHORTFALL:
-        shortfall_audit = audit_config(canonical, coverage_contract_version=2)
+        shortfall_audit = audit_config(canonical, coverage_contract_version=coverage_contract)
         if shortfall_audit["failures"]:
             raise ValueError("shortfall release is ineligible: " + "; ".join(shortfall_audit["failures"]))
     run_root.mkdir(parents=True, exist_ok=False)
@@ -724,7 +734,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         manifest["artifacts"]["source_captures"] = capture_file.name
         manifest["artifact_sha256"]["source_captures"] = sha256_file(capture_file)
     if protocol >= 2:
-        manifest["coverage_evidence_contract_version"] = 3 if protocol >= 4 else 2
+        manifest["coverage_evidence_contract_version"] = coverage_contract
         manifest["required_story_review_protocol"] = 3
         manifest["coverage"] = {"start": coverage_start, "end": coverage_end,
                                 "timezone": "Asia/Shanghai",
@@ -747,6 +757,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
 
 def _coverage_window(args: argparse.Namespace, config: dict[str, Any], run_date: str) -> tuple[str, str]:
+    coverage_contract = coverage_contract_for_protocol(getattr(args, "release_protocol", 2))
     shanghai = timezone(timedelta(hours=8), "Asia/Shanghai")
     anchor = date.fromisoformat(run_date)
     described_dates = re.findall(r"20\d{2}-\d{2}-\d{2}", str(config.get("date_range") or ""))
@@ -774,7 +785,7 @@ def _coverage_window(args: argparse.Namespace, config: dict[str, Any], run_date:
     if described_dates and set(described_dates) != covered_dates:
         raise ValueError("date_range does not match the declared complete-day coverage")
     evidence_failures = validate_daily_evidence(
-        config.get("coverage_evidence"), start, end, contract_version=2,
+        config.get("coverage_evidence"), start, end, contract_version=coverage_contract,
     )
     if evidence_failures:
         raise ValueError("daily coverage evidence: " + "; ".join(evidence_failures))
@@ -791,6 +802,10 @@ def _coverage_window(args: argparse.Namespace, config: dict[str, Any], run_date:
 
 
 def _validate_coverage_manifest(manifest: dict[str, Any]) -> list[str]:
+    try:
+        coverage_contract_for_manifest(manifest)
+    except ValueError as exc:
+        return [str(exc)]
     coverage = manifest.get("coverage")
     if not isinstance(coverage, dict) or coverage.get("timezone") != "Asia/Shanghai":
         return ["version-2 release lacks Asia/Shanghai coverage metadata"]
@@ -1222,9 +1237,29 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     remote_publish = auto_publish_after_finalize(
         output_root, correction_reason=getattr(args, "correction_reason", None),
         supersedes_hash=getattr(args, "supersedes_hash", None))
-    print(json.dumps({**local, "remote_publish": remote_publish}, ensure_ascii=False))
+    checkpoint = "recorded"
+    state = {"phase": "remote_pending", "remote_status": "not_checked"}
+    attempted_remote = remote_publish.get("status") in {"published", "no_change"}
+    try:
+        from orchestrate_daily import inspect, _record
+        state = inspect(manifest["date"], news_root=news_root,
+                        online=attempted_remote, record_remote=attempted_remote)
+        # Publisher success proves the hash, but a historical backfill can leave
+        # the homepage on a newer date. Only the online inspector proves both.
+        _record(state, True, news_root=news_root)
+    except (OSError, ValueError, TypeError, AttributeError, TimeoutError) as exc:
+        checkpoint = "failed_" + exc.__class__.__name__
     remote_required = bool(getattr(args, "require_remote", False))
-    return 2 if remote_publish["status"] in {"failed", "pending"} or (remote_required and remote_publish["status"] == "disabled") else 0
+    failed = (checkpoint != "recorded" or remote_publish.get("status") not in {"published", "no_change", "disabled"}
+              or remote_required and remote_publish.get("status") == "disabled"
+              or (attempted_remote or remote_required) and
+                 (state.get("phase") != "remote_complete" or state.get("remote_status") != "verified"))
+    print(json.dumps({**local, "status": "recovery_required" if failed else "complete",
+                      "local_status": local["status"], "remote_publish": remote_publish,
+                      "remote_verification": state, "action_required": bool(failed),
+                      "next_action": "Reconcile remote verification/checkpoint; preserve the committed release." if failed else "none",
+                      "orchestration_checkpoint": checkpoint}, ensure_ascii=False))
+    return 2 if failed else 0
 
 
 def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:

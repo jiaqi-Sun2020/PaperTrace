@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
+from collection_checkpoint import atomic_json
+from release_lock import release_lock
 
 NEWS_ROOT = Path(__file__).resolve().parents[3] / "news"
 ITEM_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,79}\Z")
@@ -104,7 +106,7 @@ def make_capture(item: dict[str, Any], requested_url: str, final_url: str, statu
 
 def validate_capture(item: dict[str, Any], record: dict[str, Any]) -> list[str]:
     failures: list[str] = []
-    if record.get("capture_version") != 1 or not (
+    if type(record.get("capture_version")) is not int or record.get("capture_version") != 1 or not (
         record.get("item_id") == item.get("id") or
         (record.get("story_id") and record.get("story_id") == item.get("story_id"))
     ):
@@ -113,8 +115,16 @@ def validate_capture(item: dict[str, Any], record: dict[str, Any]) -> list[str]:
         failures.append("capture requested URL differs from the selected source")
     if record.get("status_code") != 200:
         failures.append("capture has no successful article response")
-    if normalize(str(item.get("source_excerpt") or "")) != record.get("quoted_excerpt"):
+    quote = normalize(str(item.get("source_excerpt") or ""))
+    if not quote or len(quote) > 500 or quote != record.get("quoted_excerpt"):
         failures.append("source excerpt differs from the retrieved quote")
+    try:
+        requested = urlsplit(str(record.get("requested_url") or ""))
+        if (requested.scheme != "https" or not requested.hostname or requested.username or requested.password
+                or requested.port not in (None, 443)):
+            failures.append("capture requested URL is not public HTTPS syntax")
+    except ValueError:
+        failures.append("capture requested URL is invalid")
     if str(item.get("source_class") or "")[:120] != record.get("source_class"):
         failures.append("source classification differs from the reviewed capture")
     for field in ("response_sha256", "extracted_text_sha256"):
@@ -145,14 +155,39 @@ def capture_path(news_root: Path, day: str, item_id: str) -> Path:
     return news_root / "_collection" / day / "source_captures" / (item_id + ".json")
 
 
-def capture_config(config_path: Path, day: str, *, news_root: Path = NEWS_ROOT,
-                   item_id: str | None = None) -> list[Path]:
-    raw = json.loads(config_path.read_text(encoding="utf-8-sig"))
-    written: list[Path] = []
+def capture_report(config_path: Path, day: str, *, news_root: Path = NEWS_ROOT,
+                   item_id: str | None = None) -> dict[str, Any]:
+    original = config_path.read_bytes()
+    raw = json.loads(original.decode("utf-8-sig"))
+    if not isinstance(raw, dict) or not isinstance(raw.get("sections"), list):
+        raise ValueError("candidate sections invalid")
+    selected = []
+    seen = set()
+    for section in raw["sections"]:
+        if not isinstance(section, dict) or not isinstance(section.get("items"), list):
+            raise ValueError("candidate section invalid")
+        for item in section["items"]:
+            if (not isinstance(item, dict) or not ITEM_ID.fullmatch(str(item.get("id") or ""))
+                    or item["id"] in seen):
+                raise ValueError("candidate item identity invalid")
+            seen.add(item["id"])
+            if item_id is None or item["id"] == item_id:
+                selected.append(item)
+    if not selected:
+        raise ValueError("no selected candidate item")
+    report: dict[str, Any] = {"captured": [], "reused": [], "failures": [],
+                              "config_sha256": hashlib.sha256(original).hexdigest()}
     opener = build_opener(SafeRedirect())
-    for section in raw.get("sections", []):
-        for item in section.get("items", []):
-            if item_id is not None and item.get("id") != item_id:
+    for item in selected:
+        try:
+            path = capture_path(news_root, day, str(item["id"]))
+            try:
+                cached = json.loads(path.read_text(encoding="utf-8"))
+                valid = isinstance(cached, dict) and not validate_capture(item, cached)
+            except (OSError, ValueError, TypeError, AttributeError):
+                valid = False
+            if valid:
+                report["reused"].append(str(path))
                 continue
             url = str(item.get("source_url") or "")
             public_https(url)
@@ -161,13 +196,34 @@ def capture_config(config_path: Path, day: str, *, news_root: Path = NEWS_ROOT,
                 body = response.read(4_000_001)
                 record = make_capture(item, url, response.geturl(), response.status, body,
                                       datetime.now(timezone.utc).isoformat())
-            path = capture_path(news_root, day, str(item["id"]))
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
-            written.append(path)
-    if item_id is not None and not written:
-        raise ValueError("requested item id was not found in the candidate config")
-    return written
+            if validate_capture(item, record):
+                raise ValueError("retrieved capture invalid")
+            with release_lock(news_root):
+                if config_path.read_bytes() != original:
+                    raise ValueError("candidate changed during capture")
+                # A concurrent successful capture wins; never replace its evidence.
+                try:
+                    other = json.loads(path.read_text(encoding="utf-8"))
+                    valid = isinstance(other, dict) and not validate_capture(item, other)
+                except (OSError, ValueError, TypeError, AttributeError):
+                    valid = False
+                if valid:
+                    report["reused"].append(str(path))
+                else:
+                    atomic_json(path, record)
+                    report["captured"].append(str(path))
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
+            report["failures"].append({"item_id": item["id"], "code": exc.__class__.__name__})
+    report["status"] = "partial" if report["failures"] else "complete"
+    return report
+
+
+def capture_config(config_path: Path, day: str, *, news_root: Path = NEWS_ROOT,
+                   item_id: str | None = None) -> list[Path]:
+    report = capture_report(config_path, day, news_root=news_root, item_id=item_id)
+    if report["failures"]:
+        raise ValueError("source capture partial; successful captures retained; retry failed item ids")
+    return [Path(path) for path in report["captured"] + report["reused"]]
 
 
 def main() -> int:
@@ -176,9 +232,12 @@ def main() -> int:
     parser.add_argument("--coverage-date", required=True)
     parser.add_argument("--item-id", help="Capture one viable candidate instead of the whole pool")
     args = parser.parse_args()
-    print(json.dumps({"captured": [str(path) for path in capture_config(
-        args.config, args.coverage_date, item_id=args.item_id)]}))
-    return 0
+    try:
+        report = capture_report(args.config, args.coverage_date, item_id=args.item_id)
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
+        report = {"status": "failed", "failures": [{"code": exc.__class__.__name__}]}
+    print(json.dumps(report, ensure_ascii=False))
+    return 0 if report["status"] == "complete" else 2
 
 
 if __name__ == "__main__":

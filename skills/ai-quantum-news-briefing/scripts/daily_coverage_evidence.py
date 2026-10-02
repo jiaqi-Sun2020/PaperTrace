@@ -67,14 +67,10 @@ def _ai_hot_page(value: Any, start: datetime, end: datetime) -> bool:
                 and stamp and stamp >= end.astimezone(stamp.tzinfo))
 
 
-def validate_social_search(social: Any, day: str) -> list[str]:
-    """Validate one day of source-class discovery, including AI HOT pagination."""
+def validate_ai_hot_window(ai_hot: Any, day: str) -> list[str]:
+    """Validate dated candidate discovery, without claiming four-class coverage."""
     start, end = _day_bounds(day)
     failures: list[str] = []
-    if not isinstance(social, dict) or (social.get("coverage_start") != start.isoformat()
-                                          or social.get("coverage_end") != end.isoformat()):
-        return [f"{day}: social search window mismatch"]
-    ai_hot = social.get("ai_hot_window")
     excluded = ai_hot.get("undated_exclusions", []) if isinstance(ai_hot, dict) else []
     exclusion_valid = (isinstance(excluded, list) and len(excluded) == 1
                        and isinstance(excluded[0], dict)
@@ -95,7 +91,7 @@ def validate_social_search(social: Any, day: str) -> list[str]:
             or ai_hot.get("pagination_complete") is not True
             or ai_hot.get("source") != "ai_hot" or ai_hot.get("pool_scope") != "ai_hot_selected"
             or ai_hot.get("timezone") != "Asia/Shanghai"
-            or not all(isinstance(ai_hot.get(name), int) and ai_hot[name] >= 0
+            or not all(type(ai_hot.get(name)) is int and ai_hot[name] >= 0
                        for name in ("retrieved_count", "inside_window_count", "outside_window_count", "missing_timestamp_count"))
             or ai_hot.get("retrieved_count") != (ai_hot.get("inside_window_count", -1)
                                                   + ai_hot.get("outside_window_count", -1)
@@ -104,6 +100,16 @@ def validate_social_search(social: Any, day: str) -> list[str]:
             or not all(_ai_hot_page(page, start, end) for page in ai_hot["pages"])
             or ai_hot.get("response_hash") != hashlib.sha256(json.dumps(ai_hot["pages"], sort_keys=True).encode()).hexdigest()):
         failures.append(f"{day}: AI HOT daily candidate window is incomplete")
+    return failures
+
+
+def validate_social_search(social: Any, day: str) -> list[str]:
+    """Validate one day of all four source classes, including AI HOT pagination."""
+    start, end = _day_bounds(day)
+    if not isinstance(social, dict) or (social.get("coverage_start") != start.isoformat()
+                                          or social.get("coverage_end") != end.isoformat()):
+        return [f"{day}: social search window mismatch"]
+    failures = validate_ai_hot_window(social.get("ai_hot_window"), day)
     records = social.get("source_class_evidence")
     if not isinstance(records, list):
         failures.append(f"{day}: social source-class evidence missing")

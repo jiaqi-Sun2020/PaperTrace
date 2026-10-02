@@ -151,6 +151,23 @@ class OssPublisherTests(unittest.TestCase):
                 publisher.publish(self.run_dir, self.config_path)
             upload.assert_not_called()
 
+    def test_first_upload_rejects_mismatched_protocols_even_when_local_gate_is_mocked(self) -> None:
+        with patch.object(publisher, "fetch_html", side_effect=self.site_fetch):
+            publisher.enable(self.config_path)
+        expected_hash = hashlib.sha256(self.new_html).hexdigest()
+        manifest_path = self.run_dir / "daily_pipeline_manifest_2026-09-27.json"
+        for protocol, contract in ((4, 2), (3, 3), (4, None), (5, 3), (4, True)):
+            with self.subTest(protocol=protocol, contract=contract):
+                manifest_path.write_text(json.dumps({"pipeline_version": protocol,
+                    "coverage_evidence_contract_version": contract}), encoding="utf-8")
+                with patch.object(publisher, "verified_release", return_value=("2026-09-27", self.html_path, expected_hash)), \
+                        patch.object(publisher, "fetch_html", side_effect=self.site_fetch), \
+                        patch.object(publisher, "upload_file") as upload:
+                    with self.assertRaises(publisher.PublishError) as failure:
+                        publisher.publish(self.run_dir, self.config_path)
+                    self.assertEqual(failure.exception.code, "content_ineligible")
+                    upload.assert_not_called()
+
     def test_failed_html_upload_never_updates_index(self) -> None:
         with patch.object(publisher, "fetch_html", side_effect=self.site_fetch):
             publisher.enable(self.config_path)

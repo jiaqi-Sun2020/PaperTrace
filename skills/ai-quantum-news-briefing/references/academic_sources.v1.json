@@ -3,7 +3,7 @@
   "policy": {
     "maximum_concurrency": 4,
     "source_timeout_seconds": 30,
-    "overall_timeout_seconds": 240,
+    "overall_timeout_seconds": 200,
     "maximum_attempts": 3,
     "maximum_response_bytes": 8000000,
     "required_families": ["quantum_publisher", "ai_peer_review"]
@@ -23,7 +23,7 @@
     {"source_id":"quantum-journal","label":"Quantum Journal","publisher":"Verein zur Förderung des Open Access Publizierens in den Quantenwissenschaften","family":"quantum_publisher","tier":"core","adapter":"html_listing","url":"https://quantum-journal.org/","domain":"quantum-journal.org","topics":["quantum"],"capabilities":["discovery_only"],"retention_days":30},
     {"source_id":"openreview","label":"OpenReview API v2","publisher":"OpenReview","family":"ai_peer_review","tier":"core","adapter":"openreview_api","url":"https://api2.openreview.net/notes","domain":"api2.openreview.net","topics":["ai","machine_learning"],"capabilities":["discovery_only","dated_listing"],"retention_days":3650},
     {"source_id":"pmlr","label":"Proceedings of Machine Learning Research","publisher":"ML Research Press","family":"ai_peer_review","tier":"core","adapter":"html_listing","url":"https://proceedings.mlr.press/","domain":"proceedings.mlr.press","topics":["machine_learning","ai"],"capabilities":["discovery_only"],"retention_days":3650},
-    {"source_id":"jmlr","label":"Journal of Machine Learning Research","publisher":"JMLR","family":"ai_peer_review","tier":"core","adapter":"html_listing","url":"https://www.jmlr.org/","domain":"www.jmlr.org","topics":["machine_learning","ai"],"capabilities":["discovery_only"],"retention_days":3650},
+    {"source_id":"jmlr","label":"Journal of Machine Learning Research","publisher":"JMLR","family":"ai_peer_review","tier":"core","adapter":"jmlr_rss","url":"https://www.jmlr.org/jmlr.xml","domain":"www.jmlr.org","topics":["machine_learning","ai"],"capabilities":["discovery_only","structured_listing"],"retention_days":3650},
     {"source_id":"science","label":"Science / AAAS","publisher":"AAAS","family":"enhanced_discovery","tier":"optional","adapter":"science","url":"https://www.science.org/action/doSearch?AllField={term}","domain":"www.science.org","topics":["science","quantum","ai"],"capabilities":["discovery_only"],"retention_days":30},
     {"source_id":"arxiv-quant-ph","label":"arXiv quant-ph","publisher":"arXiv","family":"enhanced_discovery","tier":"optional","adapter":"arxiv_atom","url":"https://export.arxiv.org/api/query?search_query=cat%3Aquant-ph","domain":"export.arxiv.org","topics":["quantum"],"capabilities":["discovery_only"],"retention_days":3650},
     {"source_id":"arxiv-ai","label":"arXiv AI categories","publisher":"arXiv","family":"enhanced_discovery","tier":"optional","adapter":"arxiv_atom","url":"https://export.arxiv.org/api/query?search_query=cat%3Acs.AI+OR+cat%3Acs.LG+OR+cat%3Acs.CL+OR+cat%3Acs.CV+OR+cat%3Acs.RO","domain":"export.arxiv.org","topics":["ai","machine_learning"],"capabilities":["discovery_only"],"retention_days":3650},

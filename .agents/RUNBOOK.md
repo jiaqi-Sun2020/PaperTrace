@@ -418,12 +418,22 @@ python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py collect
 python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py resume --date <RELEASE-DATE> --record
 ```
 
-`collect` runs only repository-controlled collectors. `resume` restarts only a missing collection stage; it never approves semantic review or publishes. Source failures are shown as a compact health table without proxy addresses, credential paths or stack traces.
+Explicit `preflight` and `status --preflight-network` always check transport, including cached `collection_ready`; normal cached `resume` remains offline. Transport results distinguish `ready`, `not_checked` and blocked/unverified environments. Candidate readiness covers capture availability, not completed authoring: `opening_story_status=authoring_pending` still requires a complete Fable before staging.
 
-For a v3 release, inspect the `ranking_manifest` and `candidate_ledger` in the staged delta config after `run`; the standalone ranker CLI without captured-source enrichment is a historical v1 preview, not an exact v3 replay. Run from `D:\AI\PaperTrace`:
+`collect` and `resume` run only repository-controlled collectors for missing or invalid source files, after network preflight; valid cached evidence is preserved. A valid source pair with a missing, legacy, damaged or stale authoring packet reports `authoring_packet_pending`. `resume` rebuilds that packet offline, retaining original candidate fields and identities. `collection_ready` requires a valid source pair **and** an exact, source-hash-bound packet. An empty valid pool requests evidence-backed expansion, never automatic shortfall approval.
+
+Packet recovery uses atomic replacement and a digest-named backup under the collection day's `.packet_backups/`. Repeating recovery with unchanged sources does not fetch, rewrite the packet or duplicate its backup. Unknown higher packet versions report `authoring_packet_incompatible` and are preserved. An invalid authored candidate reports `candidate_invalid`; existing candidates, staging and release artifacts take precedence and are never overwritten by collection recovery. `status` remains read-only unless `--record` is supplied; unchanged recorded state is not rewritten. Normal actionable checkpoints exit 0; collector, validation, filesystem and environment failures during recovery exit 2. Inspect `phase`, `packet_status`, `action_required` and structured failure codes instead of interpreting exit 0 as publication success.
+
+Source failures are shown as a compact health table without credential paths, raw subprocess diagnostics or stack traces. Recovery never approves semantic review, enables OSS, publishes, or imports feedback. Run this regression suite from the project root when changing orchestration:
 
 ```powershell
-python .\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py --config .\news\<RELEASE-DATE>\.staging\<RUN-ID>\news_feedback_config_delta_<RELEASE-DATE>.json --fail-on-warning
+python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p test_orchestrate_daily.py
+```
+
+For a v4 release, inspect the `ranking_manifest` and `candidate_ledger` in the staged delta config after `run`; the standalone ranker CLI without captured-source enrichment is a historical v1 preview, not an exact v3 replay. Run from `D:\AI\PaperTrace`:
+
+```powershell
+python .\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py --config .\news\<RELEASE-DATE>\.staging\<RUN-ID>\news_feedback_config_delta_<RELEASE-DATE>.json --coverage-contract-version 3 --fail-on-warning
 ```
 
 The normal `daily_pipeline.py run` command performs captured-source v2 ranking internally before Delta compaction. Candidate-only evidence, invalid dates, unsafe URLs, duplicates, and missing fact/judgment/relevance fields remain in the ranking ledger with exclusion reasons but cannot enter the publication.
@@ -499,3 +509,78 @@ Ask the user before:
 - converting many PDFs in batch.
 
 Do not open, print, copy, summarize, upload, or modify any suspected key/password/token/credential file. The learner profile is user learning data, not credential material, and should still be handled only through the documented reader-learner workflow.
+
+### Publication version-routing regression
+
+Generation, local strict verification and first upload use `publication_contracts.py`: pipeline 2/3 uses coverage contract 2; pipeline 4 uses contract 3. First uploads require pipeline 3/4 with its exact coverage pair and a current story review protocol 3. Unknown versions and v4 downgrades are rejected. Historical completed evidence keeps its original local validation semantics.
+
+The shared release lock initializes its byte only while holding the OS lock.
+Windows supports locking past EOF; writing an empty lock file before taking its
+lock races with concurrent startup. `test_release_lock.py` holds an empty file
+locked from another process to reproduce that race deterministically and checks
+that interruption does not poison the next acquisition.
+
+Run from `D:\AI\PaperTrace` using the runtime interpreter:
+
+```powershell
+python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p 'test_*.py'
+git diff --check
+```
+
+`test_publication_v4.py` exercises the default CLI, normal/shortfall staging, source/story reviews, sealing, strict verification, finalization and in-memory OSS. Tests use temporary data and mocked transport, never real keys or OSS. When making evidence copies, retain original JSON timestamp strings and compute digests with `daily_coverage_evidence.evidence_digest`; do not round-trip dates through PowerShell date objects or relabel academic-search versions.
+
+
+## Daily collection and workflow recovery
+
+Run from `D:\AI\PaperTrace` with the actual runtime interpreter:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py queue --date <RELEASE-DATE> --record
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py preflight --date <RELEASE-DATE> --record
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py resume --date <RELEASE-DATE> --record
+```
+
+Use the last two commands only after the prior Shanghai day has ended and collection needs work. `queue` persists explicitly selected release dates under `news/_automation/workflow_queue.json`; it does not discover or authorize arbitrary historical backfills. Its next date/action keeps unfinished selected dates visible. `final_response_allowed=false` means normal workflow work remains, not an approved review. Ordinary pending work exits 0; actual collection/validation/write failures exit 2.
+
+Academic collection has a 200-second cooperative budget and a 270-second parent watchdog. Requests and retry sleeps respect the remaining budget, core families start first, and every finished row gets an atomic query/registry-bound checkpoint. The temporary evidence aggregate is also updated after each completion. Even after worker termination it can be installed only if independently validated family evidence passes; unfinished rows remain explicit errors. Healthy cached rows are reused; failed rows are retried. No per-source candidate truncation is permitted; only the authoring packet's documented total cap applies.
+
+AI HOT starts with the same budget and an 8 MB response cap; bounded resume escalation is defined below. Partial pagination keeps query/date-bound page bodies, response hashes and cursors under `.checkpoints`, separate from authoritative evidence. Resume validates the chain and rechecks every cached page against its current response; a changed pool restarts the scan. Missing/repeated cursors, malformed records and unfinished pagination never become ready. This is a bounded recovery checkpoint, not a claim that the external API offers immutable snapshots.
+
+`source_capture.py` isolates item failures, reports captured/reused/failed IDs, reuses only validated captures, and exits 2 on partial failure. Before atomic installation it checks the candidate bytes and takes the shared release lock; network requests do not hold it. A concurrent valid capture wins. Retry with the same config or `--item-id`; do not regenerate or promote candidate prose automatically. The status inspector validates captures rather than checking existence.
+
+Finalization refreshes the artifact-derived orchestration checkpoint after local/remote processing. After remote success, it performs online status inspection; the queue retains earlier verification only under the latest observation and deployment identity rules defined below. For explicit reconciliation run:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py status --date <RELEASE-DATE> --online --record
+```
+
+JMLR now has a genuine RSS article parser. Its live feed currently supplies year-only dates: preserve structured identities/descriptions and raw dates, report degraded/unknown, and require article-date verification. It cannot satisfy a dated family gate by pretending that a year is a timestamp. Independent healthy fallback remains unproven; Nature/OpenReview availability is an external dependency. Family impact labels use the aggregate gate rather than treating every failed core row as blocking.
+
+The existing daily automation keeps its schedule and target, uses the date queue, and advances by actual phase. Collection `resume` does not perform authoring, reviews or publishing. Permission scope also covers controlled source capture, OSS doctor/publish, finalization and online status commands. Never grant generic interpreter/shell permission, change proxies/global policy, read credentials or automatically enable OSS. Interactive elevated transport success does not prove unattended permissions; the next background preflight must validate its own network/write context. The desktop app and computer must remain available for local automation.
+
+
+## Daily evidence and delivery recovery contracts
+
+Academic v4 healthy rows share one validator (`academic_sources.row_evidence_failures`): registered source/query path and parameters; explicit allowed final domains; successful HTTP and SHA-256 shape; aware retrieval time after the covered window and not in the future; matching canonical row/ledger window; supported coverage claim; consistent counts and timezone-aware match dates. `not_applicable` parsing cannot prove healthy structured discovery. Invalid healthy declarations fail audit; blocked/degraded peer sources remain isolated. Empty valid matches do not approve verified shortfall. This checks evidence consistency, not article semantics or completeness of a publisher's inventory. Original valid historical collection bytes are not rewritten.
+
+AI HOT starts with 200 seconds and can resume after budget exhaustion with 400, then 800 seconds. Scaled test budgets use the same multipliers. The parent watchdog is at least the effective budget plus 70 seconds. Every cached page is still revalidated in the current attempt; a changed prefix restarts. No immutable snapshot contract is assumed. Checkpoints expose budget level, revalidated/new pages, elapsed time, no-progress count, restart count and failure. At the maximum budget, after three no-progress attempts, after three unfinished restart attempts or at the page bound, automatic recovery stops with `action_required`. The orchestrator exposes this diagnosis without another network preflight. Diagnose transport/pool first, preserve the checkpoint, then deliberately archive it before starting a fresh attempt; do not repeatedly resume a halted checkpoint. Checkpoint reads/writes share the 32 MB cap and atomic replacement. Partial evidence is never installed as an authoritative social source.
+
+Remote completion is bound to release date, HTML SHA-256 and a digest of public routing (site, bucket, region, prefix). Credential/profile data is excluded. `status --online --record` reserves a monotonic attempt sequence under the short shared lock before network; no network request holds that lock. The latest completed observation, its start/end timestamps and historical successful proof are recorded separately. A later mismatch/unavailable result, an unfinished newer attempt, a changed deployment or changed HTML blocks queue completion. Older late-returning checks cannot overwrite newer observations. Offline recording preserves known failures. Missing/mismatched publishing receipts remain pending even when public content verifies. Legacy hash-only success is audit history and requires one fresh check for completion; it does not require republishing. Read-only `status --online` performs no metadata write and does not update the queue. Older releases may legitimately have a homepage pointing to a newer date; preserve the publisher's existing no-downgrade policy.
+
+`finalize` returns separate local, publisher, final verification and checkpoint outcomes. `--require-remote` exits 0 only after the strict local commit, successful publisher outcome, final online verification and durable checkpoint all succeed. Requested online/publish/checkpoint failure exits 2 with `recovery_required`; preserve the local commit and reconcile verification/state before considering another upload. Explicit local-only completion with remote disabled may exit 0 and reports `remote_publish.status=disabled`. Unknown publisher results fail closed. Normal offline actionable status/queue checkpoints still exit 0.
+
+Run from `D:\AI\PaperTrace` to reconcile the already published release without uploading:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py status --date <RELEASE-DATE> --online --record
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py queue --date <RELEASE-DATE>
+```
+
+Run the full offline regression from the worktree or production project root:
+
+```powershell
+python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p 'test_*.py'
+git diff --check
+```
+
+Actual semantic/Fable review, all social search classes and strict publication gates are unchanged. A recovery must preserve original source hashes and `not_reviewed` packet semantics. It must not create a release, backfill history, toggle OSS, mutate a profile or change a schedule. Unattended transport/write permission and an independent healthy AI publisher fallback still require actual environment evidence; interactive success does not establish those conditions.

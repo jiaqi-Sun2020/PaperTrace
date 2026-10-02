@@ -21,6 +21,41 @@ changes from the story alone, then map those actions to source-backed technical
 operations and verify the same worked example. Old v2 reviews remain locally
 readable; a new remote upload or correction requires a fresh v3 review.
 
+Generation, strict verification and first OSS uploads share the version policy
+in `scripts/publication_contracts.py`: pipeline 2/3 uses coverage contract 2;
+pipeline 4 uses coverage contract 3. Unknown versions and mismatched pairs fail
+closed. For standalone v4 config audits, pass `--coverage-contract-version 3`.
+Explicit orchestrator `preflight` always checks transport, including when the
+authoring packet is already ready; cached `resume` remains offline. A
+capture-ready candidate may still report `opening_story_status=authoring_pending`.
+Neither transport readiness nor candidate readiness approves content or release.
+
+Daily recovery also uses `orchestrate_daily.py queue --date <release-day> --record`
+to retain explicitly selected unfinished dates. Collection `resume` ends at a
+source-bound authoring packet; advance authoring, article capture, actual review,
+finalization and online verification according to the returned phase. Academic
+rows and AI HOT pagination have separate query-bound atomic checkpoints. Academic
+collection has a 200-second budget and 270-second watchdog. AI HOT starts at 200
+seconds; budget exhaustion permits bounded 400/800-second resumes, with matching
+parent watchdogs. Revalidation remains mandatory; repeated no-progress or an
+exhausted maximum stops with an explicit diagnosis. Valid article
+captures are reused; failures are isolated and retryable by item ID. A capture
+file must pass validation, not merely exist. JMLR RSS identities are structured
+discovery; year-only dates remain unknown and cannot satisfy a healthy daily
+source gate. Read the RUNBOOK recovery section for state and permission details.
+
+Healthy academic rows require registered query scope, valid transport/digest,
+aware collection time, matching coverage window, and consistent dated matches;
+success flags alone cannot pass. Remote checks for completion use
+`status --online --record`: a durable attempt is reserved before network and the
+latest observation binds release date, HTML hash and public deployment identity.
+A later negative/unavailable check or an unfinished newer attempt blocks queue
+completion. Missing/mismatched publishing receipts remain pending even when
+public content verifies. Legacy hash-only proofs require rechecking. Read-only `--online`
+does not update the queue. Online failures and checkpoint write failures exit 2.
+`finalize --require-remote` succeeds only after final online verification and
+durable checkpoint recording; local commits survive delivery/reconciliation failure.
+
 An opt-in OSS website mirror runs only after the reviewed local release passes strict verification. Direct `publish` applies the same content gate. Read the OSS section in `.agents/RUNBOOK.md` when operating it. The local `news_publish.local.json` contains only site routing; `ossutil` owns credentials. Website mirroring starts disabled, requires manual `enable`, and latches disabled when the site or link cannot be verified after bounded retries. A failed mirror does not erase the completed local briefing; report the separate remote status.
 
 ## Core Workflow
@@ -43,6 +78,16 @@ python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py preflig
 python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py collect --date <RELEASE-YYYY-MM-DD> --record
 python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py resume --date <RELEASE-YYYY-MM-DD> --record
 ```
+
+   - `authoring_packet_pending` means valid cached discovery needs a packet rebuild,
+     not another collection. `resume` rebuilds it offline, preserving original
+     candidates, source hashes and `not_reviewed`. It recollects only a missing or
+     invalid source after network preflight. `collection_ready` requires the
+     source-bound packet too; an empty valid pool needs expansion. Unknown higher
+     packet versions and invalid authored candidates are preserved and reported.
+     Existing staging/releases take precedence. Exit 0 is an actionable checkpoint,
+     not semantic approval or publication. See the RUNBOOK for failure codes,
+     atomic recovery, backups and packet schema 2.
 
    - Treat AI HOT as a candidate source. Verify important final claims against original URLs, official blogs, publisher pages, paper pages, or reliable media.
    - For academic items, do not start and stop at arXiv. Generate a compact venue sweep when the topic is research-frontier material:

@@ -10,6 +10,7 @@ import html
 import json
 import re
 import sys
+import time as monotonic_clock
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -17,6 +18,9 @@ from datetime import date, datetime, time, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Iterable
+from collection_checkpoint import atomic_json, load_checkpoint, save_checkpoint
+
+_HTTP_DEADLINE = float("inf")
 
 
 UA = "aihot-skill/0.3.4 (+https://aihot.virxact.com/aihot-skill/; integrated-ai-quantum-news-briefing)"
@@ -43,10 +47,15 @@ def clean_text(value: Any, limit: int = 4000) -> str:
 
 
 def fetch_response(url: str) -> tuple[str, dict[str, Any]]:
+    remaining = _HTTP_DEADLINE - monotonic_clock.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("collection_deadline")
     request = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        body = response.read()
-        return body.decode("utf-8", errors="replace"), {
+    with urllib.request.urlopen(request, timeout=min(30, remaining)) as response:
+        body = response.read(8_000_001)
+        if len(body) > 8_000_000:
+            raise ValueError("response_too_large")
+        return body.decode("utf-8"), {
             "query_url": url, "final_url": response.geturl(),
             "status_code": int(response.status),
             "response_hash": hashlib.sha256(body).hexdigest(),
@@ -111,28 +120,116 @@ def extract_concepts(*parts: str) -> list[str]:
     return concepts
 
 
+def api_scope(args: argparse.Namespace) -> dict[str, Any]:
+    coverage_day = getattr(args, "coverage_date", None)
+    params = {"mode": args.mode, "take": str(args.take)}
+    for field, key in (("category", "category"), ("since", "since"), ("query", "q")):
+        if getattr(args, field, None):
+            params[key] = getattr(args, field)
+    if coverage_day and not args.since:
+        params["since"] = coverage_window(coverage_day)[0].astimezone(timezone.utc).isoformat()
+    return {"kind": "aihot_api", "base_url": BASE_URL, "params": params,
+            "coverage_date": coverage_day, "timezone": "Asia/Shanghai"}
+
+
+def pagination_budget(args: argparse.Namespace) -> float:
+    base = getattr(args, "budget_seconds", 200)
+    if not 0 < base <= 200:
+        raise ValueError("initial collection budget must be in (0, 200]")
+    recovery = load_checkpoint(getattr(args, "checkpoint", None), api_scope(args)).get("recovery", {})
+    level = recovery.get("budget_level", 0) if isinstance(recovery, dict) else 0
+    if type(level) is not int or not 0 <= level <= 2:
+        raise ValueError("checkpoint_budget_invalid")
+    return min(800, base * (2 ** level))
+
+
 def api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    global _HTTP_DEADLINE
+    budget = pagination_budget(args)
+    previous = _HTTP_DEADLINE
+    _HTTP_DEADLINE = monotonic_clock.monotonic() + budget
+    try:
+        return _api_items(args)
+    finally:
+        _HTTP_DEADLINE = previous
+
+
+def _api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     coverage_day = getattr(args, "coverage_date", None)
     start, end = coverage_window(coverage_day) if coverage_day else (None, None)
-    params = {
-        "mode": args.mode,
-        "take": str(args.take),
-    }
-    if args.category:
-        params["category"] = args.category
-    if args.since:
-        params["since"] = args.since
-    elif start:
-        params["since"] = start.astimezone(timezone.utc).isoformat()
-    if args.query:
-        params["q"] = args.query
+    scope = api_scope(args)
+    params = scope["params"]
     pages: list[dict[str, Any]] = []
     items: list[dict[str, Any]] = []
     cursor: str | None = None
     seen_cursors: set[str] = set()
     finished = False
     failure = ""
-    for _ in range(100 if coverage_day else 1):
+    checkpoint = getattr(args, "checkpoint", None)
+    responses: list[dict[str, Any]] = []
+    saved_payload = load_checkpoint(checkpoint, scope)
+    saved = saved_payload.get("responses", [])
+    recovery = saved_payload.get("recovery", {})
+    if not isinstance(recovery, dict):
+        raise ValueError("checkpoint_recovery_invalid")
+    if recovery.get("action_required"):
+        return [], {"coverage_status": "partial", "pagination_complete": False,
+                    "failure": recovery.get("failure", "checkpoint_no_progress"),
+                    "recovery": recovery, "retrieved_count": 0}
+    revalidated = 0
+    restarted = False
+    budget = pagination_budget(args)
+    started = monotonic_clock.monotonic()
+    level = recovery.get("budget_level", 0)
+    # Validate the whole cached prefix, not just page one: edits can occur on
+    # middle pages while the first page remains unchanged.
+    if isinstance(saved, list) and saved and len(saved) <= 100:
+        try:
+            for index, record in enumerate(saved):
+                if monotonic_clock.monotonic() >= _HTTP_DEADLINE:
+                    raise TimeoutError("collection_deadline")
+                body, evidence = record["body"], record["evidence"]
+                query = dict(params)
+                if cursor:
+                    query["cursor"] = cursor
+                if (evidence.get("query_url") != BASE_URL + "/api/public/items?" + urllib.parse.urlencode(query)
+                        or hashlib.sha256(body.encode("utf-8")).hexdigest() != evidence.get("response_hash")
+                        or evidence.get("status_code") != 200):
+                    raise ValueError("checkpoint_page_invalid")
+                _, fresh = fetch_response(evidence["query_url"])
+                if (fresh.get("response_hash") != evidence["response_hash"]
+                        or fresh.get("status_code") != 200
+                        or fresh.get("query_url") != evidence["query_url"]
+                        or urllib.parse.urlsplit(str(fresh.get("final_url") or "")).hostname != "aihot.virxact.com"):
+                    raise ValueError("pool_changed_restart")
+                revalidated += 1
+                data = json.loads(body)
+                next_cursor = data.get("nextCursor")
+                terminal = data.get("hasNext") is False or (data.get("hasNext") is None and not next_cursor)
+                if (not isinstance(data.get("items"), list) or not all(isinstance(item, dict) for item in data["items"])
+                        or terminal and index != len(saved) - 1 or not terminal and
+                        (not isinstance(next_cursor, str) or not next_cursor or next_cursor in seen_cursors)):
+                    raise ValueError("checkpoint_cursor_invalid")
+                pages.append(fresh)
+                items.extend(data["items"])
+                responses.append({"body": body, "evidence": fresh})
+                if terminal:
+                    finished = True
+                    break
+                seen_cursors.add(next_cursor)
+                cursor = next_cursor
+        except TimeoutError:
+            failure = "collection_deadline"
+            pages, items, responses, seen_cursors, cursor = [], [], [], set(), None
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            restarted = True
+            pages, items, responses, seen_cursors, cursor = [], [], [], set(), None
+    for _ in range((100 if coverage_day else 1) - len(pages)):
+        if failure or finished:
+            break
+        if monotonic_clock.monotonic() >= _HTTP_DEADLINE:
+            failure = "collection_deadline"
+            break
         page_params = dict(params)
         if cursor:
             page_params["cursor"] = cursor
@@ -141,22 +238,45 @@ def api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str,
             body, evidence = fetch_response(url)
             data = json.loads(body)
             page_items = data["items"]
-            if not isinstance(page_items, list):
+            if not isinstance(page_items, list) or not all(isinstance(item, dict) for item in page_items):
                 raise ValueError("items is not a list")
-            pages.append(evidence)
-            items.extend(item for item in page_items if isinstance(item, dict))
             next_cursor = data.get("nextCursor")
             has_next = data.get("hasNext")
+            pages.append(evidence)
+            items.extend(page_items)
             if has_next is False or (has_next is None and not next_cursor):
+                responses.append({"body": body, "evidence": evidence})
                 finished = True
                 break
             if not isinstance(next_cursor, str) or not next_cursor or next_cursor in seen_cursors:
                 raise ValueError("missing or repeated cursor")
             seen_cursors.add(next_cursor)
             cursor = next_cursor
+            responses.append({"body": body, "evidence": evidence})
+            save_checkpoint(checkpoint, scope, {"responses": responses, "recovery": recovery})
         except (OSError, ValueError, KeyError, TypeError) as exc:
             failure = str(exc)[:300]
             break
+    if not finished and not failure:
+        failure = "pagination_page_limit"
+    newly_fetched = max(0, len(pages) - (0 if restarted else revalidated))
+    no_progress = 0 if finished or newly_fetched else int(recovery.get("no_progress", 0)) + 1
+    restarts = 0 if finished else int(recovery.get("restarts", 0)) + int(restarted)
+    action_required = bool(not finished and (failure == "pagination_page_limit" or
+                           failure == "collection_deadline" and level >= 2 or
+                           no_progress >= 3 or restarts >= 3))
+    if action_required:
+        failure = ("pagination_budget_exhausted" if failure == "collection_deadline" else
+                   "pool_unstable" if restarts >= 3 else "checkpoint_no_progress" if no_progress >= 3 else failure)
+    recovery = {"budget_level": min(2, level + 1) if failure == "collection_deadline" else level,
+                "budget_seconds": budget, "revalidated_pages": revalidated, "new_pages": newly_fetched,
+                "elapsed_seconds": max(0, monotonic_clock.monotonic() - started),
+                "no_progress": no_progress, "restarts": restarts, "failure": failure,
+                "action_required": action_required}
+    # Keep the original prefix if validation timed out; it is still only a
+    # checkpoint. A larger bounded attempt must revalidate it before admission.
+    retained = saved if not responses and failure in {"collection_deadline", "pagination_budget_exhausted"} else responses
+    save_checkpoint(checkpoint, scope, {"responses": retained, "recovery": recovery})
     inside: list[dict[str, Any]] = []
     outside = missing = 0
     undated_exclusions: list[dict[str, str]] = []
@@ -195,6 +315,7 @@ def api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str,
     qualified = bool(start and finished and not failure and missing == 1 and inside
                      and retention_ok and since_ok and pages_valid)
     evidence = {
+        "recovery": recovery,
         "source": "ai_hot", "pool_scope": f"ai_hot_{args.mode}",
         "coverage_date": coverage_day, "coverage_start": start.isoformat() if start else None,
         "coverage_end": end.isoformat() if end else None, "timezone": "Asia/Shanghai" if start else None,
@@ -311,6 +432,8 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--coverage-date", help="Candidate publication day in Asia/Shanghai, YYYY-MM-DD; distinct from --date.")
     parser.add_argument("--date-range", help="Human-readable date range for the config.")
     parser.add_argument("--output", required=True, help="Output news_feedback_config JSON path.")
+    parser.add_argument("--checkpoint", type=Path)
+    parser.add_argument("--budget-seconds", type=float, default=200)
     return parser.parse_args(list(argv))
 
 
@@ -333,7 +456,7 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     config = build_config(items, args, args.source, evidence)
     output = Path(args.output).expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_json(output, config)
     print(f"Wrote AI HOT candidates: {output}")
     print(f"Items: {len(config['sections'][0]['items'])}")
     return 0

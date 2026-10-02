@@ -25,6 +25,7 @@ from urllib.request import Request, urlopen
 
 from release_audit import validate_bundle
 from release_lock import release_lock
+from publication_contracts import coverage_contract_for_manifest
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parents[2]
@@ -408,12 +409,10 @@ def _publish_locked(run_dir: Path, config_path: Path, *, correction_reason: str 
         except (OSError, ValueError) as exc:
             raise PublishError("Remote delivery requires current daily coverage evidence",
                                code="content_ineligible") from exc
-        if coverage_manifest.get("coverage_evidence_contract_version") != 2:
-            raise PublishError("First upload or correction requires content-bound daily coverage evidence",
-                               code="content_ineligible")
-        if int(coverage_manifest.get("pipeline_version") or 1) < 3:
-            raise PublishError("Legacy releases require regeneration and current review before first upload or correction",
-                               code="content_ineligible")
+        try:
+            coverage_contract_for_manifest(coverage_manifest, for_upload=True)
+        except ValueError as exc:
+            raise PublishError(str(exc), code="content_ineligible") from exc
         try:
             review = json.loads((run_dir / f"opening_story_review_{run_date}.json").read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:

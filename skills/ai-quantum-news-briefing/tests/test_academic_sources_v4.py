@@ -23,14 +23,15 @@ from daily_pipeline import parse_args as parse_pipeline_args
 from delivery_expansion import default_policy
 from paper_identity import same_paper
 from datetime import datetime
+from evidence_fixtures import evidenced_row
 
 
-def row(source_id: str, result: str = "checked") -> dict:
-    return {"source_id": source_id, "result": result,
+def row(source_id: str, result: str = "checked", day="2026-09-27") -> dict:
+    return evidenced_row({"source_id": source_id, "result": result,
             "retrieval_status": "success" if result == "checked" else "error",
             "parse_status": "success" if result == "checked" else "not_attempted",
             "window_status": "rolling_window" if result == "checked" else "unknown",
-            "candidate_count": 1, "quarantined_count": 0}
+            "candidate_count": 1, "quarantined_count": 0}, day)
 
 
 class AcademicSourceRegistryTests(unittest.TestCase):
@@ -59,7 +60,7 @@ class AcademicSourceRegistryTests(unittest.TestCase):
 
     def test_v4_audit_uses_family_gate_not_every_url(self) -> None:
         rows = [row("aps-pra"), row("jmlr"), row("science", "error")]
-        ledger = {"academic_search_version": 4, "rows": rows,
+        ledger = {"academic_search_version": 4, "date_range": "2026-09-27", "rows": rows,
                   "family_gate": family_gate(rows)}
         venues, checked, hits, failures = academic_search_venues({"academic_search": ledger}, coverage_contract_version=3)
         self.assertEqual(failures, [])

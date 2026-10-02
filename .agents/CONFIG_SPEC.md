@@ -231,6 +231,29 @@ News feedback should use `source_kind: news_briefing` after normalization. Do no
 
 ### Daily release protocol 4
 
+The generated `news/_collection/<release-date>/authoring_packet_v4_<release-date>.json`
+uses packet schema `version=2`, independently of pipeline protocol 4. It is a
+deterministic, unreviewed projection of the preceding Shanghai day's academic
+ledger and AI HOT pool. Social candidates come only from `sections[*].items`;
+academic candidates retain the original `rows[*].matches` fields, source IDs and
+JSON-pointer `_source_ref` anchors. `source_inputs` binds each input filename and
+byte SHA-256. `candidate_counts` records `total`, `emitted`, `truncated` and
+`full_source` per category. Each category emits at most 100 candidates in source
+order; overflow remains in the full source, not an exclusion or a ranking result.
+The packet preserves `ai_hot_window`, including qualified undated exclusions,
+and `semantic_review_status=not_reviewed`; it establishes neither four-class
+social coverage nor item-level truth. No generated timestamp is added.
+
+Orchestration compares the full packet against a fresh projection. Missing,
+version-1, invalid or stale packets become `authoring_packet_pending` and can be
+rebuilt from valid cached evidence by `resume` without network. Unknown higher
+versions are incompatible and cannot be overwritten. Input files are validated
+for their actual covered day, source-family consistency and AI HOT window before
+projection; existing publication validation and four social source-class gates
+remain mandatory. `collection_ready` means both sources and the derived packet
+are valid, with `action_required=true` for authoring/review or empty-pool
+expansion. It never means the issue is published.
+
 `academic_sources.v1.json` declares each adapter's source family, tier and capabilities. Current adapters include journal-specific APS feeds; Nature topic RSS; OpenReview/PMLR/JMLR; Quantum Journal; category arXiv; and optional/probationary Science, IOP, IEEE and AAAI discovery. Each row records retrieval, parsing, window and coverage-claim state separately. One malformed item is quarantined; a whole malformed response degrades only that source. A successful retrieval never proves a complete historical-day publication census or an article claim.
 
 New CLI runs use `pipeline_version: 4`; historical versions 1–3 remain readable but require a current release review before first OSS upload or correction. A v4 manifest records `coverage.start` (inclusive), `coverage.end` (exclusive), `collection_completed_at`, index snapshot, required artifact paths and SHA-256 values. The scheduled 08:00 run covers the preceding complete Asia/Shanghai calendar day; `manifest.date` remains the release identifier, not proof of coverage. New manifests set `coverage_evidence_contract_version=3` and bind one ordered daily evidence record per covered calendar day. Multi-day backfills require explicit midnight boundaries.
@@ -366,6 +389,8 @@ Historical v3 releases may contain `delivery_expansion.version=1`. New single-da
 
 New pipeline-v4 releases use `academic_search_version=4`, the public `academic_sources.v1.json` registry, `coverage_evidence_contract_version=3`, and `delivery_expansion.version=2`. Each source row records retrieval, parsing, date-window and coverage-claim state independently, plus candidate and quarantine counts. The release gate requires a healthy `quantum_publisher` family and a healthy `ai_peer_review` family; optional and probationary sources never become hard gates merely by returning HTTP 200. Historical v1–v3 evidence remains readable but is not silently upgraded.
 
+Publication version routing is centralized in `publication_contracts.py`. New pipeline 2/3 releases require coverage contract 2; pipeline 4 requires contract 3 and `required_story_review_protocol=3`. Generation audits, manifest writing, local verification and first remote delivery enforce the same pair; unknown versions and mismatched pairs fail closed. Historical completed v1-v3 releases retain their declared legacy local evidence meaning; that compatibility does not permit a first upload or correction. Standalone config audits select the contract explicitly with `--coverage-contract-version` (3 for v4).
+
 The registry is public and contains no proxy, credential or OSS profile. Machine-local allowlists may add `www.jmlr.org`, `iopscience.iop.org`, `ieeexplore.ieee.org`, `ojs.aaai.org`, and `api2.openreview.net`; local network configuration remains ignored by Git.
 
 ## News HTML Feedback Contract
@@ -403,3 +428,59 @@ No required environment variables were detected in the project files.
 No secret files were detected. Do not add API keys or credentials to `.agents`, README files, exported feedback JSON, or generated reports.
 
 Except for permitted learner-profile reads/updates, agents must not open, print, copy, summarize, upload, or modify suspected credential files, including files or paths named like `.env`, `secret`, `secrets`, `credential`, `credentials`, `token`, `password`, `passwd`, `apikey`, `api_key`, `private_key`, `id_rsa`, `.pem`, `.p12`, `.pfx`, cookies, or session stores.
+
+
+## Daily collection and workflow recovery
+
+Run from `D:\AI\PaperTrace` with the actual runtime interpreter:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py queue --date <RELEASE-DATE> --record
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py preflight --date <RELEASE-DATE> --record
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py resume --date <RELEASE-DATE> --record
+```
+
+Use the last two commands only after the prior Shanghai day has ended and collection needs work. `queue` persists explicitly selected release dates under `news/_automation/workflow_queue.json`; it does not discover or authorize arbitrary historical backfills. Its next date/action keeps unfinished selected dates visible. `final_response_allowed=false` means normal workflow work remains, not an approved review. Ordinary pending work exits 0; actual collection/validation/write failures exit 2.
+
+Academic collection has a 200-second cooperative budget and a 270-second parent watchdog. Requests and retry sleeps respect the remaining budget, core families start first, and every finished row gets an atomic query/registry-bound checkpoint. The temporary evidence aggregate is also updated after each completion. Even after worker termination it can be installed only if independently validated family evidence passes; unfinished rows remain explicit errors. Healthy cached rows are reused; failed rows are retried. No per-source candidate truncation is permitted; only the authoring packet's documented total cap applies.
+
+AI HOT starts with the same budget and an 8 MB response cap; bounded resume escalation is defined below. Partial pagination keeps query/date-bound page bodies, response hashes and cursors under `.checkpoints`, separate from authoritative evidence. Resume validates the chain and rechecks every cached page against its current response; a changed pool restarts the scan. Missing/repeated cursors, malformed records and unfinished pagination never become ready. This is a bounded recovery checkpoint, not a claim that the external API offers immutable snapshots.
+
+`source_capture.py` isolates item failures, reports captured/reused/failed IDs, reuses only validated captures, and exits 2 on partial failure. Before atomic installation it checks the candidate bytes and takes the shared release lock; network requests do not hold it. A concurrent valid capture wins. Retry with the same config or `--item-id`; do not regenerate or promote candidate prose automatically. The status inspector validates captures rather than checking existence.
+
+Finalization refreshes the artifact-derived orchestration checkpoint after local/remote processing. After remote success, it performs online status inspection; the queue retains earlier verification only under the latest observation and deployment identity rules defined below. For explicit reconciliation run:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py status --date <RELEASE-DATE> --online --record
+```
+
+JMLR now has a genuine RSS article parser. Its live feed currently supplies year-only dates: preserve structured identities/descriptions and raw dates, report degraded/unknown, and require article-date verification. It cannot satisfy a dated family gate by pretending that a year is a timestamp. Independent healthy fallback remains unproven; Nature/OpenReview availability is an external dependency. Family impact labels use the aggregate gate rather than treating every failed core row as blocking.
+
+The existing daily automation keeps its schedule and target, uses the date queue, and advances by actual phase. Collection `resume` does not perform authoring, reviews or publishing. Permission scope also covers controlled source capture, OSS doctor/publish, finalization and online status commands. Never grant generic interpreter/shell permission, change proxies/global policy, read credentials or automatically enable OSS. Interactive elevated transport success does not prove unattended permissions; the next background preflight must validate its own network/write context. The desktop app and computer must remain available for local automation.
+
+
+## Daily evidence and delivery recovery contracts
+
+Academic v4 healthy rows share one validator (`academic_sources.row_evidence_failures`): registered source/query path and parameters; explicit allowed final domains; successful HTTP and SHA-256 shape; aware retrieval time after the covered window and not in the future; matching canonical row/ledger window; supported coverage claim; consistent counts and timezone-aware match dates. `not_applicable` parsing cannot prove healthy structured discovery. Invalid healthy declarations fail audit; blocked/degraded peer sources remain isolated. Empty valid matches do not approve verified shortfall. This checks evidence consistency, not article semantics or completeness of a publisher's inventory. Original valid historical collection bytes are not rewritten.
+
+AI HOT starts with 200 seconds and can resume after budget exhaustion with 400, then 800 seconds. Scaled test budgets use the same multipliers. The parent watchdog is at least the effective budget plus 70 seconds. Every cached page is still revalidated in the current attempt; a changed prefix restarts. No immutable snapshot contract is assumed. Checkpoints expose budget level, revalidated/new pages, elapsed time, no-progress count, restart count and failure. At the maximum budget, after three no-progress attempts, after three unfinished restart attempts or at the page bound, automatic recovery stops with `action_required`. The orchestrator exposes this diagnosis without another network preflight. Diagnose transport/pool first, preserve the checkpoint, then deliberately archive it before starting a fresh attempt; do not repeatedly resume a halted checkpoint. Checkpoint reads/writes share the 32 MB cap and atomic replacement. Partial evidence is never installed as an authoritative social source.
+
+Remote completion is bound to release date, HTML SHA-256 and a digest of public routing (site, bucket, region, prefix). Credential/profile data is excluded. `status --online --record` reserves a monotonic attempt sequence under the short shared lock before network; no network request holds that lock. The latest completed observation, its start/end timestamps and historical successful proof are recorded separately. A later mismatch/unavailable result, an unfinished newer attempt, a changed deployment or changed HTML blocks queue completion. Older late-returning checks cannot overwrite newer observations. Offline recording preserves known failures. Missing/mismatched publishing receipts remain pending even when public content verifies. Legacy hash-only success is audit history and requires one fresh check for completion; it does not require republishing. Read-only `status --online` performs no metadata write and does not update the queue. Older releases may legitimately have a homepage pointing to a newer date; preserve the publisher's existing no-downgrade policy.
+
+`finalize` returns separate local, publisher, final verification and checkpoint outcomes. `--require-remote` exits 0 only after the strict local commit, successful publisher outcome, final online verification and durable checkpoint all succeed. Requested online/publish/checkpoint failure exits 2 with `recovery_required`; preserve the local commit and reconcile verification/state before considering another upload. Explicit local-only completion with remote disabled may exit 0 and reports `remote_publish.status=disabled`. Unknown publisher results fail closed. Normal offline actionable status/queue checkpoints still exit 0.
+
+Run from `D:\AI\PaperTrace` to reconcile the already published release without uploading:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py status --date <RELEASE-DATE> --online --record
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py queue --date <RELEASE-DATE>
+```
+
+Run the full offline regression from the worktree or production project root:
+
+```powershell
+python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p 'test_*.py'
+git diff --check
+```
+
+Actual semantic/Fable review, all social search classes and strict publication gates are unchanged. A recovery must preserve original source hashes and `not_reviewed` packet semantics. It must not create a release, backfill history, toggle OSS, mutate a profile or change a schedule. Unattended transport/write permission and an independent healthy AI publisher fallback still require actual environment evidence; interactive success does not establish those conditions.

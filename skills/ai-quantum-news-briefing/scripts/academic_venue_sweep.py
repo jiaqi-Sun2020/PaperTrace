@@ -17,6 +17,7 @@ import re
 import socket
 import sys
 import time
+import threading
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -29,7 +30,10 @@ from typing import Iterable
 from urllib.parse import quote_plus, urlencode, urlsplit
 
 from academic_sources import (SEARCH_VERSION, family_gate, health_table,
-                              load_registry, markdown_health_table)
+                              load_registry, markdown_health_table, row_is_healthy)
+from collection_checkpoint import atomic_json, load_checkpoint, save_checkpoint
+
+_REQUEST_BUDGET = threading.local()
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -369,7 +373,10 @@ def _request_source_with_retry(url: str, timeout: int, attempts: int = 3) -> tup
     """Retry transient source failures; 403/404 are evidence, not retry signals."""
     last: tuple[dict[str, object], bytes] = ({}, b"")
     for attempt in range(attempts):
-        last = _request_evidence(url, timeout)
+        remaining = getattr(_REQUEST_BUDGET, "deadline", float("inf")) - time.monotonic()
+        if remaining <= 0:
+            return ({"query_url": url, "status_code": 0, "error": "collection_deadline"}, b"")
+        last = _request_evidence(url, min(timeout, remaining))
         evidence, _ = last
         status = int(evidence.get("status_code") or 0)
         error = str(evidence.get("error") or "")
@@ -381,6 +388,8 @@ def _request_source_with_retry(url: str, timeout: int, attempts: int = 3) -> tup
         except (TypeError, ValueError):
             delay = min(3.0, float(attempt + 1))
         if "response_too_large" in error:
+            return last
+        if time.monotonic() + delay >= getattr(_REQUEST_BUDGET, "deadline", float("inf")):
             return last
         time.sleep(delay)
     return last
@@ -460,6 +469,35 @@ def _fetch_v4_row(row: dict[str, object], source: dict[str, object], terms: list
         quarantined = 0
         if adapter == "aps_rss":
             items, quarantined = _aps_recent_items(body, str(source.get("expected_journal") or ""))
+        elif adapter == "jmlr_rss":
+            # JMLR's live RSS currently publishes year-only pubDate fields.
+            # Preserve useful structured discovery without inventing instants.
+            root = ET.fromstring(body)
+            discovered = []
+            for node in root.iter("item"):
+                record = {child.tag: " ".join((child.text or "").split()) for child in node}
+                link = urlsplit(record.get("link", ""))
+                if (not record.get("title") or link.hostname not in {"jmlr.org", "www.jmlr.org"}
+                        or not link.path.startswith("/papers/")):
+                    quarantined += 1
+                    continue
+                discovered.append(record)
+                stamp = _parse_published_timestamp(record.get("pubDate", ""))
+                if stamp is None:
+                    quarantined += 1
+                else:
+                    items.append({"title": record["title"], "url": record["link"],
+                                  "published_at": stamp.isoformat(), "description": record.get("description", "")})
+            if not discovered:
+                raise ValueError("jmlr_feed_has_no_article_identities")
+            result["discovery_records"] = discovered
+            result["structured_candidate_count"] = len(discovered)
+            if not items:
+                result.update(parse_status="success", window_status="unknown", coverage_claim="discovery_only",
+                              candidate_count=0, quarantined_count=quarantined, matches=[], result="degraded",
+                              next_action="verify_article_publication_dates",
+                              note="Structured JMLR identities preserved; year-only dates cannot prove the Shanghai daily window or satisfy family health.")
+                return result
         elif adapter in {"rss", "arxiv_atom"}:
             items, quarantined = _generic_feed_items(body)
         elif adapter == "openreview_api":
@@ -523,7 +561,7 @@ def _fetch_v4_row(row: dict[str, object], source: dict[str, object], terms: list
                 window = "matched" if any(day in target_days for day in dated_days) else "empty"
         result.update(parse_status="success", window_status=window,
                       coverage_claim="discovery_only", candidate_count=len(matches),
-                      quarantined_count=quarantined, matches=matches[:100],
+                      quarantined_count=quarantined, matches=matches,
                       result="checked" if window != "expired" else "degraded",
                       next_action="article_level_review" if window != "expired" else "use_dated_api_or_archive")
     except (ET.ParseError, ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -533,7 +571,9 @@ def _fetch_v4_row(row: dict[str, object], source: dict[str, object], terms: list
     return result
 
 
-def fetch_evidence_v4(plan: dict[str, object], timeout: int = 30, max_workers: int = 4) -> dict[str, object]:
+def fetch_evidence_v4(plan: dict[str, object], timeout: int = 30, max_workers: int = 4,
+                      *, budget_seconds: float = 200, checkpoint: Path | None = None,
+                      progress_output: Path | None = None) -> dict[str, object]:
     """Collect independent source rows concurrently and calculate the family gate."""
     if plan.get("academic_search_version") != SEARCH_VERSION:
         raise ValueError("fetch_evidence_v4 requires an academic search v4 plan")
@@ -542,11 +582,55 @@ def fetch_evidence_v4(plan: dict[str, object], timeout: int = 30, max_workers: i
     terms = [str(term) for term in plan.get("terms", [])]
     target_days = set(_science_days(str(plan.get("date_range") or "")))
     rows = [dict(row) for row in plan.get("rows", []) if isinstance(row, dict)]
-    completed: dict[str, dict[str, object]] = {}
+    if not 0 < budget_seconds <= 200:
+        raise ValueError("collection budget must be in (0, 200]")
+    scope = {"kind": "academic_v4", "terms": terms, "date_range": plan.get("date_range"),
+             "rows": rows, "registry": registry}
+    cached = load_checkpoint(checkpoint, scope).get("rows", {})
+    completed = {str(row["source_id"]): cached[str(row["source_id"])] for row in rows
+                 if isinstance(cached, dict) and row_is_healthy(cached.get(str(row["source_id"])), str(plan.get("date_range")), registry)
+                 and cached[str(row["source_id"])].get("source_id") == row["source_id"]}
+    deadline = time.monotonic() + budget_seconds
+
+    def persist_progress():
+        snapshot = dict(plan)
+        snapshot["rows"] = [completed.get(str(row["source_id"]), {**row,
+                            "retrieval_status": "partial", "parse_status": "not_attempted",
+                            "window_status": "unknown", "coverage_claim": "none", "result": "error",
+                            "next_action": "resume_collector", "evidence": {"error": "collection_pending"}}) for row in rows]
+        snapshot["family_gate"] = family_gate(snapshot["rows"], registry)
+        snapshot["source_health"] = health_table(snapshot["rows"], registry)
+        snapshot["source_health_markdown"] = markdown_health_table(snapshot["rows"], registry)
+        snapshot["collection_complete"] = len(completed) == len(rows)
+        if progress_output is not None:
+            atomic_json(progress_output, snapshot)
+
+    persist_progress()
+
+    def fetch(row):
+        source = declared[str(row["source_id"])]
+        _REQUEST_BUDGET.deadline = deadline
+        try:
+            if time.monotonic() >= deadline:
+                return {**row, "retrieval_status": "error", "parse_status": "not_attempted",
+                        "window_status": "unknown", "coverage_claim": "none", "result": "error",
+                        "evidence": {"error": "collection_deadline"}, "next_action": "resume_collector"}
+            return _fetch_v4_row(row, source, terms, target_days, min(30, timeout))
+        finally:
+            del _REQUEST_BUDGET.deadline
+
+    # Put one source from each core family first, then remaining core sources.
+    pending = [row for row in rows if str(row["source_id"]) not in completed]
+    priority = []
+    for family in ("quantum_publisher", "ai_peer_review"):
+        first = next((row for row in pending if declared[str(row["source_id"])]["family"] == family
+                      and declared[str(row["source_id"])]["tier"] == "core"), None)
+        if first is not None:
+            priority.append(first)
+            pending.remove(first)
+    pending.sort(key=lambda row: declared[str(row["source_id"])]["tier"] != "core")
     with ThreadPoolExecutor(max_workers=min(4, max(1, max_workers))) as pool:
-        futures = {pool.submit(_fetch_v4_row, row, declared[str(row["source_id"])], terms,
-                               target_days, min(30, timeout)): str(row["source_id"])
-                   for row in rows}
+        futures = {pool.submit(fetch, row): str(row["source_id"]) for row in priority + pending}
         for future in as_completed(futures):
             source_id = futures[future]
             try:
@@ -558,11 +642,14 @@ def fetch_evidence_v4(plan: dict[str, object], timeout: int = 30, max_workers: i
                                         "coverage_claim": "none", "result": "error",
                                         "next_action": "retry_or_use_peer_source",
                                         "evidence": {"error": str(exc)[:300]}}
+            save_checkpoint(checkpoint, scope, {"rows": completed})
+            persist_progress()
     plan["rows"] = [completed[str(row["source_id"])] for row in rows]
     plan["family_gate"] = family_gate(plan["rows"], registry)
     plan["source_health"] = health_table(plan["rows"], registry)
     plan["source_health_markdown"] = markdown_health_table(plan["rows"], registry)
     plan["retrieved_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    plan["collection_complete"] = True
     return plan
 
 
@@ -823,6 +910,8 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--fetch", action="store_true", help="Fetch official HTTPS venue endpoints and attach auditable evidence.")
     parser.add_argument("--expanded", action="store_true", help="Also try eight optional journal/conference discovery targets; they do not become daily coverage requirements.")
     parser.add_argument("--legacy-v3", action="store_true", help="Generate the historical per-URL v3 ledger for read-only compatibility tests.")
+    parser.add_argument("--checkpoint", type=Path, help="Query-bound resumable collection state, separate from evidence output.")
+    parser.add_argument("--budget-seconds", type=float, default=200)
     parser.add_argument(
         "--mark-checked-no-hit",
         action="store_true",
@@ -840,10 +929,16 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
                        mark_checked_no_hit=args.mark_checked_no_hit, include_expanded=args.expanded)
             if args.legacy_v3 else build_plan_v4(terms, args.date_range, include_arxiv=not args.no_arxiv))
     if args.fetch:
-        plan = fetch_evidence(plan) if args.legacy_v3 else fetch_evidence_v4(plan)
+        plan = fetch_evidence(plan) if args.legacy_v3 else fetch_evidence_v4(
+            plan, budget_seconds=args.budget_seconds, checkpoint=args.checkpoint,
+            progress_output=Path(args.output) if args.output and args.format == "json" else None)
     text = json.dumps(plan, ensure_ascii=False, indent=2) if args.format == "json" else to_markdown(plan)
     if args.output:
-        Path(args.output).expanduser().resolve().write_text(text, encoding="utf-8")
+        output = Path(args.output).expanduser().resolve()
+        if args.format == "json":
+            atomic_json(output, plan)
+        else:
+            output.write_text(text, encoding="utf-8")
     else:
         print(text)
     return 0
