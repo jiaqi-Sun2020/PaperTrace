@@ -32,3 +32,8 @@ def test_does_not_treat_prose_reference_as_caption():
 
 def test_does_not_treat_joined_prose_reference_as_caption():
     assert MODULE.discover_caption_lines("Figure 8further shows the latency breakdown.") == []
+
+
+def test_roman_table_identity_on_own_line():
+    found = MODULE.discover_caption_lines("TABLE III\nClassification results.\nModel Score")
+    assert found == ["TABLE III Classification results."]

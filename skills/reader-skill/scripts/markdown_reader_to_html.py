@@ -438,9 +438,29 @@ def collect_meta(base_dir: Path) -> dict:
     if not source_map.exists():
         return {}
     try:
-        return json.loads(source_map.read_text(encoding="utf-8")).get("paper", {})
+        evidence = json.loads(source_map.read_text(encoding="utf-8"))
+        meta = dict(evidence.get("paper", {}))
     except Exception:
         return {}
+    # Presentation corrections are derived, not mutations of frozen evidence.
+    # This is useful when the PDF's embedded title is only its filename.
+    reviewed_path = base_dir / "reader_wiki" / "presentation_metadata.json"
+    if reviewed_path.exists():
+        reviewed = json.loads(reviewed_path.read_text(encoding="utf-8"))
+        if reviewed.get("source_pdf_sha256") != meta.get("source_pdf_sha256"):
+            raise ValueError("presentation metadata belongs to a different source PDF")
+        anchor = str(reviewed.get("source_anchor") or "")
+        source = next((row for row in evidence.get("blocks", []) if row.get("id") == anchor), None)
+        if not source:
+            raise ValueError("presentation metadata requires a real source anchor")
+        source_text = re.sub(r"\s+", " ", str(source.get("original_text") or ""))
+        for key in ("title", "authors"):
+            value = str(reviewed.get(key) or "").strip()
+            if value:
+                if re.sub(r"\s+", " ", value) not in source_text:
+                    raise ValueError(f"presentation {key} must be verbatim source-bound text")
+                meta[key] = value
+    return meta
 
 
 def find_agent_dir(base_dir: Path, explicit: str | None = None) -> Path | None:
@@ -2479,6 +2499,8 @@ def css() -> str:
   --accent-soft: var(--reader-accent-soft);
   --cn: var(--reader-cn);
   --warn: var(--reader-warn);
+  /* Compiled source assets have black glyphs, unlike theme-aware text. */
+  --reader-source-asset-bg: #fff;
 }
 * { box-sizing: border-box; }
 html { scrollbar-gutter: stable; }
@@ -2780,6 +2802,7 @@ main { min-width: 0; }
   padding: 14px;
 }
 .algorithm-render {
+  background: var(--reader-source-asset-bg);
   display: block;
   width: 100%;
   min-width: 720px;

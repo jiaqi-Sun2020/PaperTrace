@@ -75,7 +75,7 @@ The learner profile exists and uses schema v2, which separates stable concept pr
 2. Browse and cite current sources; convert same-day, three-day, or other relative-window requests into an explicit date range.
 3. Save durable briefing artifacts under `news/<date-range>/` when producing files.
 4. Require direct HTTPS evidence, dates, evidence fingerprints, Chinese fact/judgment/relevance fields, and an audited academic venue sweep; candidate-only AI HOT records never pass the evidence gate.
-5. Run `news-ranker-v1` before Delta compaction. Standard delivery targets 7–8 academic papers and 10–14 social-news items (target 12). Only an evidenced `verified_shortfall` may relax unattainable lower bounds after the bounded source expansion in `CONFIG_SPEC.md`; retain item rankings, selection trace, exclusions, original dates and the reader-visible shortfall reason.
+5. Run `news-ranker-v1` before Delta compaction. Standard delivery targets 6–8 academic papers and 6–12 social-news items (target 12). Only an evidenced `verified_shortfall` may relax unattainable lower bounds after the bounded source expansion in `CONFIG_SPEC.md`; retain item rankings, selection trace, exclusions, original dates and the reader-visible shortfall reason.
 6. Author one complete version-3 Fable and a consistent worked example using `skills/allegory-teach/references/daily-briefing-interface.md`. Preserve source selection and evidence gates; complete the story before its factual return.
 7. Treat candidate config, Markdown, and staging output as internal. New releases use the protocol-2 sequence with a required protocol-3 story review in `RUNBOOK.md`; Pipeline 2 completes locally only with a strictly verified briefing HTML, default-collapsed example, review evidence and required release set. The 08:00 Asia/Shanghai scheduled run covers the prior full calendar day through a separate structured coverage interval; the release date alone is not coverage evidence.
    Optional OSS website mirroring runs only after the local finalizer strictly verifies that release. It requires a manually enabled, site- and Bucket-verified local configuration. Site or Bucket check failure disables remote publishing until another manual enable; upload failure leaves the local release complete and can be retried separately. Credentials stay in the user's ossutil profile, outside the repository.
@@ -143,3 +143,19 @@ The 2026-07-16 briefing contains 8 academic and 12 social-news items with 60 def
 ## Daily pipeline v4 decision (2026-09-29)
 
 Daily delivery optimizes for trustworthy selection, not exhaustive-web claims. New releases use a declared source-capability registry and require one healthy `quantum_publisher` plus one healthy `ai_peer_review` family. Individual optional/probationary failures and malformed records are isolated and reported; family failure, missing article evidence or publication inconsistency remains blocking. Standard output is 6–8 academic and 6–12 social items, with evidence-bound `verified_shortfall` after the 14-day/72-hour expansion. `orchestrate_daily.py` is the sole routine status/preflight/collect/resume entry point and never auto-approves semantic review.
+
+## Daily source and recovery contract
+
+New collection keeps academic search and publication protocol v4 and uses
+`source_coverage_version=2`. Only replay-verified, complete registered queries
+can satisfy a source-family gate; rolling feeds, zero-result index queries and
+calendar labels retain their narrower evidence meaning. Quotas are owned by
+`daily_delivery_policy.py`, whose policy digest is bound into packets and
+attempts so copied configuration cannot silently change delivery requirements.
+
+When a valid daily pool is thin, `orchestrate_daily.py resume` can build bounded
+academic/social expansion inputs and a late-arrival annex. Those artifacts remain
+`not_reviewed` and cannot approve facts, the Fable, a shortfall, a release or OSS
+delivery. Recovery is atomic and source-scoped, preserves completed releases and
+unknown future versions, and performs network work outside project locks. The
+detailed data contracts and commands remain in `CONFIG_SPEC.md` and `RUNBOOK.md`.

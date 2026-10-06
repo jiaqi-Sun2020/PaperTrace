@@ -107,6 +107,11 @@ def main() -> int:
                 # escapes after JSON decoding. Convert those boundaries while
                 # preserving TeX commands that start with n, such as ``\nu``.
                 record[key] = str(authored[key]).replace(r"\n\n", "\n\n")
+        if authored.get("normalize_original_layout"):
+            if not authored.get("original_from_source"):
+                raise ValueError("layout normalization requires fresh immutable Original evidence")
+            record["original"] = re.sub(r"([a-z])-[ \t]*\n[ \t]*([a-z])", r"\1\2", record["original"])
+            record["original"] = re.sub(r"\s+", " ", record["original"]).strip()
         field_replacements = dict(authored.get("field_replacements") or {})
         if authored.get("original_replacements"):
             field_replacements.setdefault("original", []).extend(authored["original_replacements"])
@@ -170,6 +175,66 @@ def main() -> int:
             )
         if "object_metadata" in authored:
             record["object_metadata"].update(authored["object_metadata"])
+        if "crop_bbox_pixels" in authored:
+            if record["record_kind"] not in {"figure", "table"}:
+                raise ValueError(f"{stable_id}: crop requires a figure or table")
+            from PIL import Image
+            collection = "figures" if record["record_kind"] == "figure" else "tables"
+            source = next(row for row in source_map[collection] if row["id"] == record["source_anchor"])
+            page_rel = Path(source["source_page_image"])
+            page_path = (reader_dir / page_rel).resolve()
+            page_path.relative_to(reader_dir)
+            box = authored["crop_bbox_pixels"]
+            if not isinstance(box, list) or len(box) != 4 or any(not isinstance(x, int) for x in box):
+                raise ValueError("crop bbox must contain four integer pixel coordinates")
+            with Image.open(page_path) as page_image:
+                w, h = page_image.size
+                x0, y0, x1, y1 = box
+                if not (0 <= x0 < x1 <= w and 0 <= y0 < y1 <= h):
+                    raise ValueError("crop bbox must stay within the immutable source page")
+                asset_rel = Path("assets") / collection / (record["source_anchor"] + ".png")
+                asset_path = reader_dir / asset_rel
+                asset_path.parent.mkdir(parents=True, exist_ok=True)
+                page_image.crop(tuple(box)).save(asset_path)
+            record["object_metadata"].update({
+                "representation": "tight_crop", "asset_path": asset_rel.as_posix(),
+                "asset_sha256": hashlib.sha256(asset_path.read_bytes()).hexdigest(),
+                "bbox": box, "bbox_units": "source-page-pixels",
+                "source_page_dimensions": [w, h], "source_page_image": page_rel.as_posix(),
+                "source_page_image_sha256": hashlib.sha256(page_path.read_bytes()).hexdigest(),
+                "crop_reviewed_by": "current-session-primary-model",
+            })
+        if authored.get("algorithm_manifest"):
+            if record["record_kind"] != "algorithm":
+                raise ValueError(f"{stable_id}: compile manifest requires an algorithm record")
+            manifest_rel = Path(str(authored["algorithm_manifest"]))
+            manifest_path = (reader_dir / manifest_rel).resolve()
+            try:
+                manifest_path.relative_to(reader_dir)
+            except ValueError:
+                raise ValueError("compile manifest must remain inside the reader bundle")
+            manifest = read_json(manifest_path)
+            from algorithm_source_steps import source_statement_count
+            source = next(row for row in source_map.get("algorithms", []) if row["id"] == record["source_anchor"])
+            expected = source_statement_count(str(source.get("original_text") or ""))
+            if manifest.get("compile_status") != "pass" or expected < 2 or expected != manifest.get("numbered_states"):
+                raise ValueError(f"{stable_id}: compiled statement count does not match immutable source")
+            for source_key, hash_key in (("tex_path", "tex_sha256"), ("svg_path", "svg_sha256")):
+                path = manifest_path.parent / manifest[source_key]
+                if hashlib.sha256(path.read_bytes()).hexdigest() != manifest[hash_key]:
+                    raise ValueError(f"{stable_id}: stale compiled asset hash")
+            record["object_metadata"].update({
+                "representation": "latex_compiled_algorithm",
+                "latex_source_path": (manifest_rel.parent / manifest["tex_path"]).as_posix(),
+                "latex_source_sha256": manifest["tex_sha256"],
+                "compiled_asset_path": (manifest_rel.parent / manifest["svg_path"]).as_posix(),
+                "compiled_asset_sha256": manifest["svg_sha256"],
+                "compile_manifest_path": manifest_rel.as_posix(),
+                "compile_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                "compile_engine": manifest["engine"],
+                "numbered_steps": expected,
+                "source_numbering": "printed" if re.search(r"(?m)^\s*\d+\s*:", str(source.get("original_text") or "")) else "reader-navigation-only",
+            })
         for replacement in authored.get("inventory_signature_replacements") or []:
             if not isinstance(replacement, list) or len(replacement) != 2:
                 raise ValueError(f"{stable_id}: inventory_signature_replacements must be [old, new]")
@@ -185,6 +250,20 @@ def main() -> int:
                 raise ValueError(f"{stable_id}: inventory signature replacement expected one match for {old!r}, found {len(matches)}")
             matches[0]["signature"] = new
         record["object_metadata"]["record_override_file"] = args.overrides_json.name
+        if authored.get("algorithm_source_card"):
+            if record["record_kind"] != "block" or record["block_type"] != "algorithm":
+                raise ValueError(f"{stable_id}: source card binding requires an algorithm source block")
+            card_id = str(authored["algorithm_source_card"])
+            card = load_record(reader_dir, card_id)
+            if not card or card["status"] != "pass" or card["object_metadata"].get("source_block_id") != record["source_anchor"]:
+                raise ValueError(f"{stable_id}: compiled card is not a passing representation of this source block")
+            record["original"] = source_text = str(source_rows[record["source_anchor"]].get("original_text") or "")
+            record["zh"] = ""
+            record["object_metadata"].update({
+                "source_algorithm_contract": "compiled-source-language-v1",
+                "compiled_algorithm_record": card_id,
+                "compiled_algorithm_record_sha256": hashlib.sha256(record_path(reader_dir, card_id).read_bytes()).hexdigest(),
+            })
         record["object_metadata"]["record_override_sha256"] = override_sha256
         record["status"] = "pass"
         record["validation_errors"] = []

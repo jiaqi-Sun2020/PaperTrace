@@ -44,6 +44,18 @@ file must pass validation, not merely exist. JMLR RSS identities are structured
 discovery; year-only dates remain unknown and cannot satisfy a healthy daily
 source gate. Read the RUNBOOK recovery section for state and permission details.
 
+PLOS provides an independent, fixed AI / machine-learning Research Article
+index query. Its healthy result requires exact Shanghai-window query parameters,
+bounded complete pagination, locally validated records, and a matching second
+read of every page. Preserve the publisher's raw `publication_date` and label it
+`publisher_index_publication_date`; it is not proof of the actual online instant.
+A complete empty query proves only zero current indexed matches in that scope,
+never zero publications by the publisher or the whole AI field. It remains
+`discovery_only`; article review, expansion, quotas and publishing gates apply.
+Feed diagnostics distinguish a target before the returned range from one after
+it; neither can be promoted to a covered empty day. Collection diagnostics retain
+the missing family, per-source failures, observed date span and current preflight.
+
 Healthy academic rows require registered query scope, valid transport/digest,
 aware collection time, matching coverage window, and consistent dated matches;
 success flags alone cannot pass. Remote checks for completion use
@@ -59,6 +71,45 @@ durable checkpoint recording; local commits survive delivery/reconciliation fail
 An opt-in OSS website mirror runs only after the reviewed local release passes strict verification. Direct `publish` applies the same content gate. Read the OSS section in `.agents/RUNBOOK.md` when operating it. The local `news_publish.local.json` contains only site routing; `ossutil` owns credentials. Website mirroring starts disabled, requires manual `enable`, and latches disabled when the site or link cannot be verified after bounded retries. A failed mirror does not erase the completed local briefing; report the separate remote status.
 
 ## Core Workflow
+
+Current source optimization uses academic-search v4 with `source_coverage_version=2`.
+Each family requires a replay-verified complete registered query: APS PRX Quantum
+open-access publication-calendar API / Crossref Quantum, and PLOS AI / Crossref
+Nature Machine Intelligence. Scope and provider are explicit; an indexed empty
+query is not a publisher census. RSS remains discovery and its date span cannot
+prove an empty target day. Historical coverage version 1 keeps its local meaning.
+
+`resume` now prepares bounded expansion when raw pools are below the unchanged
+delivery floors. `expansion_pending` -> `expansion_ready` covers 14 academic
+calendar days and 72 hours of AI HOT candidates. The separate packet remains
+`not_reviewed`, with `shortfall_status=not_approved`; all four social search
+classes, source verification and actual content/story reviews still apply.
+When the daily pool is large enough, `late_arrival_pending` triggers a three-day
+index recheck and a source-bound authoring annex. Original publication dates are
+preserved; frozen releases are not rewritten. Explicit `expand` and `recheck`
+use the same sole orchestrator and must preserve authored/staged content.
+
+Read quotas from `scripts/daily_delivery_policy.py` / packet `delivery_policy`.
+Current defaults preserve formal publication bounds: academic 6–8, social 6–12,
+with at least 4 social new/material-update items under standard delivery.
+Explicit conflicting non-default ranking/delivery fields raise `policy_conflict`;
+a copied default ranking template remains a fallback. Do not lower quotas to recover a run. Queue
+`execution_order` puts the requested current date first while retaining backlog.
+Run records bind code/runtime/policy and retain independent attempt histories.
+
+Before authoring, test this task's scoped write capability with
+`daily_authoring.py probe --date <release-day>`. Save authored candidate JSON and
+existing staged review templates through `daily_authoring.py save/patch`, using
+the exact current SHA-256 (or `absent` for initial creation) and bounded UTF-8
+JSON encoded as base64. The CLI only writes the day's candidate or its existing
+protocol-4 staging news/story review; it cannot write releases, index, credentials
+or profile. It does not grant sandbox permission: if denied, request host
+approval for the complete command only, and obey a denial. Do not reinterpret a
+failed editor call as proof that every authorized command is read-only.
+Read the RUNBOOK authoring command contract before use. Drafts stay
+`authoring_status=in_progress` / `candidate_authoring_pending` until actually
+finished. Marking authoring complete or saving a review never approves content;
+source capture, actual reviews, sealing and strict publishing gates still apply.
 
 1. Determine the time window.
    - "今日" in an interactive request follows the user's current date and timezone. The scheduled 08:00 Asia/Shanghai release instead covers the prior complete local calendar day; do not claim that its release-date label means the current day is fully covered.

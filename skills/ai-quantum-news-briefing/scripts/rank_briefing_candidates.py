@@ -45,34 +45,7 @@ ACADEMIC_DOMAINS = {
     "ecva.net",
     "jmlr.org", "iopscience.iop.org", "ieeexplore.ieee.org", "ojs.aaai.org", "api2.openreview.net",
 }
-DEFAULT_RANKING_POLICY: dict[str, Any] = {
-    "enabled": True,
-    "algorithm_version": ALGORITHM_VERSION,
-    "deterministic": True,
-    "academic": {
-        "minimum_items": 6,
-        "target_items": 8,
-        "maximum_items": 8,
-        "minimum_new_items": 4,
-        "maximum_new_items": 8,
-        "minimum_non_arxiv_items": 2,
-        "maximum_continuing_items": 3,
-        "maximum_items_per_topic": 3,
-        "ordering": "base_score_desc",
-    },
-    "social": {
-        "minimum_items": 6,
-        "target_items": 12,
-        "maximum_items": 12,
-        "minimum_new_or_material_update": 7,
-        "maximum_continuing_items": 3,
-        "minimum_reputable_media_items": 3,
-        "minimum_primary_official_items": 3,
-        "minimum_source_classes": 3,
-        "maximum_items_per_organization": 2,
-        "maximum_items_per_topic": 3,
-    },
-}
+from daily_delivery_policy import DEFAULT_RANKING_POLICY
 
 
 if hasattr(sys.stdout, "reconfigure"):

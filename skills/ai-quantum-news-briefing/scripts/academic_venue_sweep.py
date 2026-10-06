@@ -221,6 +221,7 @@ def build_plan_v4(terms: list[str], date_range: str, include_arxiv: bool = True)
         })
     return {
         "academic_search_version": SEARCH_VERSION,
+        "source_coverage_version": 2,
         "source_registry_version": registry["version"],
         "date_range": date_range,
         "terms": terms,
@@ -315,7 +316,8 @@ def _request_evidence(url: str, timeout: int) -> tuple[dict[str, object], bytes]
             if len(body) > MAX_RESPONSE_BYTES:
                 raise ValueError("response_too_large")
             evidence.update(status_code=int(response.status), final_url=response.geturl(),
-                            response_hash=hashlib.sha256(body).hexdigest())
+                            response_hash=hashlib.sha256(body).hexdigest(),
+                            link_header=str(response.headers.get("Link", "")))
             return evidence, body
     except urllib.error.HTTPError as exc:
         body = exc.read(min(2_000_000, MAX_RESPONSE_BYTES) + 1)
@@ -443,6 +445,12 @@ def _parse_published_timestamp(value: str) -> datetime | None:
 
 def _fetch_v4_row(row: dict[str, object], source: dict[str, object], terms: list[str],
                   target_days: set[str], timeout: int) -> dict[str, object]:
+    if source.get("adapter") in {"aps_harvest", "crossref_dated"}:
+        from dated_source import fetch_dated_row
+        return fetch_dated_row(row, source, target_days, timeout, _request_source_with_retry)
+    if source.get("adapter") == "plos_search":
+        from plos_source import fetch_plos_row
+        return fetch_plos_row(row, source, target_days, timeout, _request_source_with_retry)
     result = dict(row)
     raw_url = str(source["url"])
     url = raw_url.format(term=quote_plus(terms[0] if terms else "quantum"))
@@ -554,16 +562,33 @@ def _fetch_v4_row(row: dict[str, object], source: dict[str, object], terms: list
                 matches.append(item)
         dated_days = [day for day in item_days if day]
         window = "rolling_window"
+        basis = "no_requested_window"
         if target_days and dated_days:
-            if max(target_days) < min(dated_days) or min(target_days) > max(dated_days):
+            if max(target_days) < min(dated_days):
                 window = "expired"
+                basis = "target_before_feed"
+            elif min(target_days) > max(dated_days):
+                window = "expired"
+                basis = "target_after_feed"
             else:
-                window = "matched" if any(day in target_days for day in dated_days) else "empty"
+                window = "matched" if any(day in target_days for day in dated_days) else "unknown"
+                basis = "dated_items_in_window" if window == "matched" else "gap_within_feed_span_unproven"
+        elif target_days:
+            window, basis = "unknown", "no_dated_items"
+        result["window_evidence"] = {
+            "requested_start": min(target_days) if target_days else None,
+            "requested_end": max(target_days) if target_days else None,
+            "observed_earliest_date": min(dated_days) if dated_days else None,
+            "observed_latest_date": max(dated_days) if dated_days else None,
+            "classification_basis": basis,
+            "source_scope": "returned_feed_records",
+            "publisher_day_coverage_complete": False,
+        }
         result.update(parse_status="success", window_status=window,
                       coverage_claim="discovery_only", candidate_count=len(matches),
                       quarantined_count=quarantined, matches=matches,
-                      result="checked" if window != "expired" else "degraded",
-                      next_action="article_level_review" if window != "expired" else "use_dated_api_or_archive")
+                      result="checked" if window in {"matched", "empty", "rolling_window"} else "degraded",
+                      next_action="article_level_review" if window in {"matched", "empty", "rolling_window"} else "use_dated_api_or_archive")
     except (ET.ParseError, ValueError, TypeError, json.JSONDecodeError) as exc:
         result.update(parse_status="error", window_status="unknown", coverage_claim="none",
                       result="degraded", next_action="retry_or_use_peer_source")
@@ -579,16 +604,24 @@ def fetch_evidence_v4(plan: dict[str, object], timeout: int = 30, max_workers: i
         raise ValueError("fetch_evidence_v4 requires an academic search v4 plan")
     registry = load_registry()
     declared = {source["source_id"]: source for source in registry["sources"]}
+    require_query = plan.get("source_coverage_version", 1) == 2
     terms = [str(term) for term in plan.get("terms", [])]
     target_days = set(_science_days(str(plan.get("date_range") or "")))
     rows = [dict(row) for row in plan.get("rows", []) if isinstance(row, dict)]
     if not 0 < budget_seconds <= 200:
         raise ValueError("collection budget must be in (0, 200]")
     scope = {"kind": "academic_v4", "terms": terms, "date_range": plan.get("date_range"),
-             "rows": rows, "registry": registry}
-    cached = load_checkpoint(checkpoint, scope).get("rows", {})
+             "source_coverage_version": plan.get("source_coverage_version", 1), "checkpoint_contract": 2}
+    source_scopes = {str(row["source_id"]): hashlib.sha256(json.dumps(
+        {"row": row, "source": declared[str(row["source_id"])]}, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+                     for row in rows}
+    checkpoint_payload = load_checkpoint(checkpoint, scope)
+    cached = checkpoint_payload.get("rows", {})
+    cached_scopes = checkpoint_payload.get("source_scopes", {})
     completed = {str(row["source_id"]): cached[str(row["source_id"])] for row in rows
-                 if isinstance(cached, dict) and row_is_healthy(cached.get(str(row["source_id"])), str(plan.get("date_range")), registry)
+                 if isinstance(cached, dict) and isinstance(cached_scopes, dict)
+                 and cached_scopes.get(str(row["source_id"])) == source_scopes[str(row["source_id"])]
+                 and row_is_healthy(cached.get(str(row["source_id"])), str(plan.get("date_range")), registry)
                  and cached[str(row["source_id"])].get("source_id") == row["source_id"]}
     deadline = time.monotonic() + budget_seconds
 
@@ -598,9 +631,10 @@ def fetch_evidence_v4(plan: dict[str, object], timeout: int = 30, max_workers: i
                             "retrieval_status": "partial", "parse_status": "not_attempted",
                             "window_status": "unknown", "coverage_claim": "none", "result": "error",
                             "next_action": "resume_collector", "evidence": {"error": "collection_pending"}}) for row in rows]
-        snapshot["family_gate"] = family_gate(snapshot["rows"], registry)
-        snapshot["source_health"] = health_table(snapshot["rows"], registry)
-        snapshot["source_health_markdown"] = markdown_health_table(snapshot["rows"], registry)
+        snapshot["family_gate"] = family_gate(snapshot["rows"], registry, require_query=require_query)
+        snapshot["legacy_family_gate"] = family_gate(snapshot["rows"], registry)
+        snapshot["source_health"] = health_table(snapshot["rows"], registry, require_query=require_query)
+        snapshot["source_health_markdown"] = markdown_health_table(snapshot["rows"], registry, require_query=require_query)
         snapshot["collection_complete"] = len(completed) == len(rows)
         if progress_output is not None:
             atomic_json(progress_output, snapshot)
@@ -624,11 +658,12 @@ def fetch_evidence_v4(plan: dict[str, object], timeout: int = 30, max_workers: i
     priority = []
     for family in ("quantum_publisher", "ai_peer_review"):
         first = next((row for row in pending if declared[str(row["source_id"])]["family"] == family
-                      and declared[str(row["source_id"])]["tier"] == "core"), None)
+                      and declared[str(row["source_id"])]["adapter"] in {"aps_harvest", "crossref_dated", "plos_search"}), None)
         if first is not None:
             priority.append(first)
             pending.remove(first)
-    pending.sort(key=lambda row: declared[str(row["source_id"])]["tier"] != "core")
+    pending.sort(key=lambda row: (declared[str(row["source_id"])]["adapter"] not in {"aps_harvest", "crossref_dated", "plos_search"},
+                                 declared[str(row["source_id"])]["tier"] != "core"))
     with ThreadPoolExecutor(max_workers=min(4, max(1, max_workers))) as pool:
         futures = {pool.submit(fetch, row): str(row["source_id"]) for row in priority + pending}
         for future in as_completed(futures):
@@ -642,12 +677,13 @@ def fetch_evidence_v4(plan: dict[str, object], timeout: int = 30, max_workers: i
                                         "coverage_claim": "none", "result": "error",
                                         "next_action": "retry_or_use_peer_source",
                                         "evidence": {"error": str(exc)[:300]}}
-            save_checkpoint(checkpoint, scope, {"rows": completed})
+            save_checkpoint(checkpoint, scope, {"rows": completed, "source_scopes": source_scopes})
             persist_progress()
     plan["rows"] = [completed[str(row["source_id"])] for row in rows]
-    plan["family_gate"] = family_gate(plan["rows"], registry)
-    plan["source_health"] = health_table(plan["rows"], registry)
-    plan["source_health_markdown"] = markdown_health_table(plan["rows"], registry)
+    plan["family_gate"] = family_gate(plan["rows"], registry, require_query=require_query)
+    plan["legacy_family_gate"] = family_gate(plan["rows"], registry)
+    plan["source_health"] = health_table(plan["rows"], registry, require_query=require_query)
+    plan["source_health_markdown"] = markdown_health_table(plan["rows"], registry, require_query=require_query)
     plan["retrieved_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     plan["collection_complete"] = True
     return plan

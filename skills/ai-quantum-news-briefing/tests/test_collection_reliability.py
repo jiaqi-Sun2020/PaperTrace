@@ -40,6 +40,7 @@ class CheckpointTests(unittest.TestCase):
 
     def test_academic_checkpoint_survives_failed_optional_and_reuses_core(self):
         plan = sweep.build_plan_v4(["quantum"], "2026-10-01")
+        plan["source_coverage_version"] = 1  # Replay the historical feed contract.
         plan["rows"] = [row for row in plan["rows"] if row["source_id"] in {"aps-pra", "openreview", "iop-qst"}]
         calls = []
         def fetch(row, *_args):
@@ -93,6 +94,7 @@ from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 import academic_venue_sweep as s
 plan = s.build_plan_v4(["quantum"], "2026-10-01")
+plan["source_coverage_version"] = 1
 plan["rows"] = [r for r in plan["rows"] if r["source_id"] in {"aps-pra", "openreview", "iop-qst"}]
 def fetch(row, *_args):
     if row["source_id"] == "iop-qst": time.sleep(10)

@@ -44,6 +44,7 @@ from news_delta import (
     replace_release_index,
 )
 from rank_briefing_candidates import DEFAULT_RANKING_POLICY, SOURCE_ALGORITHM_VERSION, merged_policy, rank_briefing_config
+from daily_delivery_policy import resolve_delivery_defaults
 from release_audit import REVIEW_NAMES, claim_digest, content_digest, make_report, selected_items, validate_bundle
 from release_lock import release_lock
 from publication_contracts import coverage_contract_for_manifest, coverage_contract_for_protocol
@@ -528,35 +529,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     }
     if "analysis_language" not in raw_config:
         raw_config["analysis_language"] = "zh-CN"
-    if "academic_delivery" not in raw_config:
-        raw_config = dict(raw_config)
-        raw_config["academic_delivery"] = {
-            "required": True,
-            "minimum_items": 6,
-            "target_items": 8,
-            "maximum_items": 8,
-            "minimum_new_items": 4,
-            "maximum_new_items": 8,
-            "minimum_non_arxiv_items": 2,
-            "maximum_continuing_items": 3,
-            "context_days": 7,
-            "policy": "Rank an academic candidate pool and publish six to eight papers, quality first, with at least two non-arXiv formal venue papers in standard mode.",
-        }
-    if "social_delivery" not in raw_config:
-        raw_config = dict(raw_config)
-        raw_config["social_delivery"] = {
-            "minimum_items": 6,
-            "target_items": 12,
-            "maximum_items": 12,
-            "minimum_new_or_material_update": 4,
-            "maximum_continuing_items": 3,
-            "minimum_reputable_media_items": 3,
-            "minimum_primary_official_items": 3,
-            "minimum_source_classes": 3,
-            "maximum_items_per_organization": 2,
-            "maximum_items_per_topic": 3,
-            "policy": "Rank a verified social-news candidate pool and publish six to twelve items with source, organization, and topic diversity.",
-        }
+    raw_config = resolve_delivery_defaults(raw_config)
     academic_delivery = raw_config.get("academic_delivery") or {}
     if protocol >= 3 and (not isinstance(academic_delivery, dict) or academic_delivery.get("required") is not True):
         raise ValueError("academic_delivery.required must be true for a new release")
@@ -567,28 +540,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                                         "algorithm_version": SOURCE_ALGORITHM_VERSION, "enabled": True}
     if isinstance(academic_delivery, dict) and academic_delivery.get("required"):
         raw_config = dict(raw_config)
-        academic_delivery = dict(academic_delivery)
-        academic_delivery["minimum_items"] = max(6, int(academic_delivery.get("minimum_items", 6)))
-        academic_delivery["target_items"] = max(academic_delivery["minimum_items"], int(academic_delivery.get("target_items", 8)))
-        academic_delivery["maximum_items"] = max(academic_delivery["target_items"], int(academic_delivery.get("maximum_items", 8)))
-        academic_delivery["minimum_new_items"] = max(4, int(academic_delivery.get("minimum_new_items", 4)))
-        academic_delivery["maximum_new_items"] = min(8, max(academic_delivery["minimum_new_items"], int(academic_delivery.get("maximum_new_items", 8))))
-        academic_delivery["minimum_non_arxiv_items"] = max(2, int(academic_delivery.get("minimum_non_arxiv_items", 2)))
-        academic_delivery["maximum_continuing_items"] = min(3, int(academic_delivery.get("maximum_continuing_items", 3)))
-        raw_config["academic_delivery"] = academic_delivery
-
-        social_delivery = dict(raw_config.get("social_delivery") or {})
-        social_delivery["minimum_items"] = max(6, int(social_delivery.get("minimum_items", 6)))
-        social_delivery["target_items"] = min(12, max(social_delivery["minimum_items"], int(social_delivery.get("target_items", 12))))
-        social_delivery["maximum_items"] = min(12, max(social_delivery["target_items"], int(social_delivery.get("maximum_items", 12))))
-        social_delivery["minimum_new_or_material_update"] = max(4, int(social_delivery.get("minimum_new_or_material_update", 4)))
-        social_delivery["maximum_continuing_items"] = min(3, int(social_delivery.get("maximum_continuing_items", 3)))
-        social_delivery["minimum_reputable_media_items"] = max(3, int(social_delivery.get("minimum_reputable_media_items", 3)))
-        social_delivery["minimum_primary_official_items"] = max(3, int(social_delivery.get("minimum_primary_official_items", 3)))
-        social_delivery["minimum_source_classes"] = max(3, int(social_delivery.get("minimum_source_classes", 3)))
-        social_delivery["maximum_items_per_organization"] = min(2, int(social_delivery.get("maximum_items_per_organization", 2)))
-        social_delivery["maximum_items_per_topic"] = min(3, int(social_delivery.get("maximum_items_per_topic", 3)))
-        raw_config["social_delivery"] = social_delivery
+        social_delivery = raw_config["social_delivery"]
 
         ranking_policy = merged_policy(raw_config.get("ranking_policy"))
         ranking_policy["academic"] = {**ranking_policy["academic"], **{key: academic_delivery[key] for key in DEFAULT_RANKING_POLICY["academic"] if key in academic_delivery}}

@@ -670,12 +670,17 @@ def formula_ledger(
     return ledger, errors
 
 
-def figure_table_ledger(markdown: str, source_map: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
+def figure_table_ledger(markdown: str, source_map: dict[str, Any], reader_dir: Path | None = None) -> tuple[list[dict[str, Any]], list[str]]:
     entries: list[dict[str, Any]] = []
     errors: list[str] = []
     segments = dict(split_segments(markdown))
     source_figures = source_map.get("figures") or []
     source_tables = source_map.get("tables") or []
+    inventory_rows = {}
+    if reader_dir is not None:
+        inventory_path = reader_dir / "reader_wiki" / "object_inventory.json"
+        if inventory_path.exists():
+            inventory_rows = {str(item.get("id") or ""): item for item in read_json(inventory_path).get("objects", [])}
     source_figure_ids = {str(row.get("id") or row.get("block_id") or "") for row in source_figures if isinstance(row, dict)}
     source_table_ids = {str(row.get("id") or row.get("block_id") or "") for row in source_tables if isinstance(row, dict)}
     for block_id in segments:
@@ -696,8 +701,36 @@ def figure_table_ledger(markdown: str, source_map: dict[str, Any]) -> tuple[list
             has_image = bool(image_paths)
             has_table = bool(TABLE_SEP_RE.search(segment))
             has_caption = "Original caption" in segment and ("中文图注" in segment or "中文表注" in segment)
-            uses_source_page_as_figure = kind == "figure" and any("assets/source_pages/" in path.replace("\\", "/") for path in image_paths)
-            ok = (has_image if kind == "figure" else has_table) and has_caption and not uses_source_page_as_figure
+            uses_source_page_as_figure = any("assets/source_pages/" in path.replace("\\", "/") for path in image_paths)
+            crop_verified = False
+            metadata = inventory_rows.get(block_id, {})
+            if kind == "table" and has_image and reader_dir is not None and metadata.get("representation") == "tight_crop":
+                asset_rel = str(metadata.get("asset_path") or "")
+                box = metadata.get("bbox") or []
+                page_rel = str(metadata.get("source_page_image") or "")
+                try:
+                    asset = (reader_dir / asset_rel).resolve()
+                    page_asset = (reader_dir / page_rel).resolve()
+                    asset.relative_to(reader_dir.resolve())
+                    page_asset.relative_to(reader_dir.resolve())
+                    from PIL import Image
+                    with Image.open(page_asset) as page_image:
+                        w, h = page_image.size
+                        x0, y0, x1, y1 = box
+                        with Image.open(asset) as crop_image:
+                            crop_verified = (
+                                asset_rel in image_paths and page_rel == row.get("source_page_image")
+                                and metadata.get("bbox_units") == "source-page-pixels"
+                                and 0 <= x0 < x1 <= w and 0 <= y0 < y1 <= h
+                                and (x1-x0)*(y1-y0) < w*h*0.9
+                                and sha256_file(asset) == metadata.get("asset_sha256")
+                                and sha256_file(page_asset) == metadata.get("source_page_image_sha256")
+                                and crop_image.size == (x1-x0, y1-y0)
+                                and crop_image.tobytes() == page_image.crop(tuple(box)).tobytes()
+                            )
+                except (OSError, ValueError, TypeError):
+                    crop_verified = False
+            ok = (has_image if kind == "figure" else has_table or crop_verified) and has_caption and not uses_source_page_as_figure
             if not ok:
                 errors.append(f"{block_id}: source_map {kind} lacks complete card/caption in normalized Markdown")
             if uses_source_page_as_figure:
@@ -708,6 +741,7 @@ def figure_table_ledger(markdown: str, source_map: dict[str, Any]) -> tuple[list
                 "has_image": has_image,
                 "image_paths": image_paths,
                 "has_semantic_table": has_table,
+                "has_verified_tight_crop": crop_verified,
                 "has_bilingual_caption": has_caption,
                 "source_page": row.get("page"),
                 "source_evidence_hash": hashlib.sha256(
@@ -1107,7 +1141,7 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
     }
     formulas, formula_errors = formula_ledger(blocks, exact_alignment_ids, source_math_inventories)
     errors.extend(formula_errors)
-    figures_tables, ft_errors = figure_table_ledger(markdown, source_map)
+    figures_tables, ft_errors = figure_table_ledger(markdown, source_map, reader_dir)
     errors.extend(ft_errors)
     algorithms, algorithm_errors = algorithm_ledger(reader_dir, markdown, source_map)
     errors.extend(algorithm_errors)

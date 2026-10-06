@@ -289,7 +289,9 @@ def plaintext_duplicate_issues(text: str, *, field: str) -> list[str]:
 
 def atomic_formula_issues(text: str, *, field: str) -> list[str]:
     issues: list[str] = []
-    if r"\n" in (text or ""):
+    # TeX commands such as \nabla, \neq and \not are not JSON newlines.
+    # Reject escaped paragraph breaks in prose, and bare \n inside math.
+    if r"\n" in prose_without_math(text) or re.search(r"\\n(?![A-Za-z])", text or ""):
         issues.append(f"{field}: literal \\n escape remains; use real Markdown paragraph breaks")
     for index, component in enumerate(display_components(text), start=1):
         body = math_body(component)

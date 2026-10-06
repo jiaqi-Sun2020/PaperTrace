@@ -186,6 +186,10 @@ def validate_record(record: dict[str, Any]) -> list[str]:
     zh = record["zh"].strip()
     metadata = record["object_metadata"]
     if kind == "block":
+        if record.get("block_type") == "algorithm" and metadata.get("source_algorithm_contract") == "compiled-source-language-v1":
+            if not original or zh or not metadata.get("compiled_algorithm_record") or not metadata.get("compiled_algorithm_record_sha256"):
+                errors.append("algorithm source coverage requires original-only evidence and a hash-bound compiled card")
+            return errors
         if not original or not zh:
             errors.append("pass block requires Original and Chinese text")
         if original == zh and re.search(r"[A-Za-z]{4}", original):
@@ -333,6 +337,15 @@ def load_record(reader_dir: Path, stable_id: str) -> dict[str, Any] | None:
         return None
     record = read_json(path)
     assert_valid_record(record)
+    metadata = record.get("object_metadata") or {}
+    if record.get("status") == "pass" and metadata.get("source_algorithm_contract") == "compiled-source-language-v1":
+        card_path = record_path(reader_dir, str(metadata["compiled_algorithm_record"]))
+        if not card_path.is_file() or sha256_file(card_path) != metadata["compiled_algorithm_record_sha256"]:
+            raise ValueError(f"{stable_id}: compiled source algorithm binding is missing or stale")
+        card = read_json(card_path)
+        assert_valid_record(card)
+        if card["record_kind"] != "algorithm" or card["status"] != "pass" or card["object_metadata"].get("source_block_id") != record["source_anchor"]:
+            raise ValueError(f"{stable_id}: compiled source algorithm binding does not cover this source")
     return record
 
 

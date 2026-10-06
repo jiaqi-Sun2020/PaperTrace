@@ -329,7 +329,12 @@ def academic_search_venues(config: dict[str, Any], *, legacy_science: bool = Fal
         if not isinstance(rows, list) or not rows:
             return set(), 0, 0, ["academic search v4 source rows are missing"]
         window = raw.get("date_range")
-        gate = academic_family_gate(rows, coverage_window=window)
+        coverage_version = raw.get("source_coverage_version", 1)
+        if type(coverage_version) is not int or coverage_version not in {1, 2}:
+            return set(), 0, 0, ["unsupported source coverage version"]
+        if coverage_version != 2 and any(isinstance(row, dict) and ("dated_query_evidence" in row or row.get("adapter") in {"aps_harvest", "crossref_dated"}) for row in rows):
+            return set(), 0, 0, ["dated query evidence cannot use the historical source coverage contract"]
+        gate = academic_family_gate(rows, coverage_window=window, require_query=coverage_version == 2)
         failures = [] if gate["status"] == "pass" else [
             "academic source family gate failed: " + ", ".join(gate["missing_families"])]
         if raw.get("family_gate") != gate:

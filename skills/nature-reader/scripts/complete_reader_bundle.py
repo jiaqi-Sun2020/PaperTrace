@@ -534,8 +534,8 @@ def build_completion_ledger(reader_dir: Path) -> tuple[dict[str, Any], list[str]
                     manifest = read_json(manifest_path)
                 except Exception as exc:
                     issues.append(f"{anchor}: invalid Algorithm compile manifest: {exc}")
-            source_numbers = [int(value) for value in re.findall(r"(?m)^\s*(\d+)\s*:", source_original(source_row))]
-            expected_steps = max(source_numbers) if source_numbers else 0
+            from algorithm_source_steps import source_statement_count
+            expected_steps = source_statement_count(source_original(source_row))
             numbered_steps = int(manifest.get("numbered_states") or 0)
             valid = (
                 source_row

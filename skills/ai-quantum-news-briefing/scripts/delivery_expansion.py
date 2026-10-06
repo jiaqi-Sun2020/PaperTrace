@@ -153,7 +153,7 @@ def validate_policy(config: dict[str, Any], *, required: bool = False) -> list[s
                 required_success = venue != "science"
                 if not any(_http_attempt(row, domain, end, success=required_success) for row in venue_rows):
                     errors.append(f"shortfall academic lookback source is incomplete: {venue}")
-        elif family_gate(rows, coverage_window=expected)["status"] != "pass":
+        elif family_gate(rows, coverage_window=expected, require_query=lookback.get("source_coverage_version", 1) == 2)["status"] != "pass":
             errors.append("shortfall academic lookback lacks a healthy quantum and AI source family")
 
     social_rows = policy.get("social_lookback")

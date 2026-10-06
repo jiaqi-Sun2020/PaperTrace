@@ -35,7 +35,7 @@ CAPTION_RE = re.compile(
 )
 CAPTION_LINE_RE = re.compile(
     r"^(?:(?i:FIG(?:URE)?\.?)\s*\d+|(?i:TABLE)\s+[IVXLCDMivxlcdm\d]+)"
-    r"(?:\s*[|:.]|\s*(?=[A-Z][a-z]))",
+    r"(?:\s*[|:.]|\s*(?=[A-Z][a-z])|\s*$)",
 )
 PSEUDOCODE_HEADER_RE = re.compile(
     r"(?m)^\s*(?:algorithm|procedure|pseudocode)\s*(?:\d+|:)\b",
@@ -45,7 +45,9 @@ PSEUDOCODE_STEP_RE = re.compile(r"(?m)^\s*\d+\s*:")
 REFERENCE_HEADING_RE = re.compile(r"^(?:references|bibliography)\s*$", re.I)
 REFERENCE_ENTRY_RE = re.compile(r"^(?:\[\d+\]|\d+\.)\s+")
 POST_REFERENCE_HEADING_RE = re.compile(
-    r"^(?:acknowledgements?|author contributions?|funding|competing interests?|additional information)\s*$",
+    r"^(?:acknowledgements?|author contributions?|funding|competing interests?|additional information|"
+    r"appendix(?:\s+[A-Z])?|[A-Z]\.\s+(?:Implementation|Discussion[^\n]*|Results?|Proofs?|Experiments?)|"
+    r"[A-Z]\s+(?:Theoretical analysis|Algorithmic Details|Additional Experiments))(?:\s|$)",
     re.I,
 )
 PAGE_NUMBER_RE = re.compile(r"^\s*\d+\s*$")
@@ -165,10 +167,17 @@ def split_page_blocks(page_text: str) -> list[str]:
     )
     page_text = re.sub(
         r"(?im)^(References|Bibliography|Acknowledgements?|Author contributions?|Funding|"
-        r"Competing interests?|Additional information|Data availability|Methods)\s*$",
+        r"Competing interests?|Additional information|Data availability|Methods|"
+        r"Appendix(?:\s+[A-Z])?|[A-Z]\.\s+(?:Implementation|Discussion[^\n]*|Results?|Proofs?|Experiments?)|"
+        r"[A-Z]\s+(?:Theoretical analysis|Algorithmic Details|Additional Experiments))\s*$",
         r"\n\n\1\n\n",
         page_text,
     )
+    # Unnumbered algorithm boxes can touch prose in raw extraction. A final
+    # concatenation statement and an until-condition are real box endings,
+    # not grounds for dropping the following prose into the algorithm.
+    page_text = re.sub(r"(?im)^(s\s*←\s*Concat\(s\)|until\s+t\s*>\s*T)\s*$", r"\1\n\n", page_text)
+    page_text = re.sub(r"(?m)^(Limitations\.\s)", r"\n\n\1", page_text)
     paragraphs = [clean_line(part) for part in re.split(r"\n\s*\n", page_text) if clean_line(part)]
     result: list[str] = []
     for paragraph in paragraphs:
@@ -197,7 +206,13 @@ def classify_block(text: str) -> str:
     # formal reader contract requires a compiled representation with at least
     # two source-numbered states, so only register evidence that can satisfy
     # that contract without inventing steps.
-    if PSEUDOCODE_HEADER_RE.search(text) and len(PSEUDOCODE_STEP_RE.findall(text)) >= 2:
+    unnumbered_definition = (
+        PSEUDOCODE_HEADER_RE.match(text)
+        and re.search(r"(?m)^\s*(?:Input|Require)\s*:", text)
+        and re.search(r"(?m)^\s*(?:Output|Ensure)\s*:", text)
+        and text.count("←") >= 2
+    )
+    if PSEUDOCODE_HEADER_RE.search(text) and (len(PSEUDOCODE_STEP_RE.findall(text)) >= 2 or unnumbered_definition):
         return "algorithm"
     if CAPTION_RE.match(text):
         return "caption"

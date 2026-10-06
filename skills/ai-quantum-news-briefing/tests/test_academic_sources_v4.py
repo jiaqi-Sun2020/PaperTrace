@@ -93,6 +93,7 @@ class V4CollectionIsolationTests(unittest.TestCase):
 
     def test_bad_probationary_source_does_not_discard_healthy_families(self) -> None:
         plan = sweep.build_plan_v4(["quantum"], "2026-09-28")
+        plan["source_coverage_version"] = 1  # Historical feed-contract isolation.
         keep = {"aps-pra", "openreview", "iop-qst"}
         plan["rows"] = [row for row in plan["rows"] if row["source_id"] in keep]
 

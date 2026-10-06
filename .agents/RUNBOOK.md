@@ -583,4 +583,163 @@ python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p 'test
 git diff --check
 ```
 
-Actual semantic/Fable review, all social search classes and strict publication gates are unchanged. A recovery must preserve original source hashes and `not_reviewed` packet semantics. It must not create a release, backfill history, toggle OSS, mutate a profile or change a schedule. Unattended transport/write permission and an independent healthy AI publisher fallback still require actual environment evidence; interactive success does not establish those conditions.
+Actual semantic/Fable review, all social search classes and strict publication gates are unchanged. Recovery must preserve original source hashes and `not_reviewed` packet semantics. It must not create a release, backfill history, toggle OSS, mutate a profile or change a schedule. Unattended transport/write permission and an independent healthy AI publisher fallback still require actual environment evidence; interactive success does not establish those conditions.
+
+
+## Independent AI source and collection diagnostics
+
+The `plos-ai` source queries the official PLOS index for AI / machine-learning
+Research Articles with `doc_type:full`. The requested Shanghai half-open interval
+is converted to UTC in the fixed query. Preserve each original `publication_date`
+and label its meaning `publisher_index_publication_date`; the index's timestamp
+does not prove the actual first-online instant. This is `discovery_only`, never
+a publisher-wide census or approval of article claims.
+
+Healthy PLOS evidence requires a complete bounded query, exact request scope,
+HTTP/digest evidence for every page, unique consistently ordered article IDs,
+matching counts, valid article types/subjects/dates, and an unchanged second read
+of all pages. The shared row validator reconstructs these checks from saved raw
+responses before family admission or cached reuse. A healthy empty result means
+only zero currently indexed matches for that exact query. It does not approve
+verified shortfall: normal expansion, article review and release quotas remain.
+
+RSS `window_evidence` records the observed date range and distinguishes
+`target_before_feed` from `target_after_feed`. Neither is evidence of a covered
+empty day. A response with no dated entries is unknown, not a healthy rolling
+window. `collection_diagnostics` retains the recomputed missing family and
+per-source transport/parse/window failures before temporary aggregate cleanup.
+The current preflight survives collection; `last_collection_attempt` preserves
+the most recent completed attempt for later status inspections and is explicitly
+historical, not a current readiness or publishing result.
+
+Source-registry upgrades invalidate the registry-bound academic checkpoint;
+back it up before recovery. Existing valid social collection and completed
+release files are preserved. In `D:\AI\PaperTrace`, recover with:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py queue --date <RELEASE-DATE> --record
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py resume --date <RELEASE-DATE> --record
+```
+
+`collection_ready` still means only valid not-reviewed authoring inputs. Continue
+source review, expansion where needed, Fable, strict local review and publication
+through their existing gates. Do not toggle OSS or modify learner state to fix a
+collection failure. Tests use temporary directories and mocked transport.
+
+## Daily source and recovery contract
+
+New collection retains academic search v4 and publication protocol v4, and adds
+source_coverage_version=2. Families admit replay-verified complete registered
+queries; rolling feed date spans cannot prove query completeness. APS PRX
+Quantum open-access publication-calendar queries and Crossref Quantum metadata
+are independent provider/publisher paths. PLOS AI and Crossref Nature Machine
+Intelligence provide AI query paths. Query zero results never claim publisher-
+wide zero publications. Preserve raw responses, scope, provider, dates, precision,
+pagination and bounded consistent rechecks. Calendar labels remain date-only;
+they do not identify actual Shanghai first-online instants. Historical coverage
+version 1 keeps its meaning; dated evidence cannot downgrade to that contract.
+
+The sole quota owner is scripts/daily_delivery_policy.py. Defaults are unchanged:
+academic minimum/target/maximum 6/8/8, social 6/12/12, social new/material update
+minimum 4. Formal publication bounds remain unchanged. Conflicting explicit
+non-default ranking/delivery values raise policy_conflict; copied defaults remain
+fallbacks for configured delivery. Packets
+and attempts bind the policy SHA-256. Configuration overrides retain their
+existing meaning; semantic review and verified-shortfall gates remain unchanged.
+
+resume advances thin source-valid pools through expansion_pending to
+expansion_ready: 14 academic calendar days plus the current and two preceding
+AI HOT days. expansion_packet_v1.json remains not_reviewed / not_approved and
+points back to full evidence when capped at 100 per category. Four social source
+classes still need actual search/verification before shortfall can be approved.
+For sufficiently large daily pools, late_arrival_pending performs a three-day
+registered-index query and emits an unreviewed authoring annex. Frozen releases
+are never changed. Source and packet replacement is atomic, backed up by content
+digest, and rechecked under the installation lock. Network runs outside locks.
+Academic caches are scoped per source; unrelated registry edits preserve valid
+peer rows. A new checkpoint contract requires one initial revalidation.
+
+Run from D:\AI\PaperTrace:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py resume --date <RELEASE-DATE> --record
+```
+
+Explicit expand/recheck subcommands use the same --date and --record arguments.
+Unknown packet versions are preserved. Actionable input checkpoints exit 0;
+real transport/validation/write failures exit 2. Queue execution_order puts the
+requested current date first and retains every selected backlog date. Attempt
+reservations precede network, are sequence ordered and retain independent history
+with runtime/code/policy identity. A source-valid packet, expansion packet or
+annex never approves facts, story, shortfall, local release or remote delivery.
+
+Validation: offline regression and live positive/empty qualification precede
+deployment. New aggregates retain legacy_family_gate alongside the actual gate
+for a 14-natural-day observation including weekends; this observation is ongoing,
+not an already-passed acceptance result. Installation records exact target/payload
+hashes and backups. Rollback code as a bundle; retain all newly collected evidence
+and completed releases. Notification is separate from publishing; no new channel
+or automatic OSS enable is introduced.
+
+
+## Scoped daily authoring save contract
+
+Run commands from `D:\AI\PaperTrace`. A failed file-editor call does not prove
+all project writes are denied. Test the current task's actual controlled writer:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\daily_authoring.py probe --date <RELEASE-DATE>
+```
+
+The probe creates and removes a temporary file inside that day's collection
+directory; it never creates a candidate, review, release or approval. It does not
+grant sandbox permissions. If a command is denied, request host approval for
+that exact full command, with no generic interpreter/shell prefix. If approval
+is unavailable or denied, stop the dependent write and report the actual tool
+failure. OS `PermissionError`, editor denial and unavailable host escalation
+must be distinguished. Do not switch tools to bypass a denial.
+
+The sole scoped authoring CLI supports `save` (whole JSON object) and `patch`
+(JSON-pointer operations). Set `--date`, `--kind candidate|news-review|story-review`,
+`--expected-sha256 <current 64-hex digest|absent>`, and `--payload-base64 <ASCII>`.
+Review writes additionally require `--run-id <date>-<12 lowercase hex>` and an
+existing protocol-4 staged manifest and template from `review-template`.
+Encode the actual authored UTF-8 JSON directly as base64; do not pass Chinese
+through a default Windows shell encoding. Each payload is limited to 20,000
+ASCII characters. Split large authored documents into small patch commands,
+using each returned SHA-256 for the next command. Never approve a generic Python
+or PowerShell prefix. For example, after constructing an actual draft payload:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\daily_authoring.py save --date <RELEASE-DATE> --kind candidate --expected-sha256 absent --payload-base64 <BASE64_OF_AUTHORED_JSON>
+```
+
+Patch operations are `add`, `replace`, `remove`, or `copy-file`; JSON pointers
+follow `/sections/0/items/-` syntax. `copy-file` imports unchanged evidence only
+from a non-hidden `.json` in the same release's `_collection` directory, with
+optional `source_pointer`. Feedback, another date's collection and authored
+candidate files are rejected:
+`{"op":"copy-file","path":"/coverage_evidence/0/academic_search",`
+`"source":"_collection/<RELEASE-DATE>/academic_search_v4_<COVERAGE-DATE>.json"}`.
+This copies evidence; it cannot make a discovery candidate or missing source
+class approved. Paths outside `news`, reparse points, unknown artifact kinds,
+changed review bindings and obsolete expected digests fail closed.
+
+Candidate drafts default to `authoring_status=in_progress` and are inspected as
+`candidate_authoring_pending`, even with zero items. Continue actual authoring;
+only when the draft is finished explicitly patch `/authoring_status` to
+`complete`. All saves retain `semantic_review_status=not_reviewed`.
+This marker is not a content approval. Capture validity, required coverage,
+quotas, Fable and all actual reviews are still enforced by existing gates.
+Staged/published candidates cannot be rewritten by this CLI. Review binding
+digests and item identities cannot be changed, and saving a review cannot seal
+or publish it. Repair a staged content defect through the existing controlled
+regeneration path rather than editing published HTML or index.
+
+Writes hold the shared release lock briefly, require optimistic SHA-256 matching,
+make exact-byte backups under `.authoring_backups` before replacements, and use
+atomic installation. Repeating identical content with the current digest makes
+no backup or byte change. A corrupt candidate can be explicitly replaced with
+its exact digest and raw backup; a future candidate version remains untouched.
+Failures exit 2, unchanged/saved drafts and successful probes exit 0. No global
+permission, credential, proxy, OSS-enable or learner-profile change is needed.

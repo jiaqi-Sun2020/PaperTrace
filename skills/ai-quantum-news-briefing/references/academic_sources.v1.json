@@ -6,29 +6,540 @@
     "overall_timeout_seconds": 200,
     "maximum_attempts": 3,
     "maximum_response_bytes": 8000000,
-    "required_families": ["quantum_publisher", "ai_peer_review"]
+    "required_families": [
+      "quantum_publisher",
+      "ai_peer_review"
+    ],
+    "source_coverage_version": 2
   },
   "sources": [
-    {"source_id":"aps-prl","label":"APS Physical Review Letters","publisher":"APS","family":"quantum_publisher","tier":"core","adapter":"aps_rss","url":"https://feeds.aps.org/rss/recent/prl.xml","domain":"feeds.aps.org","expected_journal":"Physical Review Letters","topics":["quantum","physics"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"aps-pra","label":"APS Physical Review A","publisher":"APS","family":"quantum_publisher","tier":"core","adapter":"aps_rss","url":"https://feeds.aps.org/rss/recent/pra.xml","domain":"feeds.aps.org","expected_journal":"Physical Review A","topics":["quantum","atomic_physics"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"aps-prx","label":"APS PRX Quantum","publisher":"APS","family":"quantum_publisher","tier":"core","adapter":"aps_rss","url":"https://feeds.aps.org/rss/recent/prxquantum.xml","domain":"feeds.aps.org","expected_journal":"PRX Quantum","topics":["quantum_information","quantum_engineering"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"aps-prx-x","label":"APS Physical Review X","publisher":"APS","family":"quantum_publisher","tier":"optional","adapter":"aps_rss","url":"https://feeds.aps.org/rss/recent/prx.xml","domain":"feeds.aps.org","expected_journal":"Physical Review X","topics":["quantum","physics"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"aps-prapplied","label":"APS Physical Review Applied","publisher":"APS","family":"quantum_publisher","tier":"optional","adapter":"aps_rss","url":"https://feeds.aps.org/rss/recent/prapplied.xml","domain":"feeds.aps.org","expected_journal":"Physical Review Applied","topics":["quantum_engineering"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"aps-prresearch","label":"APS Physical Review Research","publisher":"APS","family":"quantum_publisher","tier":"optional","adapter":"aps_rss","url":"https://feeds.aps.org/rss/recent/prresearch.xml","domain":"feeds.aps.org","expected_journal":"Physical Review Research","topics":["quantum","physics"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"aps-prb","label":"APS Physical Review B","publisher":"APS","family":"quantum_publisher","tier":"optional","adapter":"aps_rss","url":"https://feeds.aps.org/rss/recent/prb.xml","domain":"feeds.aps.org","expected_journal":"Physical Review B","topics":["quantum_materials"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"aps-prd","label":"APS Physical Review D","publisher":"APS","family":"quantum_publisher","tier":"optional","adapter":"aps_rss","url":"https://feeds.aps.org/rss/recent/prd.xml","domain":"feeds.aps.org","expected_journal":"Physical Review D","topics":["quantum_field_theory","gravity"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"aps-rmp","label":"APS Reviews of Modern Physics","publisher":"APS","family":"quantum_publisher","tier":"optional","adapter":"aps_rss","url":"https://feeds.aps.org/rss/recent/rmp.xml","domain":"feeds.aps.org","expected_journal":"Reviews of Modern Physics","topics":["review","quantum"],"capabilities":["discovery_only"],"retention_days":60},
-    {"source_id":"nature-quantum","label":"Nature quantum mechanics topic","publisher":"Nature Portfolio","family":"quantum_publisher","tier":"core","adapter":"rss","url":"https://www.nature.com/subjects/quantum-mechanics.rss","domain":"www.nature.com","topics":["quantum"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"nature-machine-learning","label":"Nature machine learning topic","publisher":"Nature Portfolio","family":"ai_peer_review","tier":"core","adapter":"rss","url":"https://www.nature.com/subjects/machine-learning.rss","domain":"www.nature.com","topics":["machine_learning","ai"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"quantum-journal","label":"Quantum Journal","publisher":"Verein zur Förderung des Open Access Publizierens in den Quantenwissenschaften","family":"quantum_publisher","tier":"core","adapter":"html_listing","url":"https://quantum-journal.org/","domain":"quantum-journal.org","topics":["quantum"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"openreview","label":"OpenReview API v2","publisher":"OpenReview","family":"ai_peer_review","tier":"core","adapter":"openreview_api","url":"https://api2.openreview.net/notes","domain":"api2.openreview.net","topics":["ai","machine_learning"],"capabilities":["discovery_only","dated_listing"],"retention_days":3650},
-    {"source_id":"pmlr","label":"Proceedings of Machine Learning Research","publisher":"ML Research Press","family":"ai_peer_review","tier":"core","adapter":"html_listing","url":"https://proceedings.mlr.press/","domain":"proceedings.mlr.press","topics":["machine_learning","ai"],"capabilities":["discovery_only"],"retention_days":3650},
-    {"source_id":"jmlr","label":"Journal of Machine Learning Research","publisher":"JMLR","family":"ai_peer_review","tier":"core","adapter":"jmlr_rss","url":"https://www.jmlr.org/jmlr.xml","domain":"www.jmlr.org","topics":["machine_learning","ai"],"capabilities":["discovery_only","structured_listing"],"retention_days":3650},
-    {"source_id":"science","label":"Science / AAAS","publisher":"AAAS","family":"enhanced_discovery","tier":"optional","adapter":"science","url":"https://www.science.org/action/doSearch?AllField={term}","domain":"www.science.org","topics":["science","quantum","ai"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"arxiv-quant-ph","label":"arXiv quant-ph","publisher":"arXiv","family":"enhanced_discovery","tier":"optional","adapter":"arxiv_atom","url":"https://export.arxiv.org/api/query?search_query=cat%3Aquant-ph","domain":"export.arxiv.org","topics":["quantum"],"capabilities":["discovery_only"],"retention_days":3650},
-    {"source_id":"arxiv-ai","label":"arXiv AI categories","publisher":"arXiv","family":"enhanced_discovery","tier":"optional","adapter":"arxiv_atom","url":"https://export.arxiv.org/api/query?search_query=cat%3Acs.AI+OR+cat%3Acs.LG+OR+cat%3Acs.CL+OR+cat%3Acs.CV+OR+cat%3Acs.RO","domain":"export.arxiv.org","topics":["ai","machine_learning"],"capabilities":["discovery_only"],"retention_days":3650},
-    {"source_id":"iop-qst","label":"IOP Quantum Science and Technology","publisher":"IOP Publishing","family":"enhanced_discovery","tier":"probationary","adapter":"html_listing","url":"https://iopscience.iop.org/journal/2058-9565","domain":"iopscience.iop.org","topics":["quantum_engineering"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"ieee-tqe","label":"IEEE Transactions on Quantum Engineering","publisher":"IEEE","family":"enhanced_discovery","tier":"probationary","adapter":"html_listing","url":"https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=9140343","domain":"ieeexplore.ieee.org","topics":["quantum_engineering"],"capabilities":["discovery_only"],"retention_days":30},
-    {"source_id":"aaai","label":"AAAI current proceedings","publisher":"AAAI","family":"enhanced_discovery","tier":"probationary","adapter":"html_listing","url":"https://ojs.aaai.org/index.php/AAAI","domain":"ojs.aaai.org","topics":["ai"],"capabilities":["discovery_only"],"retention_days":3650}
+    {
+      "source_id": "aps-prx-dated",
+      "label": "APS PRX Quantum open-access published-date query",
+      "publisher": "APS",
+      "family": "quantum_publisher",
+      "tier": "core",
+      "adapter": "aps_harvest",
+      "url": "https://harvest.aps.org/v2/journals/articles",
+      "domain": "harvest.aps.org",
+      "journal_code": "PRXQUANTUM",
+      "provider_id": "aps-harvest",
+      "scope_id": "aps_prxquantum_openaccess_published_calendar",
+      "topics": [
+        "quantum"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "failure_domain": "aps-harvest"
+    },
+    {
+      "source_id": "crossref-quantum-dated",
+      "label": "Crossref Quantum registered journal metadata query",
+      "publisher": "Quantum Journal",
+      "family": "quantum_publisher",
+      "tier": "core",
+      "adapter": "crossref_dated",
+      "url": "https://api.crossref.org/journals/2521-327X/works",
+      "domain": "api.crossref.org",
+      "issn": "2521-327X",
+      "doi_prefix": "10.22331",
+      "provider_id": "crossref",
+      "scope_id": "crossref_quantum_online_calendar",
+      "topics": [
+        "quantum"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "failure_domain": "crossref"
+    },
+    {
+      "source_id": "crossref-nmi-dated",
+      "label": "Crossref Nature Machine Intelligence registered metadata query",
+      "publisher": "Nature Portfolio",
+      "family": "ai_peer_review",
+      "tier": "core",
+      "adapter": "crossref_dated",
+      "url": "https://api.crossref.org/journals/2522-5839/works",
+      "domain": "api.crossref.org",
+      "issn": "2522-5839",
+      "doi_prefix": "10.1038",
+      "provider_id": "crossref",
+      "scope_id": "crossref_nmi_online_calendar",
+      "topics": [
+        "machine_learning"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "failure_domain": "crossref"
+    },
+    {
+      "source_id": "aps-prl",
+      "label": "APS Physical Review Letters",
+      "publisher": "APS",
+      "family": "quantum_publisher",
+      "tier": "core",
+      "adapter": "aps_rss",
+      "url": "https://feeds.aps.org/rss/recent/prl.xml",
+      "domain": "feeds.aps.org",
+      "expected_journal": "Physical Review Letters",
+      "topics": [
+        "quantum",
+        "physics"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "feeds.aps.org",
+      "scope_id": "aps-prl",
+      "failure_domain": "feeds.aps.org"
+    },
+    {
+      "source_id": "aps-pra",
+      "label": "APS Physical Review A",
+      "publisher": "APS",
+      "family": "quantum_publisher",
+      "tier": "core",
+      "adapter": "aps_rss",
+      "url": "https://feeds.aps.org/rss/recent/pra.xml",
+      "domain": "feeds.aps.org",
+      "expected_journal": "Physical Review A",
+      "topics": [
+        "quantum",
+        "atomic_physics"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "feeds.aps.org",
+      "scope_id": "aps-pra",
+      "failure_domain": "feeds.aps.org"
+    },
+    {
+      "source_id": "aps-prx",
+      "label": "APS PRX Quantum",
+      "publisher": "APS",
+      "family": "quantum_publisher",
+      "tier": "core",
+      "adapter": "aps_rss",
+      "url": "https://feeds.aps.org/rss/recent/prxquantum.xml",
+      "domain": "feeds.aps.org",
+      "expected_journal": "PRX Quantum",
+      "topics": [
+        "quantum_information",
+        "quantum_engineering"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "feeds.aps.org",
+      "scope_id": "aps-prx",
+      "failure_domain": "feeds.aps.org"
+    },
+    {
+      "source_id": "aps-prx-x",
+      "label": "APS Physical Review X",
+      "publisher": "APS",
+      "family": "quantum_publisher",
+      "tier": "optional",
+      "adapter": "aps_rss",
+      "url": "https://feeds.aps.org/rss/recent/prx.xml",
+      "domain": "feeds.aps.org",
+      "expected_journal": "Physical Review X",
+      "topics": [
+        "quantum",
+        "physics"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "feeds.aps.org",
+      "scope_id": "aps-prx-x",
+      "failure_domain": "feeds.aps.org"
+    },
+    {
+      "source_id": "aps-prapplied",
+      "label": "APS Physical Review Applied",
+      "publisher": "APS",
+      "family": "quantum_publisher",
+      "tier": "optional",
+      "adapter": "aps_rss",
+      "url": "https://feeds.aps.org/rss/recent/prapplied.xml",
+      "domain": "feeds.aps.org",
+      "expected_journal": "Physical Review Applied",
+      "topics": [
+        "quantum_engineering"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "feeds.aps.org",
+      "scope_id": "aps-prapplied",
+      "failure_domain": "feeds.aps.org"
+    },
+    {
+      "source_id": "aps-prresearch",
+      "label": "APS Physical Review Research",
+      "publisher": "APS",
+      "family": "quantum_publisher",
+      "tier": "optional",
+      "adapter": "aps_rss",
+      "url": "https://feeds.aps.org/rss/recent/prresearch.xml",
+      "domain": "feeds.aps.org",
+      "expected_journal": "Physical Review Research",
+      "topics": [
+        "quantum",
+        "physics"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "feeds.aps.org",
+      "scope_id": "aps-prresearch",
+      "failure_domain": "feeds.aps.org"
+    },
+    {
+      "source_id": "aps-prb",
+      "label": "APS Physical Review B",
+      "publisher": "APS",
+      "family": "quantum_publisher",
+      "tier": "optional",
+      "adapter": "aps_rss",
+      "url": "https://feeds.aps.org/rss/recent/prb.xml",
+      "domain": "feeds.aps.org",
+      "expected_journal": "Physical Review B",
+      "topics": [
+        "quantum_materials"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "feeds.aps.org",
+      "scope_id": "aps-prb",
+      "failure_domain": "feeds.aps.org"
+    },
+    {
+      "source_id": "aps-prd",
+      "label": "APS Physical Review D",
+      "publisher": "APS",
+      "family": "quantum_publisher",
+      "tier": "optional",
+      "adapter": "aps_rss",
+      "url": "https://feeds.aps.org/rss/recent/prd.xml",
+      "domain": "feeds.aps.org",
+      "expected_journal": "Physical Review D",
+      "topics": [
+        "quantum_field_theory",
+        "gravity"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "feeds.aps.org",
+      "scope_id": "aps-prd",
+      "failure_domain": "feeds.aps.org"
+    },
+    {
+      "source_id": "aps-rmp",
+      "label": "APS Reviews of Modern Physics",
+      "publisher": "APS",
+      "family": "quantum_publisher",
+      "tier": "optional",
+      "adapter": "aps_rss",
+      "url": "https://feeds.aps.org/rss/recent/rmp.xml",
+      "domain": "feeds.aps.org",
+      "expected_journal": "Reviews of Modern Physics",
+      "topics": [
+        "review",
+        "quantum"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 60,
+      "provider_id": "feeds.aps.org",
+      "scope_id": "aps-rmp",
+      "failure_domain": "feeds.aps.org"
+    },
+    {
+      "source_id": "nature-quantum",
+      "label": "Nature quantum mechanics topic",
+      "publisher": "Nature Portfolio",
+      "family": "quantum_publisher",
+      "tier": "core",
+      "adapter": "rss",
+      "url": "https://www.nature.com/subjects/quantum-mechanics.rss",
+      "domain": "www.nature.com",
+      "topics": [
+        "quantum"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "www.nature.com",
+      "scope_id": "nature-quantum",
+      "failure_domain": "www.nature.com"
+    },
+    {
+      "source_id": "nature-machine-learning",
+      "label": "Nature machine learning topic",
+      "publisher": "Nature Portfolio",
+      "family": "ai_peer_review",
+      "tier": "core",
+      "adapter": "rss",
+      "url": "https://www.nature.com/subjects/machine-learning.rss",
+      "domain": "www.nature.com",
+      "topics": [
+        "machine_learning",
+        "ai"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "www.nature.com",
+      "scope_id": "nature-machine-learning",
+      "failure_domain": "www.nature.com"
+    },
+    {
+      "source_id": "quantum-journal",
+      "label": "Quantum Journal",
+      "publisher": "Verein zur Förderung des Open Access Publizierens in den Quantenwissenschaften",
+      "family": "quantum_publisher",
+      "tier": "core",
+      "adapter": "html_listing",
+      "url": "https://quantum-journal.org/",
+      "domain": "quantum-journal.org",
+      "topics": [
+        "quantum"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "quantum-journal.org",
+      "scope_id": "quantum-journal",
+      "failure_domain": "quantum-journal.org"
+    },
+    {
+      "source_id": "plos-ai",
+      "label": "PLOS indexed AI / machine learning research",
+      "publisher": "PLOS",
+      "family": "ai_peer_review",
+      "tier": "core",
+      "adapter": "plos_search",
+      "url": "https://api.plos.org/search",
+      "domain": "api.plos.org",
+      "topics": [
+        "ai",
+        "machine_learning"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 3650,
+      "provider_id": "plos",
+      "scope_id": "plos-ai",
+      "failure_domain": "plos"
+    },
+    {
+      "source_id": "openreview",
+      "label": "OpenReview API v2",
+      "publisher": "OpenReview",
+      "family": "ai_peer_review",
+      "tier": "core",
+      "adapter": "openreview_api",
+      "url": "https://api2.openreview.net/notes",
+      "domain": "api2.openreview.net",
+      "topics": [
+        "ai",
+        "machine_learning"
+      ],
+      "capabilities": [
+        "discovery_only",
+        "dated_listing"
+      ],
+      "retention_days": 3650,
+      "provider_id": "api2.openreview.net",
+      "scope_id": "openreview",
+      "failure_domain": "api2.openreview.net"
+    },
+    {
+      "source_id": "pmlr",
+      "label": "Proceedings of Machine Learning Research",
+      "publisher": "ML Research Press",
+      "family": "ai_peer_review",
+      "tier": "core",
+      "adapter": "html_listing",
+      "url": "https://proceedings.mlr.press/",
+      "domain": "proceedings.mlr.press",
+      "topics": [
+        "machine_learning",
+        "ai"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 3650,
+      "provider_id": "proceedings.mlr.press",
+      "scope_id": "pmlr",
+      "failure_domain": "proceedings.mlr.press"
+    },
+    {
+      "source_id": "jmlr",
+      "label": "Journal of Machine Learning Research",
+      "publisher": "JMLR",
+      "family": "ai_peer_review",
+      "tier": "core",
+      "adapter": "jmlr_rss",
+      "url": "https://www.jmlr.org/jmlr.xml",
+      "domain": "www.jmlr.org",
+      "topics": [
+        "machine_learning",
+        "ai"
+      ],
+      "capabilities": [
+        "discovery_only",
+        "structured_listing"
+      ],
+      "retention_days": 3650,
+      "provider_id": "www.jmlr.org",
+      "scope_id": "jmlr",
+      "failure_domain": "www.jmlr.org"
+    },
+    {
+      "source_id": "science",
+      "label": "Science / AAAS",
+      "publisher": "AAAS",
+      "family": "enhanced_discovery",
+      "tier": "optional",
+      "adapter": "science",
+      "url": "https://www.science.org/action/doSearch?AllField={term}",
+      "domain": "www.science.org",
+      "topics": [
+        "science",
+        "quantum",
+        "ai"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "www.science.org",
+      "scope_id": "science",
+      "failure_domain": "www.science.org"
+    },
+    {
+      "source_id": "arxiv-quant-ph",
+      "label": "arXiv quant-ph",
+      "publisher": "arXiv",
+      "family": "enhanced_discovery",
+      "tier": "optional",
+      "adapter": "arxiv_atom",
+      "url": "https://export.arxiv.org/api/query?search_query=cat%3Aquant-ph",
+      "domain": "export.arxiv.org",
+      "topics": [
+        "quantum"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 3650,
+      "provider_id": "export.arxiv.org",
+      "scope_id": "arxiv-quant-ph",
+      "failure_domain": "export.arxiv.org"
+    },
+    {
+      "source_id": "arxiv-ai",
+      "label": "arXiv AI categories",
+      "publisher": "arXiv",
+      "family": "enhanced_discovery",
+      "tier": "optional",
+      "adapter": "arxiv_atom",
+      "url": "https://export.arxiv.org/api/query?search_query=cat%3Acs.AI+OR+cat%3Acs.LG+OR+cat%3Acs.CL+OR+cat%3Acs.CV+OR+cat%3Acs.RO",
+      "domain": "export.arxiv.org",
+      "topics": [
+        "ai",
+        "machine_learning"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 3650,
+      "provider_id": "export.arxiv.org",
+      "scope_id": "arxiv-ai",
+      "failure_domain": "export.arxiv.org"
+    },
+    {
+      "source_id": "iop-qst",
+      "label": "IOP Quantum Science and Technology",
+      "publisher": "IOP Publishing",
+      "family": "enhanced_discovery",
+      "tier": "probationary",
+      "adapter": "html_listing",
+      "url": "https://iopscience.iop.org/journal/2058-9565",
+      "domain": "iopscience.iop.org",
+      "topics": [
+        "quantum_engineering"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "iopscience.iop.org",
+      "scope_id": "iop-qst",
+      "failure_domain": "iopscience.iop.org"
+    },
+    {
+      "source_id": "ieee-tqe",
+      "label": "IEEE Transactions on Quantum Engineering",
+      "publisher": "IEEE",
+      "family": "enhanced_discovery",
+      "tier": "probationary",
+      "adapter": "html_listing",
+      "url": "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=9140343",
+      "domain": "ieeexplore.ieee.org",
+      "topics": [
+        "quantum_engineering"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 30,
+      "provider_id": "ieeexplore.ieee.org",
+      "scope_id": "ieee-tqe",
+      "failure_domain": "ieeexplore.ieee.org"
+    },
+    {
+      "source_id": "aaai",
+      "label": "AAAI current proceedings",
+      "publisher": "AAAI",
+      "family": "enhanced_discovery",
+      "tier": "probationary",
+      "adapter": "html_listing",
+      "url": "https://ojs.aaai.org/index.php/AAAI",
+      "domain": "ojs.aaai.org",
+      "topics": [
+        "ai"
+      ],
+      "capabilities": [
+        "discovery_only"
+      ],
+      "retention_days": 3650,
+      "provider_id": "ojs.aaai.org",
+      "scope_id": "aaai",
+      "failure_domain": "ojs.aaai.org"
+    }
   ]
 }

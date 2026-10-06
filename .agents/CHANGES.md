@@ -217,3 +217,17 @@ This file records dated implementation and local-release milestones. Durable bou
 - Added bounded optional-venue, academic-lookback and social-lookback evidence for a `verified_shortfall` release. It may relax only unattainable lower counts and source-class minima after mandatory searches; original publication dates, exclusions, reader disclosure, claim review and strict release gates remain required.
 - Added a read-only OSS `doctor`, compact/offline-versus-online release status, and nonzero standalone publish exit status for disabled delivery. A scheduled sandbox still needs independently verified narrow access to the website and ossutil profile; these diagnostics do not grant it.
 - Kept the existing local releases, personal routing config, feedback and learner profile outside this source-code sync.
+
+## 2026-10-06 - Replayable source coverage and bounded authoring
+
+- Added `source_coverage_version=2` with independently replayed dated-query evidence, separate provider/publisher paths, and fail-closed treatment of rolling feeds, zero results, pagination, date precision and rechecks.
+- Centralized daily quotas and policy identity in `daily_delivery_policy.py`; bounded academic/social expansion and late-arrival inputs remain explicitly unreviewed and cannot authorize publication.
+- Added source-scoped cache recovery, atomic evidence replacement, sequenced attempt history and a restricted digest-bound authoring writer that cannot mutate evidence, approve reviews, publish, enable OSS or alter learner state.
+- Expanded adversarial coverage for incomplete responses, damaged caches, policy conflicts, stale drafts, expansion recovery and publication-boundary bypasses.
+
+### Source-bound reader presentation repairs
+
+- Added immutable-source-bound presentation metadata for reviewed title/author corrections without changing `source_map.json`.
+- Added verified tight table crops whose pixels, bounds and hashes must match the source-page image; full-page substitutes and stale crops fail completion.
+- Extended algorithm discovery and completion to unnumbered source pseudocode while preserving source-language statements, compiled-card hashes and the distinction between printed numbering and reader navigation.
+- Fixed formula validation so TeX commands such as `\\nabla` and `\\neq` are not mistaken for literal JSON newline escapes, while actual escaped line breaks still fail.

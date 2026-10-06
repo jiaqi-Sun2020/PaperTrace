@@ -16,6 +16,11 @@ from formula_contract import atomic_formula_issues, bilingual_math_issues, sourc
 
 
 class FormulaContractTests(unittest.TestCase):
+    def test_tex_n_commands_are_not_json_newlines(self) -> None:
+        self.assertEqual(atomic_formula_issues(r"\[\nabla_x L\neq0\]", field="Original"), [])
+        for text in (r"first\nSecond", r"first\n第二段", r"\[x=1\n\]"):
+            self.assertTrue(any("literal" in issue for issue in atomic_formula_issues(text, field="Original")))
+
     def test_explicit_inline_math_is_accepted(self) -> None:
         text = r"The inverse is \((K+\sigma_n^2 I)^{-1}\)."
         self.assertEqual(atomic_formula_issues(text, field="Original"), [])

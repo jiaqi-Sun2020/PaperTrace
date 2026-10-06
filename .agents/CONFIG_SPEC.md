@@ -483,4 +483,125 @@ python -B -m unittest discover -s skills/ai-quantum-news-briefing/tests -p 'test
 git diff --check
 ```
 
-Actual semantic/Fable review, all social search classes and strict publication gates are unchanged. A recovery must preserve original source hashes and `not_reviewed` packet semantics. It must not create a release, backfill history, toggle OSS, mutate a profile or change a schedule. Unattended transport/write permission and an independent healthy AI publisher fallback still require actual environment evidence; interactive success does not establish those conditions.
+Actual semantic/Fable review, all social search classes and strict publication gates are unchanged. Recovery must preserve original source hashes and `not_reviewed` packet semantics. It must not create a release, backfill history, toggle OSS, mutate a profile or change a schedule. Unattended transport/write permission and an independent healthy AI publisher fallback still require actual environment evidence; interactive success does not establish those conditions.
+
+
+## Independent AI source and collection diagnostics
+
+The `plos-ai` source queries the official PLOS index for AI / machine-learning
+Research Articles with `doc_type:full`. The requested Shanghai half-open interval
+is converted to UTC in the fixed query. Preserve each original `publication_date`
+and label its meaning `publisher_index_publication_date`; the index's timestamp
+does not prove the actual first-online instant. This is `discovery_only`, never
+a publisher-wide census or approval of article claims.
+
+Healthy PLOS evidence requires a complete bounded query, exact request scope,
+HTTP/digest evidence for every page, unique consistently ordered article IDs,
+matching counts, valid article types/subjects/dates, and an unchanged second read
+of all pages. The shared row validator reconstructs these checks from saved raw
+responses before family admission or cached reuse. A healthy empty result means
+only zero currently indexed matches for that exact query. It does not approve
+verified shortfall: normal expansion, article review and release quotas remain.
+
+RSS `window_evidence` records the observed date range and distinguishes
+`target_before_feed` from `target_after_feed`. Neither is evidence of a covered
+empty day. A response with no dated entries is unknown, not a healthy rolling
+window. `collection_diagnostics` retains the recomputed missing family and
+per-source transport/parse/window failures before temporary aggregate cleanup.
+The current preflight survives collection; `last_collection_attempt` preserves
+the most recent completed attempt for later status inspections and is explicitly
+historical, not a current readiness or publishing result.
+
+Source-registry upgrades invalidate the registry-bound academic checkpoint;
+back it up before recovery. Existing valid social collection and completed
+release files are preserved. In `D:\AI\PaperTrace`, recover with:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py queue --date <RELEASE-DATE> --record
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py resume --date <RELEASE-DATE> --record
+```
+
+`collection_ready` still means only valid not-reviewed authoring inputs. Continue
+source review, expansion where needed, Fable, strict local review and publication
+through their existing gates. Do not toggle OSS or modify learner state to fix a
+collection failure. Tests use temporary directories and mocked transport.
+
+## Daily source and recovery contract
+
+New collection retains academic search v4 and publication protocol v4, and adds
+source_coverage_version=2. Families admit replay-verified complete registered
+queries; rolling feed date spans cannot prove query completeness. APS PRX
+Quantum open-access publication-calendar queries and Crossref Quantum metadata
+are independent provider/publisher paths. PLOS AI and Crossref Nature Machine
+Intelligence provide AI query paths. Query zero results never claim publisher-
+wide zero publications. Preserve raw responses, scope, provider, dates, precision,
+pagination and bounded consistent rechecks. Calendar labels remain date-only;
+they do not identify actual Shanghai first-online instants. Historical coverage
+version 1 keeps its meaning; dated evidence cannot downgrade to that contract.
+
+The sole quota owner is scripts/daily_delivery_policy.py. Defaults are unchanged:
+academic minimum/target/maximum 6/8/8, social 6/12/12, social new/material update
+minimum 4. Formal publication bounds remain unchanged. Conflicting explicit
+non-default ranking/delivery values raise policy_conflict; copied defaults remain
+fallbacks for configured delivery. Packets
+and attempts bind the policy SHA-256. Configuration overrides retain their
+existing meaning; semantic review and verified-shortfall gates remain unchanged.
+
+resume advances thin source-valid pools through expansion_pending to
+expansion_ready: 14 academic calendar days plus the current and two preceding
+AI HOT days. expansion_packet_v1.json remains not_reviewed / not_approved and
+points back to full evidence when capped at 100 per category. Four social source
+classes still need actual search/verification before shortfall can be approved.
+For sufficiently large daily pools, late_arrival_pending performs a three-day
+registered-index query and emits an unreviewed authoring annex. Frozen releases
+are never changed. Source and packet replacement is atomic, backed up by content
+digest, and rechecked under the installation lock. Network runs outside locks.
+Academic caches are scoped per source; unrelated registry edits preserve valid
+peer rows. A new checkpoint contract requires one initial revalidation.
+
+Run from D:\AI\PaperTrace:
+
+```powershell
+python -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py resume --date <RELEASE-DATE> --record
+```
+
+Explicit expand/recheck subcommands use the same --date and --record arguments.
+Unknown packet versions are preserved. Actionable input checkpoints exit 0;
+real transport/validation/write failures exit 2. Queue execution_order puts the
+requested current date first and retains every selected backlog date. Attempt
+reservations precede network, are sequence ordered and retain independent history
+with runtime/code/policy identity. A source-valid packet, expansion packet or
+annex never approves facts, story, shortfall, local release or remote delivery.
+
+Validation: offline regression and live positive/empty qualification precede
+deployment. New aggregates retain legacy_family_gate alongside the actual gate
+for a 14-natural-day observation including weekends; this observation is ongoing,
+not an already-passed acceptance result. Installation records exact target/payload
+hashes and backups. Rollback code as a bundle; retain all newly collected evidence
+and completed releases. Notification is separate from publishing; no new channel
+or automatic OSS enable is introduced.
+
+
+## Scoped daily authoring save contract
+
+`daily_authoring.py` writes only `news/_collection/<release-day>/candidate_<release-day>.json`
+or the existing news/story review template in `news/<release-day>/.staging/<run-id>`.
+It cannot mutate evidence source files, manifests, index, HTML or profile.
+The host must independently authorize a restricted invocation; the program does
+not grant permission. Draft `authoring_status` is `in_progress` or `complete`,
+with missing historical markers retaining legacy inspector meaning. An explicit
+in-progress draft has phase `candidate_authoring_pending`, not capture readiness.
+Every candidate save retains `semantic_review_status=not_reviewed`. Finishing
+authoring and saving reviewer judgments never bypass semantic/strict review.
+
+All changes require the exact current file SHA-256 or `absent` for creation.
+Base64 payloads carry bounded UTF-8 JSON with no duplicate keys, nonfinite
+numbers or replacement-character corruption. Existing review content/story
+digests, protocol versions and per-item source/claim identities remain immutable.
+Whole candidate JSON is bounded to 32 MiB; large source evidence can be copied
+unchanged only from a non-hidden JSON file in the same release's `_collection`
+directory. Feedback, another date's collection and authored candidate files are
+outside that read boundary.
+Changed candidate bytes create exact-byte content-addressed backups; interrupted
+installation retains the previous file. Unknown future versions and releases
+that already have staging/final manifests are preserved.
