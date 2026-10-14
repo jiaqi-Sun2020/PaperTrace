@@ -39,7 +39,22 @@ from completion_state import (  # noqa: E402
     validate_record,
 )
 from formula_contract import atomic_formula_issues, bilingual_math_issues  # noqa: E402
-from reader_html_contract import validate_generated_reader_html  # noqa: E402
+from reader_html_contract import validate_generated_reader_html, feedback_interaction_issues  # noqa: E402
+from reading_analysis import validate_reading_analysis, notes_digest  # noqa: E402
+from paper_history_ui import render_paper_history  # noqa: E402
+from logic_diagrams import diagrams_in_notes  # noqa: E402
+from logic_diagram_ui import render_logic_diagram  # noqa: E402
+
+
+def browser_report_issues(report, expected_sha):
+    """Not-run is explicit missing evidence, never a passing visual result."""
+    if report.get('html_sha256') != expected_sha:
+        return ['browser report is stale for this HTML']
+    if report.get('status') == 'pass':
+        return []
+    if report.get('status') == 'not_run' and report.get('reason') and report.get('limitation'):
+        return []
+    return ['browser report failed or lacks a reason for missing evidence']
 
 
 REQUIRED_MARK_ATTRS = (
@@ -154,8 +169,14 @@ def write_formal_manifest(reader_dir: Path, status: str, issues: list[str], summ
         ("preflight_manifest", wiki / "preflight_manifest.json"),
         ("reader_manifest", wiki / "reader_manifest.json"),
         ("paper_summary", wiki / "paper_summary.json"),
+        ("paper_history", wiki / "paper_history.json"),
+        ("reading_analysis_contract", wiki / "reading_analysis_contract.json"),
+        ("reading_analysis_review", wiki / "reading_analysis_review.json"),
+        ("visual_redesign_review", wiki / "visual_redesign_review.json"),
+        ("reading_analysis_browser_validation", wiki / "reading_analysis_browser_validation.json"),
         ("structure_validation_report", wiki / "structure_validation_report.json"),
         ("html", reader_dir / "reader_interactive.html"),
+        ("feedback_browser_validation", wiki / "feedback_browser_validation.json"),
     ):
         if path.exists():
             artifacts[label] = {"path": path.relative_to(reader_dir).as_posix(), "sha256": sha256_file(path)}
@@ -408,7 +429,10 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         1
         for record in records.values()
         if record.get("record_kind") == "block"
-        and re.fullmatch(r"(?:S|E)\d+", str(record.get("source_anchor") or ""))
+        and (re.fullmatch(r"(?:S|E)\d+", str(record.get("source_anchor") or ""))
+             or (str(record.get("source_anchor") or "").startswith("C")
+                 and (manifest.get("reading_analysis_version") == 1
+                      or record.get("source_anchor") in {bid for bid, _section in bilingual_sections})))
         and str(record.get("source_anchor") or "") not in algorithm_source_ids
     )
     if len(bilingual_sections) != expected_bilingual_count:
@@ -524,6 +548,68 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
                 fail(f"knowledge panel exposes internal concept type enum: {enum_token}", issues)
 
     manifest_summary = manifest.get("paper_summary") if isinstance(manifest.get("paper_summary"), dict) else {}
+    contract, history, analysis_issues = validate_reading_analysis(reader_dir, list(records.values()), manifest_summary)
+    issues.extend(analysis_issues)
+    if contract:
+        if manifest.get("reading_analysis_version") != 1 or manifest.get("paper_history") != history:
+            fail("reader_manifest omits/mismatches reading analysis", issues)
+        for name in ("paper_history", "reading_analysis_contract", "reading_analysis_review"):
+            if source_of_truth.get(name + "_sha256") != sha256_file(wiki / (name + ".json")):
+                fail("stale/missing reading analysis source binding: " + name, issues)
+        if render_paper_history(history) not in html_text:
+            fail("visible history/embedded data mismatch with validated paper_history", issues)
+        if contract.get('logic_visualization_version') == 1:
+            if manifest.get('logic_visualization_version') != 1:
+                fail('manifest omits logic visualization declaration', issues)
+            for record in records.values():
+                if record.get('record_kind') in {'formula','reference'}:
+                    continue
+                for diagram in diagrams_in_notes(record.get('notes','')):
+                    if render_logic_diagram(diagram) not in html_text:
+                        fail('missing/changed diagram in final HTML: '+record['stable_id'], issues)
+            review_path = wiki / 'visual_redesign_review.json'
+            if review_path.exists():
+                visual_review = read_json(review_path)
+                expected_bound = {'notes_sha256':notes_digest(list(records.values())),
+                                  'summary_sha256':sha256_file(wiki/'paper_summary.json'),
+                                  'history_sha256':sha256_file(wiki/'paper_history.json'),
+                                  'html_sha256':sha256_file(reader_dir/'reader_interactive.html')}
+                if visual_review.get('bound_content') != expected_bound or visual_review.get('review_type') != 'self_review':
+                    fail('visual redesign self-review is stale/mislabelled',issues)
+                rounds = visual_review.get('rounds') or []
+                if len(rounds) != 5 or {r.get('round') for r in rounds} != set(range(1,6)):
+                    fail('visual redesign review does not have five actual rounds',issues)
+                for row in rounds:
+                    pending = row.get('round') == 4 and row.get('result') == 'pending' and visual_review.get('status') == 'visual_acceptance_pending'
+                    if (row.get('result') != 'pass' and not pending) or not row.get('evidence') or not row.get('judgment') or not row.get('quotes'):
+                        fail('visual redesign round failed or lacks audit evidence',issues)
+                    for quote in row.get('quotes') or []:
+                        actual = records.get(quote.get('record_id'),{}).get('notes','')
+                        if not quote.get('text') or quote['text'] not in actual:
+                            fail('visual redesign quote absent from current notes',issues)
+        if not html_text.find('id="paper-history"') < html_text.find('id="paper-summary"') < html_text.find('class="bilingual-block'):
+            fail("history is not the first reader content module", issues)
+        if "知识点与阅读提示" in html_text or "Logic Chain / 全文逻辑链" not in html_text:
+            fail("reading analysis headings/summary logic chain missing", issues)
+        # Exact note render binds prose/card display to completion notes. Formula
+        # records describe the same source passage; they do not create duplicate
+        # display objects in the canonical reader.
+        from markdown_reader_to_html import markdown_blocks
+        for record in records.values():
+            if record.get("record_kind") in {"reference", "formula"}:
+                continue
+            note = str(record.get("notes") or "")
+            expected_note = markdown_blocks(note, reader_dir, True, [])
+            # Card notes share a paragraph with the existing Reading note /
+            # 注释 label; prose notes have a standalone paragraph.
+            expected_note = re.sub(r"^<p>|</p>$", "", expected_note.strip())
+            if note and expected_note not in html_text:
+                fail("authored note missing from final HTML: " + record["stable_id"], issues)
+        for filename in ("reading_analysis_browser_validation.json", "feedback_browser_validation.json"):
+            browser_path = wiki / filename
+            if browser_path.exists():
+                browser_report = read_json(browser_path)
+                issues.extend(message + ': ' + filename for message in browser_report_issues(browser_report, sha256_file(reader_dir / 'reader_interactive.html')))
     summary_items = 0
     if full_paper:
         for token in (
@@ -542,6 +628,7 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
             entries.append(manifest_summary["overview"])
         for key in ("what_it_does", "how_it_works", "why_it_matters", "evidence_and_limitations"):
             entries.extend(item for item in (manifest_summary.get(key) or []) if isinstance(item, dict))
+        entries.extend(manifest_summary.get("logic_chain") or [])
         summary_items = len(entries)
         for index, entry in enumerate(entries, start=1):
             source_text = str(entry.get("text") or "").strip()
@@ -694,12 +781,7 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         html_text,
     ):
         fail("blank-page pointerdown closes feedback and unexpectedly reveals Contents", issues)
-    if re.search(
-        r"body\.feedback-open\s+\.layout(?:\.[^{\s]+)?\s*\{[^}]*(?:grid-template-columns|padding-right)",
-        html_text,
-        re.I,
-    ):
-        fail("opening feedback mutates the wide reader grid instead of using the fixed utility lane", issues)
+    issues.extend(feedback_interaction_issues(html_text))
     if full_paper and "body.source-pages-collapsed .source-page-viewer { display: none; }" not in html_text:
         fail("source-page collapse CSS can hide more than the page viewer or is missing", issues)
     if not re.search(
@@ -729,6 +811,10 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         "source_pages": len(rendered_source_pages),
         "math_display": len(re.findall(r'class="math-display"', html_text)),
         "dark_min_contrast": min(dark.values()) if dark else "missing",
+        "browser_validation_status": {
+            name: read_json(wiki / name).get('status') if (wiki / name).exists() else 'not_checked'
+            for name in ('reading_analysis_browser_validation.json','feedback_browser_validation.json')
+        },
     }
     return issues, summary
 

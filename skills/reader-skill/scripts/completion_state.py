@@ -430,6 +430,15 @@ def update_run_state(reader_dir: Path, *, last_failure_gate: str = "") -> dict[s
         "status": "pass" if not pending and not invalid and len(passed) == len(planned) else "incomplete",
         "last_failure_gate": last_failure_gate,
     }
+    # Independent feature contract survives recomputing the derived run state.
+    analysis_path = reader_dir / "reader_wiki" / "reading_analysis_contract.json"
+    if analysis_path.exists():
+        state["reading_analysis_version"] = read_json(analysis_path).get("reading_analysis_version")
+        previous_visual = read_json(run_state_path(reader_dir)).get('logic_visualization_version') if run_state_path(reader_dir).exists() else None
+        state['logic_visualization_version'] = read_json(analysis_path).get('logic_visualization_version') or previous_visual
+    elif run_state_path(reader_dir).exists() and read_json(run_state_path(reader_dir)).get("reading_analysis_version"):
+        state["reading_analysis_version"] = read_json(run_state_path(reader_dir))["reading_analysis_version"]
+        state['logic_visualization_version'] = read_json(run_state_path(reader_dir)).get('logic_visualization_version')
     atomic_write_json(run_state_path(reader_dir), state)
     return state
 
@@ -575,6 +584,11 @@ def reader_is_formal_ready(reader_dir: Path) -> tuple[bool, list[str]]:
         problems.append("completion run state pipeline version is stale")
     if state.get("status") != "pass":
         problems.append("completion records are not all pass")
+    from reading_analysis import validate_reading_analysis
+    summary_path = reader_dir / "reader_wiki" / "paper_summary.json"
+    summary = read_json(summary_path) if summary_path.exists() else {}
+    _contract, _history, analysis_errors = validate_reading_analysis(reader_dir, load_all_records(reader_dir), summary)
+    problems.extend(analysis_errors)
     preflight_path = reader_dir / "reader_wiki" / "preflight_manifest.json"
     if not preflight_path.exists() or read_json(preflight_path).get("status") != "pass":
         problems.append("object preflight is not pass")
@@ -611,16 +625,25 @@ def mark_stale(reader_dir: Path, reasons: Iterable[str]) -> dict[str, Any]:
 
 
 def clear_stale_after_audit(reader_dir: Path) -> None:
+    ready, errors = reader_is_formal_ready(reader_dir)
+    manifest_path = reader_dir / "reader_wiki" / "formal_artifact_manifest.json"
+    audit = read_json(manifest_path) if manifest_path.exists() else {}
+    html_hash = sha256_file(reader_dir / "reader_interactive.html")
+    if not ready or audit.get("formal_status") != "pass" or (audit.get("artifacts", {}).get("html", {}).get("sha256") != html_hash):
+        raise ValueError("cannot refresh formal status without a current passing audit: " + "; ".join(errors))
     path = formal_status_path(reader_dir)
     payload = read_json(path) if path.exists() else {}
     payload.update({
         "schema_version": SCHEMA_VERSION,
         "pipeline_version": PIPELINE_VERSION,
         "status": "formal_pass",
+        "completion_status": read_json(run_state_path(reader_dir)).get("status"),
+        "preflight_status": read_json(reader_dir / "reader_wiki" / "preflight_manifest.json").get("status"),
         "updated_at": utc_now(),
         "html_path": "reader_interactive.html",
         "html_sha256": sha256_file(reader_dir / "reader_interactive.html"),
         "formal_artifact_manifest": "reader_wiki/formal_artifact_manifest.json",
+        "browser_validation_status": (read_json(manifest_path).get('summary') or {}).get('browser_validation_status', {}),
     })
     payload.pop("reasons", None)
     atomic_write_json(path, payload)
@@ -741,14 +764,14 @@ def compile_canonical_markdown(reader_dir: Path, *, materialize_paper: bool) -> 
         elif kind == "reference":
             lines.extend([f'<a id="{anchor}"></a>', f"**Source:** p.{record['source_page']} {anchor}", "", f"**Reference list (original only):** {record['original']}", ""])
         elif kind == "figure":
-            lines.extend([f'<a id="{anchor}"></a>', f"### Figure {anchor}", "", f"**Source:** p.{record['source_page']} {anchor}", "", f"![{anchor}]({metadata['asset_path']})", "", f"**Original caption:** {metadata['original_caption']}", "", f"**{ZH_LABEL}图注:** {metadata['zh_caption']}", "", f"**Reading note:** {record['notes']}", ""])
+            lines.extend([f'<a id="{anchor}"></a>', f"### Figure {anchor}", "", f"**Source:** p.{record['source_page']} {anchor}", "", f"![{anchor}]({metadata['asset_path']})", "", f"**Original caption:** {metadata['original_caption']}", "", f"**{ZH_LABEL}图注:** {metadata['zh_caption']}", "", "**Reading note:**", "", record['notes'], ""])
         elif kind == "table":
             lines.extend([f'<a id="{anchor}"></a>', f"### Table {anchor}", "", f"**Source:** p.{record['source_page']} {anchor}", ""])
             if metadata.get("representation") == "semantic_table":
                 lines.extend([str(metadata["markdown_table"]).strip(), ""])
             else:
                 lines.extend([f"![{anchor}]({metadata['asset_path']})", ""])
-            lines.extend([f"**Original caption:** {metadata['original_caption']}", "", f"**{ZH_LABEL}表注:** {metadata['zh_caption']}", "", f"**Reading note:** {record['notes']}", ""])
+            lines.extend([f"**Original caption:** {metadata['original_caption']}", "", f"**{ZH_LABEL}表注:** {metadata['zh_caption']}", "", "**Reading note:**", "", record['notes'], ""])
         elif kind == "algorithm":
             number = re.sub(r"\D+", "", anchor) or anchor
             lines.extend([
@@ -763,7 +786,7 @@ def compile_canonical_markdown(reader_dir: Path, *, materialize_paper: bool) -> 
                 "",
                 f"**Compile manifest:** `{metadata['compile_manifest_path']}`",
                 "",
-                f"**Reading note:** {record['notes']}",
+                "**Reading note:**\n\n" + record['notes'],
                 "",
             ])
     content = "\n".join(lines).rstrip() + "\n"

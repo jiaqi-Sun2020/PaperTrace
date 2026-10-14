@@ -1,5 +1,55 @@
 # Runbook
 
+## Upgrade an explicitly selected reader's logical analysis
+
+Run from `D:\AI\PaperTrace`. Back up the selected bundle and existing worktree
+diff first. Author an exact non-reference notes map, source-anchored logic_chain,
+paper history and eight self-review rounds. The apply helper only copies
+primary-authored content and calculates hashes; it never generates explanations.
+Use an isolated candidate bundle first, without rebuilding other readers.
+
+```powershell
+python -B .\skills\reader-skill\scripts\apply_reading_analysis.py "<candidate-reader>" "<authored.json>"
+python -B .\skills\reader-skill\scripts\markdown_reader_to_html.py "<candidate-reader>"
+python -B .\skills\reader-skill\tests\adversarial_html_audit.py "<candidate-reader>"
+python -B -m pytest .\skills\reader-skill\tests\test_reading_analysis.py -q
+```
+
+Run the history and existing Feedback browser regressions with Playwright/Chrome
+in an isolated context; both block HTTP and never use the user's browser profile.
+Compare Original/Chinese, references and source-map hashes with the backup.
+Only after candidate validation, apply the same packet to the selected local
+bundle, regenerate and audit again. Bind browser reports to that final HTML.
+Report semantic self-review separately from structural/browser verification.
+History appears first; its detailed papers start collapsed. No verified successor
+found means only no match in the recorded search scope as of the recorded date.
+
+### Logic diagrams and integrated history
+
+Author source-bound reader-logic v1 fences inside existing notes; keep full
+explanations and necessary conditions. New declarations require
+`logic_visualization_version=1`. Set this flag on an explicitly selected old
+reader only after its complete authored packet is ready. There is no separate
+graph store or automatic causal inference.
+
+Run from `D:\AI\PaperTrace`:
+
+```powershell
+python -B -m pytest .\skills\reader-skill\tests .\skills\utils\lean-html-skill\tests -q
+python -B .\skills\reader-skill\tests\test_reader_e2e.py
+node .\skills\reader-skill\tests\test_reader_js_runtime.js "D:\AI\PaperTrace\2026\10\H-JEPA_reader"
+python -B .\skills\reader-skill\tests\adversarial_html_audit.py --no-write "D:\AI\PaperTrace\2026\10\H-JEPA_reader"
+```
+
+The browser regression entry is tests/test_reading_analysis_browser.js; its
+first argument is the reader directory, second is an optional report path and
+third an optional screenshot path. Use only a permitted isolated browser
+context. If the active browser policy blocks local URL access, do not bypass
+it through another surface: record a current-hash not_run report with a reason
+and limitation. Never recycle an older success after regeneration. The five
+redesign self-review rounds may leave actual browser acceptance pending; this
+must remain explicit in the handoff.
+
 - Project root: `D:\AI\PaperTrace`
 - Last reviewed: 2026-09-27
 
@@ -271,7 +321,7 @@ Reader HTML uses browser-local recovery plus manual portable export. In the brow
 4. Confirm the saved item appears in the feedback panel's saved-annotation list and, when a source block is detected, as a badge in the page. Use the five-second undo for an accidental status or deletion.
 5. Delete mistakes with `Delete current` or the row-level `Delete` button in the saved-annotation list.
 6. If the tab is refreshed or closed, reopen the same reader and confirm saved marks and any unfinished form draft are restored.
-7. After finishing the paper, click `Download feedback JSON` to export all saved items, then choose whether to clear the browser recovery copy.
+7. After finishing the paper, click `Download feedback JSON` to export all saved items. Download/copy always keeps annotations, drafts and colors; use the separate confirmed clear-all control only when removal is intended.
 
 Then import the downloaded JSON:
 

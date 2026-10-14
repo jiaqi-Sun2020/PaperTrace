@@ -356,12 +356,32 @@ def try_formal_build(reader_dir: Path) -> tuple[bool, list[str]]:
     return True, []
 
 
+def reuse_audited_formal_reader(reader_dir: Path) -> bool:
+    """Do not invalidate fresh browser evidence by rebuilding passing HTML."""
+    if not (reader_dir / "reader_interactive.html").is_file():
+        return False
+    ready, _reasons = reader_is_formal_ready(reader_dir)
+    if not ready:
+        return False
+    audit = ROOT / "skills" / "reader-skill" / "tests" / "adversarial_html_audit.py"
+    for extra in (["--no-write"], []):
+        result = subprocess.run(
+            [sys.executable, str(audit), *extra, str(reader_dir)], cwd=ROOT,
+            text=True, encoding="utf-8", errors="replace", capture_output=True,
+        )
+        if result.returncode:
+            return False
+    clear_stale_after_audit(reader_dir)
+    return True
+
+
 def process_paper(paper: dict[str, Any], reader_root: Path, *, resume: bool) -> dict[str, Any]:
     reader_dir = reader_dir_for(paper, reader_root)
     pdf_path = Path(str(paper["pdf_path"])).resolve()
     source_map_path = reader_dir / "source_map.json"
     legacy_source: Path | None = None
     needs_initialization = False
+    new_generation = not reader_dir.exists()
     if not reader_dir.exists():
         create_bundle(pdf_path, reader_dir)
         legacy_source = external_legacy_paper(pdf_path)
@@ -392,6 +412,28 @@ def process_paper(paper: dict[str, Any], reader_root: Path, *, resume: bool) -> 
             mode = "legacy_object_discovery"
         else:
             mode = "resumed"
+
+    # Persist the requested feature before an object-discovery checkpoint. On
+    # resume the directory is no longer new; it must not lose this requirement.
+    from reading_analysis import declare_reading_analysis
+    if new_generation:
+        declare_reading_analysis(reader_dir, bind_frozen=False)
+
+    # The same-source reuse contract requires a fresh full audit, not merely
+    # trusting a previous ledger. Audit before rewriting timestamp-bearing
+    # derived state, whose hashes are embedded in the feedback seed.
+    if resume and not needs_initialization and reuse_audited_formal_reader(reader_dir):
+        state = read_json(reader_dir / "reader_wiki" / "completion_run_state.json")
+        return {
+            "order": paper["order"], "paper_id": paper["paper_id"], "filename": paper["filename"],
+            "reader_dir": str(reader_dir), "mode": "audited_same_source_reuse",
+            "status": "formal_pass", "records": f"{state['completed_records']}/{state['expected_records']}",
+            "pending_records": 0, "invalid_records": 0,
+            "pending_record_ids": [], "invalid_record_ids": [],
+            "preflight": "pass", "preflight_issues": [], "failure_gate": "", "reasons": [],
+            "html": str(reader_dir / "reader_interactive.html"),
+            "progress_html": str(reader_dir / "reader_progress.html"),
+        }
 
     # Object identity is part of immutable evidence. Discover/register every
     # figure, table, and algorithm before freezing the source map and seeding
@@ -436,6 +478,9 @@ def process_paper(paper: dict[str, Any], reader_root: Path, *, resume: bool) -> 
         seed_records(reader_dir)
         if needs_initialization:
             mode = "new_bundle_seeded_pending"
+
+    if (reader_dir / "reader_wiki" / "reading_analysis_contract.json").exists():
+        declare_reading_analysis(reader_dir, bind_frozen=True)
 
     state = update_run_state(reader_dir, last_failure_gate="completion records")
     if state["status"] == "pass":
@@ -531,6 +576,8 @@ def result_phase(result: dict[str, Any]) -> str:
     if "preflight" in gate:
         return "object_preflight"
     if result.get("status") == "invalid":
+        if any("reading analysis" in str(reason) or "paper history" in str(reason) for reason in result.get("reasons", [])):
+            return "reading_analysis"
         return "formal_render_audit"
     return "controller_repair"
 
@@ -582,6 +629,8 @@ def write_authoring_packet(result: dict[str, Any], *, packet_size: int) -> dict[
         "remaining_record_count": len(pending),
         "preflight_issues": list(result.get("preflight_issues") or []),
         "formal_errors": list(result.get("reasons") or []),
+        "reading_analysis_version": 1 if (reader_dir / "reader_wiki" / "reading_analysis_contract.json").exists() else None,
+        "reading_analysis_instruction": "Author block-specific notes with source-bound reader-logic v1 diagrams for substantive records, role cards for declarations and typed sequence/data_flow/supports/contrast edges. Preserve full prose and necessary conditions. Read references/reading-analysis-contract.md. Also author paper summary v2 logic_chain, paper_history and eight honestly labelled self-review rounds; unknown history is disclosed, not invented.",
         "instruction": (
             "The current-session primary model must complete only these source-bound records or repair the named gate, "
             "persist each result atomically, then rerun the controller. This packet is workflow state, not paper content."

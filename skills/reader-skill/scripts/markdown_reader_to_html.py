@@ -43,6 +43,9 @@ try:
     from feedback_ux import feedback_ux_runtime_script, feedback_ux_styles
 except Exception as exc:  # pragma: no cover - formal builds must share feedback interaction behavior
     raise RuntimeError(f"lean-html-skill feedback_ux is required for formal reader builds: {exc}") from exc
+from paper_history_ui import render_paper_history, paper_history_styles, paper_history_script
+from logic_diagrams import split_logic_notes
+from logic_diagram_ui import render_logic_diagram, render_summary_logic, logic_diagram_styles
 
 
 ANCHOR_RE = re.compile(r'<a\s+id=["\']([^"\']+)["\']\s*>\s*</a>', re.I)
@@ -378,6 +381,14 @@ def markdown_blocks(text: str, base_dir: Path, embed_assets: bool, warnings: lis
     text = text.strip()
     if not text:
         return ""
+    if '```reader-logic' in text:
+        logic_parts = split_logic_notes(text)
+        if not any(kind == 'diagram' for kind, _ in logic_parts):
+            raise ValueError('reader-logic fence must begin on its own line')
+        return '\n'.join(
+            render_logic_diagram(value) if kind == 'diagram' else markdown_blocks(value, base_dir, embed_assets, warnings)
+            for kind, value in logic_parts
+        )
 
     def replace_image(match: re.Match[str]) -> str:
         alt = html.escape(match.group(1), quote=True)
@@ -907,6 +918,7 @@ def build_paper_summary_panel(
         return ""
     overview = summary.get("overview") if isinstance(summary.get("overview"), dict) else {}
     sections = (
+        ("logic_chain", "Logic Chain / 全文逻辑链", "ol"),
         ("what_it_does", "What the Paper Does / 做了什么", "ul"),
         ("how_it_works", "How It Works / 怎么做的", "ol"),
         ("why_it_matters", "Why It Matters / 有什么意义", "ul"),
@@ -915,6 +927,13 @@ def build_paper_summary_panel(
     rendered_sections = []
     for key, heading, list_tag in sections:
         items = summary.get(key) if isinstance(summary.get(key), list) else []
+        if key == 'logic_chain' and items:
+            rendered_sections.append(
+                f'<section class="paper-summary-section"><h3>{html.escape(heading)}</h3>'
+                + render_summary_logic(items, lambda text: markdown_inline(text, base_dir, embed_assets, warnings), summary_source_links)
+                + '</section>'
+            )
+            continue
         rendered_items = []
         for item in items:
             if not isinstance(item, dict):
@@ -1038,7 +1057,7 @@ def build_feedback_ui(title: str, base_dir: Path, concepts: list[dict], enabled:
     <button type="button" id="deleteFeedback">Delete current</button>
     <button type="button" id="downloadFeedback">Download feedback JSON</button>
     <button type="button" id="copyFeedback">Copy feedback for Codex</button>
-    <button type="button" id="clearLocalFeedback">Clear local recovery</button>
+    <button type="button" id="clearLocalFeedback">Clear all local annotations</button>
     <button type="button" id="closeFeedback">Close</button>
   </div>
   <p class="feedback-save-status" id="feedbackSaveStatus" role="status" aria-live="polite" hidden></p>
@@ -1057,6 +1076,7 @@ __FEEDBACK_UX_RUNTIME__
 (function () {{
   const seed = JSON.parse(document.getElementById('readerFeedbackSeed').textContent);
   const feedback = new Map();
+  const feedbackLocators = new Map();
   const dock = document.getElementById('feedbackDock');
   const conceptLabel = document.getElementById('feedbackConcept');
   const conceptInput = document.getElementById('feedbackCustomConcept');
@@ -1100,6 +1120,13 @@ __FEEDBACK_UX_RUNTIME__
   const recovery = window.PaperTraceFeedbackRecovery.create({{
     onStatus: updateRecoveryStatus
   }});
+  const conceptMarks = Array.from(document.querySelectorAll('.knowledge-gap[data-concept]'));
+  const baselineStatuses = new Map(conceptMarks.map(mark => [mark, mark.dataset.status || 'unrated']));
+  const annotationRenderer = window.PaperTraceFeedbackUX.createAnnotationRenderer({{
+    root: document.getElementById('readerDocument'),
+    scopeForItem: item => annotationScope(item.block_id, item.selected_language),
+    onOpen: key => openSavedFeedback(key)
+  }});
 
   function updateAutosaveStatus(event) {{
     const target = globalSaveStatus || saveStatus;
@@ -1121,11 +1148,13 @@ __FEEDBACK_UX_RUNTIME__
     if (event && event.kind === 'saved' && event.saved_at) {{
       const when = new Date(event.saved_at);
       recoveryStatus.textContent = `Local recovery saved at ${{when.toLocaleTimeString()}} in this browser only.`;
+      if (Number(recoveryStatus.dataset.unresolvedCount)) recoveryStatus.textContent += ' Some saved annotations could not be uniquely located; records are retained.';
       return;
     }}
     recoveryStatus.textContent = event && event.message
       ? event.message
       : 'Local recovery is ready in this browser only.';
+    if (Number(recoveryStatus.dataset.unresolvedCount)) recoveryStatus.textContent += ' Some saved annotations could not be uniquely located; records are retained.';
   }}
 
   function closestBlockId(el) {{
@@ -1179,7 +1208,9 @@ __FEEDBACK_UX_RUNTIME__
     const text = cleanExcerpt(selection.toString(), 1600);
     const node = selection.anchorNode;
     const meta = contextForElement(node);
-    return {{ text, ...meta }};
+    const scope = annotationScope(meta.blockId, meta.selected_language);
+    const locator = annotationRenderer.capture(selection.getRangeAt(0), scope);
+    return {{ text, ...meta, locator }};
   }}
 
   function rememberSelection() {{
@@ -1235,6 +1266,7 @@ __FEEDBACK_UX_RUNTIME__
     return {{
       exported_at: lastExportedAt,
       items: Array.from(feedback.values()),
+      locators: Object.fromEntries(Array.from(feedbackLocators).filter(([key]) => feedback.has(key))),
       draft: draftSnapshot()
     }};
   }}
@@ -1274,6 +1306,8 @@ __FEEDBACK_UX_RUNTIME__
       return;
     }}
     restoringRecovery = true;
+    feedbackLocators.clear();
+    Object.entries(recovered.locators || {{}}).forEach(([key, locator]) => feedbackLocators.set(key, locator));
     lastExportedAt = recovered.exported_at || null;
     recovered.items.forEach(item => {{
       if (!item || typeof item !== 'object') return;
@@ -1281,7 +1315,6 @@ __FEEDBACK_UX_RUNTIME__
       if (!key) return;
       item.feedback_id = key;
       feedback.set(key, item);
-      showVisualFeedback(key, item);
     }});
     const recoveredDraft = recovered.draft && recovered.draft.dirty ? recovered.draft : null;
     if (recoveredDraft) {{
@@ -1318,8 +1351,16 @@ __FEEDBACK_UX_RUNTIME__
   }}
 
   function clearLocalRecovery() {{
+    autosave.cancel();
+    if (!recovery.clear()) {{
+      persistRecoveryNow();
+      updateRecoveryStatus({{ kind: 'warning', message: 'Could not clear local annotations. Saved records and unfinished input are retained.' }});
+      return false;
+    }}
+    undoManager.clear();
     Array.from(feedback.keys()).forEach(removeVisualFeedback);
     feedback.clear();
+    feedbackLocators.clear();
     currentKey = null;
     currentConcept = '';
     currentBlock = '';
@@ -1340,29 +1381,27 @@ __FEEDBACK_UX_RUNTIME__
     explanationStyle.value = '';
     needsExplanation.checked = false;
     setStatus('unrated');
-    recovery.clear();
     refreshSummary();
     if (saveStatus) {{
       saveStatus.hidden = false;
       saveStatus.textContent = 'Local recovery and the current page annotations were cleared.';
     }}
+    return true;
   }}
 
   function confirmAndClearLocalRecovery(message) {{
     if (!window.confirm(message)) return false;
-    clearLocalRecovery();
-    return true;
+    return clearLocalRecovery();
   }}
 
   function afterSuccessfulExport() {{
     lastExportedAt = new Date().toISOString();
     persistRecoveryNow();
-    confirmAndClearLocalRecovery(
-      'Feedback JSON was exported. Clear the local recovery copy and current page annotations?\\n\\nChoose Cancel to keep automatic recovery available.'
-    );
+    summary.textContent = `Feedback exported. ${{feedback.size}} annotation(s) remain saved in this browser.`;
   }}
 
   function refreshSummary() {{
+    repaintFeedback();
     const count = feedback.size;
     summary.textContent = count ? `${{count}} feedback item(s) saved.` : 'No saved feedback yet.';
     refreshFeedbackList();
@@ -1418,31 +1457,40 @@ __FEEDBACK_UX_RUNTIME__
     }});
   }}
 
-  function highlightSelectedText(key, item) {{
-    const selectedText = (item.selected_text || '').trim();
-    const block = blockById(item.block_id);
-    if (!block || selectedText.length < 2) return false;
-    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {{
-      acceptNode(node) {{
-        const parent = node.parentElement;
-        if (!parent) return NodeFilter.FILTER_REJECT;
-        if (parent.closest('script, style, textarea, pre, code, .math-inline, .math-display, mark, .saved-feedback-tray')) return NodeFilter.FILTER_REJECT;
-        return node.nodeValue && node.nodeValue.includes(selectedText) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
-      }}
+  function annotationScope(blockId, language) {{
+    const block = blockById(blockId);
+    if (!block) return null;
+    if (language === 'original' || language === 'translation') return block.querySelector('.lang-panel.' + language);
+    return block;
+  }}
+
+  function repaintFeedback() {{
+    conceptMarks.forEach(mark => {{
+      const status = baselineStatuses.get(mark);
+      mark.dataset.status = status;
+      mark.classList.remove('mastered', 'known', 'learning', 'unknown', 'unrated');
+      mark.classList.add(status);
     }});
-    const node = walker.nextNode();
-    if (!node) return false;
-    const idx = node.nodeValue.indexOf(selectedText);
-    if (idx < 0) return false;
-    const before = document.createTextNode(node.nodeValue.slice(0, idx));
-    const marked = document.createElement('mark');
-    marked.className = 'saved-free-annotation';
-    marked.dataset.feedbackKey = key;
-    marked.title = 'Saved annotation';
-    marked.textContent = selectedText;
-    const after = document.createTextNode(node.nodeValue.slice(idx + selectedText.length));
-    node.replaceWith(before, marked, after);
-    return true;
+    document.querySelectorAll('.saved-feedback-tray').forEach(tray => tray.remove());
+    const free = [];
+    feedback.forEach((item, key) => {{
+      if (item.annotation_kind === 'concept') {{
+        conceptMarks.forEach(mark => {{
+          const matches = item.concept_id ? mark.dataset.conceptId === item.concept_id : mark.dataset.concept === item.concept;
+          if (!matches) return;
+          const status = ['mastered', 'known', 'learning', 'unknown', 'unrated'].includes(item.status) ? item.status : 'unrated';
+          mark.dataset.status = status;
+          mark.classList.remove('mastered', 'known', 'learning', 'unknown', 'unrated');
+          mark.classList.add(status);
+        }});
+      }} else free.push({{ key, item, locator: feedbackLocators.get(key) }});
+      addBlockMarker(key, item);
+    }});
+    const unresolved = annotationRenderer.render(free);
+    if (recoveryStatus) {{
+      recoveryStatus.dataset.unresolvedCount = String(unresolved.length);
+      if (unresolved.length) recoveryStatus.textContent = `${{unresolved.length}} saved annotation(s) could not be uniquely located. Records are retained; open Saved annotations to inspect them.`;
+    }}
   }}
 
   function addBlockMarker(key, item) {{
@@ -1468,8 +1516,7 @@ __FEEDBACK_UX_RUNTIME__
   }}
 
   function showVisualFeedback(key, item) {{
-    if (item.annotation_kind === 'freeform') highlightSelectedText(key, item);
-    addBlockMarker(key, item);
+    repaintFeedback();
   }}
 
   function restoreFeedbackSnapshot(key, item) {{
@@ -1510,6 +1557,7 @@ __FEEDBACK_UX_RUNTIME__
   function deleteFeedbackItem(key, options) {{
     if (!key || !feedback.has(key)) return;
     const deleted = JSON.parse(JSON.stringify(feedback.get(key)));
+    if (currentKey === key) autosave.cancel();
     feedback.delete(key);
     removeVisualFeedback(key);
     if (currentKey === key) {{
@@ -1549,6 +1597,7 @@ __FEEDBACK_UX_RUNTIME__
     currentSourceExcerpt = existing.source_excerpt || '';
     currentSelectedText = existing.selected_text || '';
     currentSelectionMeta = {{
+      locator: feedbackLocators.get(key) || null,
       selected_language: existing.selected_language || '',
       bilingual_block_id: existing.bilingual_block_id || '',
       original_context: existing.original_context || '',
@@ -1717,9 +1766,11 @@ __FEEDBACK_UX_RUNTIME__
       : null;
     const concept = conceptInput.value.trim() || currentConcept || currentSelectedText || 'free annotation';
     const key = feedbackKey(concept, currentBlock, currentKind);
+    const locator = currentSelectionMeta.locator || feedbackLocators.get(currentKey);
     if (currentKey && currentKey !== key && feedback.has(currentKey)) {{
       feedback.delete(currentKey);
       removeVisualFeedback(currentKey);
+      feedbackLocators.delete(currentKey);
     }}
     currentKey = key;
     removeVisualFeedback(key);
@@ -1745,14 +1796,9 @@ __FEEDBACK_UX_RUNTIME__
       alias_zh: currentConceptMeta.alias_zh || '',
       concept_id: currentConceptMeta.concept_id || ''
     }};
+    feedback.delete(key);
     feedback.set(key, item);
-    showVisualFeedback(key, item);
-    document.querySelectorAll('[data-concept]').forEach(el => {{
-      if (currentKind !== 'concept' || el.dataset.concept !== currentConcept) return;
-      el.dataset.status = getStatus();
-      el.classList.remove('mastered', 'known', 'learning', 'unknown', 'unrated');
-      el.classList.add(getStatus());
-    }});
+    if (locator) feedbackLocators.set(key, locator);
     draftDirty = false;
     refreshSummary();
     const recoverySaved = persistRecoveryNow();
@@ -1874,7 +1920,19 @@ __FEEDBACK_UX_RUNTIME__
 
 
 def split_top_segments(markdown: str) -> list[tuple[str | None, str]]:
-    matches = list(TOP_ANCHOR_RE.finditer(markdown))
+    # Legacy figure cards embed C anchors with caption labels; keep those with
+    # their owning card. Canonical v3 C records instead have full bilingual
+    # fields and must be separate blocks, or preceding prose silently eats them.
+    all_matches = list(ANCHOR_RE.finditer(markdown))
+    matches = []
+    for index, match in enumerate(all_matches):
+        if not re.fullmatch(r"C\d+", match.group(1)):
+            matches.append(match)
+            continue
+        end = all_matches[index + 1].start() if index + 1 < len(all_matches) else len(markdown)
+        candidate = markdown[match.end():end]
+        if re.search(r"(?m)^\*\*Original:\*\*", candidate) and re.search(r"(?m)^\*\*中文:\*\*", candidate):
+            matches.append(match)
     if not matches:
         return [(None, markdown)]
     segments: list[tuple[str | None, str]] = []
@@ -2060,9 +2118,12 @@ def reader_view_script(title: str, source_pages: list[dict]) -> str:
   function clampSourceWidth(value) {{
     const viewport = viewportWidth();
     const contentsWidth = state.contentsCollapsed ? 44 : (Number(state.contentsPaneWidth) || Math.min(280, Math.max(210, viewport * .13)));
-    const reservedRightWidth = viewport >= 1680 ? 390 : contentsWidth;
+    const tracks = window.getComputedStyle?.(layout).gridTemplateColumns.split(/\\s+/) || [];
+    const reservedRightWidth = viewport >= 1440
+      ? parseFloat(tracks[tracks.length - 1]) || Number(contentsPane?.getBoundingClientRect().width) || 330
+      : contentsWidth;
     const articleMinimum = viewport >= 1680 ? 620 : 520;
-    const maximum = Math.max(360, viewport - reservedRightWidth - articleMinimum - 80);
+    const maximum = Math.max(360, (layout?.clientWidth || viewport) - reservedRightWidth - articleMinimum - 64);
     return Math.round(Math.min(Math.max(Number(value) || viewport * .42, 360), maximum));
   }}
 
@@ -2072,12 +2133,9 @@ def reader_view_script(title: str, source_pages: list[dict]) -> str:
 
   function applyPaneWidths() {{
     if (!layout || !layout.style) return;
-    if (state.sourcePaneWidth !== null && Number.isFinite(Number(state.sourcePaneWidth))) {{
-      state.sourcePaneWidth = clampSourceWidth(state.sourcePaneWidth);
-      layout.style.setProperty('--source-pane-width', `${{state.sourcePaneWidth}}px`);
-    }} else {{
-      layout.style.removeProperty?.('--source-pane-width');
-    }}
+    const sourceWidth = clampSourceWidth(state.sourcePaneWidth);
+    if (state.sourcePaneWidth !== null) state.sourcePaneWidth = sourceWidth;
+    layout.style.setProperty('--source-pane-width', `${{sourceWidth}}px`);
     const contentsWidth = state.contentsCollapsed ? 44 : clampContentsWidth(state.contentsPaneWidth);
     layout.style.setProperty('--toc-pane-width', `${{contentsWidth}}px`);
     document.body.style?.setProperty('--toc-pane-width', `${{contentsWidth}}px`);
@@ -2251,7 +2309,7 @@ def render_bilingual_segment(anchor: str | None, segment: str, base_dir: Path, e
         section_class += " has-notes"
         notes_html = f'''
     <article class="lang-panel reader-notes">
-    <h3>知识点与阅读提示</h3>
+      <h3>逻辑分析</h3>
     {markdown_blocks(notes, base_dir, embed_assets, warnings)}
     </article>'''
     return f'''
@@ -2437,6 +2495,16 @@ def render_tokens(tokens: list[Token], base_dir: Path, embed_assets: bool, warni
             if i + 3 < len(tokens) and starts_label(tokens[i + 3].text, "注释"):
                 notes = strip_label(tokens[i + 3].text, "注释")
                 consumed = 4
+                # Notes may contain authored fences and multiple prose paragraphs.
+                # Keep all of them inside this block until a real source boundary.
+                while i + consumed < len(tokens):
+                    following = tokens[i + consumed]
+                    if following.anchor or following.kind not in {'paragraph', 'table'} or any(
+                        starts_label(following.text, label) for label in ('Source', 'Original', '中文', 'Reference list (original only)')
+                    ):
+                        break
+                    notes += '\n\n' + following.text
+                    consumed += 1
             block_id = (anchor or source.split()[-1]) if source else f"block-{i}"
             notes_html = ""
             section_class = "bilingual-block"
@@ -2444,7 +2512,7 @@ def render_tokens(tokens: list[Token], base_dir: Path, embed_assets: bool, warni
                 section_class += " has-notes"
                 notes_html = f'''
     <article class="lang-panel reader-notes">
-    <h3>知识点与阅读提示</h3>
+      <h3>逻辑分析</h3>
     {markdown_blocks(notes, base_dir, embed_assets, warnings)}
     </article>'''
             html_parts.append(
@@ -2509,7 +2577,7 @@ body {
   --toc-pane-width: clamp(210px, 13vw, 280px);
   --collapsed-pane-width: 44px;
   --reader-gutter: 16px;
-  --feedback-dock-width: 390px;
+  --feedback-dock-width: clamp(330px, 25vw, 390px);
   --utility-pane-width: var(--feedback-dock-width);
   margin: 0;
   font-family: Arial, "Noto Sans SC", "Microsoft YaHei", sans-serif;
@@ -2746,7 +2814,16 @@ main { min-width: 0; }
 .reader-notes h3 { color: var(--reader-warn); }
 .reader-notes ul, .reader-notes ol { margin-top: 8px; padding-left: 20px; }
 .reader-notes li { margin: 0 0 6px; }
+.reader-notes img {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin: 8px auto 14px;
+}
 .lang-panel p, .label-card p, .prose p { margin: 0 0 10px; }
+.lang-panel, .reference-panel { overflow-wrap: anywhere; }
 .lang-panel p:last-child, .label-card p:last-child, .prose p:last-child { margin-bottom: 0; }
 .reference-panel { padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
 .reference-panel h3 { margin: 0 0 10px; font-size: .92rem; letter-spacing: .03em; color: var(--muted); }
@@ -2764,6 +2841,10 @@ main { min-width: 0; }
 }
 .math-inline {
   font-family: "Cambria Math", "Times New Roman", serif;
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  vertical-align: bottom;
 }
 .math-display mjx-container {
   display: block !important;
@@ -2878,8 +2959,10 @@ main { min-width: 0; }
 .status.unknown, .knowledge-gap.unknown { background: var(--reader-status-unknown-bg); border-color: var(--reader-status-unknown-border); }
 .status.learning, .knowledge-gap.learning { background: var(--reader-status-learning-bg); border-color: var(--reader-status-learning-border); }
 .status.unrated, .knowledge-gap.unrated { background: var(--reader-status-unrated-bg); border-color: var(--reader-status-unrated-border); }
+.status.known, .knowledge-gap.known { background: var(--reader-status-known-bg); border-color: var(--reader-status-known-border); }
+.status.mastered, .knowledge-gap.mastered { background: var(--reader-status-mastered-bg); border-color: var(--reader-status-mastered-border); }
 .knowledge-gap {
-  color: var(--reader-highlight-text);
+  color: var(--ink);
   border-radius: 4px;
   padding: 0 2px;
   border-bottom: 2px solid currentColor;
@@ -2896,6 +2979,11 @@ main { min-width: 0; }
   border-radius: 4px;
   padding: 0;
 }
+.saved-free-annotation[data-status="unknown"] { background: var(--reader-status-unknown-bg); color: var(--ink); border-color: var(--reader-status-unknown-border); }
+.saved-free-annotation[data-status="learning"] { background: var(--reader-status-learning-bg); color: var(--ink); border-color: var(--reader-status-learning-border); }
+.saved-free-annotation[data-status="unrated"] { background: var(--reader-status-unrated-bg); color: var(--ink); border-color: var(--reader-status-unrated-border); }
+.saved-free-annotation[data-status="known"] { background: var(--reader-status-known-bg); color: var(--ink); border-color: var(--reader-status-known-border); }
+.saved-free-annotation[data-status="mastered"] { background: var(--reader-status-mastered-bg); color: var(--ink); border-color: var(--reader-status-mastered-border); }
 .saved-feedback-tray {
   display: inline-flex;
   flex-wrap: wrap;
@@ -2937,21 +3025,11 @@ body.feedback-open.toc-collapsed .toc {
   display: block;
   min-height: 120px;
 }
-body.feedback-open.toc-collapsed .layout.no-source-pages {
-  grid-template-columns: minmax(0, 1fr) var(--toc-pane-width);
-}
-body.feedback-open.toc-collapsed .layout.has-source-pages {
-  grid-template-columns: minmax(360px, var(--source-pane-width)) minmax(520px, 1fr) var(--toc-pane-width);
-}
-@media (min-width: 1101px) {
-  body.feedback-open .layout,
-  body.feedback-open.toc-collapsed .layout.no-source-pages {
-    grid-template-columns: minmax(0, 1fr) clamp(330px, 30vw, var(--feedback-dock-width));
-  }
-  body.feedback-open .layout.has-source-pages,
-  body.feedback-open.toc-collapsed .layout.has-source-pages {
-    grid-template-columns: minmax(280px, 30vw) minmax(420px, 1fr) clamp(330px, 30vw, var(--feedback-dock-width));
-  }
+@media (min-width: 1440px) {
+  .layout { grid-template-columns: minmax(0, 1fr) var(--utility-pane-width); }
+  .layout.has-source-pages { grid-template-columns: minmax(360px, var(--source-pane-width)) minmax(520px, 1fr) var(--utility-pane-width); }
+  body.source-pages-collapsed .layout.has-source-pages { grid-template-columns: var(--collapsed-pane-width) minmax(520px, 1fr) var(--utility-pane-width); }
+  .toc { width: min(100%, var(--toc-pane-width)); justify-self: end; }
   body.feedback-open .toc {
     width: 100%;
     justify-self: stretch;
@@ -2990,7 +3068,7 @@ body.feedback-open .feedback-opener { opacity: 0; pointer-events: none; }
   .feedback-opener,
   body.toc-collapsed .feedback-opener { right: calc(var(--utility-pane-width) + 32px); }
 }
-@media (max-width: 1100px) {
+@media (max-width: 1439px) {
   body.feedback-open .layout { padding-bottom: min(54vh, 520px); }
   .feedback-dock {
     position: fixed;
@@ -3280,6 +3358,7 @@ def build_html(
     feedback_ui: str = "",
     math_renderer: str = "mathjax",
     mathjax_url: str = DEFAULT_MATHJAX_URL,
+    history_panel: str = "",
 ) -> str:
     source_pages = source_pages or []
     toc_rows = list(toc[:80])
@@ -3287,6 +3366,8 @@ def build_html(
         toc_rows.insert(0, (2, "personal-knowledge-boundary", "Paper Concept Ledger / Personal Knowledge Boundary"))
     if summary_panel:
         toc_rows.insert(0, (2, "paper-summary", "Paper Summary / 论文总结"))
+    if history_panel:
+        toc_rows.insert(0, (2, "paper-history", "论文历史轴 / Research History"))
     toc_links = "\n".join(
         f'<a class="level-{level}" href="#{html.escape(anchor, quote=True)}">{html.escape(text)}</a>'
         for level, anchor, text in toc_rows
@@ -3323,6 +3404,8 @@ def build_html(
   {reader_theme_boot_script()}
   <style>{css()}</style>
   {feedback_ux_styles()}
+  {logic_diagram_styles()}
+  {paper_history_styles() if history_panel else ''}
   {math_support(math_renderer, mathjax_url)}
 </head>
 <body>
@@ -3341,6 +3424,7 @@ def build_html(
     {source_sidebar}
     <main>
       <article id="readerDocument">
+        {history_panel}
         {summary_panel}
         {knowledge_panel}
         {body_html}
@@ -3360,6 +3444,7 @@ def build_html(
   {feedback_ui}
   {reader_theme_script()}
   {reader_view_script(title, source_pages)}
+  {paper_history_script() if history_panel else ''}
   <footer class="footer">Generated from a nature-reader Markdown bundle. Source anchors are preserved for traceability.</footer>
 </body>
 </html>
@@ -3494,6 +3579,8 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         not args.no_embed_assets,
         warnings,
     )
+    reader_manifest = json.loads((base_dir / "reader_wiki" / "reader_manifest.json").read_text(encoding="utf-8"))
+    history_panel = render_paper_history(reader_manifest.get("paper_history"))
     knowledge_panel = build_knowledge_panel(
         profile or {},
         glossary,
@@ -3521,6 +3608,7 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         base_dir=base_dir,
         source_pages=source_pages,
         summary_panel=summary_panel,
+        history_panel=history_panel,
         knowledge_panel=knowledge_panel,
         profile_path=profile_path if profile else None,
         feedback_ui=feedback_ui,

@@ -17,6 +17,8 @@ from typing import Any, Iterable
 
 from completion_state import PIPELINE_VERSION, canonical_path, load_all_records, read_json as read_completion_json, reader_is_formal_ready, run_state_path
 from formula_contract import atomic_formula_issues, canonical_math_signature
+from reading_analysis import validate_reading_analysis
+from logic_diagrams import diagrams_in_notes, notes_prose
 
 
 ANCHOR_RE = re.compile(r'(?m)^<a\s+id=["\']([^"\']+)["\']\s*>\s*</a>\s*$')
@@ -332,8 +334,8 @@ def load_authored_paper_summary(
         return {}, ["full-paper reader lacks completion-authored reader_wiki/paper_summary.json"] if required else []
     summary = read_json(path)
     errors: list[str] = []
-    if summary.get("schema_version") != 1:
-        errors.append("paper_summary.json schema_version must be 1")
+    if summary.get("schema_version") not in {1, 2}:
+        errors.append("paper_summary.json schema_version must be 1 or 2")
     if summary.get("language") != "zh-CN":
         errors.append("paper_summary.json language must be zh-CN")
 
@@ -370,6 +372,15 @@ def load_authored_paper_summary(
             continue
         for index, entry in enumerate(items, start=1):
             validate_entry(entry, f"{section}[{index}]", 18)
+    if summary.get("schema_version") == 2:
+        chain = summary.get("logic_chain")
+        if not isinstance(chain, list) or len(chain) < 2:
+            errors.append("paper summary v2 requires a connected source-anchored logic_chain")
+        else:
+            for index, entry in enumerate(chain, start=1):
+                validate_entry(entry, f"logic_chain[{index}]", 18)
+                if not entry.get("role"):
+                    errors.append("paper summary logic_chain item lacks role")
     return summary, errors
 
 
@@ -549,7 +560,7 @@ def validate_text_quality(blocks: list[dict[str, Any]]) -> tuple[list[str], list
         for pattern in NOTE_POLLUTION_PATTERNS:
             if re.search(pattern, notes, re.I | re.M):
                 errors.append(f"{bid}.notes: structural pollution detected by {pattern}")
-        if len(clean_space(notes).split()) > 90:
+        if len(clean_space(notes_prose(notes)).split()) > 90:
             warnings.append(f"{bid}.notes: unusually long note; verify it only explains the current block")
         if block["block_type"] == "formula" and not ANY_MATH_RE.search(block["original"]):
             errors.append(f"{bid}: formula block lacks reconstructed LaTeX in Original")
@@ -967,7 +978,7 @@ def collect_concepts(
     profile: dict[str, Any],
     authored_candidates: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    text = "\n".join(block["original"] + "\n" + block["zh"] + "\n" + block["notes"] for block in blocks)
+    text = "\n".join(block["original"] + "\n" + block["zh"] + "\n" + notes_prose(block["notes"]) for block in blocks)
     entries: dict[str, dict[str, Any]] = {}
     warnings: list[str] = []
 
@@ -1073,7 +1084,7 @@ def claim_ledger(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
             rows.append({
                 "block_id": block["block_id"],
                 "claim_type": "contribution" if "propose" in lowered or "contribution" in lowered else "claim",
-                "summary": clean_space(block["notes"] or block["zh"])[:500],
+                "summary": clean_space(notes_prose(block["notes"]) or block["zh"])[:500],
                 "source_anchor": block["source_anchor"],
             })
     return rows
@@ -1162,6 +1173,8 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
         required=full_paper,
     )
     errors.extend(summary_errors)
+    analysis_contract, paper_history, analysis_errors = validate_reading_analysis(reader_dir, load_all_records(reader_dir), paper_summary)
+    errors.extend(analysis_errors)
     candidate_path = reader_dir / "reader_wiki" / "concept_candidates.json"
     if full_paper and not candidate_path.exists():
         errors.append("full-paper reader lacks completion-authored reader_wiki/concept_candidates.json")
@@ -1222,6 +1235,11 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
     if summary_path.exists():
         source_of_truth["paper_summary"] = "reader_wiki/paper_summary.json"
         source_of_truth["paper_summary_sha256"] = sha256_file(summary_path)
+    for name in ("reading_analysis_contract", "reading_analysis_review", "paper_history"):
+        path = reader_dir / "reader_wiki" / (name + ".json")
+        if path.exists():
+            source_of_truth[name] = "reader_wiki/" + path.name
+            source_of_truth[name + "_sha256"] = sha256_file(path)
     manifest = {
         "version": 1,
         "generated_at": utc_now(),
@@ -1230,9 +1248,14 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
         "sections": sections,
         "bilingual_blocks": blocks,
         "paper_summary": paper_summary,
+        "reading_analysis_version": analysis_contract.get("reading_analysis_version"),
+        "logic_visualization_version": analysis_contract.get("logic_visualization_version"),
+        "paper_history": paper_history,
         "normalized_markdown": "reader_wiki/normalized_reader.md",
         "completion_run_state_status": state.get("status", "missing"),
     }
+    for block in manifest['bilingual_blocks']:
+        block['logic_diagrams'] = diagrams_in_notes(block.get('notes',''))
     report = {
         "version": 1,
         "generated_at": utc_now(),

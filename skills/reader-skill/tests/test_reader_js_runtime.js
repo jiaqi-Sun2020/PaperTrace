@@ -62,6 +62,7 @@ function testAutosavePersistsWithoutClosingReader() {
     let currentSelectedText = "";
     let currentKey = null;
     let currentSelectionMeta = {};
+    const feedbackLocators = new Map();
     let currentConceptMeta = { source_anchor: "S001", concept_type: "math_object", alias_zh: "哈密顿量", concept_id: "hamiltonian" };
     let draftDirty = true;
     let persistedRecovery = false;
@@ -364,12 +365,12 @@ function testFeedbackRecoveryIntegration() {
     if (!html.includes(token)) throw new Error(`missing feedback recovery integration: ${token}`);
   }
   const restoreLocalRecovery = extractFunction(html, "restoreLocalRecovery");
-  for (const token of ["feedback.set(key, item)", "showVisualFeedback(key, item)", "openPanel({", "draftDirty = true"]) {
+  for (const token of ["feedback.set(key, item)", "refreshSummary();", "openPanel({", "draftDirty = true"]) {
     if (!restoreLocalRecovery.includes(token)) throw new Error(`reload does not restore reader state: ${token}`);
   }
   const downloadFeedback = extractFunction(html, "downloadFeedback");
   if (!downloadFeedback.includes("afterSuccessfulExport();")) {
-    throw new Error("download export does not ask whether to clear local recovery");
+    throw new Error("download export does not record the retained export");
   }
   const copyFeedback = extractFunction(html, "copyFeedback");
   const successIndex = copyFeedback.indexOf("afterSuccessfulExport();");
@@ -385,6 +386,8 @@ function testFeedbackRecoveryIntegration() {
     let persisted = 0;
     let cleared = 0;
     let lastExportedAt = null;
+    const feedback = new Map([["saved", { status: "learning" }]]);
+    const summary = { textContent: "" };
     const window = { confirm() { return allowClear; } };
     function persistRecoveryNow() { persisted += 1; return true; }
     function clearLocalRecovery() { cleared += 1; }
@@ -394,7 +397,7 @@ function testFeedbackRecoveryIntegration() {
     if (persisted !== 1 || cleared !== 0 || !lastExportedAt) throw new Error("Cancel did not keep the local recovery copy");
     allowClear = true;
     afterSuccessfulExport();
-    if (persisted !== 2 || cleared !== 1) throw new Error("Confirm did not clear the local recovery copy after export");
+    if (persisted !== 2 || cleared !== 0 || feedback.size !== 1) throw new Error("Export cleared annotations or asked for deletion");
   `;
   vm.runInNewContext(script, { Date }, { timeout: 1000 });
 }
@@ -481,7 +484,8 @@ function testReaderViewControlsPersist() {
   const sourceImage = { src: "", alt: "" };
   const sourceOpen = { href: "" };
   const sourceCounter = { textContent: "" };
-  const contentsPane = { attrs: {}, setAttribute(name, value) { this.attrs[name] = value; } };
+  const contentsPane = { attrs: {}, setAttribute(name, value) { this.attrs[name] = value; },
+    getBoundingClientRect() { return { width: 390 }; } };
   const contentsContent = { attrs: {}, setAttribute(name, value) { this.attrs[name] = value; } };
   const layoutStyles = new Map();
   const layout = {

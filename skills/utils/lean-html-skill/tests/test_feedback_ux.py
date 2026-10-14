@@ -14,9 +14,32 @@ if str(SCRIPTS) not in sys.path:
 
 from feedback_ux import feedback_ux_runtime_script, feedback_ux_styles
 from lean_html import feedback_html
+from reader_html_contract import feedback_interaction_issues
 
 
 class FeedbackUXContractTests(unittest.TestCase):
+    def test_grouped_feedback_css_and_destructive_export_are_rejected(self) -> None:
+        html = '''<style>body.feedback-open .layout.has-source-pages,
+        body.feedback-open.toc-collapsed .layout.has-source-pages {
+          grid-template-columns: 30vw 1fr 330px;
+        }</style><script>function repaintFeedback() {}
+        const renderer = createAnnotationRenderer();
+        function afterSuccessfulExport() {
+          confirmAndClearLocalRecovery('clear?');
+  }</script>'''
+        failures = feedback_interaction_issues(html)
+        self.assertTrue(any('grid' in issue for issue in failures))
+        self.assertTrue(any('export' in issue for issue in failures))
+
+    def test_feedback_css_audit_ignores_large_embedded_assets_and_tex(self) -> None:
+        html = '<style>.layout { color: black; }</style>' + 'a' * 4_000_000 + '}' + '''
+        function repaintFeedback() {}
+        const renderer = createAnnotationRenderer();
+        function afterSuccessfulExport() {
+          persistRecoveryNow();
+  }'''
+        self.assertEqual(feedback_interaction_issues(html), [])
+
     def test_runtime_exposes_autosave_selection_and_undo(self) -> None:
         runtime = feedback_ux_runtime_script()
         self.assertIn('data-papertrace-feedback-ux="v1"', runtime)

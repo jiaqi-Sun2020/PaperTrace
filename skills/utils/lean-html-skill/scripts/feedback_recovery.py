@@ -57,6 +57,7 @@ def feedback_recovery_script(paper_fingerprint: str) -> str:
         && value.paper_fingerprint === settings.paper_fingerprint
         && Array.isArray(value.items)
         && value.items.length <= settings.max_items
+        && (value.locators === undefined || (value.locators && typeof value.locators === 'object' && !Array.isArray(value.locators)))
         && (value.draft === null || (value.draft && typeof value.draft === 'object'))
         && (value.exported_at === null || value.exported_at === undefined || typeof value.exported_at === 'string');
     }}
@@ -96,6 +97,7 @@ def feedback_recovery_script(paper_fingerprint: str) -> str:
           saved_at: savedAt,
           exported_at: envelope && envelope.exported_at ? String(envelope.exported_at) : null,
           items,
+          locators: envelope && envelope.locators && typeof envelope.locators === 'object' ? envelope.locators : {{}},
           draft: envelope && envelope.draft && typeof envelope.draft === 'object' ? envelope.draft : null
         }};
         const serialized = JSON.stringify(normalized);

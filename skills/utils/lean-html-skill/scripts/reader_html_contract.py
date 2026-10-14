@@ -194,6 +194,27 @@ def _validate_dark_theme_readability(html_text: str) -> list[str]:
     return issues
 
 
+def feedback_interaction_issues(html_text: str) -> list[str]:
+    """Check forbidden effects, including grouped CSS selectors."""
+    issues = []
+    # Never scan image data or TeX bodies as CSS: unpaired braces in those
+    # bodies can otherwise cause quadratic backtracking on a full paper.
+    styles = re.findall(r"<style\b[^>]*>([\s\S]*?)</style>", html_text, re.I)
+    for style in styles:
+        for selectors, declarations in re.findall(r"([^{}]+)\{([^{}]*)\}", style):
+            if not re.search(r"(?:grid-template-columns|padding-right)\s*:", declarations):
+                continue
+            if any("feedback-open" in selector and ".layout" in selector for selector in selectors.split(",")):
+                issues.append("opening feedback must not mutate the wide reader grid")
+                break
+    export = re.search(r"function afterSuccessfulExport\(\)\s*\{([\s\S]*?)\n  \}", html_text)
+    if not export or re.search(r"(?:clearLocalRecovery|confirmAndClearLocalRecovery|feedback\.clear|recovery\.clear)\s*\(", export.group(1)):
+        issues.append("feedback export must preserve annotations without a clear prompt")
+    if "function repaintFeedback()" not in html_text or "createAnnotationRenderer" not in html_text:
+        issues.append("feedback restore must share the annotation repaint path")
+    return issues
+
+
 def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]], math_renderer: str) -> list[str]:
     issues: list[str] = []
     if math_renderer == "mathjax" and 'id="MathJax-script"' not in html_text:
@@ -327,12 +348,7 @@ def validate_generated_reader_html(html_text: str, concepts: list[dict[str, Any]
     ):
         if token not in html_text:
             issues.append(f"reader adaptive-pane contract is missing: {token}")
-    if re.search(
-        r"body\.feedback-open\s+\.layout(?:\.[^{\s]+)?\s*\{[^}]*(?:grid-template-columns|padding-right)",
-        html_text,
-        re.I,
-    ):
-        issues.append("opening feedback must not mutate the wide reader grid")
+    issues.extend(feedback_interaction_issues(html_text))
     source_pages_match = re.search(
         r'<script id="readerSourcePages" type="application/json">([\s\S]*?)</script>',
         html_text,

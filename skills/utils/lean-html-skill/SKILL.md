@@ -57,11 +57,12 @@ Design layer rules:
 - Existing `reader-skill/scripts/markdown_reader_to_html.py` may remain as a compatibility wrapper while reusable HTML pieces are migrated here incrementally.
 - New feedback export behavior for reader HTML should be implemented here first, then called from `reader-skill`.
 - Shared recovery stores an internal versioned envelope containing saved items, an optional unfinished draft, timestamps, and a paper fingerprint. It must not change the exported feedback-v2 schema.
-- A successful download or clipboard copy may offer to clear the browser recovery copy; clipboard fallback alone is not a successful copy and must never trigger clearing.
+- Reader download, copy and clipboard fallback always retain the browser recovery copy and current annotations. Clearing is a separate confirmed action; failed storage deletion preserves page state. Recovery may carry optional text locators outside the exported feedback schema.
 - Shared feedback UI owns the 250 ms debounced autosave controller, selection-adjacent quick-status toolbar, five-second undo notice, and visible saving/failure/export states. Status choices flush immediately; text/select fields debounce; page hide and unload flush pending work. Merely selecting text or opening the editor must not create an item. Collapsing or clearing the selection must dismiss the toolbar and discard its stale target, while interaction with the toolbar must retain the captured target until the chosen action completes.
 - Reader detail editing uses the existing right utility pane instead of covering the article; Contents and Feedback alternate there. On narrow screens use a bounded bottom drawer. Article selection must remain available while the editor is open, and only Esc or the explicit close button dismisses it.
 - `Copy feedback for Codex` must populate a visible fallback textarea with the export JSON even when clipboard access is unavailable; feedback must never be trapped behind a browser permission failure.
 - Shared knowledge marks must preserve reader-specific metadata from `reader-skill`: `data-concept`, `data-status`, `data-source-anchor`, `data-concept-type`, `data-alias-zh`, and `title`.
+- Shared range rendering must restore cross-node plain-text annotations without nesting overlapping highlights or touching math/code/controls. The reader provides language-scoped targets; ambiguous matches preserve records and disclose failed positioning.
 - Shared inline rendering must not annotate or math-wrap inside `href`, `src`, file paths, source-page labels, code spans, or HTML attributes. Source Page Index links must remain plain clickable paths.
 
 ## Quick Start
@@ -106,6 +107,18 @@ The script detects news feedback and exports `news_feedback2.json`; otherwise it
 All feedback controls default new marks to `unrated` unless the source feedback explicitly provides a status.
 
 ## Integration Pattern
+
+`scripts/paper_history_ui.py` provides one offline vertical timeline with
+visible summaries and inline native collapsed details. Reader-skill validates all paper facts,
+identities and relationship evidence before rendering. Place the module before
+the paper summary; keep mobile vertical, keyboard focus visible, all active
+reader themes coherent, and print/no-script details available. Reuse current
+Feedback/layout components; history interaction never creates learning marks.
+`scripts/logic_diagram_ui.py` renders domain-validated, selectable relationship
+diagrams and the whole-paper argument overview. It does not infer mechanisms.
+Use existing theme tokens and actual article-container width; graphs cannot
+override source resizing or Feedback state. Treat taste-skill as a targeted
+redesign reference, not a reason to migrate stacks or alter source content.
 
 Domain skills should follow this split:
 

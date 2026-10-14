@@ -24,6 +24,18 @@ def main() -> int:
     )
     if result.returncode:
         raise AssertionError(f"formal-reader v3 E2E failed\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
+    # Inspect current generated runtime rather than an unrelated historical HTML.
+    sys.path.insert(0, str(ROOT / 'skills' / 'reader-skill' / 'scripts'))
+    from markdown_reader_to_html import css
+    from reader_html_contract import feedback_interaction_issues
+    from feedback_ux import feedback_ux_runtime_script
+    failures = feedback_interaction_issues('<style>' + css() + '</style>' + feedback_ux_runtime_script() + '''
+    function repaintFeedback() {}
+    function afterSuccessfulExport() {
+      persistRecoveryNow();
+  }''')
+    if failures:
+        raise AssertionError(f'current feedback/layout contract regressed: {failures}')
     print("reader-skill v3 E2E passed: resumable completion, formal render, and adversarial audit.")
     return 0
 

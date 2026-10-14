@@ -1,5 +1,36 @@
 # Config Spec
 
+## Paper reading analysis and history v1
+
+New reader bundles declare `reader_wiki/reading_analysis_contract.json` with
+`reading_analysis_version=1`, `required=true` and source-map SHA-256. Per-block
+logic stays in v3 completion `notes`; its visible title is logical analysis.
+Summary schema v2 adds ordered source-anchored `logic_chain`; v1 stays readable.
+History schema v1 lives in `reader_wiki/paper_history.json`, with typed dates,
+strong identities, explicit relationship types, primary-source quotations,
+checked-as-of date and search gaps. Read the canonical contract at
+`skills/reader-skill/references/reading-analysis-contract.md`.
+
+Unknown history is explicitly partial/not_checked and nonfatal; unsupported
+asserted edges fail. Eight labelled self-review rounds bind note, summary and
+history digests. Formal audit verifies coverage, quotations, freshness and
+final display, not scientific truth or novice understanding. Browser reports
+bind separately to HTML. Source maps, feedback v2 and learner state do not change.
+
+New analysis declarations also carry `logic_visualization_version=1`. Each
+non-reference analysis record contains directly authored reader-logic v1 JSON
+fences inside its sole notes field, followed by full prose. Typed edges
+distinguish sequence, data flow, support and contrast with source, derivation
+or teaching identity. Compilation produces derived diagram data. Malformed
+fences, unknown anchors and stale reviews fail. Old declarations without this
+feature stay readable and are not silently migrated.
+
+History uses one vertical chronological timeline with visible summaries and
+inline collapsed details. Summary logic_chain is an argument overview, not
+physical causation. Layout responds to actual article-container width.
+Hash-bound browser not_run reports disclose missing visual/interaction checks;
+structural pass must not be reported as visual pass.
+
 - Project root: `D:\AI\PaperTrace`
 - Last reviewed: 2026-09-27
 
@@ -276,7 +307,7 @@ Persistence rules:
 - The recovery envelope is internal, contains no absolute path in its storage key, and does not change the exported feedback-v2 schema.
 - Only explicit status or field edits are included in export/copy output; merely opening Feedback or dismissing a selection creates no item.
 - Reopening the same reader restores valid same-paper marks and drafts; invalid, oversized, mismatched, unavailable, or quota-failed storage is ignored with a visible warning rather than blocking JSON export.
-- A successful download or clipboard copy asks whether to clear the browser recovery copy. Clipboard fallback without a successful write never clears it.
+- Reader download, successful clipboard copy and fallback preserve annotations and drafts. Only an explicitly confirmed clear-all operation may delete storage, and failed deletion preserves page state. Internal optional `locators` bind plain-text ranges to their language panel without changing feedback-v2 exports; ambiguous legacy matches remain saved with a positioning warning.
 - `reader_feedback.json` is an intermediate handoff artifact; the long-term source of truth is `.agents/reader-learner/knowledge_profile.json` after import.
 
 Important fields:

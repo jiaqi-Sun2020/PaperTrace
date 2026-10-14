@@ -231,3 +231,25 @@ This file records dated implementation and local-release milestones. Durable bou
 - Added verified tight table crops whose pixels, bounds and hashes must match the source-page image; full-page substitutes and stale crops fail completion.
 - Extended algorithm discovery and completion to unnumbered source pseudocode while preserving source-language statements, compiled-card hashes and the distinction between printed numbering and reader navigation.
 - Fixed formula validation so TeX commands such as `\\nabla` and `\\neq` are not mistaken for literal JSON newline escapes, while actual escaped line breaks still fail.
+
+## 2026-10-13 - Persistent Paper Reader annotations
+
+- Removed feedback-specific source-column width overrides and unified responsive width limits so pointer/keyboard resizing continues while Feedback is open.
+- Unified edit/restore/delete/undo repainting for bilingual concept status colors and source-language-scoped free selections; optional browser-only locators support cross-node text and ambiguous legacy matches retain records.
+- Made download/copy non-destructive and kept explicit clear-all separate, cancelling pending saves and requiring successful storage deletion before clearing the page.
+- Added grouped-selector audit coverage and real Chromium regression for pane sizing, theme/status restoration, overlaps, export retention, clear failure and browser storage failure.
+
+## 2026-10-13 - Source-bound logical analysis and paper history
+
+- Added reading-analysis v1 alongside completion v3 and feedback v2. Existing notes render as logical analysis; summary v2 adds a source-anchored whole-paper chain while v1 stays readable.
+- Added an offline chronological rail with native collapsed paper details, typed dates, evidence-backed relationships and visible search gaps. Chronology never proves inheritance.
+- Bound eight labelled self-review rounds to notes/summary/history. Structural checks, semantic self-review and browser behavior are separate evidence categories.
+- Fixed standalone canonical C-caption segmentation so bilingual fields and notes are not swallowed by preceding prose; legacy embedded captions retain their owning cards.
+- H-JEPA is the sole local pilot. Other readers, daily artifacts, personal feedback and learner profile are not rebuilt/imported. No Git commit or remote publication.
+
+## 2026-10-13 - Integrated paper history and typed logical diagrams
+
+- Replaced duplicate horizontal history cards and separate lists with one chronological vertical timeline and inline native details; source facts and relationship directions are unchanged.
+- Added directly authored reader-logic v1 blocks inside notes, typed relationships, explicit conditions, shared selectable diagram rendering and a whole-paper argument map. New declarations require visualization v1; old readers remain readable.
+- Analysis responds to article-container width without overriding Original Paper sizing or Feedback. Diagrams and full prose share freshness checks; obsolete browser success reports cannot validate regenerated HTML.
+- H-JEPA is the only local pilot. Structural and source-field checks are separate from five-round self-review; actual browser visual/interaction acceptance remains pending when local URL policy prevents it. No Git or remote publication.

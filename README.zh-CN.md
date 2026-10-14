@@ -320,7 +320,7 @@ python .\skills\reader-skill\scripts\markdown_reader_to_html.py "<reader-dir>" -
 正式 HTML 应满足：
 
 - `reader_interactive.html` 是唯一正式 paper reader HTML；
-- 顶部包含当前主模型撰写的详细中文论文总结，分别回答“做了什么、怎么做、有什么意义、证据与局限”，且每项链接到正式 source anchor；
+- 新阅读分析产物先展示单一纵向论文历史轴，再展示详细中文论文总结与全文论证图；贡献简述默认可见，关系和来源证据就地折叠，时间先后不等于继承。总结回答“做了什么、怎么做、有什么意义、证据与局限”，且每项链接到正式 source anchor；
 - 阅读器按可用空间自适应：宽屏采用“左侧约 42% 起步的可拖拽大幅原始页—最低可读宽度正文—可拖拽 Contents”三栏布局，中等宽度默认把 Contents 收成可恢复窄条，窄屏自动纵向重排；Original、原始页图和 Contents 均可独立折叠，Feedback 与 Contents 共用右侧 utility pane，打开详情时正文仍可选择，窄屏使用有高度上限的底部抽屉；
 - 30-60 个候选知识点，已有 profile 状态会合并，论文核心概念即使 mastered 也要进入 glossary；
 - 每个 knowledge mark 都有 `data-concept`、`data-concept-id`、`data-status`、`data-source-anchor`、`data-concept-type`、`data-alias-zh` 和 `title`；
@@ -329,6 +329,8 @@ python .\skills\reader-skill\scripts\markdown_reader_to_html.py "<reader-dir>" -
 - figure/table card 不得被整页截图冒充，不得被 CSS 裁剪；algorithm card 必须展示构建期编译的完整 SVG，不得显示翻译后的重复算法正文；
 - feedback panel、Download feedback JSON、Copy feedback for Codex fallback textarea、主题切换控件都要可用；
 - Dark theme 必须通过实际对比度检查，不能只检查控件存在。
+
+逐段“逻辑分析”继续以原有 `notes` 为唯一内容来源，包含完整解释与主模型直接创作的可选择文字图示。关系区分操作顺序、数据流、论证支持和对照，并绑定条件与来源；不从关键词自动猜测因果。图示按正文容器实际宽度重排，沿用 Reader 主题。历史关系、检索范围和未核实续作须如实标注；旧 Reader 不自动迁移。详见[阅读分析契约](skills/reader-skill/references/reading-analysis-contract.md)。结构校验、来源／逻辑自评与实际浏览器验收分别报告，不能把结构通过当作视觉或科学正确性证明。
 
 ### 4. Adversarial audit
 
@@ -350,8 +352,10 @@ python .\skills\reader-skill\tests\adversarial_html_audit.py "<reader-dir>"
 3. 填写问题、笔记、解释偏好或卡点；
 4. 点击状态会立即保存，问题和备注在输入后短暂防抖自动保存；状态修改和删除可在五秒内撤销；
 5. 意外刷新或关闭后，重新打开同一 reader，核对自动保存的标注与当前表单状态已恢复；
-6. 点击 `Download feedback JSON` 下载 `reader_feedback.json`，并按提示决定是否清除本地恢复副本；
-7. 如果浏览器禁止剪贴板，使用 `Copy feedback for Codex` 的 fallback textarea 取回 JSON；复制失败时不会清除恢复副本。
+6. 点击 `Download feedback JSON` 下载 `reader_feedback.json`；下载、复制成功及复制失败的 fallback 始终保留标注、草稿、颜色和本地恢复副本；
+7. 如果浏览器禁止剪贴板，使用 `Copy feedback for Codex` 的 fallback textarea 取回 JSON；只有独立的“清除全部本地标注”按钮经确认且存储删除成功后才清除。
+
+保存、恢复、撤销与删除共用标注重绘入口；无法唯一定位的旧选区保留记录并提示，不误着色。Feedback 打开时 Original Paper 仍可调整栏宽；内部选区定位不改变 `reader_feedback_version=2` 导出字段。
 
 HTML 只负责在浏览器本地恢复、收集和导出 feedback；它不直接写 `.agents/reader-learner/knowledge_profile.json`。本地恢复不是跨设备备份，长期或跨浏览器使用仍以导出的 JSON 为准。
 

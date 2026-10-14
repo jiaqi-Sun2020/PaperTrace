@@ -10,8 +10,11 @@ For paper readers, namespace the internal recovery envelope as
 `paper.reader.feedback-draft.v1:<source-map-sha256>`. The envelope is not part
 of the feedback-v2 export schema and must never use an absolute filesystem path
 as its key. Storage failure must be visible, while JSON download/copy remains
-available. Only a successful download or clipboard write may offer to clear
-the local recovery copy.
+available. Paper-reader download, clipboard success and fallback always preserve
+the local recovery copy. Only the separate confirmed clear-all control removes
+it, and storage deletion must succeed before the page is cleared. Optional range
+locators belong only to the internal recovery envelope; legacy envelopes without
+them remain readable. No automatic expiry is introduced.
 
 News report export:
 

@@ -24,6 +24,12 @@ def reader_theme_boot_script() -> str:
 
 def reader_theme_css() -> str:
     return """
+:root {
+  --reader-status-known-bg: var(--reader-accent-soft);
+  --reader-status-known-border: var(--reader-accent);
+  --reader-status-mastered-bg: var(--reader-status-saved-bg);
+  --reader-status-mastered-border: var(--reader-status-saved-border);
+}
 :root,
 :root[data-theme="default"] {
   color-scheme: light;

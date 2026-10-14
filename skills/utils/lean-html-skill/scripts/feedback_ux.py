@@ -334,11 +334,137 @@ def feedback_ux_runtime_script() -> str:
     return Object.freeze({ hide, show, capture: reconcileFromSelection, current: function () { return current; } });
   }
 
+  // Plain-text anchors live only in browser recovery, never feedback exports.
+  function createAnnotationRenderer(options) {
+    const settings = options || {};
+    const article = settings.root;
+    const excluded = 'script,style,textarea,pre,code,button,input,select,.math-inline,.math-display,mjx-container,.saved-feedback-tray';
+
+    function index(scope) {
+      const entries = [];
+      let text = '';
+      const walker = scope.ownerDocument.createTreeWalker(scope, 4);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (!node.parentElement || node.parentElement.closest(excluded)) {
+          text += '\uFFFC';
+          continue;
+        }
+        entries.push({ node, start: text.length, end: text.length + node.nodeValue.length });
+        text += node.nodeValue;
+      }
+      return { text, entries };
+    }
+
+    function capture(range, scope) {
+      if (!range || !scope || !scope.contains(range.commonAncestorContainer)) return null;
+      const data = index(scope);
+      const first = data.entries.find(e => e.node === range.startContainer);
+      const last = data.entries.find(e => e.node === range.endContainer);
+      if (!first || !last) return null;
+      const start = first.start + range.startOffset;
+      const end = last.start + range.endOffset;
+      const exact = data.text.slice(start, end);
+      if (!exact.trim() || exact.includes('\uFFFC')) return null;
+      return { start, end, exact, prefix: data.text.slice(Math.max(0, start - 48), start),
+        suffix: data.text.slice(end, end + 48) };
+    }
+
+    function locate(data, item, locator) {
+      if (locator && Number.isInteger(locator.start) && Number.isInteger(locator.end)
+          && locator.start >= 0 && locator.end > locator.start && locator.end <= data.text.length
+          && data.text.slice(locator.start, locator.end) === locator.exact
+          && (!locator.prefix || data.text.slice(Math.max(0, locator.start - locator.prefix.length), locator.start) === locator.prefix)
+          && (!locator.suffix || data.text.slice(locator.end, locator.end + locator.suffix.length) === locator.suffix)) {
+        return { start: locator.start, end: locator.end };
+      }
+      // Normalize whitespace with a map back to the original DOM offsets.
+      const chars = [], offsets = [];
+      for (let i = 0; i < data.text.length; i++) {
+        const ch = /\s/.test(data.text[i]) ? ' ' : data.text[i];
+        if (ch === ' ' && chars[chars.length - 1] === ' ') continue;
+        chars.push(ch); offsets.push(i);
+      }
+      const needle = String((locator && locator.exact) || item.selected_text || '').replace(/\s+/g, ' ').trim();
+      if (!needle || needle.includes('\uFFFC')) return null;
+      const haystack = chars.join('');
+      const matches = [];
+      let from = 0, position;
+      while ((position = haystack.indexOf(needle, from)) >= 0) {
+        const start = offsets[position], end = offsets[position + needle.length - 1] + 1;
+        const prefix = locator && locator.prefix, suffix = locator && locator.suffix;
+        if ((!prefix || data.text.slice(Math.max(0, start - prefix.length), start) === prefix)
+            && (!suffix || data.text.slice(end, end + suffix.length) === suffix)) matches.push({ start, end });
+        from = position + 1;
+      }
+      return matches.length === 1 ? matches[0] : null;
+    }
+
+    function clear() {
+      article.querySelectorAll('.saved-free-annotation').forEach(mark => {
+        mark.replaceWith(mark.ownerDocument.createTextNode(mark.textContent || ''));
+      });
+      article.normalize();
+    }
+
+    function render(records) {
+      clear();
+      const groups = new Map(), unresolved = [];
+      records.forEach(record => {
+        const scope = settings.scopeForItem(record.item);
+        if (!scope) { unresolved.push(record.key); return; }
+        if (!groups.has(scope)) groups.set(scope, { data: index(scope), ranges: [] });
+        const group = groups.get(scope);
+        const found = locate(group.data, record.item, record.locator);
+        if (!found) { unresolved.push(record.key); return; }
+        group.ranges.push({ ...found, key: record.key, status: record.item.status || 'unrated' });
+      });
+      groups.forEach(group => group.data.entries.forEach(entry => {
+        const ranges = group.ranges.filter(r => r.start < entry.end && r.end > entry.start);
+        if (!ranges.length) return;
+        const cuts = [...new Set([entry.start, entry.end, ...ranges.flatMap(r => [
+          Math.max(entry.start, r.start), Math.min(entry.end, r.end)])])].sort((a, b) => a - b);
+        const fragment = entry.node.ownerDocument.createDocumentFragment();
+        for (let i = 0; i < cuts.length - 1; i++) {
+          const start = cuts[i], end = cuts[i + 1];
+          const active = ranges.filter(r => r.start < end && r.end > start);
+          const text = entry.node.nodeValue.slice(start - entry.start, end - entry.start);
+          if (!active.length) { fragment.appendChild(entry.node.ownerDocument.createTextNode(text)); continue; }
+          const latest = active[active.length - 1];
+          const mark = entry.node.ownerDocument.createElement('mark');
+          mark.className = 'saved-free-annotation';
+          mark.dataset.feedbackKey = latest.key;
+          mark.dataset.feedbackKeys = JSON.stringify(active.map(r => r.key));
+          mark.dataset.status = latest.status;
+          mark.title = 'Saved annotation · ' + latest.status;
+          mark.textContent = text;
+          mark.tabIndex = 0;
+          mark.addEventListener('click', event => {
+            event.stopPropagation();
+            if (settings.onOpen) settings.onOpen(latest.key);
+          });
+          mark.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              event.stopPropagation();
+              if (settings.onOpen) settings.onOpen(latest.key);
+            }
+          });
+          fragment.appendChild(mark);
+        }
+        entry.node.replaceWith(fragment);
+      }));
+      return unresolved;
+    }
+    return Object.freeze({ capture, render, clear });
+  }
+
   root.PaperTraceFeedbackUX = Object.freeze({
     version: 1,
     createAutosave,
     createSelectionToolbar,
-    createUndo
+    createUndo,
+    createAnnotationRenderer
   });
 })(typeof window !== "undefined" ? window : globalThis);
 </script>'''

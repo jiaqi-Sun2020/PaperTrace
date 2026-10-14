@@ -223,6 +223,12 @@ The strict completion gate validates and writes the ledger; it does not translat
 
 The final reader includes the original paper-page pane, translated article, resizable or collapsible Contents, detailed Chinese summary, concept ledger, MathJax, and an annotation workspace that does not cover translation.
 
+New reading-analysis bundles put a single vertical **paper history** timeline before the summary: short contributions remain visible, while source evidence and relationship details expand in place. Time order alone never implies inheritance, and unverified successors remain an explicit search gap.
+
+Per-block **logical analysis** keeps full explanations in the canonical `notes` field and adds directly authored, selectable diagrams with typed relations and source anchors. Summary v2 presents the whole-paper argument map; diagrams distinguish operations, data flow, support and contrast rather than guessing causality from prose. Layout responds to the article's available width and uses the existing Reader themes. Legacy readers remain readable without automatic migration. See the [reading-analysis contract](skills/reader-skill/references/reading-analysis-contract.md).
+
+Structural validation, source/logic self-review and actual browser acceptance are separate checks. A passing structural audit is not proof of scientific correctness or a passed visual test; pending browser checks must be disclosed.
+
 ### 4. Adversarial audit
 
     cd D:\AI\PaperTrace
@@ -233,6 +239,8 @@ The audit checks source coverage, algorithms, source-page links, formula renderi
 ### 5. Reader feedback to the knowledge profile
 
 While reading, click a concept or select text for the contextual status toolbar. Status choices save immediately, while questions and notes auto-save after a short debounce; accidental status changes or deletion can be undone for five seconds. The right-side detail editor leaves article text selectable. Browser-local recovery survives refresh or accidental closure, but **Download feedback JSON** or **Copy feedback for Codex** remains the portable backup and profile handoff; the page never writes profile data itself.
+
+Download and copy always retain annotations, drafts and colors. Only the separate confirmed clear-all control removes the browser copy; failed removal keeps the page state. Restore/edit/delete/undo share annotation repainting, ambiguous old selections remain saved with a positioning warning, and Original Paper stays resizable while Feedback is open. These internal changes preserve the feedback-v2 export contract.
 
     cd D:\AI\PaperTrace
     python .\skills\reader-learner\scripts\feedback_visible_wiki_pipeline.py reader-feedback --feedback "<reader_feedback.json>"

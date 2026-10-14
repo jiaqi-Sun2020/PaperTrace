@@ -105,6 +105,18 @@ On Windows, write Chinese Markdown through a UTF-8-safe path. Do not pipe Chines
 
 ## End-To-End Reader Contract
 
+New full readers include block-specific logical analysis in existing `notes` /
+`**注释:**`, including figure/table/formula/algorithm explanations. Read
+`../reader-skill/references/reading-analysis-contract.md` before authoring.
+Explain premises, actual operations, the justified result and its connection;
+do not replace faithful translation or copy a repeated reasoning template.
+For visualization-v1 declarations, directly author small reader-logic diagrams
+in the same notes field. Distinguish sequence, data flow, support and comparison;
+preserve conditions and rule sources. Do not infer edges mechanically. Use
+role cards rather than causal chains for administrative declarations.
+Reader-skill owns sourced history and summary v2; unknown history is disclosed
+without blocking otherwise complete paper evidence.
+
 The successful end-to-end output for a paper is not just extracted text. It is:
 
 ```text

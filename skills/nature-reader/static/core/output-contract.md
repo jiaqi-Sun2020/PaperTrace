@@ -84,7 +84,7 @@ Before final response, verify:
 - Formula-heavy PDF-derived blocks include reconstructed LaTeX display math whenever enough context is available. Preserve extracted PDF text below the reconstruction as evidence, not as the only formula view.
 - Formula-heavy PDF-derived blocks include a source-page image link or preview when extraction may have damaged fractions, superscripts, subscripts, spinor brackets, Greek symbols, or custom fonts.
 - When a formula cannot be confidently reconstructed, mark it explicitly as not confidently reconstructed and point to the source page image for manual verification.
-- When `**注释:**` is present, downstream HTML readers should display it as a separate horizontal notes column on wide screens.
+- When `**注释:**` is present, keep its full analysis visible. New visualization declarations add source-bound reader-logic diagrams; use a horizontal notes column only when the actual article container is wide enough, otherwise place analysis below the bilingual pair.
 - `source_map.json` parses as JSON and includes source block IDs.
 - `translation_notes.md` records skipped, uncertain, incomplete, or low-confidence content that must be resolved before final HTML generation.
 

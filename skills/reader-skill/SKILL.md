@@ -78,6 +78,17 @@ reaches formal pass.
 
 ## LLM-Wiki Compile Layer
 
+New bundles additionally declare reading-analysis v1. Read
+`references/reading-analysis-contract.md` for direct-authored per-block logic,
+Paper Summary v2 with a source-anchored whole-paper logic chain, history v1,
+and fresh eight-round self-review. New declarations additionally require
+source-bound reader-logic v1 diagrams inside notes, not keyword-generated arrows.
+The integrated vertical history timeline is the first content module and its
+inline details start collapsed. Incomplete external history is disclosed;
+unsupported asserted relations are never accepted. Historical summary v1 and
+undeclared completed readers remain compatible; only explicitly selected old
+readers are upgraded. Never confuse structural freshness with semantic truth.
+
 Formal HTML generation must pass through a persistent normalized layer before writing `reader_interactive.html`.
 
 For every reader bundle, `markdown_reader_to_html.py` first compiles:
@@ -307,7 +318,7 @@ The output must:
 - render the model-authored paper summary before the concept ledger and article body;
 - place the enlarged synchronized original-page viewer alone in a resizable left pane, the article in a minimum-width center pane, and sticky resizable Contents in a separate right pane on wide screens;
 - include accessible `Hide/Show Original`, `Hide/Show Source Pages`, and `Hide/Show Contents` controls plus persistent restore rails without deleting source DOM content;
-- show `注释` as a separate horizontal third column on wide screens;
+- show logical analysis with selectable typed diagrams and full prose; use a third column only when the article container is sufficiently wide, otherwise place it below the bilingual pair;
 - keep figures/tables near their Markdown positions;
 - render formulas without letting concept highlighting break MathJax;
 - create formula components only from explicit, compiler-audited LaTeX delimiters; never auto-promote plain underscore/superscript text on one language side;
@@ -335,14 +346,14 @@ In the generated HTML:
 3. Add note, exact question, question type, explanation style, and selected/source context when useful.
 4. Choose a status or edit a field; the page auto-saves and confirms the time without moving the reading position. Status changes and deletion offer a five-second undo.
 5. Confirm the saved item; when a source block is detected, confirm its page badge.
-6. The page automatically keeps explicit marks and current form state in a source-hash-isolated browser recovery copy. Use `Download feedback JSON` or `Copy feedback for Codex` for a portable backup, then choose whether to clear the local recovery copy.
+6. The page automatically keeps explicit marks and current form state in a source-hash-isolated browser recovery copy. Download/copy exports a portable backup and always retains annotations; only the separate clear-all control may remove them after confirmation.
 7. Import the exported payload with `reader-learner`.
 
 The HTML page restores saved marks and unfinished input from browser-local storage after an accidental refresh or tab closure. That recovery copy is local to the browser, is keyed by the source-map SHA-256 rather than a local path, and does not update `.agents` automatically. JSON export remains the portable handoff. This persistence and export behavior must come from `lean-html-skill` instead of being reimplemented in domain-specific scripts.
 
 Status and field edits auto-save without closing the panel. `Download feedback JSON` and `Copy feedback for Codex` first flush pending changes. Blank-page clicks are inert with respect to both Feedback and Contents; only Esc or the explicit close button closes the panel. Copy must populate the fallback export textarea even when clipboard access succeeds.
 
-If browser storage is unavailable, full, corrupt, or belongs to another paper fingerprint, continue reading and exporting but show an explicit recovery warning. Prompt before leaving only when current changes could not be stored. A successful download or clipboard copy asks whether to clear the local recovery copy; a clipboard failure that only exposes the fallback textarea must retain it.
+If browser storage is unavailable, full, corrupt, or belongs to another paper fingerprint, continue reading and exporting but show an explicit recovery warning. Prompt before leaving only when current changes could not be stored. Download, successful copy and clipboard fallback all preserve the saved list, form and highlights. Clear-all must cancel pending saves and remove storage successfully before clearing the page. Restore concept colors and free-selection ranges through the same repaint path used for edits; ambiguous ranges retain their records with a visible warning. Feedback must not override the source-pane width, including grouped CSS selectors.
 
 ## Quality Checklist
 
