@@ -4,12 +4,14 @@
 
 from __future__ import annotations
 
+from formula_contract import validate_formula
+
 import hashlib
 import json
 import re
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 from science_coverage_policy import NOTICE, science_skipped
 from delivery_expansion import disclosure
@@ -183,6 +185,7 @@ def assert_config_text_integrity(config: dict[str, Any]) -> None:
 
 
 def canonical_url(value: Any) -> str:
+    """Legacy identity contract; never use this to rewrite a v2 reference URL."""
     url = clean_text(value, 1600)
     if not url:
         return ""
@@ -195,6 +198,50 @@ def canonical_url(value: Any) -> str:
         raise ValueError("source_url contains control characters")
     path = re.sub(r"/+", "/", parsed.path).rstrip("/") or "/"
     return urlunsplit(("https", parsed.netloc.lower(), path, "", ""))
+
+
+def source_reference_url(value: Any) -> str:
+    """Validate a public-source reference without losing resource or anchor bytes."""
+    url = str(value or "")
+    if not url:
+        return ""
+    if len(url) > 1600 or any(ch.isspace() or ord(ch) < 32 for ch in url):
+        raise ValueError("source_url_invalid_length_or_whitespace")
+    parsed = urlsplit(url)
+    if (parsed.scheme.lower() != "https" or not parsed.hostname or parsed.username
+            or parsed.password or parsed.port not in (None, 443)):
+        raise ValueError("source_url_requires_public_https_syntax")
+    forbidden = {"accesskey", "apikey", "token", "secret", "signature", "session"}
+    if any(re.sub(r"[_-]", "", name).lower() in forbidden for name, _ in parse_qsl(parsed.query.replace(";", "&"))):
+        raise ValueError("source_url_credential_parameter_forbidden")
+    return url
+
+
+def source_identity_url(value: Any) -> str:
+    """Conservative v2 identity: preserve path, query, fragment and delimiters."""
+    url = source_reference_url(value)
+    if not url:
+        return ""
+    parsed = urlsplit(url)
+    remainder = url[len(parsed.scheme) + 3 + len(parsed.netloc):]
+    return "https://" + parsed.netloc.lower() + remainder
+
+
+def item_url_version(item: dict[str, Any]) -> int:
+    version = item.get("source_url_contract_version", 1)
+    if type(version) is not int or version not in (1, 2):
+        raise ValueError("unsupported_source_url_contract")
+    return version
+
+
+def reference_url_for_item(item: dict[str, Any]) -> str:
+    helper = source_reference_url if item_url_version(item) == 2 else canonical_url
+    return helper(item.get("source_url"))
+
+
+def identity_url_for_item(item: dict[str, Any]) -> str:
+    helper = source_identity_url if item_url_version(item) == 2 else canonical_url
+    return helper(item.get("source_url"))
 
 
 def normalize_concepts(values: Any) -> list[str]:
@@ -295,6 +342,7 @@ def normalize_worked_example(value: Any) -> dict[str, Any]:
     for index, item in enumerate(raw_steps, start=1):
         if not isinstance(item, dict):
             raise ValueError(f"opening_story.worked_example.steps[{index}] must be an object")
+        validate_formula(item)
         steps.append(
             {
                 "action": clean_text(item.get("action"), 1200),
@@ -303,6 +351,8 @@ def normalize_worked_example(value: Any) -> dict[str, Any]:
                 "explanation": clean_text(item.get("explanation"), 1600),
             }
         )
+        if "formula_format" in item:
+            steps[-1]["formula_format"] = item["formula_format"]
 
     return {
         "kind": clean_text(value.get("kind"), 80),
@@ -693,6 +743,8 @@ def story_id_for_item(item: dict[str, Any]) -> str:
     if explicit:
         basis = explicit
     else:
+        if item_url_version(item) == 2 and item.get("source_url"):
+            return "story-url-" + hashlib.sha256(source_identity_url(item["source_url"]).encode("utf-8")).hexdigest()[:24]
         url = canonical_url(item.get("source_url")) if item.get("source_url") else ""
         if url:
             parsed = urlsplit(url)
@@ -814,6 +866,9 @@ def normalize_briefing_config(
 ) -> dict[str, Any]:
     if not isinstance(config, dict):
         raise ValueError("briefing config must be an object")
+    if type(config.get("feedback_enabled", False)) is not bool:
+        raise ValueError("feedback_enabled must be a boolean")
+    url_version = item_url_version(config)
     if config.get("delivery_expansion") is not None and not isinstance(config["delivery_expansion"], dict):
         raise ValueError("delivery_expansion must be an object")
     if "sections" not in config:
@@ -868,15 +923,21 @@ def normalize_briefing_config(
             item_id = f"N{sum(len(section['items']) for section in normalized_sections) + 1:03d}"
         if item_id in all_ids:
             raise ValueError(f"duplicate item id: {item_id}")
-        source_url = clean_text(raw_item.get("source_url"), 1600)
-        if require_source_url:
+        source_url = (str(raw_item.get("source_url") or "") if url_version == 2
+                      else clean_text(raw_item.get("source_url"), 1600))
+        if "source_url_contract_version" in raw_item and item_url_version(raw_item) != url_version:
+            raise ValueError("source_url_contract_binding_differs")
+        if url_version == 2:
+            source_url = source_reference_url(source_url)
+        elif require_source_url:
             source_url = canonical_url(source_url)
         elif source_url:
             source_url = canonical_url(source_url)
         concepts = normalize_concepts(raw_item.get("concepts"))
         item = {
             "id": item_id,
-            "story_id": story_id_for_item({**raw_item, "source_url": source_url}),
+            "story_id": story_id_for_item({**raw_item, "source_url": source_url,
+                                           "source_url_contract_version": url_version}),
             "novelty": clean_text(raw_item.get("novelty") or raw_item.get("delta_status"), 80),
             "novelty_claim": clean_text(raw_item.get("novelty_claim") or raw_item.get("novelty"), 80),
             "delta_note": clean_text(raw_item.get("delta_note"), 600),
@@ -912,9 +973,17 @@ def normalize_briefing_config(
             "concepts": concepts,
         }
         all_ids.add(item_id)
+        if url_version == 2:
+            item.update(source_url_contract_version=2, source_identity_url=source_identity_url(source_url))
+            if raw_item.get("article_type") == "Research Article":
+                item["article_type"] = raw_item["article_type"]
+            item["source_candidate_id"] = raw_item.get("source_candidate_id") or item_id
+            if isinstance(raw_item.get("source_capture_admission"), dict):
+                item["source_capture_admission"] = raw_item["source_capture_admission"]
         normalized_sections[-1]["items"].append(item)
     normalized = {
         "news_feedback_version": 1,
+        "feedback_enabled": config.get("feedback_enabled", False),
         "briefing_title": title,
         "date_range": date_range,
         "briefing_path": clean_text(config.get("briefing_path") or str(config_path or ""), 1200),
@@ -943,6 +1012,11 @@ def normalize_briefing_config(
         for item in section["items"]
         if item.get("story_id")
     }
+    if url_version == 2:
+        normalized["source_url_contract_version"] = 2
+        for key in ("candidate_admission", "revision_id", "supersedes_run_id", "source_pool_binding"):
+            if key in config:
+                normalized[key] = config[key]
     assert_opening_story_contract(
         opening_story,
         required=story_delivery["required"],
@@ -955,7 +1029,9 @@ def normalize_briefing_config(
 
 
 def config_fingerprint(config: dict[str, Any]) -> str:
-    payload = {key: value for key, value in config.items() if key not in {"generated_at", "config_fingerprint", "run_fingerprint"}}
+    # UI mode is bound by manifest/config/HTML hashes, not feedback content identity.
+    # Toggling the optional UI must not orphan unchanged historical browser records.
+    payload = {key: value for key, value in config.items() if key not in {"generated_at", "config_fingerprint", "run_fingerprint", "feedback_enabled"}}
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 

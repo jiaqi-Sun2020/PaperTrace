@@ -253,3 +253,11 @@ This file records dated implementation and local-release milestones. Durable bou
 - Added directly authored reader-logic v1 blocks inside notes, typed relationships, explicit conditions, shared selectable diagram rendering and a whole-paper argument map. New declarations require visualization v1; old readers remain readable.
 - Analysis responds to article-container width without overriding Original Paper sizing or Feedback. Diagrams and full prose share freshness checks; obsolete browser success reports cannot validate regenerated HTML.
 - H-JEPA is the only local pilot. Structural and source-field checks are separate from five-round self-review; actual browser visual/interaction acceptance remains pending when local URL policy prevents it. No Git or remote publication.
+
+## 2026-10-16 - Recoverable daily sources and bounded review phases
+
+- Added optional lease-protected SQLite source preparation, immutable material revisions and selected-dependency bindings; acquisition remains separate from authoring, semantic approval and release ownership.
+- Retained exact source URLs and capture admission, digest-bound failed-staging revisions, active-run uniqueness and item-scoped recovery. Unselected failures cannot impersonate whole-source failure or approve shortfall.
+- Added bounded rendered-search discovery and a transport-only pre-display preview; formal review, display acceptance and OSS publication remain separate fail-closed gates.
+- Daily HTML defaults to reading-only; explicit Feedback opt-in retains full acceptance. Formula transport checks, source-based v2 ranking and original delivery-policy limits remain enforced.
+- Synchronized bilingual overview, skill routing and operating instructions. Documented separate-process regression requirements and Windows named-pipe testing constraints. No real source collection, backlog mutation, scheduled-task change or OSS operation is part of this maintenance.

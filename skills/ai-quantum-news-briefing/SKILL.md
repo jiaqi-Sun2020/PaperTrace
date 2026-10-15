@@ -199,7 +199,7 @@ For shortfall, `academic_window_start` is covered day minus 13 days and `social_
 
 ### Deterministic Candidate Ranking
 
-Daily releases use `scripts/rank_briefing_candidates.py` and `news-ranker-v1` before delta compaction. The ranker first rejects missing/unsafe evidence, candidate-only AI HOT items, invalid dates, and duplicate story identities. It then computes separate academic and social component scores and selects with deterministic MMR-style source/topic/organization diversity constraints. `ranking`, `ranking_policy`, and `ranking_manifest` must survive normalization and publication. AI HOT scores are discovery priors only and never bypass primary-source verification.
+New protocol 3/4 daily releases force `scripts/rank_briefing_candidates.py` with `news-ranker-v2` before delta compaction; `news-ranker-v1` remains legacy standalone behavior. The ranker first rejects missing/unsafe evidence, candidate-only AI HOT items, invalid dates, and duplicate story identities. It then computes separate academic and social component scores and selects with deterministic MMR-style source/topic/organization diversity constraints. `ranking`, `ranking_policy`, and `ranking_manifest` must survive normalization and publication. AI HOT scores are discovery priors only and never bypass primary-source verification.
 
 After quota/diversity selection, display the academic section in descending
 `ranking.base_score`. This is the pipeline's auditable impact/importance proxy
@@ -444,6 +444,13 @@ Use clear section headings. Avoid padding. If there is no reliable news in a sec
 
 ## Reliability Checklist
 
+For URL/capture mismatches, failed staging revisions or item retrieval failures,
+read `references/source-contract-recovery.md`. New v4 runs preserve URL references
+with contract v2, admit validated captures before selection, and keep all pending
+and excluded discoveries in a bound ledger. Explicit digest-bound revision creates
+an unreviewed draft and freezes the superseded run; it never grants approval.
+
+
 Before finalizing:
 - Verify the exact date range.
 - Verify one opening story appears before the briefing in both Markdown and HTML, conceals its concept until the debrief, and is followed by one complete worked example. In HTML the example must use a native `details` control that is closed by default; neither story nor example creates learner feedback by exposure.
@@ -463,3 +470,24 @@ Before finalizing:
 ```powershell
 python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\audit_briefing_config.py --config <news_feedback_config.json>
 ```
+
+## Optional Feedback / cancelled backlog
+
+Daily generation defaults to pure reading (`feedback_enabled=false` or absent).
+Feedback true explicitly opts in and requires its complete interaction acceptance.
+Only Feedback-specific checks may be identity-bound N/A when off; all content,
+formula, links, mobile, print, source diversity and strict publication checks remain.
+The unchanged passive unrated JSON sidecar does not create learner evidence.
+Use `orchestrate_daily.py queue --date <day> --record --withdraw-reason <reason>`
+for an explicitly cancelled backfill: keep history and exclude it from execution.
+Do not un-cancel it by deleting files, retagging dates or editing queue JSON.
+
+## Optional source preparation / bounded preview
+
+Before using `orchestrate_daily.py sources`, read
+[source preparation](references/source-preparation-architecture.md): its leased
+task/material store is opt-in, never another release or semantic approval owner.
+For browser discovery evidence or pre-display HTTPS preview, read
+[the rendered-search and preview contract](references/rendered-search-and-preview-contract.md).
+Actual browser policy, source review, strict release gates and separate upload
+authorization still apply; a preview receipt is not publication or display approval.

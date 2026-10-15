@@ -674,7 +674,7 @@ class DailyPipelineTests(unittest.TestCase):
                       story_surface_failures(canonical, stale_example, markdown))
 
     def test_mobile_feedback_editor_is_docked_and_does_not_jump_from_article(self) -> None:
-        html = render_html(normalize_briefing_config(config(), require_source_url=True))
+        html = render_html(normalize_briefing_config({**config(), "feedback_enabled": True}, require_source_url=True))
         self.assertIn("@media (max-width: 920px)", html)
         self.assertIn("aside.feedback-panel {\n        position: fixed;", html)
         self.assertIn("env(safe-area-inset-bottom)", html)
@@ -697,7 +697,7 @@ class DailyPipelineTests(unittest.TestCase):
         node = shutil.which("node")
         if not node:
             self.skipTest("Node.js is not installed")
-        html = render_html(normalize_briefing_config(config(), require_source_url=True))
+        html = render_html(normalize_briefing_config({**config(), "feedback_enabled": True}, require_source_url=True))
         scripts = [
             match.group(2)
             for match in re.finditer(r"<script([^>]*)>(.*?)</script>", html, re.S)
@@ -1010,14 +1010,14 @@ class DailyPipelineTests(unittest.TestCase):
         raw = config([with_fields(item(concept="QSVT"), concepts=["QSVT", "qsvt", "LUCI"])])
         canonical = normalize_briefing_config(raw, require_source_url=True)
         feedback = export_feedback(canonical, Path("config.json"), "unrated", "none")
-        html = apply_design_system(render_html({**canonical, "default_status": "unrated", "initial_feedback_items": feedback["items"]}), "cosmic", "light")
+        html = apply_design_system(render_html({**canonical, "feedback_enabled": True, "default_status": "unrated", "initial_feedback_items": feedback["items"]}), "cosmic", "light")
         self.assertEqual(html.count('class="concept-chip"'), len(feedback["items"]))
         self.assertEqual({concept_identity(x["block_id"], x["concept"]) for x in feedback["items"]}, {"N001::qsvt", "N001::luci"})
 
     def test_html_initializes_all_unrated_feedback_without_legacy_top_level_items(self) -> None:
         canonical = normalize_briefing_config(config([with_fields(item(), concepts=["QSVT", "LUCI"])]), require_source_url=True)
         feedback = export_feedback(canonical, Path("config.json"), "unrated", "none")
-        html = render_html({**canonical, "default_status": "unrated", "initial_feedback_items": feedback["items"]})
+        html = render_html({**canonical, "feedback_enabled": True, "default_status": "unrated", "initial_feedback_items": feedback["items"]})
         self.assertIn('"items":[{', html)
         self.assertIn("const BRIEFING_ITEMS", html)
         self.assertNotIn("const itemMap = new Map(CONFIG.items.map", html)
@@ -1144,7 +1144,7 @@ class DailyPipelineTests(unittest.TestCase):
     def test_local_storage_contract_is_versioned_and_stale_entries_are_filtered(self) -> None:
         canonical = normalize_briefing_config(config(), require_source_url=True)
         feedback = export_feedback(canonical, Path("config.json"), "unrated", "none")
-        html = apply_design_system(render_html({**canonical, "default_status": "unrated", "initial_feedback_items": feedback["items"]}), "cosmic", "light")
+        html = apply_design_system(render_html({**canonical, "feedback_enabled": True, "default_status": "unrated", "initial_feedback_items": feedback["items"]}), "cosmic", "light")
         self.assertIn("CONFIG.config_fingerprint", html)
         self.assertIn("const initialIds = new Set", html)
         self.assertIn("entry.annotation_kind === 'news_freeform'", html)
@@ -1240,7 +1240,7 @@ class DailyPipelineTests(unittest.TestCase):
         raw = config([with_fields(item(concept=concepts[0]), concepts=concepts)])
         canonical = normalize_briefing_config(raw, require_source_url=True)
         feedback = export_feedback(canonical, Path("config.json"), "unrated", "none")
-        html = apply_design_system(render_html({**canonical, "default_status": "unrated", "initial_feedback_items": feedback["items"]}), "cosmic", "light")
+        html = apply_design_system(render_html({**canonical, "feedback_enabled": True, "default_status": "unrated", "initial_feedback_items": feedback["items"]}), "cosmic", "light")
         self.assertEqual(len(feedback["items"]), 68)
         self.assertTrue(all(entry["status"] == "unrated" for entry in feedback["items"]))
         self.assertEqual(html.count('class="concept-chip"'), 68)

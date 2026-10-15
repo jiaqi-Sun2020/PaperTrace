@@ -19,7 +19,7 @@ ALLEGORY_SCRIPTS = Path(__file__).resolve().parents[2] / "allegory-teach" / "scr
 if str(ALLEGORY_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(ALLEGORY_SCRIPTS))
 
-from review_evidence import story_digest, validate_review
+from review_evidence import story_digest, validate_review, validate_review_for_preview
 
 BASE_KEYS = ("markdown", "html", "feedback", "delta_config", "index_updates")
 REVIEW_NAMES = {
@@ -68,8 +68,16 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def validate_bundle(run_dir: Path, manifest: dict[str, Any], *, require_manifest_binding: bool) -> list[str]:
+def validate_bundle(run_dir: Path, manifest: dict[str, Any], *, require_manifest_binding: bool,
+                    require_audit_report: bool = True, preview_display_pending: bool = False) -> list[str]:
     """Check review provenance, selected-item coverage and rendered story parity."""
+    # Preview transport precedes seal-review, the owner of the audit report.
+    # Bound/sealed release validation must never opt out of that report.
+    if type(require_audit_report) is not bool or (require_manifest_binding and not require_audit_report):
+        return ["sealed manifest validation requires the audit report"]
+    if (type(preview_display_pending) is not bool
+            or (preview_display_pending and (require_manifest_binding or require_audit_report))):
+        return ["display pending is restricted to unsealed preview validation"]
     failures: list[str] = []
     names = {key: template.format(date=manifest["date"])
              for key, template in REVIEW_NAMES.items()}
@@ -77,11 +85,13 @@ def validate_bundle(run_dir: Path, manifest: dict[str, Any], *, require_manifest
         config = _read_json(run_dir / manifest["artifacts"]["delta_config"])
         story_review = _read_json(run_dir / names["story_review"])
         news_review = _read_json(run_dir / names["news_review"])
-        report = _read_json(run_dir / names["release_audit"])
+        report = _read_json(run_dir / names["release_audit"]) if require_audit_report else None
         page = (run_dir / manifest["artifacts"]["html"]).read_text(encoding="utf-8-sig")
     except (KeyError, OSError, ValueError) as exc:
         return [str(exc)]
 
+    from source_preparation import check_run_pool_binding
+    failures.extend(check_run_pool_binding(run_dir, manifest, config))
     story = config.get("opening_story")
     if not isinstance(story, dict):
         return ["opening story missing from release config"]
@@ -90,7 +100,17 @@ def validate_bundle(run_dir: Path, manifest: dict[str, Any], *, require_manifest
         failures.append("unsupported required story review protocol")
     elif story_review.get("review_protocol_version") not in ((2, 3) if required == 2 else (3,)):
         failures.append(f"release requires story review protocol {required}")
-    failures.extend(f"story review: {issue}" for issue in validate_review(story, story_review))
+    html_sha256 = _file_hash(run_dir / manifest["artifacts"]["html"])
+    if preview_display_pending:
+        story_failures = validate_review_for_preview(story, story_review, html_sha256=html_sha256)
+    else:
+        story_failures = validate_review(story, story_review)
+        rows = story_review.get("rounds")
+        for row in rows if isinstance(rows, list) else []:
+            if isinstance(row, dict) and isinstance(row.get("display_review"), dict):
+                if row["display_review"].get("html_sha256") != html_sha256:
+                    story_failures.append("actual display evidence does not bind the current HTML")
+    failures.extend(f"story review: {issue}" for issue in story_failures)
     narrative = re.search(r'<div class="story-narrative">(.*?)</div>', page, re.S)
     expected = "".join("<p>" + html.escape(paragraph, quote=True) + "</p>"
                        for paragraph in story.get("paragraphs", []))
@@ -145,16 +165,17 @@ def validate_bundle(run_dir: Path, manifest: dict[str, Any], *, require_manifest
                     if not isinstance(claim_review.get(field), str) or not claim_review[field].strip():
                         failures.append(f"news review item {item.get('id')} {claim_name} lacks {field}")
 
-    if report.get("status") != "pass" or report.get("content_digest") != release_digest:
-        failures.append("preflight audit is missing, failed or stale")
-    if report.get("story_sha256") != story_digest(story):
-        failures.append("preflight audit does not match the current story")
-    if report.get("selected_items") != len(items):
-        failures.append("preflight audit item count does not match")
-    if report.get("story_review_sha256") != _file_hash(run_dir / names["story_review"]):
-        failures.append("preflight audit story review hash mismatch")
-    if report.get("news_review_sha256") != _file_hash(run_dir / names["news_review"]):
-        failures.append("preflight audit news review hash mismatch")
+    if require_audit_report:
+        if report.get("status") != "pass" or report.get("content_digest") != release_digest:
+            failures.append("preflight audit is missing, failed or stale")
+        if report.get("story_sha256") != story_digest(story):
+            failures.append("preflight audit does not match the current story")
+        if report.get("selected_items") != len(items):
+            failures.append("preflight audit item count does not match")
+        if report.get("story_review_sha256") != _file_hash(run_dir / names["story_review"]):
+            failures.append("preflight audit story review hash mismatch")
+        if report.get("news_review_sha256") != _file_hash(run_dir / names["news_review"]):
+            failures.append("preflight audit news review hash mismatch")
     if require_manifest_binding:
         for key, name in names.items():
             if manifest.get("artifacts", {}).get(key) != name:

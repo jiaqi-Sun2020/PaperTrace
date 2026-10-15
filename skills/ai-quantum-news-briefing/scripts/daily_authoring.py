@@ -20,6 +20,7 @@ import tempfile
 from daily_pipeline import NEWS_ROOT, atomic_copy, atomic_json
 from release_audit import REVIEW_NAMES
 from release_lock import release_lock
+from daily_revisions import active_stages, assert_active_stage, candidate_path, lifecycle, revise, run_snapshot, sha as revision_sha
 
 MAX_BYTES = 32 * 1024 * 1024
 MAX_PAYLOAD = 20000
@@ -81,18 +82,21 @@ def target_path(root, day, kind, run_id=None):
     if kind == "candidate":
         if run_id:
             raise AuthoringError("candidate_run_id_forbidden")
-        if stages.exists() and any(stages.iterdir()):
+        if active_stages(root, day):
             raise AuthoringError("staged_candidate_frozen")
-        return contained(root, root / "_collection" / day / ("candidate_" + day + ".json"))
+        return contained(root, candidate_path(root, day))
     if kind not in {"news-review", "story-review"}:
         raise AuthoringError("unknown_artifact_kind")
     if not run_id or not re.fullmatch(re.escape(day) + r"-[0-9a-f]{12}", run_id):
         raise AuthoringError("invalid_staging_run_id")
     stage = contained(root, stages / run_id)
+    if run_id in lifecycle(root, day)["superseded_runs"]:
+        raise AuthoringError("staging_revision_superseded")
     manifest = decode_json((stage / ("daily_pipeline_manifest_" + day + ".json")).read_bytes())
     if (manifest.get("date") != day or manifest.get("run_id") != run_id
             or manifest.get("status") != "staged" or manifest.get("pipeline_version") != 4):
         raise AuthoringError("staging_manifest_mismatch")
+    assert_active_stage(stage, manifest)
     key = kind.replace("-", "_")
     path = contained(root, stage / REVIEW_NAMES[key].format(date=day))
     if not path.is_file():
@@ -192,6 +196,9 @@ def validate(value, kind, previous):
                     or any(not isinstance(item, dict) for item in section["items"])):
                 raise AuthoringError("candidate_draft_structure_invalid")
         value["semantic_review_status"] = "not_reviewed"
+        value.setdefault("source_url_contract_version", 2)
+        if type(value["source_url_contract_version"]) is not int or value["source_url_contract_version"] not in (1, 2):
+            raise AuthoringError("source_url_contract_incompatible")
         value.setdefault("authoring_status", "in_progress")
         if value["authoring_status"] not in {"in_progress", "complete"}:
             raise AuthoringError("invalid_authoring_status")
@@ -227,6 +234,12 @@ def save(root, day, kind, expected, payload, *, patch=False, run_id=None):
         source_root = contained(root, root / "_collection" / day)
         value = patched(previous, payload, root, source_root) if patch else deepcopy(payload)
         validate(value, kind, previous)
+        if kind == "candidate":
+            active = lifecycle(root, day).get("active_revision")
+            if value.get("revision_id") != active:
+                raise AuthoringError("candidate_revision_binding_changed")
+            if active and value.get("supersedes_run_id") != previous.get("supersedes_run_id"):
+                raise AuthoringError("candidate_revision_binding_changed")
         if value == previous:
             return {"status": "unchanged", "path": str(path), "sha256": actual, "content_approved": False}
         if actual != "absent":
@@ -253,15 +266,50 @@ def probe(root, day):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["probe", "save", "patch"])
+    parser.add_argument("command", choices=["probe", "save", "patch", "revision-info", "revise"])
     parser.add_argument("--date", required=True)
     parser.add_argument("--kind", choices=["candidate", "news-review", "story-review"], default="candidate")
     parser.add_argument("--run-id")
+    parser.add_argument("--expected-run-sha256")
+    parser.add_argument("--expected-peer-runs-base64", help="Explicit run-ID to snapshot-SHA256 JSON map, max 20000 ASCII characters")
+    parser.add_argument("--expected-evidence-base64", help="Bound raw-capture and index hashes verified under the revision commit lock")
+    parser.add_argument("--reason")
     parser.add_argument("--expected-sha256", help="Current target digest, or absent for first creation")
     parser.add_argument("--payload-base64", help="UTF-8 JSON or JSON patch operations; max 20000 ASCII characters")
     args = parser.parse_args(argv)
     try:
-        if args.command == "probe":
+        if args.command in {"revision-info", "revise"}:
+            if args.kind != "candidate" or args.payload_base64 or not args.run_id:
+                raise AuthoringError("invalid_revision_arguments")
+            if args.command == "revision-info":
+                if args.expected_sha256 or args.expected_run_sha256 or args.reason or args.expected_peer_runs_base64 or args.expected_evidence_base64:
+                    raise AuthoringError("invalid_revision_info_arguments")
+                if not re.fullmatch(re.escape(args.date) + r"-[0-9a-f]{12}", args.run_id):
+                    raise AuthoringError("invalid_staging_run_id")
+                current = candidate_path(NEWS_ROOT, args.date)
+                stage = NEWS_ROOT / args.date / ".staging" / args.run_id
+                result = {"status": "revision_info", "candidate": str(current), "candidate_sha256": revision_sha(current),
+                          "run_sha256": run_snapshot(NEWS_ROOT, stage)["sha256"], "content_approved": False,
+                          "active_runs": {path.name: run_snapshot(NEWS_ROOT, path)["sha256"] for path in active_stages(NEWS_ROOT, args.date)}}
+            else:
+                if not args.expected_run_sha256 or not args.expected_sha256:
+                    raise AuthoringError("revision_expected_digests_required")
+                from daily_pipeline import verify_artifacts
+                peers = None
+                if args.expected_peer_runs_base64:
+                    if len(args.expected_peer_runs_base64) > MAX_PAYLOAD:
+                        raise AuthoringError("bounded_payload_required")
+                    peers = decode_json(base64.b64decode(args.expected_peer_runs_base64, validate=True))
+                evidence = None
+                if args.expected_evidence_base64:
+                    if len(args.expected_evidence_base64) > MAX_PAYLOAD:
+                        raise AuthoringError("bounded_payload_required")
+                    evidence = decode_json(base64.b64decode(args.expected_evidence_base64, validate=True))
+                result = revise(NEWS_ROOT, args.date, args.run_id, args.expected_run_sha256,
+                                args.expected_sha256, args.reason, verify=verify_artifacts, expected_peers=peers, expected_evidence=evidence)
+        elif args.expected_run_sha256 or args.reason or args.expected_peer_runs_base64 or args.expected_evidence_base64:
+            raise AuthoringError("revision_options_require_revision_command")
+        elif args.command == "probe":
             if args.payload_base64 or args.expected_sha256 or args.run_id or args.kind != "candidate":
                 raise AuthoringError("invalid_probe_arguments")
             result = probe(NEWS_ROOT, args.date)
@@ -276,9 +324,11 @@ def main(argv=None):
         print(json.dumps(result, ensure_ascii=True))
         return 0
     except (OSError, ValueError, TypeError, KeyError, IndexError, TimeoutError, RecursionError) as exc:
-        code = str(exc) if isinstance(exc, AuthoringError) else exc.__class__.__name__
+        code = str(exc) if isinstance(exc, AuthoringError) or re.fullmatch(r"[a-z_]+", str(exc)) else exc.__class__.__name__
         print(json.dumps({"status": "authoring_failed", "reason": code,
-                          "content_approved": False, "action_required": True}))
+                          "content_approved": False, "action_required": True,
+                          **({"next_action": "Inspect revision-info, then explicitly revise with run/candidate digests and a reason; do not patch a frozen candidate."}
+                             if code == "staged_candidate_frozen" else {})}))
         return 2
 
 

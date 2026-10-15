@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlsplit
 
-from briefing_contract import canonical_url, normalize_briefing_config
+from briefing_contract import canonical_url, identity_url_for_item, item_url_version, normalize_briefing_config
 from news_delta import classify_item, load_index, recent_records
 from science_coverage_policy import NOTICE, science_journal_candidate, science_skipped
 from delivery_expansion import SHORTFALL, disclosure, publication_relation
@@ -79,6 +79,13 @@ def domain_of(value: Any) -> str:
 def safe_canonical_url(value: Any) -> str:
     try:
         return canonical_url(value)
+    except (TypeError, ValueError):
+        return ""
+
+
+def safe_identity_url(item: dict[str, Any]) -> str:
+    try:
+        return identity_url_for_item(item)
     except (TypeError, ValueError):
         return ""
 
@@ -310,6 +317,13 @@ def eligibility_failures(item: dict[str, Any], kind: str,
         failures.append("candidate_or_unverified_evidence")
     if algorithm_version == SOURCE_ALGORITHM_VERSION and (item.get("source_capture") or {}).get("status_code") != 200:
         failures.append("missing_retrieved_article_capture")
+    if algorithm_version == SOURCE_ALGORITHM_VERSION and item_url_version(item) == 2:
+        from source_capture import validate_capture
+        capture = item.get("source_capture")
+        if not isinstance(capture, dict) or validate_capture(item, capture):
+            failures.append("invalid_retrieved_article_capture")
+        if (item.get("source_capture_admission") or {}).get("status") not in (None, "evidence_valid"):
+            failures.append("candidate_evidence_not_admitted")
     if kind == "academic" and not paper_kind(item):
         failures.append("not_a_paper_level_academic_source")
     if kind == "academic":
@@ -470,7 +484,7 @@ def rank_briefing_config(
         covered = None
     prior_story_ids = {clean_text(row.get("story_id"), 240) for row in index_records if isinstance(row, dict)}
     prior_urls = {url for row in index_records if isinstance(row, dict)
-                  for url in [safe_canonical_url(row.get("source_url"))] if url}
+                  for url in [safe_identity_url(row)] if url}
     prior_dois = {doi for row in index_records if isinstance(row, dict)
                   for doi in [doi_identity(row)] if doi}
     prior_titles = {clean_text(row.get("title"), 500).casefold() for row in index_records
@@ -497,7 +511,7 @@ def rank_briefing_config(
                     failures.append("outside_verified_lookback_or_ambiguous_publication_time")
                 title_key = clean_text(copied.get("title"), 500).casefold()
                 if (clean_text(copied.get("story_id"), 240) in prior_story_ids
-                        or safe_canonical_url(copied.get("source_url")) in prior_urls
+                        or safe_identity_url(copied) in prior_urls
                         or (doi_identity(copied) and doi_identity(copied) in prior_dois)):
                     failures.append("previously_published")
                 elif title_key and title_key in prior_titles:
@@ -527,7 +541,7 @@ def rank_briefing_config(
             story_id = clean_text(candidate["item"].get("story_id"), 240)
             # A malformed candidate belongs in the exclusion ledger, not in
             # an exception that aborts the entire ranking run.
-            source_url = safe_canonical_url(candidate["item"].get("source_url"))
+            source_url = safe_identity_url(candidate["item"])
             doi = doi_identity(candidate["item"])
             title = clean_text(candidate["item"].get("title"), 500).casefold()
             if (story_id in seen_story_ids or source_url in seen_urls or (doi and doi in seen_dois)

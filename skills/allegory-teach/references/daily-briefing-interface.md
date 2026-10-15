@@ -170,6 +170,12 @@ Review in this order, recording `materials_seen` for each new round:
    observe the promised quantity, leave the finding unresolved.
 
 Each v3 round has an `unresolved` list; it must be empty for `judgment=pass`.
+The pre-display HTTPS preview phase may use the narrowly typed pending exception
+described in `../../ai-quantum-news-briefing/references/rendered-search-and-preview-contract.md`.
+The first two rounds and the third round's case/surface checks still pass; only
+actual display remains pending against exact HTML bytes. Formal review and
+publication still require all rounds and actual display to pass. A preview
+transport receipt is never display approval.
 The validator checks field presence, exact story/example quotes, mapping
 coverage and digest freshness. It cannot determine whether the typed objects,
 source attribution or pedagogical explanation are true. Keep that semantic

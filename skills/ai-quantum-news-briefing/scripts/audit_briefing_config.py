@@ -44,6 +44,7 @@ ACADEMIC_DOMAINS = {
     "ieeexplore.ieee.org": "ieee",
     "ojs.aaai.org": "aaai",
     "api2.openreview.net": "openreview",
+    "journals.plos.org": "plos",
 }
 
 OFFICIAL_RESEARCH_DOMAINS = {
@@ -122,6 +123,8 @@ def academic_kind(url: str, item: dict[str, Any] | None = None) -> str:
         return paper_kind(item)
     if host(url) == "doi.org":
         return ""
+    if host(url) == "plos.org" or host(url).endswith(".plos.org"):
+        return paper_kind({"source_url": url, "publication_type": "journal-article"})
     domain = domain_of(url)
     for known, kind in ACADEMIC_DOMAINS.items():
         if domain == known or domain.endswith("." + known):

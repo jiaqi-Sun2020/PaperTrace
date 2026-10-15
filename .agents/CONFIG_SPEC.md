@@ -636,3 +636,84 @@ outside that read boundary.
 Changed candidate bytes create exact-byte content-addressed backups; interrupted
 installation retains the previous file. Unknown future versions and releases
 that already have staging/final manifests are preserved.
+
+
+## 2026-10-10：公式字段与唯一活动 staging
+
+`opening_story.worked_example.steps[*].formula` 默认为无注释的 TeX 显示数学片段。
+字面百分号必须使用 `\%`（JSON 文本写作 `\\%`）；裸 `%` 在归一化、渲染及 staging 验证时失败关闭。
+已有转义不会被改写。字段不接受自动全局替换；显式 `formula_format: "text"` 表示普通文本，
+保留中文、百分号和反斜杠，不进入数学块。`formula_format: "tex"` 显式指定 TeX，其他值拒绝。
+新旧合法的隐式 TeX 不增加字段，因此既有合法摘要不改变。MathJax 3 明确忽略普通文本公式容器。
+公式修正仅证明传输/显示契约；事实、故事和逐项内容审核仍必须独立完成。
+
+protocol 4 新 staging 声明 `staging_lifecycle_version=1`。安装后在同一发布锁内原子登记
+生命周期 `active_run_id`；同一发布日期只允许一个活动 run。已安装但登记前中断的 run
+不能通过验证、写入审核、封印、finalize 或上传，可用明确摘要重新发起受控修订。
+登记写入失败时尽力退回 `.staging-preparation/`，证据保留，重入不得把旧审核作为新审核。
+生命周期仍为 version 1，新增字段是可选兼容扩展；声明了新 staging 契约却缺失活动登记时停止。
+
+历史同日有多个失败 staging 时不能只退回其中一个。`revision-info` 只读列出 `active_runs` 的
+run-ID/快照摘要；`revise --expected-peer-runs-base64` 接受显式、完整的其他活动 run 摘要映射。
+漏项、额外 run、摘要变化、任何已审核通过或正式发布版本均拒绝。所有旧目录保持原字节，
+快照随修订保留；一个原子生命周期提交同时标记所有绑定旧 run 被替代并切换新候选。
+同一请求中断后可重复；参数变化要求重新检查。禁止删除冻结目录或删除生命周期来“解冻”。
+
+部署必须同时评审代码能力与当前运行树差异。运行树没有 `revision-info/revise` 和
+`daily_revisions.py` 时，直接 patch 仍将返回 `staged_candidate_frozen`；工作树测试通过不代表已部署。
+不得盲目覆盖运行树的未提交或较新修改。部署、迁移真实冻结稿、封印、发布、上传是独立授权边界。
+专项离线回归：`test_formula_revision_1010.py`、`test_staging_revision_repair.py`。
+学术 6–8、社会 6–12、新/重要更新至少 4、完整故事与更严格的有效配置保持原门槛。
+
+## Optional daily Feedback UI (2026-10-11)
+
+`feedback_enabled` is a strict JSON boolean; absent/false means reading only.
+True explicitly enables the existing Feedback runtime and its full acceptance.
+New manifests bind `feedback_mode_version=1` and the boolean to normalized
+config and embedded HTML. Unknown types/versions or mismatches fail closed.
+Only Feedback-specific acceptance is N/A in disabled mode; content, formulas,
+source links, mobile layout, print, semantic reviews and all release gates remain.
+No Feedback DOM, toolbar, recovery/export code or listeners is emitted when off;
+historical browser storage is neither read nor changed. Passive unrated concept
+JSON sidecars remain for historical identity compatibility, not browser exports.
+Historical manifests without the mode contract keep their original semantics.
+Queue version 1 may retain `withdrawals[date]` with concrete reason, timestamp and
+prior queue digest. Withdrawn dates remain in history and are excluded from
+automatic execution; subsequent queue selection does not silently revive them.
+
+
+## Source preparation contract 1 (explicit opt-in)
+
+`news/_sources/pool.sqlite` is a local acquisition/material store with SQLite
+user_version=1. It is not another release lifecycle or approval store. Unknown
+schema/data stop without overwriting. No credential or learner profile belongs
+in it. Code/registry/policy/date/exact input hashes define task identity; source
+success and checkpoint admission share a transaction. Network work occurs
+outside transactions. Leases expire after at most 900 seconds and at most
+three claims; Retry-After persists a next eligible time (up to one day), never
+an early retry. Unknown/longer delays require diagnosis.
+
+Material identity uses source ID and the complete original URL, without generic
+query normalization. Captures remain byte-preserved in the existing capture
+store. Changed payloads, including reversions, get new immutable generations.
+Pool admission always means not_reviewed. Packet quantity estimates apply the
+default policy and deduplicate known DOI/exact URLs; final ranking and every
+stricter candidate policy remain authoritative. Maximum output is 100 per kind,
+with total/emitted/truncated metadata and the full database path; truncation is
+not exclusion. Unsupported dates, excerpts and academic identities are invalid,
+not evidence of a verified shortfall.
+
+An optional `source_pool_binding` in a protocol-4 candidate binds its exact raw
+content, release date, committed source coverage and material revisions. The
+generator retains only selected dependencies, copies the binding to config and
+manifest, and sets `source_preparation_version=1`. Structure verification,
+review sealing, strict review, preview, finalize and first upload reject stale
+dependencies; no stale PASS is inherited. A matching published receipt retains
+historical readability. Legacy candidates without this binding remain valid
+under their original contracts; opting in does not lower any release standard.
+
+Discovery passes a versioned `navigation_url` object through the actual guarded
+CUA invocation. The fixed query is URL-encoded; raw query/type/date/URL drift
+fails before goto. A successful navigation does not establish search coverage.
+Typed real DOM observation and a separate original HTTP response remain
+different evidence; neither can impersonate the other.

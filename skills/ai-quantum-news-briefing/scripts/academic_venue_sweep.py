@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import http.client
 import json
+import math
 import re
 import socket
 import sys
@@ -326,8 +327,12 @@ def _request_evidence(url: str, timeout: int) -> tuple[dict[str, object], bytes]
         evidence.update(status_code=int(exc.code), final_url=exc.geturl(),
                         response_hash=hashlib.sha256(body).hexdigest(), error=str(exc)[:300],
                         retry_after=(exc.headers.get("Retry-After") if exc.headers else None))
+        from source_capture import capture_failure
+        evidence["failure_diagnostic"] = capture_failure(exc, "http_request", datetime.now(timezone.utc))
         return evidence, body
     except Exception as exc:
+        from source_capture import capture_failure
+        evidence["failure_diagnostic"] = capture_failure(exc, "http_request", datetime.now(timezone.utc))
         evidence["error"] = ("incomplete_read" if isinstance(exc, http.client.IncompleteRead)
                              else str(exc)[:300])
         return evidence, b""
@@ -386,8 +391,18 @@ def _request_source_with_retry(url: str, timeout: int, attempts: int = 3) -> tup
         if status in {403, 404} or not retryable or attempt == attempts - 1:
             return last
         try:
-            delay = min(30.0, max(0.0, float(evidence.get("retry_after") or attempt + 1)))
+            header = evidence.get("retry_after")
+            if status == 429 and header:
+                delay = (float(header) if str(header).isdigit() else
+                         math.ceil((parsedate_to_datetime(str(header)) - datetime.now(timezone.utc)).total_seconds()))
+                delay = max(0.0, delay)
+                if delay > 30:
+                    return last  # Durable task waits until Retry-After; never cap it and retry early.
+            else:
+                delay = min(30.0, max(0.0, float(header or attempt + 1)))
         except (TypeError, ValueError):
+            if status == 429 and evidence.get("retry_after"):
+                return last
             delay = min(3.0, float(attempt + 1))
         if "response_too_large" in error:
             return last

@@ -97,8 +97,8 @@ Use the script interface below only when you need recovery, diagnostics, or CI i
 - <code>ai-quantum-news-briefing</code> gathers daily candidate signals from AI HOT API or <code>feed.xml</code>; AI HOT is discovery only, never final evidence.
 - Every new daily briefing orders academic papers by descending auditable impact score, grounds its opening fable in the rank-1 paper by default, and places a factual debrief plus a default-collapsed concrete worked example before the news body; story/example exposure never becomes learner evidence.
 - Briefing research sources cover APS journals, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv. arXiv-only records are labeled as preprints.
-- Reader and briefing HTML export full feedback JSON. Concepts default to <code>unrated</code> until the user explicitly provides a learning judgment.
-- <code>news-ranker-v1</code> first applies an evidence gate, then uses separate academic/social scoring and diversity constraints. The published config retains item scores, quotas, selection trace, and exclusions.
+- Reader HTML and opt-in briefing Feedback export feedback JSON. New briefings default to reading-only; passive sidecars remain <code>unrated</code> and never establish learner evidence.
+- New protocol 3/4 releases use <code>news-ranker-v2</code> source-evidence scoring before Delta compaction; v1 remains legacy standalone behavior. The published config retains item scores, quotas, selection trace, and exclusions.
 - <code>lean-html-skill</code> controls only visual presentation. It keeps the light theme as default, provides a Cosmic option, pairs component foreground/surface tokens across Light, Cosmic, and print modes, and blocks low-contrast story/table output without changing behavior or data structure.
 - <code>reader-learner</code> validates, normalizes, and atomically updates the profile while blocking encoding corruption, HTML remnants, and exposure-only overclaims.
 - <code>allegory-teach</code> uses complete, source-faithful Fables for all new explanation and daily-opening requests within the skill. Technical correctness and beginner comprehension are independent gates; story completeness precedes brevity.
@@ -261,6 +261,8 @@ The importer validates feedback, backs up and atomically updates the profile, th
 
 The briefing is not complete at candidate collection, Markdown, or config generation. The terminal deliverable opens with a validated concept fable, factual debrief, and default-collapsed concept-appropriate worked example, followed by the interactive HTML briefing, with default-<code>unrated</code> feedback JSON, manifest, and updated story index.
 
+New briefings default to reading-only HTML. Set the strict JSON boolean `feedback_enabled=true` only when annotation controls are wanted; this requires their full interaction acceptance. Disabled mode emits no Feedback runtime and does not read or clear historical browser annotations. Passive JSON sidecars retain identity compatibility, not proof of learning.
+
 Expected daily artifacts:
 
     news\YYYY-MM-DD\daily_briefing_YYYY-MM-DD.md
@@ -307,10 +309,16 @@ Key rules:
 
 - Every run requires a source-grounded <code>opening_story</code> and a complete worked example. New authoring uses complete Fable version 3; source binding, full-text name concealment, field transport limits, and concrete example validation remain enforced. Human/agent content review separately checks the selected causal relation and readability; schema success is not teaching approval. HTML keeps the example collapsed by default.
 - AI HOT is a candidate source, never final evidence.
-- <code>news-ranker-v1</code> runs before Delta compaction; AI HOT scores cannot replace it.
+- <code>news-ranker-v2</code> runs before Delta compaction for new protocol 3/4 releases; AI HOT scores cannot replace it.
 - Normally publish 6–8 academic records and 6–12 social-news records, preserving source, topic, and organization diversity. When eligible items remain scarce, use the declared optional/probationary sources and then a bounded 14-calendar-day academic / 72-hour social lookback. A `verified_shortfall` release may relax only unattainable lower counts and source-class minima after those attempts are recorded with dated evidence and candidate exclusions; it must still include at least one reviewed item in each category and pass both core source-family gates. Its original publication dates, actual counts, and shortfall reason appear in Markdown, HTML and embedded data. `--days` remains an index-deduplication setting, not the retrieval window; an optional listing page is not article evidence.
 - arXiv-only academic entries must say <code>preprint</code> and include a venue-sweep note.
 - Exposure-only news concepts remain <code>unrated</code>. HTML only gathers and exports feedback; it never writes <code>.agents</code> directly.
+
+### Recoverable sources and review boundaries
+
+Optional `orchestrate_daily.py sources --date <RELEASE-YYYY-MM-DD> --pool-dir .\news\_sources --action status` reports the separate local source-preparation store without registering work. Explicit `plan`, bounded `work`, and `packet` reuse captures and lease-protected tasks; admitted material is always `not_reviewed`. This is not another release lifecycle. A bound candidate must retain its selected material revisions through staging, review and first upload. Read the [source-preparation contract](skills/ai-quantum-news-briefing/references/source-preparation-architecture.md) before opting in or rolling back.
+
+Failed unpublished staging uses digest-bound controlled revision, not hand-edited HTML or deleted evidence. URL identity, capture admission and recovery are defined in [source-contract recovery](skills/ai-quantum-news-briefing/references/source-contract-recovery.md). A separately authorized HTTPS preview may leave only actual display pending; it is never semantic approval, formal publication or proof that the homepage changed. See [the preview contract](skills/ai-quantum-news-briefing/references/rendered-search-and-preview-contract.md) and [.agents/RUNBOOK.md](.agents/RUNBOOK.md). Publishing code to GitHub does not enable OSS, run collection, or publish a briefing.
 
 ## Lean HTML and design layer
 

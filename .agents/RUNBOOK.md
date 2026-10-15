@@ -50,6 +50,12 @@ and limitation. Never recycle an older success after regeneration. The five
 redesign self-review rounds may leave actual browser acceptance pending; this
 must remain explicit in the handoff.
 
+The r4 rendered-search/pre-display-preview evidence and stage contract is in
+`skills/ai-quantum-news-briefing/references/rendered-search-and-preview-contract.md`.
+Discovery observations do not approve selected articles. Pre-display preview
+does not seal review or publish; formal gates still require complete actual
+display evidence. The older frozen three-file r3b installer cannot install r4.
+
 - Project root: `D:\AI\PaperTrace`
 - Last reviewed: 2026-09-27
 
@@ -793,3 +799,125 @@ no backup or byte change. A corrupt candidate can be explicitly replaced with
 its exact digest and raw backup; a future candidate version remains untouched.
 Failures exit 2, unchanged/saved drafts and successful probes exit 0. No global
 permission, credential, proxy, OSS-enable or learner-profile change is needed.
+
+
+## 2026-10-10：公式字段与唯一活动 staging
+
+`opening_story.worked_example.steps[*].formula` 默认为无注释的 TeX 显示数学片段。
+字面百分号必须使用 `\%`（JSON 文本写作 `\\%`）；裸 `%` 在归一化、渲染及 staging 验证时失败关闭。
+已有转义不会被改写。字段不接受自动全局替换；显式 `formula_format: "text"` 表示普通文本，
+保留中文、百分号和反斜杠，不进入数学块。`formula_format: "tex"` 显式指定 TeX，其他值拒绝。
+新旧合法的隐式 TeX 不增加字段，因此既有合法摘要不改变。MathJax 3 明确忽略普通文本公式容器。
+公式修正仅证明传输/显示契约；事实、故事和逐项内容审核仍必须独立完成。
+
+protocol 4 新 staging 声明 `staging_lifecycle_version=1`。安装后在同一发布锁内原子登记
+生命周期 `active_run_id`；同一发布日期只允许一个活动 run。已安装但登记前中断的 run
+不能通过验证、写入审核、封印、finalize 或上传，可用明确摘要重新发起受控修订。
+登记写入失败时尽力退回 `.staging-preparation/`，证据保留，重入不得把旧审核作为新审核。
+生命周期仍为 version 1，新增字段是可选兼容扩展；声明了新 staging 契约却缺失活动登记时停止。
+
+历史同日有多个失败 staging 时不能只退回其中一个。`revision-info` 只读列出 `active_runs` 的
+run-ID/快照摘要；`revise --expected-peer-runs-base64` 接受显式、完整的其他活动 run 摘要映射。
+漏项、额外 run、摘要变化、任何已审核通过或正式发布版本均拒绝。所有旧目录保持原字节，
+快照随修订保留；一个原子生命周期提交同时标记所有绑定旧 run 被替代并切换新候选。
+同一请求中断后可重复；参数变化要求重新检查。禁止删除冻结目录或删除生命周期来“解冻”。
+
+部署必须同时评审代码能力与当前运行树差异。运行树没有 `revision-info/revise` 和
+`daily_revisions.py` 时，直接 patch 仍将返回 `staged_candidate_frozen`；工作树测试通过不代表已部署。
+不得盲目覆盖运行树的未提交或较新修改。部署、迁移真实冻结稿、封印、发布、上传是独立授权边界。
+专项离线回归：`test_formula_revision_1010.py`、`test_staging_revision_repair.py`。
+学术 6–8、社会 6–12、新/重要更新至少 4、完整故事与更严格的有效配置保持原门槛。
+
+## Stable reading-only daily releases (2026-10-11)
+
+From D:/AI/PaperTrace, leave `feedback_enabled` absent/false in new candidate
+config. `daily_pipeline.py run` generates reading-only HTML by default. To opt in,
+set the JSON boolean true and complete the Feedback-specific visual acceptance.
+Standalone generation accepts `--enable-feedback`; `--no-auto-feedback` only
+controls the JSON sidecar and does not select a browser mode.
+
+Only after an explicit user cancellation, retain its reason without deleting backlog evidence. Replace the release-day placeholder before running:
+
+```powershell
+Set-Location 'D:/AI/PaperTrace'
+python -B './skills/ai-quantum-news-briefing/scripts/orchestrate_daily.py' queue --date <RELEASE-YYYY-MM-DD> --record --withdraw-reason '<explicit cancellation reason>'
+```
+
+Do not edit a frozen HTML. Recheck current active run/receipts, use the existing
+controlled candidate revision bound to exact old run/candidate digests, reuse
+only matching captures, and generate a new staging. Re-review claims and story
+against new content; no prior display evidence transfers to a changed HTML.
+Then actual display review -> seal-review -> release_preflight_audit (created by
+seal-review) -> verify --strict -> finalize --strict --require-remote -> formal
+verify --strict -> status --online --record. Doctor must show ready/enabled before
+upload; do not auto-enable OSS. On upload timeout verify remote identity first.
+Canceled backlog cannot overwrite newer homepage. A failed optional candidate
+uses bounded capture retries/qualified replacements, never lower quotas or an
+unsupported claim. Incomplete code installation must recover before Pipeline
+runs; unrelated workloads remain outside this recovery operation.
+
+
+## Explicit source preparation (contract 1)
+
+This is opt-in; the existing collect/resume, controlled revision and publication
+commands retain their meaning. Run the following only after this increment has
+been approved and installed, from `D:\AI\PaperTrace`:
+
+```powershell
+& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-15 --pool-dir .\news\_sources --action plan
+& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-15 --pool-dir .\news\_sources --action work --max-tasks 4
+& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-15 --pool-dir .\news\_sources --action status
+& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-15 --pool-dir .\news\_sources --action packet
+```
+
+`status` is read-only and registers no tasks; `plan` durably registers them.
+`work` executes at most four ready independent tasks by default, not a daemon.
+Each academic task reuses its existing 200-second budget; AI HOT retains its
+200/400/800 recovery budget. At most three claims count interrupted work too;
+this is not a global 200-second daily budget. A blocked discovery task cannot be
+retried through a different browser/protocol after a policy rejection.
+
+For discovery, use `source_preparation.py claim-discovery --date <day>
+--pool-dir .\news\_sources --task-id <id>`. Bind an already permitted CUA tab as
+`tab` and execute the returned guarded `browser_call`, not `.goto(query)`.
+Submit actual typed DOM observations with separate HTTP receipts through
+`submit-discovery` and the exact lease; record a policy rejection with
+`record-denial`. Synthetic tests never count as real observations.
+
+`enqueue-captures --input <public-source-config.json> --news-root .\news` reuses
+the existing per-item capture recovery before a Fable exists. Items require
+`material_kind=academic|social`. `import-materials` accepts an array of
+source_id/item/capture records and reports invalid positions individually.
+`bind-candidate --input <authored-candidate.json> --references <item-refs.json>`
+returns an immutable binding; it does not overwrite a frozen candidate. The
+caller uses the existing controlled authoring/revision interface to add it.
+Actual prose, ranking, coverage, story and display review remain required.
+
+An explicit backup example (same project CWD, absent external destination):
+
+```powershell
+& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\source_preparation.py backup --date 2026-10-15 --pool-dir .\news\_sources --output D:\AI\PaperTrace-code-backups\source-pool-2026-10-15-01.sqlite
+```
+
+The backup API includes committed WAL bytes. Do not copy a live DB alone.
+Once any pool-bound run exists, code rollback to the preceding version stops;
+retain its database, raw captures and all release/revision history. Read
+`skills/ai-quantum-news-briefing/references/source-preparation-architecture.md`.
+
+## Independent regression processes
+
+Run from `D:\AI\PaperTrace`; each command starts a separate Python process:
+
+```powershell
+python -B -m pytest skills/ai-quantum-news-briefing/tests -q
+python -B -m pytest skills/allegory-teach/tests -q
+python -B -m pytest skills/reader-skill/tests skills/utils/lean-html-skill/tests -q
+git diff --check
+```
+
+Do not combine News and Reader suites in one pytest process: their legacy
+flat `formula_contract` imports collide in `sys.modules`. Passing separate
+suites does not certify single-process embedding. Real multiprocessing tests
+need Windows named-pipe permission; sandbox WinError 5 is not a test pass or
+evidence of a database bug. Re-run those offline fixtures in an authorized
+environment instead of skipping their assertions. No test authorizes OSS work.

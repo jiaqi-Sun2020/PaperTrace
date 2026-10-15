@@ -31,7 +31,7 @@ from briefing_contract import (
     is_lossless_text,
     normalize_briefing_config,
 )
-from briefing_to_feedback_html import render_html, worked_example_has_formula
+from briefing_to_feedback_html import render_html, worked_example_has_formula, feedback_surface_failures
 from config_to_news_feedback import export_feedback
 from daily_coverage_evidence import evidence_digest, validate_daily_evidence
 from delivery_expansion import SHORTFALL, default_policy, validate_policy
@@ -49,7 +49,8 @@ from release_audit import REVIEW_NAMES, claim_digest, content_digest, make_repor
 from release_lock import release_lock
 from publication_contracts import coverage_contract_for_manifest, coverage_contract_for_protocol
 from review_evidence import ROUND_MATERIALS, TASK_CARD_KEYS, story_digest
-from source_capture import capture_path, validate_capture
+from source_capture import capture_path, validate_capture, admit_candidates, validate_admission
+from daily_revisions import assert_active_stage, assert_current_candidate, contained, active_stages, register_stage
 
 
 ARTIFACT_NAMES = {
@@ -84,8 +85,8 @@ def publication_layout(manifest: dict[str, Any], run_root: Path, *, news_root: P
         raise ValueError("staging path differs from the canonical release layout")
     for path in (root, output, output / ".staging", run_root, root / "_index",
                  index, output / ".release_transactions"):
-        if path.is_symlink():
-            raise ValueError("publication path contains a symbolic link")
+        if path.is_symlink() or (path.exists() and getattr(path.lstat(), "st_file_attributes", 0) & 0x400):
+            raise ValueError("publication path contains a symbolic link or reparse point")
     if Path(str(manifest.get("output_dir") or "")) != output or Path(str(manifest.get("index_path") or "")) != index:
         raise ValueError("manifest destination differs from the canonical release layout")
     expected = {key: path.name for key, path in artifact_paths(run_root, day).items()}
@@ -175,7 +176,7 @@ def expected_concepts(config: dict[str, Any]) -> set[str]:
 
 def parse_chip_identities(html_text: str) -> set[str]:
     identities: set[str] = set()
-    for button in re.findall(r'<button\s+class="concept-chip"[^>]*>', html_text, re.I):
+    for button in re.findall(r'<(?:button|span)\s+class="(?:concept-chip|concept-label)"[^>]*>', html_text, re.I):
         item_match = re.search(r'data-item-id="([^"]*)"', button, re.I)
         concept_match = re.search(r'data-concept="([^"]*)"', button, re.I)
         if item_match and concept_match:
@@ -225,6 +226,8 @@ def story_surface_failures(config: dict[str, Any], html_text: str, markdown_text
             yield path, value
     if isinstance(example, dict):
         for field, value in example_leaves(example):
+            if field.endswith('.formula_format'):
+                continue  # Transport metadata is checked by the formula contract.
             if html.escape(value, quote=True) not in before_body:
                 failures.append(f"HTML visible {field} differs from delta config")
 
@@ -244,8 +247,12 @@ def story_surface_failures(config: dict[str, Any], html_text: str, markdown_text
                 failures.append(f"Markdown story {field} differs from delta config")
         if isinstance(example, dict):
             for field, value in example_leaves(example):
-                if field.endswith('.kind') or field.endswith('.units'):
+                if field.endswith('.kind') or field.endswith('.units') or field.endswith('.formula_format'):
                     continue  # Markdown intentionally omits display-only metadata.
+                formula_match = re.fullmatch(r"worked_example\.steps\[(\d+)\]\.formula", field)
+                if formula_match:
+                    from formula_contract import markdown_formula
+                    value = markdown_formula(example["steps"][int(formula_match.group(1))])
                 if value not in actual_head:
                     failures.append(f"Markdown {field} differs from delta config")
     return failures
@@ -258,6 +265,7 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
     manifest_path = manifest_files[0]
     manifest = load_json(manifest_path)
     try:
+        assert_active_stage(run_root, manifest)
         coverage_contract = coverage_contract_for_manifest(manifest)
     except ValueError as exc:
         return {"status": "fail", "failures": [str(exc)], "warnings": []}
@@ -282,6 +290,38 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
 
     if not failures:
         config = load_json(paths["delta_config"])
+        from source_preparation import check_run_pool_binding
+        failures.extend(check_run_pool_binding(run_root, manifest, config))
+        # Invalid formula transport is a failed audit, not an exception that
+        # prevents the explicit revision entry point from inspecting the draft.
+        from formula_contract import validate_formula
+        try:
+            example = (config.get("opening_story") or {}).get("worked_example") or {}
+            for step in example.get("steps") or []:
+                if isinstance(step, dict):
+                    validate_formula(step)
+        except ValueError as exc:
+            return {"status": "fail", "failures": [str(exc)], "warnings": []}
+        url_version = manifest.get("source_url_contract_version", 1)
+        if type(url_version) is not int or url_version not in (1, 2):
+            failures.append("unsupported_source_url_contract")
+        elif url_version == 2:
+            from briefing_contract import source_identity_url
+            failures.extend(validate_admission(config, manifest.get("input_config_sha256")))
+            if type(config.get("source_url_contract_version")) is not int or config.get("source_url_contract_version") != 2:
+                failures.append("source_url_contract_binding_differs")
+            for section in config.get("sections", []):
+                for item in section.get("items", []):
+                    try:
+                        identity = source_identity_url(item.get("source_url"))
+                        if (type(item.get("source_url_contract_version")) is not int
+                                or item["source_url_contract_version"] != 2
+                                or item.get("source_identity_url") != identity):
+                            failures.append("source_identity_binding_differs")
+                    except ValueError:
+                        failures.append("invalid_source_reference")
+        elif config.get("source_url_contract_version", 1) != 1:
+            failures.append("source_url_contract_binding_differs")
         if int(manifest.get("pipeline_version") or 1) >= 3:
             bundle_path = run_root / CAPTURE_BUNDLE_NAME.format(date=run_date)
             if not bundle_path.is_file() or manifest.get("artifacts", {}).get("source_captures") != bundle_path.name:
@@ -390,16 +430,26 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
             failures.append("auto feedback contains a non-unrated status")
         if "lean-html-feedback-dock" in html_text or "LEAN_HTML_FEEDBACK2" in html_text:
             failures.append("feedback2 panel is attached to the daily reader")
+        feedback_surface_valid = False
+        mode_version = manifest.get("feedback_mode_version")
+        feedback_enabled = manifest.get("feedback_enabled", True)
+        if mode_version is not None:
+            if type(mode_version) is not int or mode_version != 1 or type(feedback_enabled) is not bool:
+                failures.append("invalid feedback mode contract")
+            elif (type(config.get("feedback_enabled")) is not bool
+                  or config["feedback_enabled"] != feedback_enabled):
+                failures.append("feedback mode differs between manifest and config")
+            else:
+                surface_failures = feedback_surface_failures(html_text, feedback_enabled)
+                failures.extend(surface_failures)
+                feedback_surface_valid = not surface_failures
+        elif "feedback_enabled" in manifest or "feedback_enabled" in config or 'data-feedback-enabled=' in html_text:
+            failures.append("feedback mode requires a versioned manifest binding")
+        # Historical manifests retain their original mandatory feedback surface.
         required_html = (
-            "Download JSON",
-            "PaperTraceFeedbackUX",
-            "id=\"newsSelectionToolbar\"",
-            "createAutosave",
-            "localStorage",
-            'data-lean-bg="light"',
-            'data-lean-bg-option="light"',
-            'data-lean-bg-option="cosmic"',
-        )
+            'data-lean-bg="light"', 'data-lean-bg-option="light"', 'data-lean-bg-option="cosmic"',
+        ) + (("Download JSON", "PaperTraceFeedbackUX", 'id="newsSelectionToolbar"',
+              "createAutosave", "localStorage") if mode_version is None else ())
         for marker in required_html:
             if marker not in html_text:
                 failures.append(f"HTML contract marker missing: {marker}")
@@ -503,6 +553,14 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
         "expected_concepts": len(expected) if "expected" in locals() else 0,
         "html_concepts": len(chips) if "chips" in locals() else 0,
         "feedback_concepts": len(feedback_ids) if "feedback_ids" in locals() else 0,
+        "feedback_acceptance": {
+            "status": "not_applicable" if (manifest.get("feedback_mode_version") == 1
+                       and manifest.get("feedback_enabled") is False and locals().get("feedback_surface_valid", False)) else "required",
+            "feedback_enabled": manifest.get("feedback_enabled", True),
+            "html_sha256": sha256_file(paths["html"]) if paths["html"].is_file() else None,
+            "config_sha256": sha256_file(paths["delta_config"]) if paths["delta_config"].is_file() else None,
+            "scope": "feedback-only; body, math, links, layout, print and all semantic/release gates still required",
+        },
         "manifest": manifest,
     }
 
@@ -516,11 +574,33 @@ def cmd_run(args: argparse.Namespace) -> int:
         if getattr(args, "output_dir", None) or getattr(args, "index", None):
             raise ValueError("custom publication destinations are not supported")
     config_path = Path(args.config).expanduser().resolve()
-    raw_config = load_json(config_path)
+    input_bytes = config_path.read_bytes()
+    input_sha = hashlib.sha256(input_bytes).hexdigest()
+    raw_config = json.loads(input_bytes.decode("utf-8-sig"))
+    if not isinstance(raw_config, dict):
+        raise ValueError("candidate_config_invalid")
+    source_pool_binding = raw_config.get("source_pool_binding")
+    if source_pool_binding is not None:
+        from source_preparation import check_pool_binding
+        if protocol < 4:
+            raise ValueError("source pool inputs require the current publication protocol")
+        pool_failures = check_pool_binding(NEWS_ROOT, source_pool_binding, config=raw_config, release_date=args.date)
+        if pool_failures:
+            raise ValueError("; ".join(pool_failures))
     raw_story_delivery = raw_config.get("story_delivery") or {}
     if not isinstance(raw_story_delivery, dict):
         raise ValueError("story_delivery must be an object")
     raw_config = dict(raw_config)
+    revision_id = None
+    if protocol >= 3:
+        revision_id = assert_current_candidate(NEWS_ROOT, args.date, config_path)
+        if raw_config.get("revision_id") != revision_id:
+            raise ValueError("candidate_revision_binding_differs")
+    if protocol >= 4:
+        declared_url_version = raw_config.get("source_url_contract_version", 2)
+        if type(declared_url_version) is not int or declared_url_version not in (1, 2):
+            raise ValueError("unsupported_source_url_contract")
+        raw_config["source_url_contract_version"] = 2
     raw_config["story_delivery"] = {
         **raw_story_delivery,
         "required": True,
@@ -547,7 +627,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         ranking_policy["social"] = {**ranking_policy["social"], **{key: social_delivery[key] for key in DEFAULT_RANKING_POLICY["social"] if key in social_delivery}}
         raw_config["ranking_policy"] = ranking_policy
     assert_config_text_integrity(raw_config)
-    normalize_briefing_config(raw_config, config_path, require_source_url=True)
+    if protocol < 4:
+        normalize_briefing_config(raw_config, config_path, require_source_url=True)
     run_date = infer_date(raw_config, args.date).isoformat()
     if protocol >= 2:
         coverage_start, coverage_end = _coverage_window(args, raw_config, run_date)
@@ -564,19 +645,9 @@ def cmd_run(args: argparse.Namespace) -> int:
             raise ValueError("; ".join(expansion_failures))
     capture_bundle: dict[str, Any] | None = None
     if protocol >= 3:
-        capture_bundle = {}
         coverage_day = coverage_start[:10]
-        for section in raw_config.get("sections", []):
-            for item in section.get("items", []):
-                path = capture_path(NEWS_ROOT, coverage_day, str(item.get("id") or ""))
-                if not path.is_file():
-                    continue
-                record = load_json(path)
-                issues = validate_capture(item, record)
-                if issues:
-                    raise ValueError(f"source capture {item.get('id')}: " + "; ".join(issues))
-                item["source_capture"] = record
-                capture_bundle[str(item["id"])] = record
+        raw_config = admit_candidates(raw_config, coverage_day, news_root=NEWS_ROOT, config_sha256=input_sha)
+        normalize_briefing_config(raw_config, config_path, require_source_url=True)
     output_root = (NEWS_ROOT / run_date) if protocol >= 3 else Path(args.output_dir or (config_path.parents[2] / "news" / run_date)).expanduser().resolve()
     run_id = f"{run_date}-{uuid.uuid4().hex[:12]}"
     run_root = output_root / ".staging" / run_id
@@ -614,27 +685,53 @@ def cmd_run(args: argparse.Namespace) -> int:
                              if (str(row.get("story_id") or ""), str(row.get("last_seen") or "")) not in replaced_keys]
         elif getattr(args, "correction_reason", None) or getattr(args, "supersedes_hash", None):
             raise ValueError("correction flags require an existing complete release")
-    ranked_config = (
-        rank_briefing_config(raw_config, index_records, date.fromisoformat(run_date), args.days)
-        if isinstance(raw_config.get("academic_delivery"), dict) and raw_config["academic_delivery"].get("required")
-        else raw_config
-    )
+    try:
+        ranked_config = (
+            rank_briefing_config(raw_config, index_records, date.fromisoformat(run_date), args.days)
+            if isinstance(raw_config.get("academic_delivery"), dict) and raw_config["academic_delivery"].get("required")
+            else raw_config
+        )
+    except ValueError as exc:
+        if any(row["status"] != "evidence_valid" for row in (raw_config.get("candidate_admission") or {}).get("records", [])):
+            raise ValueError("source capture admission/selection failed: " + str(exc)) from exc
+        raise
     if protocol >= 3:
         selected_counts = (ranked_config.get("ranking_manifest") or {}).get("selected_counts") or {}
         if not selected_counts.get("academic") or not selected_counts.get("social"):
             raise ValueError("source captures and reviewed evidence must support at least one academic and one social item")
-    transformed, delta_manifest, index_updates = transform_config(
-        ranked_config,
-        index_records,
-        date.fromisoformat(run_date),
-        args.days,
-        args.continuing_mode,
-    )
+    try:
+        transformed, delta_manifest, index_updates = transform_config(
+            ranked_config,
+            index_records,
+            date.fromisoformat(run_date),
+            args.days,
+            args.continuing_mode,
+        )
+    except ValueError as exc:
+        if any(row["status"] != "evidence_valid" for row in (raw_config.get("candidate_admission") or {}).get("records", [])):
+            raise ValueError("source capture admission/selection failed: " + str(exc)) from exc
+        raise
     final_paths = artifact_paths(output_root, run_date)
     for record in index_updates:
         record["briefing_path"] = str(final_paths["html"])
+    if source_pool_binding is not None:
+        from source_preparation import bind_selected_materials
+        source_pool_binding = bind_selected_materials(NEWS_ROOT, source_pool_binding, transformed)
+        transformed["source_pool_binding"] = source_pool_binding
     canonical = normalize_briefing_config(transformed, config_path, require_source_url=True)
     if protocol >= 3:
+        capture_bundle = {}
+        for section in canonical["sections"]:
+            for item in section["items"]:
+                record = item.get("source_capture") or {}
+                issues = validate_capture(item, record)
+                if issues:
+                    raise ValueError("selected_source_capture_invalid: " + str(item["id"]))
+                capture_bundle[str(record["item_id"])] = record
+        if protocol >= 4:
+            admission_issues = validate_admission(canonical, input_sha)
+            if admission_issues:
+                raise ValueError("; ".join(admission_issues))
         preflight = audit_config(canonical, coverage_contract_version=coverage_contract)
         if preflight["failures"]:
             raise ValueError("new release preflight failed: " + "; ".join(preflight["failures"][:8]))
@@ -642,19 +739,20 @@ def cmd_run(args: argparse.Namespace) -> int:
         shortfall_audit = audit_config(canonical, coverage_contract_version=coverage_contract)
         if shortfall_audit["failures"]:
             raise ValueError("shortfall release is ineligible: " + "; ".join(shortfall_audit["failures"]))
-    run_root.mkdir(parents=True, exist_ok=False)
+    preparation = contained(output_root, output_root / ".staging-preparation" / run_id)
+    preparation.mkdir(parents=True, exist_ok=False)
     feedback = export_feedback(canonical, config_path, "unrated", "none")
     html_config = dict(canonical)
     html_config.update({"default_status": "unrated", "initial_feedback_items": feedback["items"]})
     rendered_html = apply_design_system(render_html(html_config), args.design_system, args.background_mode)
-    names = artifact_paths(run_root, run_date)
+    names = artifact_paths(preparation, run_date)
     atomic_text(names["markdown"], render_markdown(canonical))
     atomic_json(names["delta_config"], canonical)
     atomic_json(names["feedback"], feedback)
     atomic_text(names["html"], rendered_html)
     atomic_json(names["index_updates"], {"run_id": run_id, "items": index_updates})
     if capture_bundle is not None:
-        capture_file = run_root / CAPTURE_BUNDLE_NAME.format(date=run_date)
+        capture_file = preparation / CAPTURE_BUNDLE_NAME.format(date=run_date)
         atomic_json(capture_file, {"version": 1, "items": capture_bundle})
     manifest = {
         "pipeline_version": protocol,
@@ -662,7 +760,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         "run_id": run_id,
         "date": run_date,
         "input_config": str(config_path),
-        "input_config_sha256": sha256_file(config_path),
+        "input_config_sha256": input_sha,
         "output_dir": str(output_root),
         "index_path": str(index_path),
         "index_snapshot_sha256": index_snapshot,
@@ -670,6 +768,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         "ranking": (ranked_config.get("ranking_manifest") or {}).get("selected_counts", {}),
         "expected_concepts": len(feedback["items"]),
         "default_status": "unrated",
+        "feedback_mode_version": 1,
+        "feedback_enabled": canonical["feedback_enabled"],
         "design_system": args.design_system,
         "background_mode": args.background_mode,
         "opening_story_present": bool(canonical.get("opening_story")),
@@ -680,6 +780,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         "artifact_sha256": {key: sha256_file(path) for key, path in names.items() if key != "manifest"},
         "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
     }
+    if protocol >= 4:
+        manifest["source_url_contract_version"] = 2
+    if source_pool_binding is not None:
+        manifest.update(source_preparation_version=1, source_pool_binding=source_pool_binding)
+    if revision_id is not None:
+        manifest["revision_id"] = revision_id
+    if protocol >= 4:
+        manifest["staging_lifecycle_version"] = 1
     if correction is not None:
         manifest["correction"] = correction
     if capture_bundle is not None:
@@ -696,7 +804,29 @@ def cmd_run(args: argparse.Namespace) -> int:
             manifest["delivery_expansion_version"] = int(canonical["delivery_expansion"].get("version") or 1)
             manifest["delivery_expansion"] = canonical["delivery_expansion"]
             manifest["delivery_expansion_ref"] = evidence_digest(canonical["delivery_expansion"])
-    atomic_json(names["manifest"], manifest)
+    with release_lock(NEWS_ROOT if protocol >= 3 else output_root.parent):
+        if source_pool_binding is not None:
+            from source_preparation import check_pool_binding
+            pool_failures = check_pool_binding(NEWS_ROOT, source_pool_binding, release_date=run_date)
+            if pool_failures:
+                raise ValueError("; ".join(pool_failures))
+        if sha256_file(config_path) != input_sha:
+            raise ValueError("candidate_changed_during_staging")
+        if protocol >= 3 and assert_current_candidate(NEWS_ROOT, run_date, config_path) != revision_id:
+            raise ValueError("candidate_revision_changed_during_staging")
+        if protocol >= 4 and correction is None and active_stages(NEWS_ROOT, run_date):
+            raise ValueError("active_staging_exists_use_controlled_revision")
+        atomic_json(names["manifest"], manifest)
+        contained(output_root, run_root)
+        run_root.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(preparation, run_root)
+        if protocol >= 4:
+            try:
+                register_stage(NEWS_ROOT, run_date, run_id, revision_id, correction=correction is not None)
+            except (OSError, ValueError, TypeError):
+                # Failed lifecycle commit retains prepared bytes outside active staging.
+                os.replace(run_root, preparation)
+                raise
     print(json.dumps({"status": "staged", "run_id": run_id, "run_dir": str(run_root)}, ensure_ascii=False))
     return 0
 

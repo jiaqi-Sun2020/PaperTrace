@@ -4,8 +4,11 @@
 
 from __future__ import annotations
 
+from formula_contract import validate_formula
+
 import argparse
 import html
+from html.parser import HTMLParser
 import json
 import re
 import sys
@@ -124,13 +127,17 @@ def normalize_config(config: dict[str, Any], config_path: Path) -> dict[str, Any
     }
 
 
-def render_item(item: dict[str, Any]) -> str:
+def render_item(item: dict[str, Any], feedback_enabled: bool = False) -> str:
     chips = []
     for concept in item["concepts"]:
-        chips.append(
-            f'<button class="concept-chip" type="button" data-item-id="{esc(item["id"])}" '
-            f'data-concept="{esc(concept)}">{esc(concept)}</button>'
-        )
+        if feedback_enabled:
+            chips.append(
+                f'<button class="concept-chip" type="button" data-item-id="{esc(item["id"])}" '
+                f'data-concept="{esc(concept)}">{esc(concept)}</button>'
+            )
+        else:
+            chips.append(f'<span class="concept-label" data-item-id="{esc(item["id"])}" '
+                         f'data-concept="{esc(concept)}">{esc(concept)}</span>')
     source = ""
     if item.get("source_url"):
         source = f'<a href="{esc(item["source_url"])}" target="_blank" rel="noopener">{esc(item["source_title"])}</a>'
@@ -160,7 +167,7 @@ def render_item(item: dict[str, Any]) -> str:
   {publication}
   <div class="concept-row">{''.join(chips) or '<span class="muted">No concept chips</span>'}</div>
   <p class="source-line"><strong>来源：</strong>{source or "未提供"} </p>
-  <div class="mark-strip" data-mark-strip="{esc(item['id'])}"></div>
+  {f'<div class="mark-strip" data-mark-strip="{esc(item["id"])}"></div>' if feedback_enabled else ""}
 </article>
 """
 
@@ -169,7 +176,7 @@ def worked_example_has_formula(example: Any) -> bool:
     if not isinstance(example, dict):
         return False
     return any(
-        clean_text(step.get("formula"))
+        clean_text(step.get("formula")) and validate_formula(step) == "tex"
         for step in example.get("steps", [])
         if isinstance(step, dict)
     )
@@ -210,11 +217,13 @@ def render_worked_example(story: dict[str, Any]) -> str:
             if clean_text(step.get("action"))
             else ""
         )
-        formula = (
-            f'<div class="example-formula" data-formula="true">\\[{esc(step.get("formula"))}\\]</div>'
-            if clean_text(step.get("formula"))
-            else ""
-        )
+        formula_kind = validate_formula(step)
+        formula = ""
+        if clean_text(step.get("formula")):
+            if formula_kind == "tex":
+                formula = f'<div class="example-formula" data-formula="true">\\[{esc(step.get("formula"))}\\]</div>'
+            else:
+                formula = f'<div class="example-formula tex2jax_ignore" data-formula="false" data-formula-format="text">{esc(step.get("formula"))}</div>'
         step_cards.append(
             f"""
 <section class="example-step">
@@ -305,11 +314,39 @@ def render_opening_story(config: dict[str, Any]) -> str:
 """
 
 
+def render_story_print_runtime() -> str:
+    """Print the full example, then restore each reader's original disclosure state."""
+    return """
+  <script id="papertrace-story-print">
+    (() => {
+      let previous = null;
+      window.addEventListener('beforeprint', () => {
+        if (previous !== null) return;
+        previous = Array.from(document.querySelectorAll('details[data-story-example="true"]'),
+          element => [element, element.open]);
+        previous.forEach(([element]) => { element.open = true; });
+      });
+      window.addEventListener('afterprint', () => {
+        if (previous === null) return;
+        previous.forEach(([element, open]) => { element.open = open; });
+        previous = null;
+      });
+    })();
+  </script>
+"""
+
+
 def render_html(config: dict[str, Any]) -> str:
     # The canonical briefing contract intentionally stores items under sections.
     # The browser needs a flat lookup table for feedback chips, so derive it here
     # instead of assuming a legacy top-level ``items`` field exists.
     config = dict(config)
+    feedback_enabled = config.get("feedback_enabled", False)
+    if type(feedback_enabled) is not bool:
+        raise ValueError("feedback_enabled must be a boolean")
+    config["feedback_enabled"] = feedback_enabled
+    if not feedback_enabled:
+        config.pop("initial_feedback_items", None)
     config["items"] = [
         item
         for section in config.get("sections", [])
@@ -319,18 +356,20 @@ def render_html(config: dict[str, Any]) -> str:
     ]
     sections_html = []
     for section in config["sections"]:
-        items_html = "\n".join(render_item(item) for item in section["items"])
+        items_html = "\n".join(render_item(item, feedback_enabled) for item in section["items"])
         sections_html.append(
             f'<section class="briefing-section"><h2>{esc(section["title"])}</h2>{items_html}</section>'
         )
     opening_story_html = render_opening_story(config)
     opening_example = (config.get("opening_story") or {}).get("worked_example") or {}
+    story_print_runtime = render_story_print_runtime() if opening_example else ""
     needs_mathjax = worked_example_has_formula(opening_example)
     mathjax_head = ""
     if needs_mathjax:
         mathjax_head = f"""
   <script>
     window.MathJax = {{
+      options: {{ ignoreHtmlClass: 'tex2jax_ignore|mathjax_ignore' }},
       tex: {{ inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\[', '\\\\]']] }},
       startup: {{
         pageReady: () => MathJax.startup.defaultPageReady().then(() => {{
@@ -342,8 +381,820 @@ def render_html(config: dict[str, Any]) -> str:
   <script defer id="MathJax-script" src="{esc(DEFAULT_MATHJAX_URL)}" onerror="document.documentElement.setAttribute('data-math-status','load-error')"></script>
 """
     math_status = "pending" if needs_mathjax else "not-required"
+    feedback_panel = f"""    <aside class="feedback-panel is-collapsed" id="feedbackPanel" aria-label="Feedback panel">
+      <div class="panel-title">
+        <h2>Feedback</h2>
+        <span id="savedCount" class="source-id">0</span>
+        <button id="toggleFeedbackPanel" class="action-btn secondary" type="button" aria-expanded="false" aria-controls="feedbackDetails">展开</button>
+      </div>
+      <div class="feedback-detail" id="feedbackDetails" hidden>
+      <details id="feedbackRecoveryReport" hidden>
+        <summary>恢复记录检查（原存储保留）</summary>
+        <ul id="feedbackRecoveryIssues"></ul>
+      </details>
+      <div class="field">
+        <label for="conceptInput">Concept / selected text</label>
+        <input id="conceptInput" placeholder="点击概念或自由标注">
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <div class="news-status-buttons" id="newsStatusButtons" role="group" aria-label="理解状态">
+          <button type="button" data-status="mastered">掌握</button>
+          <button type="button" data-status="known">了解</button>
+          <button type="button" data-status="learning">学习中</button>
+          <button type="button" data-status="unknown">不理解</button>
+          <button type="button" data-status="unrated">未评级</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="questionType">Question type</label>
+        <select id="questionType">
+          <option value="">未指定</option>
+          <option value="term_definition">术语定义</option>
+          <option value="paper_usage">论文/新闻用法</option>
+          <option value="algorithm_step">算法步骤</option>
+          <option value="math_step">数学步骤</option>
+          <option value="assumption">隐含假设</option>
+          <option value="evidence">证据/图表</option>
+          <option value="relation">概念关系</option>
+          <option value="other">其他</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="styleSelect">Explanation style</label>
+        <select id="styleSelect">
+          <option value="">默认</option>
+          <option value="first_principles">first principles</option>
+          <option value="paper_context">paper/news context</option>
+          <option value="math_steps">math steps</option>
+          <option value="analogy">analogy</option>
+          <option value="example">example</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="questionInput">Exact question</label>
+        <textarea id="questionInput" placeholder="你具体哪里不清楚？"></textarea>
+      </div>
+      <div class="field">
+        <label for="noteInput">Note</label>
+        <textarea id="noteInput" placeholder="自己的理解、卡点、想比较的对象"></textarea>
+      </div>
+      <div class="field">
+        <label for="contextInput">Source context</label>
+        <textarea id="contextInput" placeholder="来源上下文会自动填入，也可以手动改"></textarea>
+      </div>
+      <div class="button-row">
+        <button id="deleteBtn" class="action-btn danger" type="button">Delete current</button>
+        <button id="downloadBtn" class="action-btn secondary" type="button">Download JSON</button>
+        <button id="copyBtn" class="action-btn secondary" type="button">Copy for Codex</button>
+      </div>
+      <p id="newsExportStatus" class="muted" role="status" aria-live="polite" hidden></p>
+      <details class="saved-list" open>
+        <summary>最近修改与自由标注</summary>
+        <div id="savedItems"></div>
+      </details>
+      </div>
+    </aside>""" if feedback_enabled else ""
+    feedback_controls = f"""  <button id="annotateBtn" class="action-btn floating-annotate" type="button">Annotate selection</button>
+  <div class="papertrace-selection-toolbar" id="newsSelectionToolbar" role="toolbar" aria-label="为选中文字添加反馈" hidden>
+    <button type="button" data-inline-status="mastered">掌握</button>
+    <button type="button" data-inline-status="known">了解</button>
+    <button type="button" data-inline-status="learning">学习中</button>
+    <button type="button" data-inline-status="unknown">不理解</button>
+    <button type="button" class="papertrace-selection-details" data-selection-details>提问 / 备注</button>
+  </div>
+  <p class="papertrace-save-indicator" id="newsSaveStatus" role="status" aria-live="polite" hidden></p>
+  <p class="papertrace-save-indicator papertrace-undo-indicator" id="newsUndoStatus" role="status" aria-live="polite" hidden></p>
+""" if feedback_enabled else ""
+    feedback_runtime = f"""  {feedback_ux_runtime_script()}
+  <script>
+    const CONFIG = JSON.parse(document.getElementById('briefing-data').textContent);
+    const DEFAULT_STATUS = CONFIG.default_status || 'unrated';
+    const INITIAL_FEEDBACK = Array.isArray(CONFIG.initial_feedback_items) ? CONFIG.initial_feedback_items : [];
+    const BRIEFING_ITEMS = Array.isArray(CONFIG.items)
+      ? CONFIG.items
+      : (Array.isArray(CONFIG.sections) ? CONFIG.sections.flatMap(section => section.items || []) : []);
+    const itemMap = new Map(BRIEFING_ITEMS.map(item => [item.id, item]));
+    const storageKey = 'news-feedback::' + (CONFIG.config_fingerprint || 'legacy')
+      + '::' + CONFIG.briefing_title + '::' + CONFIG.date_range;
+    let saved = [];
+    let active = null;
+    let storageUnavailable = false;
+    let unsafeChanges = false;
+    let recoveryProtected = false;
+    const recoveryIssues = [];
+    const INITIAL_BY_ID = new Map(INITIAL_FEEDBACK.map(entry => [entry.feedback_id, entry]));
+
+    function mergeInitialFeedback(stored, initial, issues = []) {{
+      const byId = new Map();
+      const order = [];
+      const initialIds = new Set(initial.map(entry => entry && entry.feedback_id).filter(Boolean));
+      const restoredIds = new Set();
+      const statuses = new Set(['unrated', 'unknown', 'learning', 'known', 'mastered']);
+      const textFields = ['concept', 'note', 'user_question', 'confusion_type', 'explanation_style',
+        'source_excerpt', 'selected_text', 'selected_language', 'block_id', 'annotation_kind',
+        'category', 'source_title', 'source_url', 'source_kind', 'translation', 'action'];
+      function add(entry, replace) {{
+        if (!entry || !entry.feedback_id) return;
+        if (!byId.has(entry.feedback_id)) order.push(entry.feedback_id);
+        if (replace || !byId.has(entry.feedback_id)) byId.set(entry.feedback_id, entry);
+      }}
+      initial.forEach(entry => add(entry, false));
+      if (!Array.isArray(stored)) {{
+        issues.push({{ index: null, reason: 'not_an_array' }});
+        return order.map(id => byId.get(id));
+      }}
+      stored.forEach((entry, index) => {{
+        let reason = '';
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) reason = 'not_a_record';
+        else if (typeof entry.feedback_id !== 'string' || !entry.feedback_id.trim()) reason = 'invalid_feedback_id';
+        else if (textFields.some(key => key in entry && typeof entry[key] !== 'string')) reason = 'invalid_text_field';
+        else if ('status' in entry && !statuses.has(entry.status)) reason = 'invalid_status';
+        else if ('needs_explanation' in entry && typeof entry.needs_explanation !== 'boolean') reason = 'invalid_needs_explanation';
+        else if (!(initialIds.has(entry.feedback_id) || entry.annotation_kind === 'news_freeform')) reason = 'outside_current_source';
+        else if (restoredIds.has(entry.feedback_id)) reason = 'duplicate_feedback_id';
+        if (reason) {{
+          issues.push({{ index, reason }});
+          return;
+        }}
+        restoredIds.add(entry.feedback_id);
+        add(entry, true);
+      }});
+      return order.map(id => byId.get(id));
+    }}
+
+    try {{
+      const storedText = localStorage.getItem(storageKey);
+      const stored = JSON.parse(storedText === null ? '[]' : storedText);
+      saved = mergeInitialFeedback(stored, INITIAL_FEEDBACK, recoveryIssues);
+    }} catch (err) {{
+      storageUnavailable = true;
+      recoveryIssues.push({{ index: null, reason: 'invalid_json_or_storage_unavailable' }});
+      saved = mergeInitialFeedback([], INITIAL_FEEDBACK);
+    }}
+    recoveryProtected = recoveryIssues.length > 0;
+
+    const $ = id => document.getElementById(id);
+    const conceptInput = $('conceptInput');
+    const statusButtons = Array.from(document.querySelectorAll('#newsStatusButtons [data-status]'));
+    const questionType = $('questionType');
+    const styleSelect = $('styleSelect');
+    const questionInput = $('questionInput');
+    const noteInput = $('noteInput');
+    const contextInput = $('contextInput');
+    const feedbackPanel = $('feedbackPanel');
+    const feedbackDetails = $('feedbackDetails');
+    const toggleFeedbackPanel = $('toggleFeedbackPanel');
+    const saveStatus = $('newsSaveStatus');
+    const undoStatus = $('newsUndoStatus');
+    const selectionToolbar = $('newsSelectionToolbar');
+    const mobileFeedbackQuery = window.matchMedia('(max-width: 920px)');
+    function keepFocusedFieldVisible() {{
+      if (!mobileFeedbackQuery.matches || !feedbackPanel.contains(document.activeElement)) return;
+      const field = document.activeElement.getBoundingClientRect();
+      const panel = feedbackPanel.getBoundingClientRect();
+      const top = panel.top + 56;
+      const bottom = panel.bottom - 18;
+      if (field.bottom > bottom) feedbackPanel.scrollTop += field.bottom - bottom;
+      else if (field.top < top) feedbackPanel.scrollTop -= top - field.top;
+    }}
+    function updateMobileFeedbackViewport() {{
+      const viewport = window.visualViewport;
+      if (!mobileFeedbackQuery.matches || !viewport) {{
+        feedbackPanel.style.removeProperty('--feedback-keyboard-offset');
+        feedbackPanel.style.removeProperty('--feedback-available-height');
+        return;
+      }}
+      const keyboardOffset = Math.max(0, window.innerHeight - viewport.offsetTop - viewport.height);
+      feedbackPanel.style.setProperty('--feedback-keyboard-offset', `${{Math.round(keyboardOffset)}}px`);
+      feedbackPanel.style.setProperty('--feedback-available-height', `${{Math.max(0, Math.round(viewport.height - 12))}}px`);
+      window.requestAnimationFrame(keepFocusedFieldVisible);
+    }}
+    window.addEventListener('resize', updateMobileFeedbackViewport);
+    if (window.visualViewport) {{
+      window.visualViewport.addEventListener('resize', updateMobileFeedbackViewport);
+      window.visualViewport.addEventListener('scroll', updateMobileFeedbackViewport);
+    }}
+    new MutationObserver(() => {{
+      feedbackPanel.classList.toggle('selection-active', !selectionToolbar.hidden);
+    }}).observe(selectionToolbar, {{ attributes: true, attributeFilter: ['hidden'] }});
+    if (recoveryProtected) {{
+      unsafeChanges = true;
+      saveStatus.dataset.state = 'failed';
+      saveStatus.hidden = false;
+      saveStatus.textContent = `恢复发现 ${{recoveryIssues.length}} 项异常；原存储已保护，本页编辑仅留在内存，请导出 JSON。`;
+      $('feedbackRecoveryReport').hidden = false;
+      recoveryIssues.forEach(issue => {{
+        const row = document.createElement('li');
+        row.textContent = `${{issue.index === null ? '整个恢复副本' : '记录 #' + (issue.index + 1)}}：${{issue.reason}}`;
+        $('feedbackRecoveryIssues').appendChild(row);
+      }});
+    }}
+
+    function setStatus(status) {{
+      statusButtons.forEach(button => button.classList.toggle('active', button.dataset.status === status));
+    }}
+
+    function getStatus() {{
+      const button = statusButtons.find(entry => entry.classList.contains('active'));
+      return button ? button.dataset.status : DEFAULT_STATUS;
+    }}
+
+    function setPanelExpanded(expanded) {{
+      feedbackPanel.classList.toggle('is-collapsed', !expanded);
+      feedbackDetails.hidden = !expanded;
+      toggleFeedbackPanel.setAttribute('aria-expanded', String(expanded));
+      toggleFeedbackPanel.textContent = expanded ? '收起' : '展开';
+      if (expanded && mobileFeedbackQuery.matches) {{
+        updateMobileFeedbackViewport();
+        feedbackPanel.scrollTop = 0;
+      }}
+    }}
+
+    function updateAutosaveStatus(event) {{
+      if (!saveStatus || !event) return;
+      if (recoveryProtected) {{
+        unsafeChanges = true;
+        saveStatus.dataset.state = 'failed';
+        saveStatus.hidden = false;
+        saveStatus.textContent = `恢复发现 ${{recoveryIssues.length}} 项异常；原存储已保护，本页编辑仅留在内存，请导出 JSON。`;
+        return;
+      }}
+      if (event.state === 'failed') unsafeChanges = true;
+      if (event.state === 'saved') unsafeChanges = false;
+      saveStatus.dataset.state = event.state || 'saved';
+      saveStatus.hidden = false;
+      saveStatus.textContent = event.state === 'saved' && event.saved_at
+        ? `已自动保存 · ${{new Date(event.saved_at).toLocaleTimeString()}}`
+        : (event.message || '已自动保存');
+      if (event.state === 'saved') window.setTimeout(() => {{
+        if (!unsafeChanges && saveStatus.dataset.state === 'saved') saveStatus.hidden = true;
+      }}, 1800);
+    }}
+
+    function itemContext(item) {{
+      if (!item) return '';
+      const parts = [];
+      if (item.category) parts.push('Category: ' + item.category);
+      if (item.source_title) parts.push('Source title: ' + item.source_title);
+      if (item.source_url) parts.push('Source URL: ' + item.source_url);
+      if (item.source_excerpt) parts.push('Context: ' + item.source_excerpt);
+      return parts.join('\\n');
+    }}
+
+    function makeFeedbackId(concept, blockId) {{
+      return 'news::' + concept + '::' + (blockId || CONFIG.date_range || CONFIG.briefing_title);
+    }}
+
+    function openFeedback(payload, options) {{
+      const item = payload.itemId ? itemMap.get(payload.itemId) : null;
+      const concept = payload.concept || payload.selectedText || '';
+      const blockId = payload.itemId || '';
+      active = {{
+        feedback_id: makeFeedbackId(concept, blockId),
+        concept,
+        block_id: blockId,
+        annotation_kind: payload.annotationKind || 'news_concept',
+        category: item ? item.category : '',
+        source_title: item ? item.source_title : '',
+        source_url: item ? item.source_url : '',
+        source_excerpt: payload.sourceExcerpt || itemContext(item),
+        selected_text: payload.selectedText || concept,
+        selected_language: 'news'
+      }};
+      const existing = saved.find(entry => entry.feedback_id === active.feedback_id);
+      conceptInput.value = concept;
+      setStatus(existing ? existing.status : DEFAULT_STATUS);
+      questionType.value = existing ? (existing.confusion_type || '') : '';
+      styleSelect.value = existing ? (existing.explanation_style || '') : '';
+      questionInput.value = existing ? (existing.user_question || '') : '';
+      noteInput.value = existing ? (existing.note || '') : '';
+      contextInput.value = existing ? (existing.source_excerpt || active.source_excerpt || '') : (active.source_excerpt || '');
+      if (!options || options.expand !== false) setPanelExpanded(true);
+      if (options && options.focusQuestion) {{
+        questionInput.focus({{ preventScroll: true }});
+        window.requestAnimationFrame(keepFocusedFieldVisible);
+      }}
+    }}
+
+    function currentPayload() {{
+      const concept = conceptInput.value.trim();
+      if (!concept) {{
+        alert('先点击概念或选中文本。');
+        return null;
+      }}
+      const base = active || {{}};
+      const initial = INITIAL_BY_ID.get(base.feedback_id);
+      const status = getStatus();
+      return {{
+        ...(initial || {{}}),
+        feedback_id: base.feedback_id || makeFeedbackId(concept, base.block_id),
+        concept,
+        status,
+        note: noteInput.value.trim(),
+        user_question: questionInput.value.trim(),
+        confusion_type: questionType.value,
+        explanation_style: styleSelect.value,
+        needs_explanation: Boolean(questionInput.value.trim() || status === 'unknown' || status === 'learning'),
+        block_id: base.block_id || '',
+        annotation_kind: (initial && initial.annotation_kind) || base.annotation_kind || 'news_concept',
+        source_excerpt: contextInput.value.trim(),
+        selected_text: base.selected_text || concept,
+        selected_language: base.selected_language || 'news',
+        translation: '',
+        category: base.category || '',
+        source_title: base.source_title || '',
+        source_url: base.source_url || '',
+        action: 'news_feedback',
+        source_kind: base.source_kind || 'news_briefing'
+      }};
+    }}
+
+    function persist() {{
+      renderSaved();
+      renderBadges();
+      // Never replace a recovery copy containing rejected/duplicate records.
+      // Edits remain exportable in memory until the user repairs that copy.
+      if (recoveryProtected || storageUnavailable) throw new Error('原恢复存储已保护；请导出本页编辑。');
+      localStorage.setItem(storageKey, JSON.stringify(saved));
+    }}
+
+    function saveCurrent(reason) {{
+      const payload = currentPayload();
+      if (!payload) return null;
+      const index = saved.findIndex(entry => entry.feedback_id === payload.feedback_id);
+      if (index >= 0) saved[index] = payload;
+      else saved.push(payload);
+      active = payload;
+      persist();
+      return payload;
+    }}
+
+    const undoManager = window.PaperTraceFeedbackUX.createUndo({{
+      host: undoStatus,
+      duration: 5000
+    }});
+    const autosave = window.PaperTraceFeedbackUX.createAutosave({{
+      delay: 250,
+      commit: reason => saveCurrent(reason),
+      onState: updateAutosaveStatus
+    }});
+
+    function restoreEntry(entry) {{
+      if (!entry || !entry.feedback_id) return;
+      const index = saved.findIndex(row => row.feedback_id === entry.feedback_id);
+      if (index >= 0) saved[index] = entry;
+      else saved.push(entry);
+      active = entry;
+      persist();
+      openFeedback({{
+        itemId: entry.block_id || '',
+        concept: entry.concept || '',
+        selectedText: entry.selected_text || '',
+        annotationKind: entry.annotation_kind || 'news_concept',
+        sourceExcerpt: entry.source_excerpt || ''
+      }}, {{ expand: false }});
+    }}
+
+    function applyStatusWithUndo(status) {{
+      if (!active) return;
+      const before = saved.find(entry => entry.feedback_id === active.feedback_id);
+      const previous = before ? JSON.parse(JSON.stringify(before)) : null;
+      const previousStatus = getStatus();
+      setStatus(status);
+      autosave.schedule('status-change');
+      const result = autosave.flush('status-change');
+      if (!result || previousStatus === status) return;
+      const savedId = result.feedback_id;
+      undoManager.offer(`状态已更新为 ${{status}}`, () => {{
+        if (previous) restoreEntry(previous);
+        else {{
+          saved = saved.filter(entry => entry.feedback_id !== savedId);
+          active = null;
+          persist();
+          setStatus(previousStatus);
+        }}
+      }});
+    }}
+
+    function deleteCurrent() {{
+      const concept = conceptInput.value.trim();
+      const id = active ? active.feedback_id : makeFeedbackId(concept, '');
+      const previous = saved.find(entry => entry.feedback_id === id);
+      const snapshot = previous ? JSON.parse(JSON.stringify(previous)) : null;
+      const initial = INITIAL_BY_ID.get(id);
+      if (initial) {{
+        saved = saved.map(entry => entry.feedback_id === id ? initial : entry);
+      }} else {{
+        saved = saved.filter(entry => entry.feedback_id !== id);
+      }}
+      active = null;
+      persist();
+      if (snapshot) undoManager.offer('标注已删除', () => restoreEntry(snapshot));
+    }}
+
+    function payload() {{
+      return {{
+        news_feedback_version: 1,
+        briefing_title: CONFIG.briefing_title,
+        date_range: CONFIG.date_range,
+        briefing_path: CONFIG.briefing_path || location.href,
+        exported_at: new Date().toISOString(),
+        default_status: DEFAULT_STATUS,
+        recovery_diagnostics: {{ storage_protected: recoveryProtected, issues: recoveryIssues }},
+        items: saved
+      }};
+    }}
+
+    function updateExportStatus(message) {{
+      const status = $('newsExportStatus');
+      status.hidden = false;
+      status.textContent = message;
+    }}
+
+    function downloadFeedback() {{
+      const blob = new Blob([JSON.stringify(payload(), null, 2)], {{type: 'application/json;charset=utf-8'}});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'news_feedback.json';
+      document.body.appendChild(a);
+      try {{
+        a.click();
+        updateExportStatus('下载已发起，请在浏览器中确认文件已生成；本地保存状态不变。');
+      }} catch (err) {{
+        updateExportStatus('下载未发起，请尝试复制 JSON；本地保存状态不变。');
+      }} finally {{
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }}
+    }}
+
+    async function copyFeedback() {{
+      const text = JSON.stringify(payload(), null, 2);
+      try {{
+        await navigator.clipboard.writeText(text);
+        updateExportStatus('已复制 JSON，可交给 Codex；本地保存状态不变。');
+      }} catch (err) {{
+        updateExportStatus('自动复制不可用，请从提示框复制 JSON；本地保存状态不变。');
+        prompt('复制以下 JSON：', text);
+      }}
+    }}
+
+    function isUserChanged(entry) {{
+      const initial = INITIAL_BY_ID.get(entry.feedback_id);
+      if (!initial) return true;
+      return ['status', 'note', 'user_question', 'confusion_type', 'explanation_style', 'source_excerpt']
+        .some(key => (entry[key] || '') !== (initial[key] || ''));
+    }}
+
+    function renderSaved() {{
+      const visible = saved.filter(isUserChanged);
+      $('savedCount').textContent = String(visible.length);
+      const wrap = $('savedItems');
+      wrap.innerHTML = '';
+      if (!visible.length) {{
+        wrap.innerHTML = '<div class="muted">暂无用户修改；默认未评级概念仍会保留在导出中。</div>';
+        return;
+      }}
+      visible.forEach(entry => {{
+        const div = document.createElement('div');
+        div.className = 'saved-item';
+        div.innerHTML = '<strong></strong><div class="tiny"></div><div class="button-row"><button type="button" class="action-btn secondary">Edit</button><button type="button" class="action-btn danger">Delete</button></div>';
+        div.querySelector('strong').textContent = entry.concept;
+        div.querySelector('.tiny').textContent = (entry.status || DEFAULT_STATUS) + ' · ' + (entry.category || entry.block_id || 'news');
+        const buttons = div.querySelectorAll('button');
+        buttons[0].addEventListener('click', () => {{
+          active = entry;
+          conceptInput.value = entry.concept || '';
+          setStatus(entry.status || DEFAULT_STATUS);
+          questionType.value = entry.confusion_type || '';
+          styleSelect.value = entry.explanation_style || '';
+          questionInput.value = entry.user_question || '';
+          noteInput.value = entry.note || '';
+          contextInput.value = entry.source_excerpt || '';
+          setPanelExpanded(true);
+          if (mobileFeedbackQuery.matches) {{
+            questionInput.focus({{ preventScroll: true }});
+            window.requestAnimationFrame(keepFocusedFieldVisible);
+          }}
+        }});
+        buttons[1].addEventListener('click', () => {{
+          const index = saved.findIndex(row => row.feedback_id === entry.feedback_id);
+          const initial = INITIAL_BY_ID.get(entry.feedback_id);
+          const snapshot = JSON.parse(JSON.stringify(entry));
+          if (initial && index >= 0) saved[index] = initial;
+          else if (index >= 0) saved.splice(index, 1);
+          try {{
+            persist();
+            undoManager.offer('标注已删除', () => restoreEntry(snapshot));
+          }} catch (error) {{
+            updateAutosaveStatus({{ state: 'failed', message: '自动保存失败，请先导出 JSON。', error }});
+          }}
+        }});
+        wrap.appendChild(div);
+      }});
+    }}
+
+    function renderBadges() {{
+      document.querySelectorAll('.news-card').forEach(card => {{
+        const itemId = card.dataset.itemId;
+        const strip = card.querySelector('[data-mark-strip]');
+        const marks = saved.filter(entry => entry.block_id === itemId && isUserChanged(entry));
+        card.classList.toggle('marked', marks.length > 0);
+        strip.innerHTML = '';
+        marks.forEach(entry => {{
+          const span = document.createElement('span');
+          span.className = 'saved-badge';
+          span.textContent = '已标注: ' + entry.concept + ' / ' + entry.status;
+          strip.appendChild(span);
+        }});
+      }});
+    }}
+
+    document.querySelectorAll('.concept-chip').forEach(button => {{
+      button.addEventListener('click', () => {{
+        openFeedback({{
+          itemId: button.dataset.itemId,
+          concept: button.dataset.concept,
+          annotationKind: 'news_concept'
+        }});
+      }});
+    }});
+
+    function selectedNewsContext() {{
+      const selection = window.getSelection();
+      const text = selection ? selection.toString().trim() : '';
+      if (!text || !selection || !selection.rangeCount) return null;
+      let node = selection.anchorNode;
+      if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+      const card = node && node.closest ? node.closest('.news-card') : null;
+      return {{
+        text,
+        itemId: card ? card.dataset.itemId : '',
+        concept: text.slice(0, 120),
+        selectedText: text,
+        annotationKind: 'news_freeform',
+        sourceExcerpt: text
+      }};
+    }}
+
+    const selectionController = window.PaperTraceFeedbackUX.createSelectionToolbar({{
+      root: document.querySelector('main.layout > div'),
+      toolbar: selectionToolbar,
+      ignoreSelector: 'button, input, select, textarea, a, .math-display, .math-inline',
+      capture: () => selectedNewsContext() || {{}},
+      onStatus: (status, selected) => {{
+        openFeedback(selected, {{ expand: false }});
+        applyStatusWithUndo(status);
+      }},
+      onDetails: selected => openFeedback(selected, {{ focusQuestion: true }})
+    }});
+
+    $('annotateBtn').addEventListener('click', () => {{
+      const selected = selectedNewsContext();
+      if (!selected) {{
+        alert('请先选中一段日报文本。');
+        return;
+      }}
+      openFeedback(selected, {{ focusQuestion: true }});
+    }});
+    statusButtons.forEach(button => button.addEventListener('click', () => applyStatusWithUndo(button.dataset.status)));
+    [conceptInput, questionInput, noteInput, contextInput].forEach(field => {{
+      field.addEventListener('input', () => {{ if (active) autosave.schedule('field-change'); }});
+    }});
+    [questionType, styleSelect].forEach(field => {{
+      field.addEventListener('change', () => {{ if (active) autosave.schedule('field-change'); }});
+    }});
+    toggleFeedbackPanel.addEventListener('click', () => setPanelExpanded(feedbackDetails.hidden));
+    feedbackPanel.addEventListener('keydown', event => {{
+      if (event.key === 'Escape' && !feedbackDetails.hidden) {{
+        setPanelExpanded(false);
+        toggleFeedbackPanel.focus({{ preventScroll: true }});
+      }}
+    }});
+    $('deleteBtn').addEventListener('click', () => {{
+      try {{ deleteCurrent(); }}
+      catch (error) {{ updateAutosaveStatus({{ state: 'failed', message: '自动保存失败，请先导出 JSON。', error }}); }}
+    }});
+    $('downloadBtn').addEventListener('click', () => {{ autosave.flush('export'); downloadFeedback(); }});
+    $('copyBtn').addEventListener('click', () => {{ autosave.flush('export'); copyFeedback(); }});
+    window.addEventListener('pagehide', () => autosave.flush('pagehide'));
+    document.addEventListener('visibilitychange', () => {{
+      if (document.visibilityState === 'hidden') autosave.flush('visibilitychange');
+    }});
+    window.addEventListener('beforeunload', event => {{
+      autosave.flush('beforeunload');
+      if (!unsafeChanges) return;
+      event.preventDefault();
+      event.returnValue = '';
+    }});
+
+    setStatus(DEFAULT_STATUS);
+    setPanelExpanded(false);
+    updateMobileFeedbackViewport();
+    renderSaved();
+    renderBadges();
+  </script>""" if feedback_enabled else ""
+    feedback_css = f"""    .mark-strip {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }}
+    .saved-badge {{
+      color: var(--accent);
+      background: #ecfdf5;
+      border-color: rgba(15, 118, 110, 0.28);
+    }}
+    aside.feedback-panel {{
+      position: sticky;
+      top: 86px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+      max-height: calc(100vh - 110px);
+      overflow: auto;
+    }}
+    aside.feedback-panel.is-collapsed {{
+      padding: 10px;
+    }}
+    aside.feedback-panel.is-collapsed .panel-title {{
+      margin-bottom: 0;
+    }}
+    .news-status-buttons {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+    }}
+    .news-status-buttons button {{
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+    }}
+    .news-status-buttons button.active {{
+      color: var(--ink);
+      background: color-mix(in srgb, var(--panel) 75%, var(--accent));
+      border-color: var(--accent);
+      font-weight: 700;
+    }}
+    .panel-title {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }}
+    .panel-title h2 {{
+      margin: 0;
+    }}
+    .field {{
+      margin-bottom: 10px;
+    }}
+    label {{
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }}
+    input, select, textarea {{
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      background: var(--panel);
+      color: var(--ink);
+    }}
+    textarea {{
+      min-height: 78px;
+      resize: vertical;
+    }}
+    .button-row {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 10px 0;
+    }}
+    .primary {{
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }}
+    .secondary {{
+      background: var(--panel);
+      color: var(--ink);
+      border-color: var(--line);
+    }}
+    .danger {{
+      color: var(--bad);
+      border-color: var(--bad);
+      background: color-mix(in srgb, var(--panel) 90%, var(--bad));
+    }}
+    details.saved-list {{
+      margin-top: 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }}
+    #savedItems {{
+      max-height: 220px;
+      overflow: auto;
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }}
+    .saved-item {{
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      background: var(--panel);
+      font-size: 13px;
+    }}
+    .saved-item strong {{
+      display: block;
+      margin-bottom: 2px;
+    }}
+    .saved-item .tiny {{
+      color: var(--muted);
+      font-size: 12px;
+    }}
+    .floating-annotate {{
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 20;
+      box-shadow: var(--shadow);
+    }}
+    @media (max-width: 920px) {{
+      .header-inner, .layout {{
+        grid-template-columns: 1fr;
+      }}
+      .layout {{
+        padding-bottom: calc(84px + env(safe-area-inset-bottom));
+      }}
+      aside.feedback-panel {{
+        position: fixed;
+        /* Reset the desktop sticky inset: top + bottom would stretch a
+           collapsed fixed drawer even when its details are hidden. */
+        top: auto;
+        height: auto;
+        min-height: 0;
+        left: 0;
+        right: 0;
+        bottom: var(--feedback-keyboard-offset, 0px);
+        z-index: 40;
+        max-height: 70vh;
+        max-height: min(70dvh, var(--feedback-available-height, 70dvh));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        overflow-wrap: anywhere;
+        border-radius: 14px 14px 0 0;
+        padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+      }}
+      aside.feedback-panel.is-collapsed {{
+        left: 12px;
+        right: 12px;
+        bottom: calc(12px + var(--feedback-keyboard-offset, 0px) + env(safe-area-inset-bottom));
+        max-height: none;
+        border-radius: 12px;
+        padding: 8px 12px;
+      }}
+      aside.feedback-panel.is-collapsed.selection-active {{
+        visibility: hidden;
+        pointer-events: none;
+      }}
+      aside.feedback-panel .panel-title {{
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--panel);
+        padding: 8px 0;
+      }}
+      aside.feedback-panel.is-collapsed .panel-title {{
+        position: static;
+        padding: 0;
+      }}
+      #toggleFeedbackPanel {{
+        min-height: 44px;
+      }}
+      .concept-chip, .action-btn, .news-status-buttons button,
+      .feedback-detail input, .feedback-detail select {{
+        min-height: 44px;
+      }}
+      .floating-annotate {{
+        display: none;
+      }}
+    }}
+""" if feedback_enabled else """
+    .concept-label { border: 1px solid var(--line); border-radius: 8px; padding: 4px 9px; }
+    @media (max-width: 920px) { .header-inner { grid-template-columns: 1fr; } }
+    """
     html_doc = f"""<!doctype html>
-<html lang="zh-CN" data-math-status="{math_status}">
+<html lang="zh-CN" data-math-status="{math_status}" data-feedback-enabled="{str(feedback_enabled).lower()}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -409,7 +1260,7 @@ def render_html(config: dict[str, Any]) -> str:
       margin: 0 auto;
       padding: 22px;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 350px;
+      grid-template-columns: {"minmax(0, 1fr) 350px" if feedback_enabled else "minmax(0, 1fr)"};
       gap: 20px;
       align-items: start;
     }}
@@ -641,196 +1492,10 @@ def render_html(config: dict[str, Any]) -> str:
       font-size: 13px;
       margin-top: 12px;
     }}
-    .mark-strip {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 10px;
-    }}
-    .saved-badge {{
-      color: var(--accent);
-      background: #ecfdf5;
-      border-color: rgba(15, 118, 110, 0.28);
-    }}
-    aside.feedback-panel {{
-      position: sticky;
-      top: 86px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      box-shadow: var(--shadow);
-      padding: 14px;
-      max-height: calc(100vh - 110px);
-      overflow: auto;
-    }}
-    aside.feedback-panel.is-collapsed {{
-      padding: 10px;
-    }}
-    aside.feedback-panel.is-collapsed .panel-title {{
-      margin-bottom: 0;
-    }}
-    .news-status-buttons {{
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 7px;
-    }}
-    .news-status-buttons button {{
-      min-height: 40px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-      color: var(--ink);
-      cursor: pointer;
-    }}
-    .news-status-buttons button.active {{
-      color: var(--ink);
-      background: color-mix(in srgb, var(--panel) 75%, var(--accent));
-      border-color: var(--accent);
-      font-weight: 700;
-    }}
-    .panel-title {{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 10px;
-    }}
-    .panel-title h2 {{
-      margin: 0;
-    }}
-    .field {{
-      margin-bottom: 10px;
-    }}
-    label {{
-      display: block;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 4px;
-    }}
-    input, select, textarea {{
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 8px;
-      background: var(--panel);
-      color: var(--ink);
-    }}
-    textarea {{
-      min-height: 78px;
-      resize: vertical;
-    }}
-    .button-row {{
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin: 10px 0;
-    }}
-    .primary {{
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }}
-    .secondary {{
-      background: var(--panel);
-      color: var(--ink);
-      border-color: var(--line);
-    }}
-    .danger {{
-      color: var(--bad);
-      border-color: var(--bad);
-      background: color-mix(in srgb, var(--panel) 90%, var(--bad));
-    }}
-    details.saved-list {{
-      margin-top: 12px;
-      border-top: 1px solid var(--line);
-      padding-top: 10px;
-    }}
-    #savedItems {{
-      max-height: 220px;
-      overflow: auto;
-      display: grid;
-      gap: 8px;
-      margin-top: 8px;
-    }}
-    .saved-item {{
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 8px;
-      background: var(--panel);
-      font-size: 13px;
-    }}
-    .saved-item strong {{
-      display: block;
-      margin-bottom: 2px;
-    }}
-    .saved-item .tiny {{
-      color: var(--muted);
-      font-size: 12px;
-    }}
-    .floating-annotate {{
-      position: fixed;
-      right: 24px;
-      bottom: 24px;
-      z-index: 20;
-      box-shadow: var(--shadow);
-    }}
-    @media (max-width: 920px) {{
-      .header-inner, .layout {{
-        grid-template-columns: 1fr;
-      }}
-      .layout {{
-        padding-bottom: calc(84px + env(safe-area-inset-bottom));
-      }}
-      aside.feedback-panel {{
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: var(--feedback-keyboard-offset, 0px);
-        z-index: 40;
-        max-height: 70vh;
-        max-height: min(70dvh, var(--feedback-available-height, 70dvh));
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        overflow-wrap: anywhere;
-        border-radius: 14px 14px 0 0;
-        padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
-      }}
-      aside.feedback-panel.is-collapsed {{
-        left: 12px;
-        right: 12px;
-        bottom: calc(12px + var(--feedback-keyboard-offset, 0px) + env(safe-area-inset-bottom));
-        max-height: none;
-        border-radius: 12px;
-        padding: 8px 12px;
-      }}
-      aside.feedback-panel.is-collapsed.selection-active {{
-        visibility: hidden;
-        pointer-events: none;
-      }}
-      aside.feedback-panel .panel-title {{
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        background: var(--panel);
-        padding: 8px 0;
-      }}
-      aside.feedback-panel.is-collapsed .panel-title {{
-        position: static;
-        padding: 0;
-      }}
-      #toggleFeedbackPanel {{
-        min-height: 44px;
-      }}
-      .concept-chip, .action-btn, .news-status-buttons button,
-      .feedback-detail input, .feedback-detail select {{
-        min-height: 44px;
-      }}
-      .floating-annotate {{
-        display: none;
-      }}
-    }}
+    {feedback_css}
     @media print {{
-      header, aside.feedback-panel, .floating-annotate, .concept-row, .mark-strip {{
+      header, aside.feedback-panel, .floating-annotate, .concept-row, .mark-strip,
+      .papertrace-selection-toolbar, .papertrace-save-indicator {{
         display: none !important;
       }}
       body {{
@@ -839,6 +1504,7 @@ def render_html(config: dict[str, Any]) -> str:
       .layout {{
         display: block;
         max-width: none;
+        padding-bottom: 0;
       }}
       .news-card {{
         box-shadow: none;
@@ -846,7 +1512,7 @@ def render_html(config: dict[str, Any]) -> str:
       }}
     }}
   </style>
-  {feedback_ux_styles()}
+  {feedback_ux_styles() if feedback_enabled else ""}
 </head>
 <body>
   <header>
@@ -855,7 +1521,7 @@ def render_html(config: dict[str, Any]) -> str:
         <h1>{esc(config['briefing_title'])}</h1>
         <div class="date-range">日期窗口：{esc(config['date_range'] or '未指定')}</div>
       </div>
-      <div class="date-range">点击概念或选中文本后标注；导出 JSON 后交给 reader-learner。</div>
+      { '<div class="date-range">点击概念或选中文本后标注；导出 JSON 后交给 reader-learner。</div>' if feedback_enabled else "" }
     </div>
   </header>
   <main class="layout">
@@ -868,563 +1534,72 @@ def render_html(config: dict[str, Any]) -> str:
         {''.join(sections_html)}
       </div>
     </div>
-    <aside class="feedback-panel is-collapsed" id="feedbackPanel" aria-label="Feedback panel">
-      <div class="panel-title">
-        <h2>Feedback</h2>
-        <span id="savedCount" class="source-id">0</span>
-        <button id="toggleFeedbackPanel" class="action-btn secondary" type="button" aria-expanded="false" aria-controls="feedbackDetails">展开</button>
-      </div>
-      <div class="feedback-detail" id="feedbackDetails" hidden>
-      <div class="field">
-        <label for="conceptInput">Concept / selected text</label>
-        <input id="conceptInput" placeholder="点击概念或自由标注">
-      </div>
-      <div class="field">
-        <label>Status</label>
-        <div class="news-status-buttons" id="newsStatusButtons" role="group" aria-label="理解状态">
-          <button type="button" data-status="mastered">掌握</button>
-          <button type="button" data-status="known">了解</button>
-          <button type="button" data-status="learning">学习中</button>
-          <button type="button" data-status="unknown">不理解</button>
-          <button type="button" data-status="unrated">未评级</button>
-        </div>
-      </div>
-      <div class="field">
-        <label for="questionType">Question type</label>
-        <select id="questionType">
-          <option value="">未指定</option>
-          <option value="term_definition">术语定义</option>
-          <option value="paper_usage">论文/新闻用法</option>
-          <option value="algorithm_step">算法步骤</option>
-          <option value="math_step">数学步骤</option>
-          <option value="assumption">隐含假设</option>
-          <option value="evidence">证据/图表</option>
-          <option value="relation">概念关系</option>
-          <option value="other">其他</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="styleSelect">Explanation style</label>
-        <select id="styleSelect">
-          <option value="">默认</option>
-          <option value="first_principles">first principles</option>
-          <option value="paper_context">paper/news context</option>
-          <option value="math_steps">math steps</option>
-          <option value="analogy">analogy</option>
-          <option value="example">example</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="questionInput">Exact question</label>
-        <textarea id="questionInput" placeholder="你具体哪里不清楚？"></textarea>
-      </div>
-      <div class="field">
-        <label for="noteInput">Note</label>
-        <textarea id="noteInput" placeholder="自己的理解、卡点、想比较的对象"></textarea>
-      </div>
-      <div class="field">
-        <label for="contextInput">Source context</label>
-        <textarea id="contextInput" placeholder="来源上下文会自动填入，也可以手动改"></textarea>
-      </div>
-      <div class="button-row">
-        <button id="deleteBtn" class="action-btn danger" type="button">Delete current</button>
-        <button id="downloadBtn" class="action-btn secondary" type="button">Download JSON</button>
-        <button id="copyBtn" class="action-btn secondary" type="button">Copy for Codex</button>
-      </div>
-      <details class="saved-list" open>
-        <summary>最近修改与自由标注</summary>
-        <div id="savedItems"></div>
-      </details>
-      </div>
-    </aside>
+    {feedback_panel}
   </main>
-  <button id="annotateBtn" class="action-btn floating-annotate" type="button">Annotate selection</button>
-  <div class="papertrace-selection-toolbar" id="newsSelectionToolbar" role="toolbar" aria-label="为选中文字添加反馈" hidden>
-    <button type="button" data-inline-status="mastered">掌握</button>
-    <button type="button" data-inline-status="known">了解</button>
-    <button type="button" data-inline-status="learning">学习中</button>
-    <button type="button" data-inline-status="unknown">不理解</button>
-    <button type="button" class="papertrace-selection-details" data-selection-details>提问 / 备注</button>
-  </div>
-  <p class="papertrace-save-indicator" id="newsSaveStatus" role="status" aria-live="polite" hidden></p>
-  <p class="papertrace-save-indicator papertrace-undo-indicator" id="newsUndoStatus" role="status" aria-live="polite" hidden></p>
+  {feedback_controls}
   <script id="briefing-data" type="application/json">{js_json(config)}</script>
-  {feedback_ux_runtime_script()}
-  <script>
-    const CONFIG = JSON.parse(document.getElementById('briefing-data').textContent);
-    const DEFAULT_STATUS = CONFIG.default_status || 'unrated';
-    const INITIAL_FEEDBACK = Array.isArray(CONFIG.initial_feedback_items) ? CONFIG.initial_feedback_items : [];
-    const BRIEFING_ITEMS = Array.isArray(CONFIG.items)
-      ? CONFIG.items
-      : (Array.isArray(CONFIG.sections) ? CONFIG.sections.flatMap(section => section.items || []) : []);
-    const itemMap = new Map(BRIEFING_ITEMS.map(item => [item.id, item]));
-    const storageKey = 'news-feedback::' + (CONFIG.config_fingerprint || 'legacy')
-      + '::' + CONFIG.briefing_title + '::' + CONFIG.date_range;
-    let saved = [];
-    let active = null;
-    let storageUnavailable = false;
-    let unsafeChanges = false;
-    const INITIAL_BY_ID = new Map(INITIAL_FEEDBACK.map(entry => [entry.feedback_id, entry]));
-
-    function mergeInitialFeedback(stored, initial) {{
-        const byId = new Map();
-        const order = [];
-        const initialIds = new Set(initial.map(entry => entry && entry.feedback_id).filter(Boolean));
-        function add(entry, replace) {{
-          if (!entry || !entry.feedback_id) return;
-        if (!byId.has(entry.feedback_id)) order.push(entry.feedback_id);
-        if (replace || !byId.has(entry.feedback_id)) byId.set(entry.feedback_id, entry);
-      }}
-      initial.forEach(entry => add(entry, false));
-        stored.forEach(entry => {{
-          if (initialIds.has(entry && entry.feedback_id) || entry.annotation_kind === 'news_freeform') add(entry, true);
-        }});
-        return order.map(id => byId.get(id)).filter(Boolean);
-    }}
-
-    try {{
-      const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      saved = mergeInitialFeedback(Array.isArray(stored) ? stored : [], INITIAL_FEEDBACK);
-    }} catch (err) {{
-      storageUnavailable = true;
-      saved = mergeInitialFeedback([], INITIAL_FEEDBACK);
-    }}
-
-    const $ = id => document.getElementById(id);
-    const conceptInput = $('conceptInput');
-    const statusButtons = Array.from(document.querySelectorAll('#newsStatusButtons [data-status]'));
-    const questionType = $('questionType');
-    const styleSelect = $('styleSelect');
-    const questionInput = $('questionInput');
-    const noteInput = $('noteInput');
-    const contextInput = $('contextInput');
-    const feedbackPanel = $('feedbackPanel');
-    const feedbackDetails = $('feedbackDetails');
-    const toggleFeedbackPanel = $('toggleFeedbackPanel');
-    const saveStatus = $('newsSaveStatus');
-    const undoStatus = $('newsUndoStatus');
-    const selectionToolbar = $('newsSelectionToolbar');
-    const mobileFeedbackQuery = window.matchMedia('(max-width: 920px)');
-    function keepFocusedFieldVisible() {{
-      if (!mobileFeedbackQuery.matches || !feedbackPanel.contains(document.activeElement)) return;
-      const field = document.activeElement.getBoundingClientRect();
-      const panel = feedbackPanel.getBoundingClientRect();
-      const top = panel.top + 56;
-      const bottom = panel.bottom - 18;
-      if (field.bottom > bottom) feedbackPanel.scrollTop += field.bottom - bottom;
-      else if (field.top < top) feedbackPanel.scrollTop -= top - field.top;
-    }}
-    function updateMobileFeedbackViewport() {{
-      const viewport = window.visualViewport;
-      if (!mobileFeedbackQuery.matches || !viewport) {{
-        feedbackPanel.style.removeProperty('--feedback-keyboard-offset');
-        feedbackPanel.style.removeProperty('--feedback-available-height');
-        return;
-      }}
-      const keyboardOffset = Math.max(0, window.innerHeight - viewport.offsetTop - viewport.height);
-      feedbackPanel.style.setProperty('--feedback-keyboard-offset', `${{Math.round(keyboardOffset)}}px`);
-      feedbackPanel.style.setProperty('--feedback-available-height', `${{Math.max(0, Math.round(viewport.height - 12))}}px`);
-      window.requestAnimationFrame(keepFocusedFieldVisible);
-    }}
-    window.addEventListener('resize', updateMobileFeedbackViewport);
-    if (window.visualViewport) {{
-      window.visualViewport.addEventListener('resize', updateMobileFeedbackViewport);
-      window.visualViewport.addEventListener('scroll', updateMobileFeedbackViewport);
-    }}
-    new MutationObserver(() => {{
-      feedbackPanel.classList.toggle('selection-active', !selectionToolbar.hidden);
-    }}).observe(selectionToolbar, {{ attributes: true, attributeFilter: ['hidden'] }});
-    if (storageUnavailable) {{
-      unsafeChanges = true;
-      saveStatus.dataset.state = 'failed';
-      saveStatus.hidden = false;
-      saveStatus.textContent = '自动恢复不可用，请先导出 JSON。';
-    }}
-
-    function setStatus(status) {{
-      statusButtons.forEach(button => button.classList.toggle('active', button.dataset.status === status));
-    }}
-
-    function getStatus() {{
-      const button = statusButtons.find(entry => entry.classList.contains('active'));
-      return button ? button.dataset.status : DEFAULT_STATUS;
-    }}
-
-    function setPanelExpanded(expanded) {{
-      feedbackPanel.classList.toggle('is-collapsed', !expanded);
-      feedbackDetails.hidden = !expanded;
-      toggleFeedbackPanel.setAttribute('aria-expanded', String(expanded));
-      toggleFeedbackPanel.textContent = expanded ? '收起' : '展开';
-      if (expanded && mobileFeedbackQuery.matches) {{
-        updateMobileFeedbackViewport();
-        feedbackPanel.scrollTop = 0;
-      }}
-    }}
-
-    function updateAutosaveStatus(event) {{
-      if (!saveStatus || !event) return;
-      if (event.state === 'failed') unsafeChanges = true;
-      if (event.state === 'saved') unsafeChanges = false;
-      saveStatus.dataset.state = event.state || 'saved';
-      saveStatus.hidden = false;
-      saveStatus.textContent = event.state === 'saved' && event.saved_at
-        ? `已自动保存 · ${{new Date(event.saved_at).toLocaleTimeString()}}`
-        : (event.message || '已自动保存');
-      if (event.state === 'saved') window.setTimeout(() => {{ saveStatus.hidden = true; }}, 1800);
-    }}
-
-    function itemContext(item) {{
-      if (!item) return '';
-      const parts = [];
-      if (item.category) parts.push('Category: ' + item.category);
-      if (item.source_title) parts.push('Source title: ' + item.source_title);
-      if (item.source_url) parts.push('Source URL: ' + item.source_url);
-      if (item.source_excerpt) parts.push('Context: ' + item.source_excerpt);
-      return parts.join('\\n');
-    }}
-
-    function makeFeedbackId(concept, blockId) {{
-      return 'news::' + concept + '::' + (blockId || CONFIG.date_range || CONFIG.briefing_title);
-    }}
-
-    function openFeedback(payload, options) {{
-      const item = payload.itemId ? itemMap.get(payload.itemId) : null;
-      const concept = payload.concept || payload.selectedText || '';
-      const blockId = payload.itemId || '';
-      active = {{
-        feedback_id: makeFeedbackId(concept, blockId),
-        concept,
-        block_id: blockId,
-        annotation_kind: payload.annotationKind || 'news_concept',
-        category: item ? item.category : '',
-        source_title: item ? item.source_title : '',
-        source_url: item ? item.source_url : '',
-        source_excerpt: payload.sourceExcerpt || itemContext(item),
-        selected_text: payload.selectedText || concept,
-        selected_language: 'news'
-      }};
-      const existing = saved.find(entry => entry.feedback_id === active.feedback_id);
-      conceptInput.value = concept;
-      setStatus(existing ? existing.status : DEFAULT_STATUS);
-      questionType.value = existing ? (existing.confusion_type || '') : '';
-      styleSelect.value = existing ? (existing.explanation_style || '') : '';
-      questionInput.value = existing ? (existing.user_question || '') : '';
-      noteInput.value = existing ? (existing.note || '') : '';
-      contextInput.value = existing ? (existing.source_excerpt || active.source_excerpt || '') : (active.source_excerpt || '');
-      if (!options || options.expand !== false) setPanelExpanded(true);
-      if (options && options.focusQuestion) {{
-        questionInput.focus({{ preventScroll: true }});
-        window.requestAnimationFrame(keepFocusedFieldVisible);
-      }}
-    }}
-
-    function currentPayload() {{
-      const concept = conceptInput.value.trim();
-      if (!concept) {{
-        alert('先点击概念或选中文本。');
-        return null;
-      }}
-      const base = active || {{}};
-      const initial = INITIAL_BY_ID.get(base.feedback_id);
-      const status = getStatus();
-      return {{
-        ...(initial || {{}}),
-        feedback_id: base.feedback_id || makeFeedbackId(concept, base.block_id),
-        concept,
-        status,
-        note: noteInput.value.trim(),
-        user_question: questionInput.value.trim(),
-        confusion_type: questionType.value,
-        explanation_style: styleSelect.value,
-        needs_explanation: Boolean(questionInput.value.trim() || status === 'unknown' || status === 'learning'),
-        block_id: base.block_id || '',
-        annotation_kind: (initial && initial.annotation_kind) || base.annotation_kind || 'news_concept',
-        source_excerpt: contextInput.value.trim(),
-        selected_text: base.selected_text || concept,
-        selected_language: base.selected_language || 'news',
-        translation: '',
-        category: base.category || '',
-        source_title: base.source_title || '',
-        source_url: base.source_url || '',
-        action: 'news_feedback',
-        source_kind: base.source_kind || 'news_briefing'
-      }};
-    }}
-
-    function persist() {{
-      renderSaved();
-      renderBadges();
-      localStorage.setItem(storageKey, JSON.stringify(saved));
-    }}
-
-    function saveCurrent(reason) {{
-      const payload = currentPayload();
-      if (!payload) return null;
-      const index = saved.findIndex(entry => entry.feedback_id === payload.feedback_id);
-      if (index >= 0) saved[index] = payload;
-      else saved.push(payload);
-      active = payload;
-      persist();
-      return payload;
-    }}
-
-    const undoManager = window.PaperTraceFeedbackUX.createUndo({{
-      host: undoStatus,
-      duration: 5000
-    }});
-    const autosave = window.PaperTraceFeedbackUX.createAutosave({{
-      delay: 250,
-      commit: reason => saveCurrent(reason),
-      onState: updateAutosaveStatus
-    }});
-
-    function restoreEntry(entry) {{
-      if (!entry || !entry.feedback_id) return;
-      const index = saved.findIndex(row => row.feedback_id === entry.feedback_id);
-      if (index >= 0) saved[index] = entry;
-      else saved.push(entry);
-      active = entry;
-      persist();
-      openFeedback({{
-        itemId: entry.block_id || '',
-        concept: entry.concept || '',
-        selectedText: entry.selected_text || '',
-        annotationKind: entry.annotation_kind || 'news_concept',
-        sourceExcerpt: entry.source_excerpt || ''
-      }}, {{ expand: false }});
-    }}
-
-    function applyStatusWithUndo(status) {{
-      if (!active) return;
-      const before = saved.find(entry => entry.feedback_id === active.feedback_id);
-      const previous = before ? JSON.parse(JSON.stringify(before)) : null;
-      const previousStatus = getStatus();
-      setStatus(status);
-      autosave.schedule('status-change');
-      const result = autosave.flush('status-change');
-      if (!result || previousStatus === status) return;
-      const savedId = result.feedback_id;
-      undoManager.offer(`状态已更新为 ${{status}}`, () => {{
-        if (previous) restoreEntry(previous);
-        else {{
-          saved = saved.filter(entry => entry.feedback_id !== savedId);
-          active = null;
-          persist();
-          setStatus(previousStatus);
-        }}
-      }});
-    }}
-
-    function deleteCurrent() {{
-      const concept = conceptInput.value.trim();
-      const id = active ? active.feedback_id : makeFeedbackId(concept, '');
-      const previous = saved.find(entry => entry.feedback_id === id);
-      const snapshot = previous ? JSON.parse(JSON.stringify(previous)) : null;
-      const initial = INITIAL_BY_ID.get(id);
-      if (initial) {{
-        saved = saved.map(entry => entry.feedback_id === id ? initial : entry);
-      }} else {{
-        saved = saved.filter(entry => entry.feedback_id !== id);
-      }}
-      active = null;
-      persist();
-      if (snapshot) undoManager.offer('标注已删除', () => restoreEntry(snapshot));
-    }}
-
-    function payload() {{
-      return {{
-        news_feedback_version: 1,
-        briefing_title: CONFIG.briefing_title,
-        date_range: CONFIG.date_range,
-        briefing_path: CONFIG.briefing_path || location.href,
-        exported_at: new Date().toISOString(),
-        default_status: DEFAULT_STATUS,
-        items: saved
-      }};
-    }}
-
-    function downloadFeedback() {{
-      const blob = new Blob([JSON.stringify(payload(), null, 2)], {{type: 'application/json;charset=utf-8'}});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'news_feedback.json';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      updateAutosaveStatus({{ state: 'saved', message: '已导出 JSON' }});
-    }}
-
-    async function copyFeedback() {{
-      const text = JSON.stringify(payload(), null, 2);
-      try {{
-        await navigator.clipboard.writeText(text);
-        updateAutosaveStatus({{ state: 'saved', message: '已复制 JSON，可交给 Codex' }});
-      }} catch (err) {{
-        prompt('复制以下 JSON：', text);
-      }}
-    }}
-
-    function isUserChanged(entry) {{
-      const initial = INITIAL_BY_ID.get(entry.feedback_id);
-      if (!initial) return true;
-      return ['status', 'note', 'user_question', 'confusion_type', 'explanation_style', 'source_excerpt']
-        .some(key => (entry[key] || '') !== (initial[key] || ''));
-    }}
-
-    function renderSaved() {{
-      const visible = saved.filter(isUserChanged);
-      $('savedCount').textContent = String(visible.length);
-      const wrap = $('savedItems');
-      wrap.innerHTML = '';
-      if (!visible.length) {{
-        wrap.innerHTML = '<div class="muted">暂无用户修改；默认未评级概念仍会保留在导出中。</div>';
-        return;
-      }}
-      visible.forEach(entry => {{
-        const div = document.createElement('div');
-        div.className = 'saved-item';
-        div.innerHTML = '<strong></strong><div class="tiny"></div><div class="button-row"><button type="button" class="action-btn secondary">Edit</button><button type="button" class="action-btn danger">Delete</button></div>';
-        div.querySelector('strong').textContent = entry.concept;
-        div.querySelector('.tiny').textContent = (entry.status || DEFAULT_STATUS) + ' · ' + (entry.category || entry.block_id || 'news');
-        const buttons = div.querySelectorAll('button');
-        buttons[0].addEventListener('click', () => {{
-          active = entry;
-          conceptInput.value = entry.concept || '';
-          setStatus(entry.status || DEFAULT_STATUS);
-          questionType.value = entry.confusion_type || '';
-          styleSelect.value = entry.explanation_style || '';
-          questionInput.value = entry.user_question || '';
-          noteInput.value = entry.note || '';
-          contextInput.value = entry.source_excerpt || '';
-          setPanelExpanded(true);
-          if (mobileFeedbackQuery.matches) {{
-            questionInput.focus({{ preventScroll: true }});
-            window.requestAnimationFrame(keepFocusedFieldVisible);
-          }}
-        }});
-        buttons[1].addEventListener('click', () => {{
-          const index = saved.findIndex(row => row.feedback_id === entry.feedback_id);
-          const initial = INITIAL_BY_ID.get(entry.feedback_id);
-          const snapshot = JSON.parse(JSON.stringify(entry));
-          if (initial && index >= 0) saved[index] = initial;
-          else if (index >= 0) saved.splice(index, 1);
-          try {{
-            persist();
-            undoManager.offer('标注已删除', () => restoreEntry(snapshot));
-          }} catch (error) {{
-            updateAutosaveStatus({{ state: 'failed', message: '自动保存失败，请先导出 JSON。', error }});
-          }}
-        }});
-        wrap.appendChild(div);
-      }});
-    }}
-
-    function renderBadges() {{
-      document.querySelectorAll('.news-card').forEach(card => {{
-        const itemId = card.dataset.itemId;
-        const strip = card.querySelector('[data-mark-strip]');
-        const marks = saved.filter(entry => entry.block_id === itemId && isUserChanged(entry));
-        card.classList.toggle('marked', marks.length > 0);
-        strip.innerHTML = '';
-        marks.forEach(entry => {{
-          const span = document.createElement('span');
-          span.className = 'saved-badge';
-          span.textContent = '已标注: ' + entry.concept + ' / ' + entry.status;
-          strip.appendChild(span);
-        }});
-      }});
-    }}
-
-    document.querySelectorAll('.concept-chip').forEach(button => {{
-      button.addEventListener('click', () => {{
-        openFeedback({{
-          itemId: button.dataset.itemId,
-          concept: button.dataset.concept,
-          annotationKind: 'news_concept'
-        }});
-      }});
-    }});
-
-    function selectedNewsContext() {{
-      const selection = window.getSelection();
-      const text = selection ? selection.toString().trim() : '';
-      if (!text || !selection || !selection.rangeCount) return null;
-      let node = selection.anchorNode;
-      if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
-      const card = node && node.closest ? node.closest('.news-card') : null;
-      return {{
-        text,
-        itemId: card ? card.dataset.itemId : '',
-        concept: text.slice(0, 120),
-        selectedText: text,
-        annotationKind: 'news_freeform',
-        sourceExcerpt: text
-      }};
-    }}
-
-    const selectionController = window.PaperTraceFeedbackUX.createSelectionToolbar({{
-      root: document.querySelector('main.layout > div'),
-      toolbar: selectionToolbar,
-      ignoreSelector: 'button, input, select, textarea, a, .math-display, .math-inline',
-      capture: () => selectedNewsContext() || {{}},
-      onStatus: (status, selected) => {{
-        openFeedback(selected, {{ expand: false }});
-        applyStatusWithUndo(status);
-      }},
-      onDetails: selected => openFeedback(selected, {{ focusQuestion: true }})
-    }});
-
-    $('annotateBtn').addEventListener('click', () => {{
-      const selected = selectedNewsContext();
-      if (!selected) {{
-        alert('请先选中一段日报文本。');
-        return;
-      }}
-      openFeedback(selected, {{ focusQuestion: true }});
-    }});
-    statusButtons.forEach(button => button.addEventListener('click', () => applyStatusWithUndo(button.dataset.status)));
-    [conceptInput, questionInput, noteInput, contextInput].forEach(field => {{
-      field.addEventListener('input', () => {{ if (active) autosave.schedule('field-change'); }});
-    }});
-    [questionType, styleSelect].forEach(field => {{
-      field.addEventListener('change', () => {{ if (active) autosave.schedule('field-change'); }});
-    }});
-    toggleFeedbackPanel.addEventListener('click', () => setPanelExpanded(feedbackDetails.hidden));
-    feedbackPanel.addEventListener('keydown', event => {{
-      if (event.key === 'Escape' && !feedbackDetails.hidden) {{
-        setPanelExpanded(false);
-        toggleFeedbackPanel.focus({{ preventScroll: true }});
-      }}
-    }});
-    $('deleteBtn').addEventListener('click', () => {{
-      try {{ deleteCurrent(); }}
-      catch (error) {{ updateAutosaveStatus({{ state: 'failed', message: '自动保存失败，请先导出 JSON。', error }}); }}
-    }});
-    $('downloadBtn').addEventListener('click', () => {{ autosave.flush('export'); downloadFeedback(); }});
-    $('copyBtn').addEventListener('click', () => {{ autosave.flush('export'); copyFeedback(); }});
-    window.addEventListener('pagehide', () => autosave.flush('pagehide'));
-    document.addEventListener('visibilitychange', () => {{
-      if (document.visibilityState === 'hidden') autosave.flush('visibilitychange');
-    }});
-    window.addEventListener('beforeunload', event => {{
-      autosave.flush('beforeunload');
-      if (!unsafeChanges) return;
-      event.preventDefault();
-      event.returnValue = '';
-    }});
-
-    setStatus(DEFAULT_STATUS);
-    setPanelExpanded(false);
-    updateMobileFeedbackViewport();
-    renderSaved();
-    renderBadges();
-  </script>
+  {story_print_runtime}
+  {feedback_runtime}
 </body>
 </html>
 """
     return html_doc
+
+
+
+FEEDBACK_IDS = {"feedbackPanel", "feedbackDetails", "annotateBtn", "newsSelectionToolbar",
+                "newsSaveStatus", "newsUndoStatus", "downloadBtn", "copyBtn", "newsExportStatus"}
+
+
+class _FeedbackSurface(HTMLParser):
+    def __init__(self, page):
+        super().__init__()
+        self.ids = set(); self.mode = None; self.executable = []; self.embedded = []
+        self.feedback_buttons = False; self.script_type = None
+        self.feed(page)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "html": self.mode = attrs.get("data-feedback-enabled")
+        self.ids.add(attrs.get("id"))
+        if tag == "button" and "concept-chip" in attrs.get("class", "").split():
+            self.feedback_buttons = True
+        if tag == "script":
+            self.script_type = "json" if attrs.get("id") == "briefing-data" else (
+                "ignore" if attrs.get("type") == "application/json" else "exec")
+
+    def handle_endtag(self, tag):
+        if tag == "script": self.script_type = None
+
+    def handle_data(self, data):
+        if self.script_type == "exec": self.executable.append(data)
+        elif self.script_type == "json": self.embedded.append(data)
+
+
+def feedback_surface_failures(page: str, enabled: bool) -> list[str]:
+    """Mode-bound structural checks, never a visual or content-review approval."""
+    if type(enabled) is not bool:
+        raise ValueError("feedback_enabled must be a boolean")
+    surface = _FeedbackSurface(page); failures = []
+    if surface.mode != str(enabled).lower(): failures.append("HTML feedback mode differs from manifest")
+    try:
+        data = json.loads("".join(surface.embedded))
+        if type(data.get("feedback_enabled")) is not bool or data["feedback_enabled"] != enabled:
+            failures.append("embedded feedback mode differs from manifest")
+    except (ValueError, AttributeError):
+        failures.append("embedded feedback mode missing or invalid")
+    executable = "\n".join(surface.executable)
+    if enabled:
+        for marker in ('id="feedbackPanel"', 'Download JSON', 'PaperTraceFeedbackUX',
+                       'id="newsSelectionToolbar"', 'createAutosave', 'localStorage'):
+            if marker not in page: failures.append("HTML feedback contract marker missing: " + marker)
+    else:
+        if surface.ids & FEEDBACK_IDS or surface.feedback_buttons:
+            failures.append("reading-only HTML contains feedback controls")
+        for marker in ('PaperTraceFeedbackUX', 'createAutosave', 'papertrace-news',
+                       'selectionchange', 'news_feedback.json'):
+            if marker in executable: failures.append("reading-only HTML contains feedback runtime: " + marker)
+    return failures
 
 
 def parse_args(argv: Iterable[str]) -> argparse.Namespace:
@@ -1434,6 +1609,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--feedback-output", help="Auto-write full-concept news_feedback.json. Defaults beside HTML.")
     parser.add_argument("--default-status", default="unrated", choices=["mastered", "known", "learning", "unknown", "unrated"], help="Default status for auto-exported concepts.")
     parser.add_argument("--allow-nonneutral-status", action="store_true", help="Explicitly allow a non-unrated export; never use this for passive daily exposure.")
+    parser.add_argument("--enable-feedback", action="store_true", help="Explicitly enable the optional browser feedback UI; default is reading only.")
     parser.add_argument("--no-auto-feedback", action="store_true", help="Do not write the full-concept news_feedback.json sidecar.")
     return parser.parse_args(list(argv))
 
@@ -1444,6 +1620,8 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         raise SystemExit("Non-unrated defaults require --allow-nonneutral-status; daily exposure must remain unrated.")
     config_path = Path(args.config).expanduser().resolve()
     raw_config = load_json(config_path)
+    if args.enable_feedback:
+        raw_config["feedback_enabled"] = True
     config = normalize_config(raw_config, config_path)
     feedback = export_feedback(config, config_path, args.default_status, "none")
     config["default_status"] = feedback["default_status"]

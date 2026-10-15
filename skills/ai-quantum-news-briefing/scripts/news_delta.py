@@ -8,6 +8,8 @@ against recent story IDs instead of re-reading whole previous Markdown reports.
 
 from __future__ import annotations
 
+from formula_contract import validate_formula, markdown_formula
+
 import argparse
 import hashlib
 import json
@@ -23,6 +25,7 @@ from typing import Any, Iterable
 from urllib.parse import urlsplit, urlunsplit
 
 from briefing_contract import canonical_url as contract_canonical_url
+from briefing_contract import identity_url_for_item, item_url_version, reference_url_for_item
 from briefing_contract import is_lossless_text
 from briefing_contract import normalize_briefing_config
 from briefing_contract import story_id_for_item as contract_story_id_for_item
@@ -304,13 +307,13 @@ def recent_records(records: list[dict[str, Any]], today: date, days: int) -> lis
 
 def prior_for(item: dict[str, Any], recent: list[dict[str, Any]]) -> dict[str, Any] | None:
     sid = story_id_for_item(item)
-    url = canonical_url(item.get("source_url"))
+    url = identity_url_for_item(item)
     for record in reversed(recent):
         if is_academic_delivery_item(item) and same_paper(item, record):
             return record
         if clean_text(record.get("story_id")) == sid:
             return record
-        if url and canonical_url(record.get("source_url")) == url:
+        if url and identity_url_for_item(record) == url:
             return record
     return None
 
@@ -367,7 +370,10 @@ def compact_continuing_item(item: dict[str, Any], prior: dict[str, Any] | None, 
         "relevance": clean_text(item.get("relevance") or item.get("research_relevance"), 180),
         "evidence_level": clean_text(item.get("evidence_level"), 120),
         "source_title": clean_text(item.get("source_title") or item.get("title"), 300),
-        "source_url": canonical_url(item.get("source_url")),
+        "source_url": reference_url_for_item(item),
+        **({"source_url_contract_version": 2, "source_identity_url": identity_url_for_item(item),
+            "source_candidate_id": item.get("source_candidate_id") or item.get("id")}
+           if item_url_version(item) == 2 else {}),
         "doi": item.get("doi"),
         "arxiv_id": item.get("arxiv_id"),
         "authors": item.get("authors"),
@@ -404,7 +410,7 @@ def full_delta_item(item: dict[str, Any], novelty: str, prior: dict[str, Any] | 
     else:
         copied["delta_note"] = clean_text(copied.get("delta_note") or "New story; no recent index match.", 500)
     if copied.get("source_url"):
-        copied["source_url"] = canonical_url(copied.get("source_url"))
+        copied["source_url"] = reference_url_for_item(copied)
     return copied
 
 
@@ -418,7 +424,9 @@ def index_record_for(item: dict[str, Any], config: dict[str, Any], seen_date: da
         "summary": item_summary(item),
         "category": clean_text(item.get("category") or item.get("section_title"), 160),
         "source_title": clean_text(item.get("source_title"), 300),
-        "source_url": canonical_url(item.get("source_url")),
+        "source_url": reference_url_for_item(item),
+        **({"source_url_contract_version": 2, "source_identity_url": identity_url_for_item(item)}
+           if item_url_version(item) == 2 else {}),
         "doi": doi_for(item),
         "arxiv_id": arxiv_for(item),
         "authors": item.get("authors") if isinstance(item.get("authors"), list) else [],
@@ -585,7 +593,10 @@ def render_worked_example_markdown(example: dict[str, Any]) -> list[str]:
             lines.append(f"   - 操作或状态变化：{action}")
         formula = clean_text(step.get("formula"), 1600)
         if formula:
-            lines.extend(["", "   \\[", f"   {formula}", "   \\]", ""])
+            if validate_formula(step) == "tex":
+                lines.extend(["", "   \\[", f"   {formula}", "   \\]", ""])
+            else:
+                lines.append("   - 公式（普通文本）：" + markdown_formula({**step, "formula": formula}))
         lines.append(f"   - 依据：{clean_text(step.get('rule'), 600)}")
         lines.append(f"   - 为什么成立：{clean_text(step.get('explanation'), 1600)}")
     lines.append("")

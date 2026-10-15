@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 
 ACADEMIC_HOSTS = {
     "arxiv.org": "preprint", "journals.aps.org": "aps", "aps.org": "aps",
@@ -14,6 +14,7 @@ ACADEMIC_HOSTS = {
     "npjqi.springeropen.com": "npj-qi", "eccv.ecva.net": "ecva", "ecva.net": "ecva",
     "jmlr.org": "jmlr", "iopscience.iop.org": "iop", "ieeexplore.ieee.org": "ieee",
     "ojs.aaai.org": "aaai", "api2.openreview.net": "openreview",
+    "journals.plos.org": "plos",
 }
 NON_PAPER_TYPES = {"dataset", "book", "book-chapter", "report", "posted-content", "search", "landing-page"}
 
@@ -29,13 +30,30 @@ def host(url: Any) -> str:
 
 def academic_host_kind(url: Any) -> str:
     name = host(url)
+    if name == "plos.org" or name.endswith(".plos.org"):
+        return "plos" if name == "journals.plos.org" else ""
     for known, kind in ACADEMIC_HOSTS.items():
         if name == known or name.endswith("." + known):
             return kind
     return ""
 
 
+def plos_article_doi(url: Any) -> str:
+    """PLOS API/search/journal homes are discovery, never article evidence."""
+    try:
+        parsed = urlsplit(str(url or ""))
+        values = parse_qs(parsed.query, keep_blank_values=True).get("id", [])
+        if (host(url) != "journals.plos.org" or not re.fullmatch(r"/[a-z][a-z0-9]*/article", parsed.path)
+                or len(values) != 1 or not re.fullmatch(r"10\.1371/journal\.[a-z]+\.[0-9]{5,9}", values[0])):
+            return ""
+        return values[0]
+    except (ValueError, TypeError):
+        return ""
+
+
 def article_level_path(url: Any) -> bool:
+    if academic_host_kind(url) == "plos":
+        return bool(plos_article_doi(url))
     try:
         path = urlsplit(str(url or "")).path.lower().rstrip("/")
     except ValueError:
@@ -59,6 +77,8 @@ def doi_for(item: dict[str, Any]) -> str:
     if value:
         return value
     url = str(item.get("source_url") or "")
+    if academic_host_kind(url) == "plos":
+        return plos_article_doi(url)
     if host(url) == "doi.org":
         return normalized_doi(url)
     match = re.search(r"10\.\d{4,9}/[^\s?#]+", url, re.I)
@@ -95,9 +115,12 @@ def paper_kind(item: dict[str, Any]) -> str:
     if host(url) == "doi.org":
         capture = item.get("source_capture") or {}
         article_url = capture.get("final_url")
-        if (doi_for(item) and publication_type in {"journal-article", "proceedings-article"}
+        plos_research = academic_host_kind(article_url) == "plos" and item.get("article_type") == "Research Article"
+        if (doi_for(item) and (publication_type in {"journal-article", "proceedings-article"} or plos_research)
                 and capture.get("status_code") == 200 and capture.get("quoted_excerpt")
                 and academic_host_kind(article_url) and article_level_path(article_url)
+                and (academic_host_kind(article_url) != "plos" or
+                     plos_article_doi(article_url) == doi_for(item) == normalized_doi(url))
                 and host(article_url) != "doi.org"
                 and (not item.get("article_source_url") or item.get("article_source_url") == article_url)):
             return academic_host_kind(article_url)
@@ -105,6 +128,12 @@ def paper_kind(item: dict[str, Any]) -> str:
     if not kind or not article_level_path(url):
         return ""
     capture = item.get("source_capture") or {}
+    if kind == "plos" and (not plos_article_doi(url)
+            or not (publication_type == "journal-article" or item.get("article_type") == "Research Article")
+            or item.get("doi") and normalized_doi(item["doi"]) != plos_article_doi(url)
+            or capture and (academic_host_kind(capture.get("final_url")) != "plos"
+                            or plos_article_doi(capture.get("final_url")) != plos_article_doi(url))):
+        return ""
     if capture and (capture.get("status_code") != 200 or
                     not academic_host_kind(capture.get("final_url")) or
                     not article_level_path(capture.get("final_url"))):

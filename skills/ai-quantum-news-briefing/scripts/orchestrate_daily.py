@@ -24,6 +24,7 @@ from release_lock import release_lock
 from academic_sources import (family_gate, health_table, markdown_health_table,
                               row_evidence_failures, sources_by_id, HEALTHY_RESULTS)
 from daily_delivery_policy import policy_snapshot
+from daily_revisions import active_stages, candidate_path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 COLLECTION_PHASES = {"collection_pending", "collection_partial", "collection_invalid"}
@@ -613,8 +614,8 @@ def inspect(day: str, *, news_root: Path | None = None, online: bool = False,
         state.update(phase="local_manifest_invalid", failures=check.get("failures", [])[:8],
                      next_action="Repair the existing release; collection recovery will not overwrite it.")
         return state
-    stages = sorted((path for path in stage_root.iterdir() if path.is_dir()),
-                    key=lambda path: path.stat().st_mtime, reverse=True) if stage_root.exists() else []
+    stages = sorted((path for path in active_stages(news_root, day) if path.is_dir()),
+                    key=lambda path: path.stat().st_mtime, reverse=True)
     if stages:
         reviewed = None
         pending = None
@@ -645,7 +646,7 @@ def inspect(day: str, *, news_root: Path | None = None, online: bool = False,
                                 if state["phase"] == "ready_to_finalize" else
                                 "Repair or complete the cited staged evidence; semantic approval is never automatic.")
         return state
-    candidate = collection / ("candidate_" + day + ".json")
+    candidate = candidate_path(news_root, day)
     if candidate.is_file():
         try:
             config = load_json(candidate)
@@ -679,9 +680,34 @@ def inspect(day: str, *, news_root: Path | None = None, online: bool = False,
                 missing.append(str(item.get("id")))
         state.update(phase="candidate_waiting_capture" if missing else "candidate_ready",
                      candidate=str(candidate), missing_capture_ids=missing)
+        if config.get("source_url_contract_version") == 2:
+            from source_capture import admit_candidates
+            from rank_briefing_candidates import rank_briefing_config, SOURCE_ALGORITHM_VERSION
+            from daily_delivery_policy import resolve_delivery_defaults
+            from news_delta import load_index
+            from audit_briefing_config import audit_academic_delivery, audit_social_delivery, audit_ranking_delivery
+            from delivery_expansion import validate_policy
+            try:
+                admitted = admit_candidates(config, coverage_day, news_root=news_root)
+                state["candidate_admission"] = admitted["candidate_admission"]
+                admitted = resolve_delivery_defaults(admitted)
+                admitted["ranking_policy"] = {**(admitted.get("ranking_policy") or {}),
+                                               "enabled": True, "algorithm_version": SOURCE_ALGORITHM_VERSION}
+                ranked = rank_briefing_config(admitted, load_index(news_root / "_index" / "story_index.jsonl"),
+                                               date.fromisoformat(day), 30)
+                selected = [item for _, item in section_items(ranked)]
+                pool_failures = (audit_academic_delivery(ranked) + audit_social_delivery(ranked)
+                                 + audit_ranking_delivery(ranked) + validate_policy(ranked))
+                if pool_failures:
+                    state["candidate_pool_failures"] = pool_failures
+                    state["phase"] = "candidate_waiting_capture"
+                if not pool_failures and selected and all(not validate_capture(item, item.get("source_capture") or {}) for item in selected):
+                    state.update(phase="candidate_ready", selected_capture_ids=[item["id"] for item in selected])
+            except (OSError, ValueError, TypeError, AttributeError):
+                state["phase"] = "candidate_waiting_capture"
         state["opening_story_status"] = ("present_not_reviewed" if config.get("opening_story")
                                          else "authoring_pending")
-        state["next_action"] = ("Capture and audit each source before staging." if missing else
+        state["next_action"] = ("Expand or repair the candidate pool and capture viable sources; inspect candidate_pool_failures and admission diagnostics. Quotas remain unchanged." if state["phase"] == "candidate_waiting_capture" else
                                 "Complete the opening story before staging; review remains a separate gate."
                                 if state["opening_story_status"] == "authoring_pending" else
                                 "Run the v4 pipeline with explicit --date; review remains a separate gate.")
@@ -812,21 +838,49 @@ def _record(state: dict[str, Any], enabled: bool, *, news_root: Path | None = No
         atomic_json(path, state)
 
 
-def workflow_queue(day: str, *, record: bool = False) -> dict[str, Any]:
+def workflow_queue(day: str, *, record: bool = False, withdraw_reason: str | None = None) -> dict[str, Any]:
     """Explicit persistent date selection; status checkpoints never approve prose."""
     if date.fromisoformat(day).isoformat() != day:
         raise ValueError("release date must be ISO YYYY-MM-DD")
+    if withdraw_reason is not None and (not record or not isinstance(withdraw_reason, str)
+            or not withdraw_reason.strip()):
+        raise ValueError("withdrawal requires --record and a concrete reason")
     path = NEWS_ROOT / "_automation" / "workflow_queue.json"
     with release_lock(NEWS_ROOT) if record else nullcontext():
         queue = load_json(path) if path.exists() else {"version": 1, "dates": []}
         if (queue.get("version") != 1 or not isinstance(queue.get("dates"), list)
                 or any(not isinstance(value, str) or date.fromisoformat(value).isoformat() != value for value in queue["dates"])):
             raise ValueError("workflow queue invalid")
+        withdrawals = queue.get("withdrawals", {})
+        if (not isinstance(withdrawals, dict) or any(
+                date.fromisoformat(key).isoformat() != key or key not in queue["dates"]
+                or not isinstance(value, dict) or not isinstance(value.get("reason"), str)
+                or not value["reason"].strip() or not value.get("recorded_at")
+                for key, value in withdrawals.items())):
+            raise ValueError("workflow queue withdrawal invalid")
         dates = sorted(set(queue["dates"] + [day]))
-        if record and queue["dates"] != dates:
-            atomic_json(path, {"version": 1, "dates": dates})
+        changed = queue["dates"] != dates
+        if withdraw_reason is not None:
+            reason = withdraw_reason.strip()
+            if day in withdrawals and withdrawals[day]["reason"] != reason:
+                raise ValueError("withdrawal reason conflict; preserved existing decision")
+            if day not in withdrawals:
+                withdrawals = dict(withdrawals)
+                withdrawals[day] = {"reason": reason,
+                    "recorded_at": datetime.now(timezone.utc).isoformat(),
+                    "prior_queue_sha256": hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None}
+                changed = True
+        if record and changed:
+            updated = dict(queue); updated["dates"] = dates
+            if withdrawals: updated["withdrawals"] = withdrawals
+            atomic_json(path, updated)
     states = []
     for selected in dates:
+        if selected in withdrawals:
+            states.append({"date": selected, "phase": "withdrawn", "action_required": False,
+                           "withdrawal": withdrawals[selected],
+                           "next_action": "User cancelled backfill; retain all artifacts and evidence."})
+            continue
         state = inspect(selected)
         try:
             previous = load_json(NEWS_ROOT / "_automation" / ("orchestration_state_" + selected + ".json"))
@@ -1105,10 +1159,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         values.insert(0, "status")
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
+    sources = sub.add_parser("sources", help="Independent source preparation; never publication status.")
+    sources.add_argument("--date", required=True)
+    sources.add_argument("--pool-dir", type=Path, required=True)
+    sources.add_argument("--action", choices=("plan", "status", "work", "packet"), default="plan")
+    sources.add_argument("--max-tasks", type=int, default=4)
     for name in ("status", "preflight", "collect", "resume", "expand", "recheck", "queue"):
         command = sub.add_parser(name)
         command.add_argument("--date", required=True)
         command.add_argument("--record", action="store_true")
+        if name == "queue":
+            command.add_argument("--withdraw-reason", help="Record an explicit no-backfill decision without deleting history.")
         if name == "status":
             command.add_argument("--online", action="store_true")
             command.add_argument("--preflight-network", action="store_true")
@@ -1117,9 +1178,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.command == "sources":
+        from source_preparation import main as prepare_sources
+        return prepare_sources([args.action, "--date", args.date, "--pool-dir", str(args.pool_dir),
+                                "--max-tasks", str(args.max_tasks)])
     try:
         if args.command == "queue":
-            state = workflow_queue(args.date, record=args.record)
+            state = workflow_queue(args.date, record=args.record, withdraw_reason=args.withdraw_reason)
         elif args.command in {"collect", "resume"}:
             state = _collect(args.date)
             if state["phase"] == "expansion_pending":

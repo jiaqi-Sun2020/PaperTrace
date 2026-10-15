@@ -104,7 +104,7 @@ Codex 会核验来源和日期，应用排名与 Delta 规则，并仅在严格�
 - `allegory-teach` 的普通解释、生活类比和日报开篇统一使用完整 Fable。技术正确、证据忠实和初学者可理解是独立硬门；先保证目标、限制、规则、选择和后果完整，再删除装饰与重复，不设总字数或段数上限。
 - `chat-knowledge-profile` 把本地 ChatGPT/GPT/Claude/Deepseek 会话提炼为可审核候选、会话摘要和严格的 `reader-learner` feedback handoff。
 - `demo-skill` 把 README/AGENTS 契约提炼为四条 pipeline 的中英文项目展示页，并复用 GSAP + ScrollTrigger 双语模板与无覆盖生成脚本。
-- 日报加入可审计的 `news-ranker-v1`：先做证据准入，再按学术/社会两套分数和 MMR 多样性约束筛选；正式发布包含 7–8 篇学术论文和至少 10 条社会新闻，并保留分项得分、配额、选择轨迹与淘汰原因。
+- 新 protocol 3/4 日报使用可审计的 `news-ranker-v2` 来源证据评分：先准入，再按学术／社会分数和 MMR 多样性约束筛选；正常目标为学术 6–8 篇、社会 6–12 条，保留分项得分、选择轨迹与排除原因。旧 v1 保留独立兼容用途，少发必须另有证据支持。
 
 ## 目录结构
 
@@ -396,6 +396,8 @@ python .\skills\reader-skill\tests\adversarial_html_audit.py "<reader-dir>"
 
 **End-to-end target:** 日报不能停在候选收集、Markdown 或 config。最终阅读产物必须先呈现一则经校验的知识寓言、事实回扣和默认折叠的概念适配例子，再进入交互式 HTML 日报正文，并带完整的默认 `unrated` feedback JSON。Use `D:\AI\PaperTrace\news\2026-07-07_to_2026-07-09` as the canonical multi-day sample structure: Markdown briefing, HTML reader, feedback config, `news_feedback.json`, academic search ledger, and manifest live together in the same output directory.
 
+新日报默认纯阅读；只有配置严格布尔值 `feedback_enabled=true` 才启用标注交互，并完成对应验收。关闭时不输出 Feedback 运行代码，也不读取或清除旧浏览器标注。被动 `unrated` JSON 旁证只保留身份兼容，不表示实际学习证据；内容、公式、来源、移动端、打印和发布门禁不减免。
+
 For a daily run, the expected final files are:
 
 ```text
@@ -412,22 +414,28 @@ news\_index\story_index.jsonl
 
 ```powershell
 cd D:\AI\PaperTrace
-python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py run --config <candidate_news_feedback_config.json> --output-dir <news\YYYY-MM-DD> --index .\news\_index\story_index.jsonl
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py run --config <candidate_news_feedback_config.json> --date <RELEASE_YYYY-MM-DD>
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict --structure-only
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py review-template --run-dir <news\YYYY-MM-DD\.staging\RUN_ID>
+# 根据原始来源撰写实际内容、寓言与显示审核；模板不代表通过。
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py seal-review --run-dir <news\YYYY-MM-DD\.staging\RUN_ID>
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict
-python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict
+python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py finalize --run-dir <news\YYYY-MM-DD\.staging\RUN_ID> --strict --require-remote
 python .\skills\ai-quantum-news-briefing\scripts\daily_pipeline.py verify --run-dir <news\YYYY-MM-DD> --strict
 ```
 
 可选 OSS 网站同步在新检出项目中默认关闭。首次使用时，将 `news_publish.example.json` 复制为已忽略的 `news_publish.local.json`，手动填写网站首页 URL、Bucket、地域、对象前缀和 ossutil profile；AccessKey 只通过本机 `ossutil config credential` 配置。网站首页及其已有日报链接可访问后，从仓库根目录执行：
 
 ```powershell
+python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py doctor
+# 确认站点与 Bucket 绑定检查通过，再手动启用。
 python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py enable
 python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py status
 ```
 
 启用时还会读取配置 Bucket 中的 `index.html`，确认它与网站首页一致；ossutil profile 因此需要这两个发布对象的读取和写入权限。启用后，`finalize` 会先严格复核本地完整产物，再自动同步本次日报 HTML，并在确认远端内容一致后更新首页。网站、现有日报链接或 Bucket 绑定无法验证时，同步会持续停用，恢复后仍需手动执行 `enable`。远端上传失败不会撤销本地日报；修复后从仓库根目录执行 `python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py publish --run-dir .\news\<YYYY-MM-DD>` 重试。只有日报 HTML 与首页进入上传白名单；本地配置、状态和回执均被 Git 忽略。
 
-`daily_pipeline.py run` 会先执行 `news-ranker-v1`，再做 Delta 压缩。排名器先拒绝缺失/不安全证据、候选页、无效日期和重复身份，再分别计算学术与社会新闻分数，并用来源、主题和机构多样性约束选择最终条目。正式日报必须包含 7–8 篇学术论文和 10–14 条社会新闻（目标 12），同时把 `ranking_policy`、逐条 `ranking`、选择轨迹和淘汰原因保留到最终 delta config。
+新 protocol 3/4 的 `daily_pipeline.py run` 强制先执行 `news-ranker-v2`，再做 Delta 压缩。排名器先拒绝缺失／不安全证据、候选页、无效日期和重复身份，再按来源证据、主题和机构多样性选择条目。正常目标为学术 6–8 篇、社会 6–12 条；只有完成规定扩查、扩窗和短缺留痕后，才能进入 `verified_shortfall`。该模式仍须各有至少一篇合格学术与社会内容，并满足来源家族、原始证据、去重、内容及寓言审核；保留原发表日期与不足原因，不用旧闻冒充当日首发。
 
 每次 `run` 都强制要求 `opening_story` 和一个具体实例。学术部分按 `ranking.base_score` 降序排列，寓言默认引用排名第 1 的学术论文；改选必须记录显式覆盖理由。若例子缺少有边界的具体场景、实际输入/状态或明确可观察量，或数学／数值故事正文没有复用这些数值并给出操作、结果和对照，即使逻辑说明正确也会在 staging 前失败。故事至少两段、不设段数上限；单段超过 2000 字符会明确失败并要求自然分段，不会静默截断。HTML 中的例子使用默认关闭的原生折叠控件；选题不以能否写公式为标准，只有真实数学机制才进入公式推导。故事与例子都不会自动进入 feedback。
 
@@ -482,12 +490,18 @@ python D:\AI\PaperTrace\skills\reader-learner\scripts\feedback_visible_wiki_pipe
 关键规则：
 
 - AI HOT 是候选源，不是最终证据源。
-- `news-ranker-v1` 必须在 Delta 之前运行；AI HOT 自带分数不能代替最终排名分数。
-- 学术交付为 7–8 篇，其中 4–6 篇为 `new`、至少 2 篇来自非 arXiv 正式来源、最多 3 篇为 `continuing`。
-- 社会新闻至少 10 条、目标 12 条；至少 7 条为 `new`/`material_update`，并满足来源类别、机构与主题多样性约束。
+- 新 protocol 3/4 使用 `news-ranker-v2`，必须在 Delta 之前运行；AI HOT 自带分数不能代替最终排名分数。
+- 正常配额为学术 6–8 篇、社会 6–12 条；更严格的显式配置仍生效。`daily_delivery_policy.py` 是默认配额的唯一代码所有者；少发资格不能只靠数量或 HTTP 200 声明。
+- 保留来源类别、机构、主题及新／重要更新要求；只有经过验证的短缺模式可按现有契约放宽允许的下限。
 - 学术项优先引用期刊、会议、出版社、官方论文页；arXiv-only 必须标注 `preprint` 和 `venue_sweep_note`。
 - 曝光型新闻概念默认 `unrated`，不得自动写成 `known` 或 `mastered`。
 - HTML 页面只收集和下载反馈，不直接写 `.agents`。
+
+### 可恢复来源准备与审核边界
+
+可选的 `orchestrate_daily.py sources --date <RELEASE-YYYY-MM-DD> --pool-dir .\news\_sources --action status` 只读查询来源准备状态；显式 `plan`、有界 `work`、`packet` 使用本地 SQLite 任务租约并复用成功抓取。材料准入始终是 `not_reviewed`，不是第二套发布状态机。绑定候选后，选中材料的修订与依赖必须经过生成、审核、finalize 和首次上传复核。启用或回退前阅读[来源准备契约](skills/ai-quantum-news-briefing/references/source-preparation-architecture.md)。以上命令均从 `D:\AI\PaperTrace` 运行。
+
+失败的未发布 staging 使用[摘要绑定修订](skills/ai-quantum-news-briefing/references/source-contract-recovery.md)，不能手改 HTML、删除证据或复用旧 PASS。单独授权的 HTTPS 预览只允许实际显示审核待完成，不能冒充正式发布或网站已更新；详见[预览契约](skills/ai-quantum-news-briefing/references/rendered-search-and-preview-contract.md)与[运行手册](.agents/RUNBOOK.md)。推送代码到 GitHub 不会启用 OSS、启动采集或发布日报。
 
 ## Lean HTML 与设计层
 

@@ -143,18 +143,18 @@ def pagination_budget(args: argparse.Namespace) -> float:
     return min(800, base * (2 ** level))
 
 
-def api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def api_items(args: argparse.Namespace, *, on_failure=None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     global _HTTP_DEADLINE
     budget = pagination_budget(args)
     previous = _HTTP_DEADLINE
     _HTTP_DEADLINE = monotonic_clock.monotonic() + budget
     try:
-        return _api_items(args)
+        return _api_items(args, on_failure=on_failure)
     finally:
         _HTTP_DEADLINE = previous
 
 
-def _api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _api_items(args: argparse.Namespace, *, on_failure=None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     coverage_day = getattr(args, "coverage_date", None)
     start, end = coverage_window(coverage_day) if coverage_day else (None, None)
     scope = api_scope(args)
@@ -255,6 +255,8 @@ def _api_items(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str
             responses.append({"body": body, "evidence": evidence})
             save_checkpoint(checkpoint, scope, {"responses": responses, "recovery": recovery})
         except (OSError, ValueError, KeyError, TypeError) as exc:
+            if on_failure is not None:
+                on_failure(exc)
             failure = str(exc)[:300]
             break
     if not finished and not failure:

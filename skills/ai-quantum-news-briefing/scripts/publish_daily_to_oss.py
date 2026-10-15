@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from xml.etree import ElementTree
 from datetime import datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -126,6 +127,26 @@ def set_state(path: Path, *, enabled: bool, reason: str, identity: str | None = 
     return value
 
 
+def require_inline_html_headers(headers: Any) -> None:
+    """Check HTTP eligibility only; never claim executed browser display."""
+    force = [value.strip().casefold() for value in
+             (headers.get_all("x-oss-force-download") or [])]
+    if "true" in force:
+        raise PublishError("OSS requires downloading this HTML; use an authorized custom domain",
+                           code="html_forced_download")
+    if any(value != "false" for value in force):
+        raise PublishError("HTML has an ambiguous forced-download response header",
+                           code="html_force_download_invalid")
+    dispositions = [value.partition(";")[0].strip().casefold() for value in
+                    (headers.get_all("Content-Disposition") or [])]
+    if "attachment" in dispositions:
+        raise PublishError("Website serves HTML as an attachment rather than an inline page",
+                           code="html_attachment")
+    if any(value != "inline" for value in dispositions):
+        raise PublishError("HTML has an unsupported or ambiguous Content-Disposition",
+                           code="html_disposition_invalid")
+
+
 def fetch_html(url: str) -> tuple[str, bytes]:
     request = Request(url, headers={"User-Agent": "PaperTrace-OSS-publisher/1"})
     try:
@@ -135,6 +156,7 @@ def fetch_html(url: str) -> tuple[str, bytes]:
                 raise PublishError(f"Website returned HTTP {response.status}")
             if response.headers.get_content_type() not in ("text/html", "application/xhtml+xml"):
                 raise PublishError("Website did not return HTML")
+            require_inline_html_headers(response.headers)
             data = response.read(MAX_SITE_BYTES + 1)
     except HTTPError as exc:
         code = "not_found" if exc.code == 404 else "transient" if exc.code >= 500 else "site_rejected"
@@ -255,6 +277,12 @@ def doctor(config_path: Path) -> dict[str, Any]:
     try:
         linked_url, index_bytes = checked_site(config)
     except PublishError as exc:
+        if exc.code in {"html_forced_download", "html_force_download_invalid",
+                        "html_attachment", "html_disposition_invalid"}:
+            return {"status": "blocked", "code": "inline_http_blocked",
+                    "reason_code": exc.code, "inline_http_status": "blocked",
+                    "browser_display_status": "not_tested",
+                    "next_action": "Verify authorized custom-domain hosting and HTML response headers; do not change browser security"}
         return {"status": "blocked", "code": "network_unavailable" if exc.code == "transient" else "site_unverified",
                 "next_action": "Verify the public website from this same execution environment"}
     try:
@@ -264,7 +292,8 @@ def doctor(config_path: Path) -> dict[str, Any]:
         return {"status": "blocked", "code": code,
                 "next_action": "Check this environment's ossutil profile and read-only bucket access"}
     return {"status": "ready", "code": "read_only_checks_passed", "existing_briefing_url": linked_url,
-            "note": "Read-only checks cannot prove PutObject permission"}
+            "inline_http_status": "eligible", "browser_display_status": "not_tested",
+            "note": "Read-only checks cannot prove PutObject permission or actual browser display"}
 
 
 def inspect_public_release(config: dict[str, str], run_date: str, expected_hash: str) -> dict[str, Any]:
@@ -321,6 +350,160 @@ def verified_release(run_dir: Path, *, require_audit: bool = True) -> tuple[str,
         raise PublishError("Release date is invalid")
     html_path = run_dir / f"briefing_reader_{run_date}.html"
     return run_date, html_path, hashlib.sha256(html_path.read_bytes()).hexdigest()
+
+
+def check_preview_overwrite_safety(config: dict[str, str]) -> None:
+    """OSS ignores forbid-overwrite for enabled/suspended versioning; fail closed."""
+    command = ["ossutil", "api", "get-bucket-versioning", "--bucket", config["bucket"],
+               "--profile", config["ossutil_profile"], "--region", config["region"],
+               "--output-format", "raw", "--retry-times", "0",
+               "--connect-timeout", "5", "--read-timeout", "10", "--quiet"]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=20, check=False)
+        if result.returncode != 0 or len(result.stdout) > 4096:
+            raise ValueError("unverified response")
+        value = ElementTree.fromstring(result.stdout)
+        local = lambda tag: tag.rsplit("}", 1)[-1]
+        if local(value.tag) != "VersioningConfiguration" or any(local(child.tag) != "Status" for child in value):
+            raise ValueError("unrecognized response")
+        statuses = [child.text or "" for child in value]
+        if len(statuses) > 1 or any(status.strip() for status in statuses):
+            raise ValueError("versioning is enabled, suspended or unknown")
+    except (OSError, subprocess.TimeoutExpired, ValueError, ElementTree.ParseError) as exc:
+        raise PublishError("Preview non-overwrite safety is unverified; require read-only Bucket versioning evidence",
+                           code="preview_storage_unverified") from exc
+
+
+def upload_preview_file(config: dict[str, str], source: Path, key: str) -> None:
+    """Only immutable preview keys; server-side refusal to overwrite existing bytes."""
+    if not re.fullmatch(r"_preview/20\d{2}-\d{2}-\d{2}/20\d{2}-\d{2}-\d{2}-[0-9a-f]{12}/[0-9a-f]{64}\.html", key):
+        raise PublishError("Invalid preview object key", code="preview_identity_invalid")
+    check_preview_overwrite_safety(config)
+    command = ["ossutil", "api", "put-object", "--bucket", config["bucket"],
+               "--key", oss_key(config, key), "--body", "file://" + str(source.absolute()),
+               "--profile", config["ossutil_profile"], "--region", config["region"],
+               "--content-type", "text/html; charset=utf-8", "--content-disposition", "inline",
+               "--cache-control", "no-cache", "--forbid-overwrite=true",
+               "--retry-times", "0", "--connect-timeout", "5", "--read-timeout", "20"]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=45, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise PublishError("Preview upload failed or timed out; reconcile this exact key before retrying",
+                           code="preview_upload_pending") from exc
+    if result.returncode != 0:
+        raise PublishError("Preview upload was not confirmed; reconcile this exact key before retrying",
+                           code="preview_upload_pending")
+
+
+def preview(run_dir: Path, config_path: Path, *, expected_run_sha256: str,
+            expected_html_sha256: str) -> dict[str, Any]:
+    """Publish only a preview transport artifact; never seal, finalize or enable OSS."""
+    from daily_pipeline import verify_artifacts
+    from daily_revisions import active_stages, assert_active_stage, contained, run_snapshot
+
+    for value in (expected_run_sha256, expected_html_sha256):
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+            raise PublishError("Preview requires exact expected run and HTML hashes",
+                               code="preview_identity_invalid")
+    config = load_config(config_path)
+    route = urlsplit(config["site_index_url"])
+    if route.scheme != "https" or route.hostname.lower().endswith(".aliyuncs.com"):
+        raise PublishError("Preview requires the explicitly authorized HTTPS custom-domain route",
+                           code="preview_domain_required")
+    root = config_path.parent / "news"
+    stage = contained(root, run_dir)
+    if stage.parent.name != ".staging" or stage.parents[2] != root.absolute():
+        raise PublishError("Preview only accepts canonical project staging", code="preview_identity_invalid")
+    with release_lock(root):
+        def checked_input():
+            if run_snapshot(root, stage)["sha256"] != expected_run_sha256:
+                raise PublishError("Staging changed from the authorized preview snapshot",
+                                   code="preview_input_conflict")
+            base = verify_artifacts(stage, strict=True, structure_only=True)
+            if base["status"] != "pass":
+                raise PublishError("Preview requires passing source, coverage and structure checks",
+                                   code="content_ineligible")
+            manifest = base["manifest"]
+            day, run = manifest.get("date"), manifest.get("run_id")
+            if (manifest.get("pipeline_version") != 4 or manifest.get("status") != "staged"
+                    or not isinstance(day, str) or not isinstance(run, str)
+                    or not re.fullmatch(r"20\d{2}-\d{2}-\d{2}-[0-9a-f]{12}", run)
+                    or run != stage.name or not run.startswith(day + "-")):
+                raise PublishError("Preview requires a current protocol-4 staging identity",
+                                   code="preview_identity_invalid")
+            assert_active_stage(stage, manifest)
+            if {entry.name for entry in active_stages(root, day)} != {run}:
+                raise PublishError("Preview requires exactly one active run", code="preview_input_conflict")
+            failures = validate_bundle(stage, manifest, require_manifest_binding=False,
+                                       require_audit_report=False, preview_display_pending=True)
+            if failures:
+                raise PublishError("Preview requires current authored content and story review evidence",
+                                   code="content_ineligible")
+            input_path = contained(config_path.parent, Path(manifest.get("input_config", "")))
+            if (input_path.name not in {"candidate.json", f"candidate_{day}.json"}
+                    or not input_path.is_file()
+                    or hashlib.sha256(input_path.read_bytes()).hexdigest() != manifest.get("input_config_sha256")):
+                raise PublishError("Preview candidate changed from the reviewed input",
+                                   code="preview_input_conflict")
+            path = contained(root, stage / f"briefing_reader_{day}.html")
+            data = path.read_bytes()
+            if (hashlib.sha256(data).hexdigest() != expected_html_sha256
+                    or manifest.get("artifact_sha256", {}).get("html") != expected_html_sha256):
+                raise PublishError("Preview HTML does not match the authorized bytes",
+                                   code="preview_input_conflict")
+            return day, run, data
+
+        day, run, body = checked_input()
+        _, index_bytes = checked_site(config)
+        check_bucket_binding(config, index_bytes)
+        key = f"_preview/{day}/{run}/{expected_html_sha256}.html"
+        url = urljoin(config["site_index_url"], key)
+        receipt_path = root / "_automation" / f"preview_{run}_{expected_html_sha256}.json"
+        contained(root, receipt_path)
+        receipt = {"version": 1, "status": "preview_available", "date": day, "run_id": run,
+                   "run_sha256": expected_run_sha256, "html_sha256": expected_html_sha256,
+                   "deployment_id": deployment_id(config), "site_url": url,
+                   "object_key": oss_key(config, key), "formal_publish": False,
+                   "browser_display_status": "not_tested"}
+        if receipt_path.exists() and _receipt(receipt_path) != receipt:
+            raise PublishError("Preview receipt has unknown changes; nothing overwritten",
+                               code="preview_receipt_conflict")
+        existing = _remote_html(url)
+        if existing is not None and hashlib.sha256(existing).hexdigest() != expected_html_sha256:
+            raise PublishError("Existing immutable preview has unknown bytes; nothing overwritten",
+                               code="preview_remote_conflict")
+        upload_error = None
+        if existing is None:
+            with tempfile.TemporaryDirectory(prefix="papertrace-preview-") as temp:
+                snapshot = Path(temp) / f"{expected_html_sha256}.html"
+                snapshot.write_bytes(body)
+                checked_input()  # Commit-time binding after transport preflight.
+                try:
+                    upload_preview_file(config, snapshot, key)
+                except PublishError as exc:
+                    upload_error = exc
+            existing = _remote_html(url)  # Reconcile even if upload response was lost.
+        if existing is None or hashlib.sha256(existing).hexdigest() != expected_html_sha256:
+            raise upload_error or PublishError("Preview was not confirmed at its exact URL",
+                                                code="preview_upload_pending")
+        checked_input()  # External edits or supersession cannot obtain a current receipt.
+        prior = _receipt(receipt_path)
+        if receipt_path.exists() and prior != receipt:
+            raise PublishError("Preview receipt has unknown changes; nothing overwritten",
+                               code="preview_receipt_conflict")
+        if prior is None:
+            # Install a complete receipt without replacing an external writer's file.
+            receipt_path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(prefix=".preview-receipt-", dir=receipt_path.parent) as temp:
+                snapshot = Path(temp) / "receipt.json"
+                atomic_json(snapshot, receipt)
+                try:
+                    os.link(snapshot, receipt_path)
+                except FileExistsError:
+                    if _receipt(receipt_path) != receipt:
+                        raise PublishError("Preview receipt installation conflicted; nothing overwritten",
+                                           code="preview_receipt_conflict")
+        return receipt
 
 
 def _receipt(path: Path) -> dict[str, Any] | None:
@@ -513,11 +696,13 @@ def auto_publish_after_finalize(output_root: Path, *, correction_reason: str | N
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("status", "doctor", "enable", "publish"))
+    parser.add_argument("command", choices=("status", "doctor", "enable", "publish", "preview"))
     parser.add_argument("--config", type=Path, default=PROJECT_ROOT / "news_publish.local.json")
     parser.add_argument("--run-dir", type=Path, help="Completed local daily release directory; required for publish")
     parser.add_argument("--correction-reason", help="Required to replace different content for an already published date")
     parser.add_argument("--supersedes-hash", help="SHA-256 of the old published HTML being corrected")
+    parser.add_argument("--expected-run-sha256", help="Exact staging snapshot authorized for preview")
+    parser.add_argument("--expected-html-sha256", help="Exact staging HTML authorized for preview")
     args = parser.parse_args(argv)
     config_path = args.config.expanduser().resolve()
     try:
@@ -527,6 +712,12 @@ def main(argv: list[str] | None = None) -> int:
             result = doctor(config_path)
         elif args.command == "enable":
             result = enable(config_path)
+        elif args.command == "preview":
+            if args.run_dir is None or not args.expected_run_sha256 or not args.expected_html_sha256:
+                parser.error("preview requires --run-dir, --expected-run-sha256 and --expected-html-sha256")
+            result = preview(args.run_dir.expanduser().absolute(), config_path,
+                             expected_run_sha256=args.expected_run_sha256,
+                             expected_html_sha256=args.expected_html_sha256)
         else:
             if args.run_dir is None:
                 parser.error("publish requires --run-dir")
@@ -542,6 +733,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result["status"] == "enabled" else 1
     if args.command == "publish":
         return 0 if result["status"] in {"published", "no_change"} else 1
+    if args.command == "preview":
+        return 0 if result["status"] == "preview_available" else 1
     return 0 if result["status"] != "failed" else 1
 
 
