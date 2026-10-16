@@ -857,17 +857,27 @@ unsupported claim. Incomplete code installation must recover before Pipeline
 runs; unrelated workloads remain outside this recovery operation.
 
 
-## Explicit source preparation (contract 1)
+## Automatic daily execution (2026-10-16 onward)
 
-This is opt-in; the existing collect/resume, controlled revision and publication
-commands retain their meaning. Run the following only after this increment has
+The primary entry is `orchestrate_daily.py daily --date <release-day> --action status|plan|work|packet`.
+Read `skills/ai-quantum-news-briefing/references/date-isolated-execution.md` for complete
+commands and stage recovery. Use explicit dates and the new source pool; never run
+an automatic backlog loop. Dates before 2026-10-16 are retired, not completed.
+`plan --record` persists the cutoff; `status` is read-only. The requested date alone
+controls order, next date/action and completion. Shared storage/identity/permissions
+remain real blockers. Old source commands are compatibility utilities; controlled
+revision and publication retain their existing authority.
+
+## Source preparation internals (contract 1)
+
+The automatic daily entry calls these existing source-preparation adapters. Run the following only after this increment has
 been approved and installed, from `D:\AI\PaperTrace`:
 
 ```powershell
-& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-15 --pool-dir .\news\_sources --action plan
-& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-15 --pool-dir .\news\_sources --action work --max-tasks 4
-& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-15 --pool-dir .\news\_sources --action status
-& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-15 --pool-dir .\news\_sources --action packet
+& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-16 --pool-dir .\news\_sources --action plan
+& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-16 --pool-dir .\news\_sources --action work --max-tasks 4
+& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-16 --pool-dir .\news\_sources --action status
+& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\orchestrate_daily.py sources --date 2026-10-16 --pool-dir .\news\_sources --action packet
 ```
 
 `status` is read-only and registers no tasks; `plan` durably registers them.
@@ -896,7 +906,7 @@ Actual prose, ranking, coverage, story and display review remain required.
 An explicit backup example (same project CWD, absent external destination):
 
 ```powershell
-& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\source_preparation.py backup --date 2026-10-15 --pool-dir .\news\_sources --output D:\AI\PaperTrace-code-backups\source-pool-2026-10-15-01.sqlite
+& 'D:/AI/Anaconda/python.exe' -B .\skills\ai-quantum-news-briefing\scripts\source_preparation.py backup --date 2026-10-16 --pool-dir .\news\_sources --output D:\AI\PaperTrace-code-backups\source-pool-2026-10-16-01.sqlite
 ```
 
 The backup API includes committed WAL bytes. Do not copy a live DB alone.
@@ -921,3 +931,8 @@ suites does not certify single-process embedding. Real multiprocessing tests
 need Windows named-pipe permission; sandbox WinError 5 is not a test pass or
 evidence of a database bug. Re-run those offline fixtures in an authorized
 environment instead of skipping their assertions. No test authorizes OSS work.
+
+
+## AI social fixed-pool increment (2026-10-16 r1)
+
+AI social fixed-source discovery now has an explicit --domain ai-social route. See skills/ai-quantum-news-briefing/references/ai-social-fixed-pool.md for exact commands, bounded failure recovery and unchanged Quantum gates. This does not authorize deployment, candidate migration or publication.

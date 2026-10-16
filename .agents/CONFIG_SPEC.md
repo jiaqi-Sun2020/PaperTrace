@@ -717,3 +717,38 @@ CUA invocation. The fixed query is URL-encoded; raw query/type/date/URL drift
 fails before goto. A successful navigation does not establish search coverage.
 Typed real DOM observation and a separate original HTTP response remain
 different evidence; neither can impersonate the other.
+
+
+## Date-isolated execution contract 1
+
+Automatic release eligibility begins 2026-10-16, Asia/Shanghai. The exact release
+date is required for every invocation; coverage is the preceding natural day and
+never changes across midnight. `daily` wraps the existing queue, source pool and
+release inspector, without introducing another lifecycle or publishing authority.
+
+Queue version1 retains all original dates and explicit withdrawal reasons. Its
+optional `history_policy` version1 records not_before, Asia/Shanghai, reason,
+recorded_at and prior queue SHA. It is persisted atomically by the supported queue
+writer on `plan --record`; repeated activation does not rewrite timestamps/bytes.
+An existing stricter cutoff is preserved. Unknown policy versions stop unchanged.
+Old dates are returned as historical_retired with original outcomes preserved;
+another eligible date is deferred and not inspected as a dependency. The current
+explicit date alone controls execution_order, next_date, next_action and stopping.
+
+Retirement returns run_outcome=not_scheduled rather than successful publication.
+Current completion ends the invocation even with deferred history. Precise shared
+or current blockers can end an attempt as blocked, not success. Worker iteration
+and expired-lease recovery are scoped to the current task/date; discovery CLI
+claims/submissions refuse another coverage date. No DB schema or content policy
+changes; academic6–8, social6–12, new/important>=4 and every stricter effective
+source/story/content/display/release requirement remain unchanged.
+
+This code package creates no automation and does not certify scheduler state.
+Schedule changes need separate authorization. Installation approval is distinct
+from cutoff activation and real publication. Never hand-edit real queue JSON, strip
+pool bindings, or delete old evidence to force recovery or rollback.
+
+
+## AI social fixed-pool increment (2026-10-16 r1)
+
+AI social fixed pool is a frozen code registry in ai_social_sources.py (six existing verified entries, The Verge backup), not a local-secret setting. AIHOT uses current /api/v1 with 7d/published cursor pagination. No Cookie configuration is introduced. Existing publication policies, historical cutoff and stricter local overrides retain authority.

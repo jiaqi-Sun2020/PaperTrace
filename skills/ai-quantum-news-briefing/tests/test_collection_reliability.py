@@ -1,5 +1,6 @@
 """Adversarial interruption, stale cache and partial recovery checks, offline only."""
 from __future__ import annotations
+from aihot_v1_fixtures import v1_response
 import argparse
 import hashlib
 import json
@@ -149,21 +150,21 @@ s.fetch_evidence_v4(plan, checkpoint=Path(sys.argv[2]), progress_output=Path(sys
 
     def test_queue_keeps_pending_dates_and_does_not_cover_other_history(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(orchestration, "NEWS_ROOT", Path(directory)):
-            first = orchestration.workflow_queue("2026-10-01", record=True)
-            second = orchestration.workflow_queue("2026-10-03", record=True)
-            self.assertEqual([state["date"] for state in second["dates"]], ["2026-10-01", "2026-10-03"])
-            self.assertEqual(second["next_date"], "2026-10-01")
+            first = orchestration.workflow_queue("2026-10-16", record=True)
+            second = orchestration.workflow_queue("2026-10-18", record=True)
+            self.assertEqual([state["date"] for state in second["dates"]], ["2026-10-16", "2026-10-18"])
+            self.assertEqual(second["next_date"], "2026-10-18")
             self.assertFalse(second["final_response_allowed"])
             self.assertEqual(first["terminal_blocker"], None)
             saved = Path(directory) / "_automation" / "workflow_queue.json"
             before = saved.read_bytes()
-            orchestration.workflow_queue("2026-10-03", record=True)
+            orchestration.workflow_queue("2026-10-18", record=True)
             self.assertEqual(saved.read_bytes(), before)
 
     def test_read_only_queue_does_not_take_a_write_lock(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(orchestration, "NEWS_ROOT", Path(directory)), \
                 patch.object(orchestration, "release_lock", side_effect=AssertionError("read-only lock write")):
-            state = orchestration.workflow_queue("2026-10-03")
+            state = orchestration.workflow_queue("2026-10-18")
             self.assertEqual(state["phase"], "workflow_pending")
             self.assertFalse((Path(directory) / "_index").exists())
 
@@ -192,7 +193,7 @@ class PaginationTests(unittest.TestCase):
                                   since=None, query=None, checkpoint=path, budget_seconds=200)
 
     def response(self, url, items, cursor=None):
-        body = json.dumps({"items": items, "hasNext": bool(cursor), "nextCursor": cursor})
+        body = v1_response({"items": items, "hasNext": bool(cursor), "nextCursor": cursor})
         return body, {"query_url": url, "final_url": url, "status_code": 200,
                       "response_hash": hashlib.sha256(body.encode()).hexdigest(),
                       "retrieved_at": datetime.now(timezone.utc).isoformat()}

@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import gzip
+import io
 import argparse
 import hashlib
 import html
@@ -23,8 +25,8 @@ from collection_checkpoint import atomic_json, load_checkpoint, save_checkpoint
 _HTTP_DEADLINE = float("inf")
 
 
-UA = "aihot-skill/0.3.4 (+https://aihot.virxact.com/aihot-skill/; integrated-ai-quantum-news-briefing)"
-BASE_URL = "https://aihot.virxact.com"
+UA = "PaperTrace-aihot-v1/1.0"
+BASE_URL = "https://aihot.news"
 CATEGORY_LABELS = {
     "ai-models": "Models and frontier AI",
     "ai-products": "AI products",
@@ -46,18 +48,33 @@ def clean_text(value: Any, limit: int = 4000) -> str:
     return text[:limit]
 
 
-def fetch_response(url: str) -> tuple[str, dict[str, Any]]:
+def fetch_response(url: str, *, etag=None, cached_body=None) -> tuple[str, dict[str, Any]]:
     remaining = _HTTP_DEADLINE - monotonic_clock.monotonic()
     if remaining <= 0:
         raise TimeoutError("collection_deadline")
-    request = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(request, timeout=min(30, remaining)) as response:
+    headers={"User-Agent": UA, "Accept-Encoding": "gzip"}
+    if etag and cached_body is not None: headers['If-None-Match']=etag
+    request = urllib.request.Request(url, headers=headers)
+    try: response=urllib.request.urlopen(request, timeout=min(30, remaining))
+    except urllib.error.HTTPError as exc:
+        if exc.code!=304 or not etag or cached_body is None: raise
+        body=cached_body.encode('utf-8')
+        if len(body)>8_000_000: raise ValueError('response_too_large')
+        return cached_body, {'query_url':url,'final_url':url,'status_code':304,'etag':etag,
+            'cache_validated':True,'representation_origin_sha256':hashlib.sha256(body).hexdigest(),
+            'response_hash':hashlib.sha256(body).hexdigest(),'hash_scope':'decoded_representation_bytes',
+            'retrieved_at':datetime.now(timezone.utc).replace(microsecond=0).isoformat()}
+    with response:
         body = response.read(8_000_001)
+        if getattr(response,"headers",{}).get("Content-Encoding") == "gzip":
+            with gzip.GzipFile(fileobj=io.BytesIO(body)) as stream: body = stream.read(8_000_001)
         if len(body) > 8_000_000:
             raise ValueError("response_too_large")
         return body.decode("utf-8"), {
             "query_url": url, "final_url": response.geturl(),
-            "status_code": int(response.status),
+            "status_code": int(response.status), "hash_scope": "decoded_representation_bytes",
+            "etag": getattr(response,"headers",{}).get("ETag"),
+            "cache_control": getattr(response,"headers",{}).get("Cache-Control"),
             "response_hash": hashlib.sha256(body).hexdigest(),
             "retrieved_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         }
@@ -99,7 +116,7 @@ def iso_from_rss_date(value: str) -> str:
 def extract_original_url(description: str, permalink: str) -> str:
     for match in re.findall(r"https?://[^\s<>\]\)\"']+", description or ""):
         stripped = match.rstrip(".,;，。")
-        if "aihot.virxact.com" not in stripped:
+        if not any(host in stripped for host in ("aihot.virxact.com","aihot.news")):
             return stripped
     return permalink
 
@@ -122,14 +139,29 @@ def extract_concepts(*parts: str) -> list[str]:
 
 def api_scope(args: argparse.Namespace) -> dict[str, Any]:
     coverage_day = getattr(args, "coverage_date", None)
-    params = {"mode": args.mode, "take": str(args.take)}
-    for field, key in (("category", "category"), ("since", "since"), ("query", "q")):
-        if getattr(args, field, None):
-            params[key] = getattr(args, field)
-    if coverage_day and not args.since:
-        params["since"] = coverage_window(coverage_day)[0].astimezone(timezone.utc).isoformat()
-    return {"kind": "aihot_api", "base_url": BASE_URL, "params": params,
+    params = {"mode": args.mode, "limit": str(args.take), "window": "7d", "by": "published"}
+    for field, key in (("category", "category"), ("query", "q")):
+        if getattr(args, field, None): params[key] = getattr(args, field)
+    return {"kind": "aihot_api_v1", "base_url": BASE_URL, "params": params,
             "coverage_date": coverage_day, "timezone": "Asia/Shanghai"}
+
+
+def page_values(data,params=None):
+    if (not isinstance(data,dict) or type(data.get('schemaVersion')) is not int or data['schemaVersion']!=1
+            or not isinstance(data.get('query'),dict) or not isinstance(data.get('items'),list)):
+        raise ValueError('aihot_v1_response_invalid')
+    if params is not None:
+        expected={key:params.get(key) for key in ('mode','category','q','window','by')}
+        if any(data['query'].get(key)!=value for key,value in expected.items()):
+            raise ValueError('aihot_query_binding_changed')
+    page=data.get('page')
+    if (not isinstance(page,dict) or type(page.get('count')) is not int or page['count']!=len(data['items'])
+            or type(page.get('hasMore')) is not bool or not all(isinstance(x,dict) and isinstance(x.get('id'),str) and x['id'] for x in data['items'])
+            or page['hasMore'] and (not isinstance(page.get('nextCursor'),str) or not page['nextCursor'])
+            or not page['hasMore'] and page.get('nextCursor') is not None):
+        raise ValueError('aihot_v1_page_invalid')
+    return page['nextCursor'],page['hasMore']
+
 
 
 def pagination_budget(args: argparse.Namespace) -> float:
@@ -145,6 +177,23 @@ def pagination_budget(args: argparse.Namespace) -> float:
 
 def api_items(args: argparse.Namespace, *, on_failure=None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     global _HTTP_DEADLINE
+    checkpoint=getattr(args,'checkpoint',None)
+    if checkpoint is not None and Path(checkpoint).is_file():
+        checkpoint=Path(checkpoint)
+        if checkpoint.stat().st_size>32_000_000: raise ValueError('aihot_checkpoint_too_large_preserved')
+        raw=checkpoint.read_bytes()
+        try: existing=json.loads(raw.decode('utf-8'))
+        except (ValueError,UnicodeError): raise ValueError('aihot_checkpoint_corrupt_preserved') from None
+        from collection_checkpoint import fingerprint
+        if existing.get('version')!=1 or existing.get('payload_sha256')!=fingerprint(existing.get('payload')):
+            raise ValueError('aihot_checkpoint_incompatible_preserved')
+        if existing.get('scope_sha256')!=fingerprint(api_scope(args)):
+            backup=checkpoint.parent/'.aihot_checkpoint_backups'/(checkpoint.name+'.'+hashlib.sha256(raw).hexdigest())
+            if backup.exists():
+                if backup.read_bytes()!=raw: raise ValueError('aihot_checkpoint_backup_conflict')
+            else:
+                from daily_revisions import atomic_bytes
+                atomic_bytes(backup,raw)
     budget = pagination_budget(args)
     previous = _HTTP_DEADLINE
     _HTTP_DEADLINE = monotonic_clock.monotonic() + budget
@@ -192,20 +241,23 @@ def _api_items(args: argparse.Namespace, *, on_failure=None) -> tuple[list[dict[
                 query = dict(params)
                 if cursor:
                     query["cursor"] = cursor
-                if (evidence.get("query_url") != BASE_URL + "/api/public/items?" + urllib.parse.urlencode(query)
+                if (evidence.get("query_url") != BASE_URL + "/api/v1/items?" + urllib.parse.urlencode(query)
                         or hashlib.sha256(body.encode("utf-8")).hexdigest() != evidence.get("response_hash")
-                        or evidence.get("status_code") != 200):
+                        or evidence.get("status_code") not in (200,304)):
                     raise ValueError("checkpoint_page_invalid")
-                _, fresh = fetch_response(evidence["query_url"])
+                if evidence.get('etag'):
+                    _, fresh = fetch_response(evidence['query_url'],etag=evidence['etag'],cached_body=body)
+                else:
+                    _, fresh = fetch_response(evidence["query_url"])
                 if (fresh.get("response_hash") != evidence["response_hash"]
-                        or fresh.get("status_code") != 200
+                        or fresh.get("status_code") not in (200,304)
                         or fresh.get("query_url") != evidence["query_url"]
-                        or urllib.parse.urlsplit(str(fresh.get("final_url") or "")).hostname != "aihot.virxact.com"):
+                        or urllib.parse.urlsplit(str(fresh.get("final_url") or "")).hostname != "aihot.news"):
                     raise ValueError("pool_changed_restart")
                 revalidated += 1
                 data = json.loads(body)
-                next_cursor = data.get("nextCursor")
-                terminal = data.get("hasNext") is False or (data.get("hasNext") is None and not next_cursor)
+                next_cursor, has_more = page_values(data,params)
+                terminal = not has_more
                 if (not isinstance(data.get("items"), list) or not all(isinstance(item, dict) for item in data["items"])
                         or terminal and index != len(saved) - 1 or not terminal and
                         (not isinstance(next_cursor, str) or not next_cursor or next_cursor in seen_cursors)):
@@ -218,6 +270,9 @@ def _api_items(args: argparse.Namespace, *, on_failure=None) -> tuple[list[dict[
                     break
                 seen_cursors.add(next_cursor)
                 cursor = next_cursor
+        except urllib.error.HTTPError as exc:
+            if on_failure is not None: on_failure(exc)
+            failure='http_'+str(exc.code)
         except TimeoutError:
             failure = "collection_deadline"
             pages, items, responses, seen_cursors, cursor = [], [], [], set(), None
@@ -233,18 +288,17 @@ def _api_items(args: argparse.Namespace, *, on_failure=None) -> tuple[list[dict[
         page_params = dict(params)
         if cursor:
             page_params["cursor"] = cursor
-        url = BASE_URL + "/api/public/items?" + urllib.parse.urlencode(page_params)
+        url = BASE_URL + "/api/v1/items?" + urllib.parse.urlencode(page_params)
         try:
             body, evidence = fetch_response(url)
             data = json.loads(body)
             page_items = data["items"]
             if not isinstance(page_items, list) or not all(isinstance(item, dict) for item in page_items):
                 raise ValueError("items is not a list")
-            next_cursor = data.get("nextCursor")
-            has_next = data.get("hasNext")
+            next_cursor, has_next = page_values(data,params)
             pages.append(evidence)
             items.extend(page_items)
-            if has_next is False or (has_next is None and not next_cursor):
+            if has_next is False:
                 responses.append({"body": body, "evidence": evidence})
                 finished = True
                 break
@@ -257,7 +311,7 @@ def _api_items(args: argparse.Namespace, *, on_failure=None) -> tuple[list[dict[
         except (OSError, ValueError, KeyError, TypeError) as exc:
             if on_failure is not None:
                 on_failure(exc)
-            failure = str(exc)[:300]
+            failure = ('http_'+str(exc.code) if isinstance(exc,urllib.error.HTTPError) else 'collection_deadline' if isinstance(exc,TimeoutError) else 'response_validation_failed' if isinstance(exc,(ValueError,KeyError,TypeError)) else 'transport_failure')
             break
     if not finished and not failure:
         failure = "pagination_page_limit"
@@ -298,6 +352,9 @@ def _api_items(args: argparse.Namespace, *, on_failure=None) -> tuple[list[dict[
                 })
     else:
         inside = items[:args.take]
+    identities = [item.get('id') for item in items]
+    if len(identities)!=len(set(identities)):
+        failure='aihot_duplicate_identity'; finished=False
     # The API retains at most seven days. An older query is clipped server-side.
     retention_ok = bool(start and end and end <= datetime.now(timezone.utc)
                         and start.astimezone(timezone.utc) >= datetime.now(timezone.utc) - timedelta(days=7))
@@ -309,8 +366,8 @@ def _api_items(args: argparse.Namespace, *, on_failure=None) -> tuple[list[dict[
         except ValueError:
             since_ok = False
     pages_valid = bool(pages and all(
-        page.get("status_code") == 200
-        and urllib.parse.urlsplit(str(page.get("final_url") or "")).hostname == "aihot.virxact.com"
+        (page.get("status_code") == 200 or page.get("status_code") == 304 and page.get("cache_validated") is True and page.get("representation_origin_sha256")==page.get("response_hash"))
+        and urllib.parse.urlsplit(str(page.get("final_url") or "")).hostname == "aihot.news"
         and len(str(page.get("response_hash") or "")) == 64
         for page in pages))
     complete = bool(start and finished and not failure and not missing and retention_ok and since_ok and pages_valid)
@@ -318,7 +375,7 @@ def _api_items(args: argparse.Namespace, *, on_failure=None) -> tuple[list[dict[
                      and retention_ok and since_ok and pages_valid)
     evidence = {
         "recovery": recovery,
-        "source": "ai_hot", "pool_scope": f"ai_hot_{args.mode}",
+        "api_version": 1, "source": "ai_hot", "pool_scope": f"ai_hot_{args.mode}",
         "coverage_date": coverage_day, "coverage_start": start.isoformat() if start else None,
         "coverage_end": end.isoformat() if end else None, "timezone": "Asia/Shanghai" if start else None,
         "retrieval_status": "success" if finished else "partial",
@@ -365,22 +422,29 @@ def feed_items(args: argparse.Namespace) -> list[dict[str, Any]]:
 
 
 def item_to_briefing_item(raw: dict[str, Any], index: int, source_kind: str) -> dict[str, Any]:
+    raw = dict(raw)
+    if isinstance(raw.get('links'),dict):
+        raw.update(url=raw['links'].get('original'),permalink=raw['links'].get('aihot'),
+                   title_en=raw.get('originalTitle'),source=(raw.get('source') or {}).get('name'))
     title = clean_text(raw.get("title") or raw.get("title_en") or f"AI HOT item {index}", 300)
     title_en = clean_text(raw.get("title_en"), 300)
     summary = clean_text(raw.get("summary"), 900)
     source = clean_text(raw.get("source") or "AI HOT", 200)
-    permalink = clean_text(raw.get("permalink") or raw.get("url"), 800)
-    original_url = clean_text(raw.get("url") or permalink, 800)
+    permalink = str(raw.get("permalink") or raw.get("url") or "")
+    original_url = str(raw.get("url") or (permalink if source_kind=="feed" else ""))
     category = clean_text(raw.get("category"), 120)
     category_label = CATEGORY_LABELS.get(category, category or "AI HOT")
     concepts = extract_concepts(title, title_en, summary)
-    item_id = clean_text(raw.get("id")) or f"aihot-{index:03d}"
+    # API identity is opaque data, not HTML. Cleaning it can merge distinct IDs.
+    item_id = raw.get("id") if source_kind=='api' else clean_text(raw.get("id"))
+    if not isinstance(item_id,str) or not item_id:
+        item_id = f"aihot-{index:03d}"
     facts = summary or title
     if original_url and original_url != permalink:
         facts = f"{facts} Original source: {original_url}"
     return {
-        "id": f"AH{index:03d}",
-        "story_id": "aihot-" + re.sub(r"[^a-zA-Z0-9]+", "-", item_id).strip("-").lower(),
+        "id": "AH" + hashlib.sha256(item_id.encode("utf-8")).hexdigest()[:20],
+        "story_id": "aihot-" + (hashlib.sha256(item_id.encode("utf-8")).hexdigest() if source_kind=='api' else re.sub(r"[^a-zA-Z0-9]+", "-", item_id).strip("-").lower()),
         "title": title,
         "category": category_label,
         "facts": facts,
@@ -388,7 +452,11 @@ def item_to_briefing_item(raw: dict[str, Any], index: int, source_kind: str) -> 
         "relevance": "",
         "evidence_level": f"aihot {source_kind} candidate",
         "source_title": source,
-        "source_url": permalink,
+        "source_url": original_url,
+        "source_url_contract_version": 2,
+        "aggregation_url": permalink,
+        "discovered_at": clean_text(raw.get("discoveredAt"),80),
+        "ai_source_provenance": {"version":1,"source_id":"aihot-v1","record_id":item_id,"aggregation_url":permalink},
         "source_excerpt": summary or title,
         "published_at": clean_text(raw.get("publishedAt"), 80),
         "score": raw.get("score"),
@@ -427,7 +495,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--source", choices=["api", "feed"], default="api", help="Use AI HOT public API or feed.xml.")
     parser.add_argument("--mode", choices=["selected", "all"], default="selected", help="AI HOT items mode for API source.")
     parser.add_argument("--take", type=int, default=50, help="Number of candidates, max 100 for API.")
-    parser.add_argument("--category", choices=["ai-models", "ai-products", "industry", "paper", "tip"], help="Optional API category.")
+    parser.add_argument("--category", choices=["ai-models", "ai-products", "industry", "paper", "tip", "opinion"], help="Optional API category.")
     parser.add_argument("--since", help="Optional ISO-8601 lower bound for API items.")
     parser.add_argument("--query", help="Optional server-side keyword search.")
     parser.add_argument("--date", help="Briefing date, YYYY-MM-DD.")

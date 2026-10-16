@@ -2,6 +2,7 @@
 """Offline adversarial cases for publisher and daily candidate coverage."""
 
 from __future__ import annotations
+from aihot_v1_fixtures import v1_response
 
 import json
 import hashlib
@@ -292,7 +293,7 @@ class AiHotWindowTests(unittest.TestCase):
                    {"id": "start", "publishedAt": left.isoformat()},
                    {"id": "end", "publishedAt": right.isoformat()}]
         def fetch(url: str):
-            body = json.dumps({"items": records, "hasNext": False})
+            body = v1_response({"items": records, "hasNext": False})
             return body, {"query_url": url, "final_url": url, "status_code": 200,
                           "retrieved_at": right.isoformat(), "response_hash": "a" * 64}
         with patch.object(hot, "fetch_response", side_effect=fetch):
@@ -307,7 +308,7 @@ class AiHotWindowTests(unittest.TestCase):
         day = (datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8))).date()
                - timedelta(days=1)).isoformat()
         def fetch(url: str):
-            body = json.dumps({"items": [{"id": "untimed"}], "hasNext": True,
+            body = v1_response({"items": [{"id": "untimed"}], "hasNext": True,
                                "nextCursor": "again"})
             return body, {"query_url": url, "final_url": url, "status_code": 200,
                           "retrieved_at": datetime.now(timezone.utc).isoformat(),
@@ -326,7 +327,7 @@ class AiHotWindowTests(unittest.TestCase):
         records = [{"id": "dated", "publishedAt": (start + timedelta(hours=1)).isoformat()},
                    {"id": "undated"}]
         def fetch(url: str):
-            return (json.dumps({"items": records, "hasNext": False}),
+            return (v1_response({"items": records, "hasNext": False}),
                     {"query_url": url, "final_url": url, "status_code": 200,
                      "retrieved_at": end.isoformat(), "response_hash": "a" * 64})
         with patch.object(hot, "fetch_response", side_effect=fetch):
@@ -345,7 +346,7 @@ class AiHotWindowTests(unittest.TestCase):
     def test_older_than_api_retention_cannot_be_verified(self) -> None:
         day = (datetime.now(timezone.utc).date() - timedelta(days=8)).isoformat()
         with patch.object(hot, "fetch_response", return_value=(
-                json.dumps({"items": [], "hasNext": False}),
+                v1_response({"items": [], "hasNext": False}),
                 {"query_url": "https://aihot.virxact.com/api/public/items", "response_hash": "a" * 64})):
             _, evidence = hot.api_items(self._args(day))
         self.assertEqual(evidence["coverage_status"], "partial")

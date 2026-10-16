@@ -194,15 +194,20 @@ def _ai_hot_page(value: Any, start: datetime, end: datetime) -> bool:
     final = urlsplit(str(value.get("final_url") or ""))
     stamp = _timestamp(value.get("retrieved_at"))
     params = parse_qs(query.query)
-    since = _timestamp(params.get("since", [None])[0])
-    return bool(query.scheme == final.scheme == "https"
-                and query.hostname == final.hostname == "aihot.virxact.com"
-                and query.path == "/api/public/items"
-                and params.get("mode") == ["selected"] and since
-                and since <= start.astimezone(since.tzinfo)
-                and value.get("status_code") == 200
-                and re.fullmatch(r"[0-9a-f]{64}", str(value.get("response_hash") or ""))
-                and stamp and stamp >= end.astimezone(stamp.tzinfo))
+    common=bool(query.scheme == final.scheme == 'https' and query.hostname==final.hostname
+                and (value.get('status_code')==200 or value.get('status_code')==304 and value.get('cache_validated') is True and value.get('etag') and value.get('representation_origin_sha256')==value.get('response_hash'))
+                and re.fullmatch(r'[0-9a-f]{64}',str(value.get('response_hash') or ''))
+                and stamp and stamp>=end.astimezone(stamp.tzinfo))
+    if query.hostname=='aihot.news':
+        return bool(common and query.path==final.path=='/api/v1/items'
+                    and params.get('mode')==['selected'] and params.get('window')==['7d']
+                    and params.get('by')==['published'] and len(params.get('limit',[]))==1
+                    and params['limit'][0].isdigit() and 1<=int(params['limit'][0])<=100
+                    and not set(params)-{'mode','window','by','limit','category','q','cursor'})
+    since = _timestamp(params.get('since', [None])[0])
+    return bool(common and query.hostname=='aihot.virxact.com' and query.path=='/api/public/items'
+                and params.get('mode')==['selected'] and since and since<=start.astimezone(since.tzinfo))
+
 
 
 def validate_ai_hot_window(ai_hot: Any, day: str) -> list[str]:
@@ -248,6 +253,10 @@ def validate_social_search(social: Any, day: str) -> list[str]:
                                           or social.get("coverage_end") != end.isoformat()):
         return [f"{day}: social search window mismatch"]
     failures = validate_ai_hot_window(social.get("ai_hot_window"), day)
+    if social.get('ai_fixed_pool') is not None:
+        from ai_social_sources import validate_pool
+        failures.extend(validate_pool(social['ai_fixed_pool'],day))
+
     records = social.get("source_class_evidence")
     if not isinstance(records, list):
         failures.append(f"{day}: social source-class evidence missing")

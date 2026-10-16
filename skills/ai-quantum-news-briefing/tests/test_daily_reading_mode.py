@@ -200,6 +200,11 @@ console.log(JSON.stringify({states,listeners:Object.keys(listeners)}));
 
 
 class QueueWithdrawalTests(unittest.TestCase):
+    def setUp(self):
+        # Isolate the pre-existing explicit withdrawal API from cutoff policy.
+        guard=patch('daily_execution_policy.AUTOMATIC_RELEASE_NOT_BEFORE','1900-01-01')
+        guard.start();self.addCleanup(guard.stop)
+
     def test_withdraw_retains_history_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
             news=Path(tmp); queue=news/'_automation/workflow_queue.json'

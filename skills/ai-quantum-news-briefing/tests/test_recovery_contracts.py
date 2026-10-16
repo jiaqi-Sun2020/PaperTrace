@@ -1,4 +1,5 @@
 """Regression contracts from the second audit; temporary artifacts, mocked transport."""
+from aihot_v1_fixtures import v1_response
 from argparse import Namespace
 from contextlib import redirect_stdout, contextmanager
 from copy import deepcopy
@@ -25,6 +26,12 @@ from test_orchestrate_daily import fixtures
 
 
 class RecoveryContracts(unittest.TestCase):
+    def setUp(self):
+        # Historical remote-receipt contracts remain tested independently of
+        # the new automatic scheduling cutoff (covered in date-isolation tests).
+        guard=patch('daily_execution_policy.AUTOMATIC_RELEASE_NOT_BEFORE','1900-01-01')
+        guard.start();self.addCleanup(guard.stop)
+
     @contextmanager
     def remote_fixture(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -211,7 +218,7 @@ class RecoveryContracts(unittest.TestCase):
                          query=None, checkpoint=path, budget_seconds=budget)
 
     def page_response(self, args, url, page, total):
-        body = json.dumps({"items": [{"id": str(page), "publishedAt": args.coverage_date + "T12:00:00+08:00"}],
+        body = v1_response({"items": [{"id": str(page), "publishedAt": args.coverage_date + "T12:00:00+08:00"}],
                            "hasNext": page < total, "nextCursor": str(page + 1) if page < total else None})
         return body, {"query_url": url, "final_url": url, "status_code": 200,
                       "response_hash": hashlib.sha256(body.encode()).hexdigest(),
@@ -381,7 +388,7 @@ class RecoveryContracts(unittest.TestCase):
                 elapsed[0] += 1
                 page = int(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("cursor", ["1"])[0])
                 requests.append(page)
-                body = json.dumps({"items": [{"id": str(page), "publishedAt": day + "T12:00:00+08:00"}],
+                body = v1_response({"items": [{"id": str(page), "publishedAt": day + "T12:00:00+08:00"}],
                                    "hasNext": page < 4, "nextCursor": str(page + 1) if page < 4 else None})
                 return body, {"query_url": url, "final_url": url, "status_code": 200,
                               "response_hash": hashlib.sha256(body.encode()).hexdigest(),

@@ -31,7 +31,7 @@ def admit_material(source_id, item, capture):
         url = source_reference_url(item.get('source_url'))
         publication_day(item.get('published_at'))
         host = urlsplit(url).hostname or ''
-        if host in {'aihot.virxact.com', 'google.com', 'www.google.com', 'api.plos.org'}:
+        if host in {'aihot.virxact.com', 'aihot.news', 'google.com', 'www.google.com', 'api.plos.org'}:
             failures.append('discovery_is_not_original_article')
     except (ValueError, TypeError, AttributeError):
         failures.append('material_url_or_date_invalid')

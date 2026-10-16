@@ -94,7 +94,7 @@ Codex 会核验来源和日期，应用排名与 Delta 规则，并仅在严格�
 
 ## 当前能力
 
-- `ai-quantum-news-briefing` 可从 AI HOT API 或 `feed.xml` 拉取每日精编候选；AI HOT 只作为候选源，不作为最终证据源。
+- `ai-quantum-news-briefing` 使用 AI HOT v1 和有限的官方／媒体 RSS 或栏目发现 AI 社会新闻；均不替代原始文章证据。旧 feed 只保留兼容用途。
 - 每次新日报都会先按可审计的综合影响分降序排列学术论文，默认以排名第 1 的论文创作开篇寓言，再呈现事实回扣和默认折叠的具体例子；故事或例子的曝光都不会成为学习证据。
 - 日报学术源覆盖 APS PRL/PRA/PRX、Nature、Science、OpenReview/ICLR、CVF/CVPR、PMLR/ICML、NeurIPS、ACL Anthology、Quantum Journal 和 arXiv；arXiv 条目标注为 preprint。
 - 日报 HTML 生成时写出全量 `news_feedback.json`，所有知识点默认 `unrated`，用户编辑状态后可直接下载反馈 JSON。
@@ -449,7 +449,7 @@ python .\skills\ai-quantum-news-briefing\scripts\publish_daily_to_oss.py status
 
 ```powershell
 cd D:\AI\PaperTrace
-python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <YYYY-MM-DD> --output D:\AI\PaperTrace\news\<YYYY-MM-DD>\aihot_candidates_<YYYY-MM-DD>.json
+python D:\AI\PaperTrace\skills\ai-quantum-news-briefing\scripts\aihot_candidates.py --source api --mode selected --take 50 --date <RELEASE-YYYY-MM-DD> --coverage-date <COVERED-YYYY-MM-DD> --output D:\AI\PaperTrace\news\<RELEASE-YYYY-MM-DD>\aihot_candidates_<RELEASE-YYYY-MM-DD>.json
 ```
 
 RSS fallback：
@@ -499,7 +499,9 @@ python D:\AI\PaperTrace\skills\reader-learner\scripts\feedback_visible_wiki_pipe
 
 ### 可恢复来源准备与审核边界
 
-可选的 `orchestrate_daily.py sources --date <RELEASE-YYYY-MM-DD> --pool-dir .\news\_sources --action status` 只读查询来源准备状态；显式 `plan`、有界 `work`、`packet` 使用本地 SQLite 任务租约并复用成功抓取。材料准入始终是 `not_reviewed`，不是第二套发布状态机。绑定候选后，选中材料的修订与依赖必须经过生成、审核、finalize 和首次上传复核。启用或回退前阅读[来源准备契约](skills/ai-quantum-news-briefing/references/source-preparation-architecture.md)。以上命令均从 `D:\AI\PaperTrace` 运行。
+自 2026-10-16 起符合资格的自动版次，以 `orchestrate_daily.py daily --date <RELEASE-YYYY-MM-DD> --action status` 为入口，从 `D:\AI\PaperTrace` 运行。启动时固定发布日期，跨午夜仍覆盖此前同一个上海自然日。执行 `plan --record`、有界 `work` 或 `packet` 前阅读[日期隔离契约](skills/ai-quantum-news-briefing/references/date-isolated-execution.md)。其他日期不成为本次依赖；退出自动补发的历史日期保留原结果，不记作已发布。安装或 Git 推送本身不激活真实队列截止规则，也不创建定时任务。
+
+`sources` 保留底层兼容用途；`--domain ai-social` 只做有限 AI 来源工作。它复用[来源准备存储](skills/ai-quantum-news-briefing/references/source-preparation-architecture.md)，材料准入仍是 `not_reviewed`，选中材料的依赖需贯穿审核、finalize 和首次上传。新 [AI 固定来源契约](skills/ai-quantum-news-briefing/references/ai-social-fixed-pool.md)规定 AI HOT `/api/v1/items`、官方／媒体入口、原始文章日期核对及主机级 401/403 停止。发现时间不冒充发表时间；AI-only 不豁免量子或检索证据。
 
 失败的未发布 staging 使用[摘要绑定修订](skills/ai-quantum-news-briefing/references/source-contract-recovery.md)，不能手改 HTML、删除证据或复用旧 PASS。单独授权的 HTTPS 预览只允许实际显示审核待完成，不能冒充正式发布或网站已更新；详见[预览契约](skills/ai-quantum-news-briefing/references/rendered-search-and-preview-contract.md)与[运行手册](.agents/RUNBOOK.md)。推送代码到 GitHub 不会启用 OSS、启动采集或发布日报。
 

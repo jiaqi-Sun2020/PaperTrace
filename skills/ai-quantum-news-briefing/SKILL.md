@@ -482,12 +482,20 @@ Use `orchestrate_daily.py queue --date <day> --record --withdraw-reason <reason>
 for an explicitly cancelled backfill: keep history and exclude it from execution.
 Do not un-cancel it by deleting files, retagging dates or editing queue JSON.
 
-## Optional source preparation / bounded preview
+## Date-isolated automatic execution / bounded preview
 
-Before using `orchestrate_daily.py sources`, read
-[source preparation](references/source-preparation-architecture.md): its leased
-task/material store is opt-in, never another release or semantic approval owner.
+Automatic editions from 2026-10-16 use `orchestrate_daily.py daily --date <release-day>`
+as the sole execution entry. Read [date-isolated execution](references/date-isolated-execution.md)
+and [source preparation](references/source-preparation-architecture.md). Every invocation
+pins its release date and preceding Shanghai coverage day. Earlier dates are historical
+only; other eligible dates are independently deferred. The leased task/material store
+and unified entry never become another release or semantic approval owner.
 For browser discovery evidence or pre-display HTTPS preview, read
 [the rendered-search and preview contract](references/rendered-search-and-preview-contract.md).
 Actual browser policy, source review, strict release gates and separate upload
 authorization still apply; a preview receipt is not publication or display approval.
+
+
+## AI social fixed-pool increment (2026-10-16 r1)
+
+AI social/industry discovery: use the production-bound ai-social domain and the finite registry described in references/ai-social-fixed-pool.md. OpenAI RSS is discovery only; original 403 stops the host, then choose a qualified pool alternative. Do not use discovery time as publication time. Quantum evidence and all strict review/publication gates are unchanged.

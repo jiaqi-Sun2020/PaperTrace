@@ -261,3 +261,10 @@ This file records dated implementation and local-release milestones. Durable bou
 - Added bounded rendered-search discovery and a transport-only pre-display preview; formal review, display acceptance and OSS publication remain separate fail-closed gates.
 - Daily HTML defaults to reading-only; explicit Feedback opt-in retains full acceptance. Formula transport checks, source-based v2 ranking and original delivery-policy limits remain enforced.
 - Synchronized bilingual overview, skill routing and operating instructions. Documented separate-process regression requirements and Windows named-pipe testing constraints. No real source collection, backlog mutation, scheduled-task change or OSS operation is part of this maintenance.
+
+### Date-isolated execution and AI-social discovery
+
+- Added an explicit-date daily wrapper and date-scoped task/lease recovery; earlier automatic dates retire without reclassifying prior outcomes, and other editions are not dependencies.
+- Updated AI HOT to its bounded v1 API with opaque pagination, representation-bound cache validation and separate publication/discovery time. Added a finite official/media source registry and bounded AI-only discovery.
+- Bound AI originals to canonical article publication evidence; access denial stops same-day host retries while retaining successful captures and allowing qualified alternative hosts. Discovery never grants content or publication approval.
+- Synchronized public documentation and the ignored local knowledge topic from verified code. No real queue activation, collection, schedule update or OSS publication was performed.

@@ -208,8 +208,11 @@ class SourceProcessRecoveryTests(unittest.TestCase):
             def denied(spec):raise HTTPError('https://synthetic.invalid/',403,'',{},None)
             result=run_ready(pool,executor=denied,clock=lambda:next(clock))
             self.assertEqual([row['state'] for row in result['processed']],['lease_lost','blocked'])
-            self.assertEqual(pool.tasks()[0]['state'],'retry_wait')
+            # Claiming an independent task no longer mutates other expired
+            # leases; recovery happens when that exact task is reclaimed.
+            self.assertEqual(pool.tasks()[0]['state'],'running')
             self.assertIsNone(pool.tasks()[0]['result'])
+            self.assertEqual(pool.claim(task_id=pool.tasks()[0]['task_id'],now=906)['attempts'],2)
 
     def test_discovery_code_drift_between_claim_and_commit_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary,SourcePool(Path(temporary)/'pool.sqlite') as pool:
@@ -225,12 +228,12 @@ class SourceProcessRecoveryTests(unittest.TestCase):
     def test_status_is_read_only_even_when_current_code_has_no_registered_tasks(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);database=root/'pool.sqlite'
-            self.assertEqual(orchestrate_sources('2026-10-15',root,action='status')['status'],'not_initialized')
+            self.assertEqual(orchestrate_sources('2026-10-16',root,action='status')['status'],'not_initialized')
             self.assertFalse(database.exists())
-            with SourcePool(database) as pool:plan_sources(pool,'2026-10-15')
+            with SourcePool(database) as pool:plan_sources(pool,'2026-10-16')
             before=database.read_bytes();modified=database.stat().st_mtime_ns
             with patch('source_worker.code_binding',return_value={'new':'code'}):
-                result=orchestrate_sources('2026-10-15',root,action='status')
+                result=orchestrate_sources('2026-10-16',root,action='status')
             self.assertTrue(result['source_preparation']['missing_tasks'])
             self.assertEqual(database.read_bytes(),before)
             self.assertEqual(database.stat().st_mtime_ns,modified)

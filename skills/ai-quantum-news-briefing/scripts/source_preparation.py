@@ -9,9 +9,10 @@ from pathlib import Path
 from source_pool import SourcePool, PoolConflict, checked_path, fingerprint
 from source_worker import plan_sources, source_snapshot, run_ready, claim_discovery, submit_discovery, code_binding, enqueue_captures
 from material_admission import publication_day
+from daily_execution_policy import retired,retired_state
 
 POOL_PATH = '_sources/pool.sqlite'
-SOURCE_FIELDS = ('id', 'source_url', 'source_title', 'source_excerpt', 'published_at', 'source_class', 'evidence_fingerprint')
+SOURCE_FIELDS = ('id', 'source_url', 'source_title', 'source_excerpt', 'published_at', 'source_class', 'evidence_fingerprint', 'ai_source_provenance')
 
 
 def binding_scope(config, release_date, references, source_tasks=None):
@@ -34,6 +35,10 @@ def source_evidence_references(pool, config, release_date):
         raise PoolConflict('pool_required_academic_queries_missing')
     if validate_social_search(social, plan['coverage_date']):
         raise PoolConflict('pool_required_social_coverage_missing')
+    if release_date>='2026-10-16':
+        from ai_social_sources import validate_pool
+        if validate_pool(social.get('ai_fixed_pool'),plan['coverage_date']):
+            raise PoolConflict('pool_ai_fixed_observations_missing')
     expected = {}
     for key in plan['tasks']:
         try:
@@ -57,6 +62,9 @@ def source_evidence_references(pool, config, release_date):
     classes = {r['source_class']: r for r in social.get('source_class_evidence', [])}
     for source_class in ('reputable_media', 'official_company_social', 'executive_social'):
         bind('discovery', source_class, classes.get(source_class))
+    if release_date>='2026-10-16':
+        for observation in social['ai_fixed_pool']['observations']:
+            bind('fixed_source',observation['source']['id'],observation)
     return refs
 
 
@@ -165,6 +173,8 @@ def packet(pool, plan):
     emitted = [m for kind in ('academic', 'social') for m in
                [v for v in materials if v['item']['material_kind'] == kind][:100]]
     policy = policy_snapshot()['policy']
+    from ai_social_sources import discovery_packet
+    result['ai_candidate_discovery']=discovery_packet(result)
     result.update(materials=emitted, excluded_materials=excluded, authoring_counts=counts,
                   material_output={'total':len(materials),'emitted':len(emitted),'truncated':len(materials)-len(emitted),
                                    'full_pool':str(pool.path),'truncated_is_not_excluded':True},
@@ -204,20 +214,26 @@ def check_run_pool_binding(run_dir, manifest, config):
     return check_pool_binding(news_root, binding, release_date=manifest['date'], historical=historical)
 
 
-def orchestrate_sources(release_date, pool_dir, *, action='plan', max_tasks=4):
+def orchestrate_sources(release_date, pool_dir, *, action='plan', max_tasks=4, domain='all'):
+    if domain not in ('all','ai-social'): raise PoolConflict('source_domain_invalid')
+    if retired(release_date):
+        return retired_state(release_date)
     path = Path(pool_dir)/'pool.sqlite'
     if action == 'status' and not path.exists():
         return {'source_preparation_version': 1, 'status': 'not_initialized', 'publication_approved': False}
     with SourcePool(path, read_only=action == 'status') as pool:
         plan = plan_sources(pool, release_date, register=action != 'status')
         if action == 'work':
-            worked = run_ready(pool, max_tasks=max_tasks)
+            selected=None
+            if domain=='ai-social':
+                selected={task['task_id'] for task in pool.tasks(coverage_date=plan['coverage_date']) if task['spec']['kind'] in ('aihot','fixed_source') or task['spec']['kind']=='capture' and task['spec']['inputs'].get('item',{}).get('ai_source_provenance')}
+            worked = run_ready(pool, max_tasks=max_tasks, coverage_date=plan['coverage_date'],task_ids=selected)
             return {'plan': plan, 'work': worked, 'source_preparation': source_snapshot(pool, plan)}
         if action == 'packet':
             return packet(pool, plan)
         return {'plan': plan, 'source_preparation': source_snapshot(pool, plan),
                 'pending_discovery': [{'task_id': task['task_id'], 'navigation': task['spec']['inputs']['navigation']}
-                                      for task in pool.tasks() if task['task_id'] in plan['tasks']
+                                      for task in pool.tasks(coverage_date=plan['coverage_date']) if task['task_id'] in plan['tasks']
                                       and task['spec']['kind'] == 'discovery'
                                       and task['state'] in ('pending', 'retry_wait')]}
 
@@ -235,14 +251,22 @@ def main(argv=None):
     parser.add_argument('--output', type=Path)
     parser.add_argument('--news-root', type=Path)
     parser.add_argument('--max-tasks', type=int, default=4)
+    parser.add_argument('--domain',choices=('all','ai-social'),default='all')
     args = parser.parse_args(argv)
     try:
         if date.fromisoformat(args.date).isoformat() != args.date:
             raise PoolConflict('release_date_invalid')
+        if retired(args.date) and args.action!='backup':
+            print(json.dumps(retired_state(args.date),ensure_ascii=False))
+            return 0
         if args.action in ('plan', 'status', 'work', 'packet'):
-            result = orchestrate_sources(args.date, args.pool_dir, action=args.action, max_tasks=args.max_tasks)
+            result = orchestrate_sources(args.date, args.pool_dir, action=args.action, max_tasks=args.max_tasks,domain=args.domain)
         else:
             with SourcePool(args.pool_dir/'pool.sqlite') as pool:
+                if args.action in ('claim-discovery','submit-discovery','record-denial'):
+                    task=pool.get(args.task_id)
+                    if task['spec']['coverage_date']!=(date.fromisoformat(args.date)-timedelta(days=1)).isoformat():
+                        raise PoolConflict('task_release_date_mismatch')
                 if args.action == 'claim-discovery':
                     result = claim_discovery(pool, args.task_id)
                 elif args.action == 'submit-discovery':

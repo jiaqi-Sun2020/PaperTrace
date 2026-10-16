@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -25,6 +26,7 @@ from academic_sources import (family_gate, health_table, markdown_health_table,
                               row_evidence_failures, sources_by_id, HEALTHY_RESULTS)
 from daily_delivery_policy import policy_snapshot
 from daily_revisions import active_stages, candidate_path
+import daily_execution_policy as execution_policy
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 COLLECTION_PHASES = {"collection_pending", "collection_partial", "collection_invalid"}
@@ -839,47 +841,66 @@ def _record(state: dict[str, Any], enabled: bool, *, news_root: Path | None = No
 
 
 def workflow_queue(day: str, *, record: bool = False, withdraw_reason: str | None = None) -> dict[str, Any]:
-    """Explicit persistent date selection; status checkpoints never approve prose."""
-    if date.fromisoformat(day).isoformat() != day:
-        raise ValueError("release date must be ISO YYYY-MM-DD")
-    if withdraw_reason is not None and (not record or not isinstance(withdraw_reason, str)
-            or not withdraw_reason.strip()):
+    """Retain selection history; only the explicit release date is executable."""
+    execution_policy.release_date(day)
+    if withdraw_reason is not None and (not record or not isinstance(withdraw_reason,str) or not withdraw_reason.strip()):
         raise ValueError("withdrawal requires --record and a concrete reason")
-    path = NEWS_ROOT / "_automation" / "workflow_queue.json"
+    path=NEWS_ROOT/'_automation/workflow_queue.json'
     with release_lock(NEWS_ROOT) if record else nullcontext():
-        queue = load_json(path) if path.exists() else {"version": 1, "dates": []}
-        if (queue.get("version") != 1 or not isinstance(queue.get("dates"), list)
-                or any(not isinstance(value, str) or date.fromisoformat(value).isoformat() != value for value in queue["dates"])):
-            raise ValueError("workflow queue invalid")
-        withdrawals = queue.get("withdrawals", {})
-        if (not isinstance(withdrawals, dict) or any(
-                date.fromisoformat(key).isoformat() != key or key not in queue["dates"]
-                or not isinstance(value, dict) or not isinstance(value.get("reason"), str)
-                or not value["reason"].strip() or not value.get("recorded_at")
-                for key, value in withdrawals.items())):
-            raise ValueError("workflow queue withdrawal invalid")
-        dates = sorted(set(queue["dates"] + [day]))
-        changed = queue["dates"] != dates
+        queue=load_json(path) if path.exists() else {'version':1,'dates':[]}
+        if (not isinstance(queue,dict) or type(queue.get('version')) is not int or queue['version']!=1
+                or not isinstance(queue.get('dates'),list)):
+            raise ValueError('workflow_queue_invalid')
+        for selected in queue['dates']:execution_policy.release_date(selected)
+        withdrawals=queue.get('withdrawals',{})
+        if not isinstance(withdrawals,dict):raise ValueError('workflow_queue_withdrawal_invalid')
+        for selected,value in withdrawals.items():
+            execution_policy.release_date(selected)
+            if (selected not in queue['dates'] or not isinstance(value,dict) or not isinstance(value.get('reason'),str)
+                    or not value['reason'].strip() or not value.get('recorded_at')):
+                raise ValueError('workflow_queue_withdrawal_invalid')
+        history=queue.get('history_policy')
+        cutoff=execution_policy.AUTOMATIC_RELEASE_NOT_BEFORE
+        if history is not None:
+            if (not isinstance(history,dict) or type(history.get('version')) is not int or history['version']!=1
+                    or history.get('timezone')!='Asia/Shanghai' or not history.get('recorded_at')
+                    or not isinstance(history.get('reason'),str) or not history['reason'].strip()):
+                raise ValueError('workflow_history_policy_invalid')
+            execution_policy.release_date(history.get('not_before'))
+            cutoff=max(cutoff,history['not_before'])
+        dates=sorted(set(queue['dates']+[day]))
+        changed=queue['dates']!=dates
         if withdraw_reason is not None:
-            reason = withdraw_reason.strip()
-            if day in withdrawals and withdrawals[day]["reason"] != reason:
-                raise ValueError("withdrawal reason conflict; preserved existing decision")
+            reason=withdraw_reason.strip()
+            if day in withdrawals and withdrawals[day]['reason']!=reason:
+                raise ValueError('withdrawal reason conflict; preserved existing decision')
             if day not in withdrawals:
-                withdrawals = dict(withdrawals)
-                withdrawals[day] = {"reason": reason,
-                    "recorded_at": datetime.now(timezone.utc).isoformat(),
-                    "prior_queue_sha256": hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None}
-                changed = True
+                withdrawals=dict(withdrawals)
+                withdrawals[day]={'reason':reason,'recorded_at':datetime.now(timezone.utc).isoformat(),
+                    'prior_queue_sha256':sha256_file(path) if path.is_file() else None}
+                changed=True
+        if history is None or history['not_before']!=cutoff:
+            history={'version':1,'not_before':cutoff,'timezone':'Asia/Shanghai',
+                'reason':'User retired automatic backfill before '+cutoff+'; preserve all original outcomes and artifacts.',
+                'recorded_at':datetime.now(timezone.utc).isoformat(),
+                'prior_queue_sha256':sha256_file(path) if path.is_file() else None}
+            changed=True
         if record and changed:
-            updated = dict(queue); updated["dates"] = dates
-            if withdrawals: updated["withdrawals"] = withdrawals
-            atomic_json(path, updated)
-    states = []
+            updated=dict(queue);updated.update(dates=dates,history_policy=history)
+            if withdrawals:updated['withdrawals']=withdrawals
+            atomic_json(path,updated)
+    states=[]
     for selected in dates:
         if selected in withdrawals:
-            states.append({"date": selected, "phase": "withdrawn", "action_required": False,
-                           "withdrawal": withdrawals[selected],
-                           "next_action": "User cancelled backfill; retain all artifacts and evidence."})
+            states.append({'date':selected,'phase':'withdrawn','action_required':False,'withdrawal':withdrawals[selected],
+                'next_action':'User cancelled this date; retain all artifacts and prior publication outcomes.'})
+            continue
+        if execution_policy.retired(selected,not_before=cutoff):
+            states.append({**execution_policy.retired_state(selected),'publication_outcome':'preserved_not_reclassified'})
+            continue
+        if selected!=day:
+            states.append({'date':selected,'phase':'deferred_date','action_required':False,
+                'next_action':'Independent date; resume only with its explicit date, never as a dependency of this invocation.'})
             continue
         state = inspect(selected)
         try:
@@ -905,14 +926,96 @@ def workflow_queue(day: str, *, record: bool = False, withdraw_reason: str | Non
         if proven:
             state.update(phase="completed_previously_verified", action_required=False,
                          next_action="No pending action; this local hash was previously verified remotely.")
+        if state.get('action_required') and state.get('phase') not in {
+                'remote_pending','local_manifest_invalid','ready_to_finalize','review_pending','staging_invalid'}:
+            state['next_action']='Resume only '+day+' through daily --date '+day+' --action status; use the new source pool and controlled authoring.'
         states.append(state)
-    pending = [state for state in states if state.get("action_required")]
-    return {"version": 1, "date": day, "phase": "workflow_pending" if pending else "workflow_complete",
-            "action_required": bool(pending), "dates": states,
-            "next_date": pending[0]["date"] if pending else None,
-            "execution_order": [state["date"] for state in sorted(pending, key=lambda state: (state["date"] != day, state["date"]))],
-            "next_action": pending[0].get("next_action") if pending else "No pending selected date.",
-            "final_response_allowed": not pending, "terminal_blocker": None}
+    current=next(state for state in states if state['date']==day)
+    pending=bool(current.get('action_required'))
+    excluded=current['phase'] in {'historical_retired','withdrawn'}
+    return {'version':1,**execution_policy.execution_window(day),'automatic_release_not_before':cutoff,
+            'phase':'workflow_retired' if excluded else 'workflow_pending' if pending else 'workflow_complete',
+            'run_outcome':'not_scheduled' if excluded else 'pending' if pending else 'completed',
+            'action_required':pending,'dates':states,'retired_dates':[value for value in dates if value<cutoff],
+            'deferred_dates':[value for value in dates if value>=cutoff and value!=day and value not in withdrawals],
+            'next_date':day if pending else None,'execution_order':[day] if pending else [],
+            'next_action':current.get('next_action','No pending action for the requested date.'),
+            'final_response_allowed':not pending,'terminal_blocker':None}
+
+
+def _execution_blocked(day, stage, exc, *, scope='shared'):
+    code=str(exc) if isinstance(exc,CollectionError) else exc.__class__.__name__
+    return {**execution_policy.execution_window(day),'phase':'execution_blocked','run_outcome':'blocked',
+            'action_required':True,'publication_approved':False,'operation_failed':True,
+            'execution_order':[day],'next_date':day,'final_response_allowed':True,
+            'terminal_blocker':{'stage':stage,'scope':scope,'code':code},
+            'next_action':'Repair the cited '+scope+' '+stage+' failure, preserve evidence, then resume this same explicit date.'}
+
+
+def daily_execution(day: str, *, action='status', record=False, max_tasks=4):
+    """One pinned edition; new acquisition only, existing release authority."""
+    execution_policy.release_date(day)
+    if action not in {'status','plan','work','packet'}:raise ValueError('daily_action_invalid')
+    try:
+        queue=workflow_queue(day,record=record)
+    except (OSError,ValueError,TypeError,AttributeError,TimeoutError) as exc:
+        return _execution_blocked(day,'workflow_queue',exc)
+    result={**queue,'daily_execution_version':1,'publication_approved':False}
+    if queue['run_outcome'] in {'completed','not_scheduled'}:
+        return result
+    edition=next(state for state in queue['dates'] if state['date']==day)
+    result['edition_state']=edition
+    command=[sys.executable,'-B',str(SCRIPT_DIR/'orchestrate_daily.py')]
+    if edition.get('environment_fault'):
+        return {**result,**_execution_blocked(day,'release_environment',CollectionError(str(edition['environment_fault'])))}
+    # Never collect again for a frozen or locally completed edition.
+    if edition['phase'] in {'remote_pending','local_manifest_invalid','ready_to_finalize','review_pending','staging_invalid'}:
+        result['phase']=edition['phase']
+        result['next_commands']=([{'cwd':str(NEWS_ROOT.parent),'argv':command+['status','--date',day,'--online','--record']}]
+                                 if edition['phase']=='remote_pending' else [])
+        return result
+    from source_preparation import orchestrate_sources
+    try:
+        acquisition=orchestrate_sources(day,NEWS_ROOT/'_sources',action=action,max_tasks=max_tasks)
+    except (OSError,ValueError,TypeError,KeyError,sqlite3.Error,TimeoutError) as exc:
+        return {**result,**_execution_blocked(day,'source_pool',exc)}
+    source=acquisition.get('source_preparation',acquisition)
+    result['source_preparation']=acquisition
+    ready=source.get('status')=='coverage_ready'
+    result['phase']='authoring_pending' if ready else 'source_and_authoring_pending'
+    result['next_action']=('Author admitted materials, bind the candidate, then use existing controlled staging/review/strict release.'
+                           if ready else 'Continue only this date: reuse validated cache, execute missing source tasks and actual discovery; author independently available materials.')
+    next_action='plan' if source.get('status')=='not_initialized' else 'packet' if ready else 'work'
+    if any(row.get('state')=='not_registered' for row in source.get('missing_tasks',[])):
+        next_action='plan'
+    result['next_commands']=[{'cwd':str(NEWS_ROOT.parent),'argv':command+['daily','--date',day,'--action',next_action,'--record']}]
+    missing=source.get('missing_tasks',[])
+    discovery=[row for row in missing if row.get('kind')=='discovery' and row.get('state') in {'pending','retry_wait'}]
+    core_ready=(source.get('academic',{}).get('family_gate',{}).get('status')=='pass' and source.get('aihot') is not None)
+    if not ready and core_ready and discovery:
+        task=discovery[0]
+        result['next_action']='Complete the current dated discovery observation through the permitted browser; author admitted materials independently. Do not loop ordinary source work.'
+        result['next_commands']=[{'cwd':str(NEWS_ROOT.parent),'argv':[sys.executable,'-B',str(SCRIPT_DIR/'source_preparation.py'),
+                    'claim-discovery','--date',day,'--pool-dir',str(NEWS_ROOT/'_sources'),'--task-id',task['task_id']]}]
+        if task.get('retry_at') and task['retry_at']>datetime.now(timezone.utc).timestamp():
+            result['next_commands']=[];result['retry_at']=task['retry_at']
+            result['next_action']='Discovery Retry-After has not elapsed; retain this date and resume only when eligible.'
+    recoverable=[row for row in missing if row.get('state') in {'pending','retry_wait','running','not_registered'}]
+    if not ready and missing and not recoverable:
+        result.update(phase='source_blocked',run_outcome='blocked',final_response_allowed=True,operation_failed=True,
+            terminal_blocker={'stage':'required_source_coverage','scope':'current_date','tasks':missing},next_commands=[])
+        result['next_action']='No recoverable current-date source task remains; diagnose the cited coverage failures without retry loops or lowering standards.'
+    result['stop_conditions']=['requested date complete or retired','specific external or shared blocker recorded; never a different date pending']
+    result['semantic_review_status']='not_reviewed'
+    if acquisition.get('work'):
+        failures=[row for row in acquisition['work']['processed'] if row['state']!='succeeded']
+        result['task_failures']=failures
+        result['operation_failed']=bool(failures) and not ready
+    blocked=[row for row in source.get('missing_tasks',[]) if row.get('kind')=='discovery' and row.get('state') in {'blocked','exhausted'}]
+    if blocked:
+        result.update(phase='source_blocked',run_outcome='blocked',final_response_allowed=True,
+                      operation_failed=True,terminal_blocker={'stage':'discovery','scope':'current_date','tasks':blocked})
+    return result
 
 
 def _repair_packet(day: str) -> dict[str, Any]:
@@ -1159,11 +1262,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         values.insert(0, "status")
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
+    daily = sub.add_parser("daily", help="Pinned current-edition execution; no automatic backfill.")
+    daily.add_argument("--date",required=True)
+    daily.add_argument("--action",choices=("status","plan","work","packet"),default="status")
+    daily.add_argument("--record",action="store_true")
+    daily.add_argument("--max-tasks",type=int,default=4)
     sources = sub.add_parser("sources", help="Independent source preparation; never publication status.")
     sources.add_argument("--date", required=True)
     sources.add_argument("--pool-dir", type=Path, required=True)
     sources.add_argument("--action", choices=("plan", "status", "work", "packet"), default="plan")
     sources.add_argument("--max-tasks", type=int, default=4)
+    sources.add_argument("--domain",choices=("all","ai-social"),default="all")
     for name in ("status", "preflight", "collect", "resume", "expand", "recheck", "queue"):
         command = sub.add_parser(name)
         command.add_argument("--date", required=True)
@@ -1181,9 +1290,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "sources":
         from source_preparation import main as prepare_sources
         return prepare_sources([args.action, "--date", args.date, "--pool-dir", str(args.pool_dir),
-                                "--max-tasks", str(args.max_tasks)])
+                                "--max-tasks", str(args.max_tasks), "--domain",args.domain])
     try:
-        if args.command == "queue":
+        if args.command == "daily":
+            state = daily_execution(args.date,action=args.action,record=args.record,max_tasks=args.max_tasks)
+        elif args.command == "queue":
             state = workflow_queue(args.date, record=args.record, withdraw_reason=args.withdraw_reason)
         elif args.command in {"collect", "resume"}:
             state = _collect(args.date)
@@ -1199,7 +1310,7 @@ def main(argv: list[str] | None = None) -> int:
             state = inspect(args.date, online=getattr(args, "online", False), record_remote=args.record)
             if args.command == "preflight" or getattr(args, "preflight_network", False):
                 state = with_network_preflight(state, force=True)
-        if args.command != "queue":
+        if args.command not in {"queue","daily"}:
             _record(state, args.record)
     except (OSError, ValueError, TypeError, AttributeError, TimeoutError, OverflowError) as exc:
         state = {"date": args.date, "phase": "recovery_failed", "packet_status": "not_checked",

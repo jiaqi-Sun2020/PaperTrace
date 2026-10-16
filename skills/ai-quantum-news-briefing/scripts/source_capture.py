@@ -115,6 +115,12 @@ def make_capture(item: dict[str, Any], requested_url: str, final_url: str, statu
         "quoted_excerpt": quote,
         "source_class": str(item.get("source_class") or "")[:120],
     }
+    if item.get('ai_source_provenance'):
+        from ai_social_sources import article_publication,aware
+        publication=article_publication(body,final_url)
+        if aware(item.get('published_at'))!=aware(publication['published_at']):
+            raise ValueError('ai_original_publication_differs_from_candidate')
+        record['ai_original_publication']=publication
     record["record_sha256"] = digest(record)
     return record
 
@@ -156,6 +162,16 @@ def validate_capture(item: dict[str, Any], record: dict[str, Any]) -> list[str]:
             failures.append("capture final URL is not HTTPS")
     except ValueError:
         failures.append("capture final URL is invalid")
+    if item.get('ai_source_provenance'):
+        from ai_social_sources import aware,public_url
+        original=record.get('ai_original_publication') or {}
+        try:
+            if (type(original.get('extractor_version')) is not int or original['extractor_version']!=2
+                    or not aware(item.get('published_at')) or aware(original.get('published_at'))!=aware(item['published_at'])
+                    or public_url(original.get('canonical_url'))!=public_url(record['final_url'])
+                    or original.get('response_sha256')!=record.get('response_sha256')):
+                failures.append('AI original publication binding differs')
+        except (ValueError,TypeError,AttributeError):failures.append('AI original publication binding missing')
     bare = {key: value for key, value in record.items() if key != "record_sha256"}
     if record.get("record_sha256") != digest(bare):
         failures.append("capture record hash differs")

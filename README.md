@@ -94,7 +94,7 @@ Use the script interface below only when you need recovery, diagnostics, or CI i
 
 ## Current capabilities
 
-- <code>ai-quantum-news-briefing</code> gathers daily candidate signals from AI HOT API or <code>feed.xml</code>; AI HOT is discovery only, never final evidence.
+- <code>ai-quantum-news-briefing</code> uses AI HOT v1 and a bounded registry of official/media feeds or columns for AI-social discovery; none replaces original-article evidence. Legacy feeds remain compatibility inputs.
 - Every new daily briefing orders academic papers by descending auditable impact score, grounds its opening fable in the rank-1 paper by default, and places a factual debrief plus a default-collapsed concrete worked example before the news body; story/example exposure never becomes learner evidence.
 - Briefing research sources cover APS journals, Nature, Science, OpenReview/ICLR, CVF/CVPR, PMLR/ICML, NeurIPS, ACL Anthology, Quantum Journal, and arXiv. arXiv-only records are labeled as preprints.
 - Reader HTML and opt-in briefing Feedback export feedback JSON. New briefings default to reading-only; passive sidecars remain <code>unrated</code> and never establish learner evidence.
@@ -316,7 +316,9 @@ Key rules:
 
 ### Recoverable sources and review boundaries
 
-Optional `orchestrate_daily.py sources --date <RELEASE-YYYY-MM-DD> --pool-dir .\news\_sources --action status` reports the separate local source-preparation store without registering work. Explicit `plan`, bounded `work`, and `packet` reuse captures and lease-protected tasks; admitted material is always `not_reviewed`. This is not another release lifecycle. A bound candidate must retain its selected material revisions through staging, review and first upload. Read the [source-preparation contract](skills/ai-quantum-news-briefing/references/source-preparation-architecture.md) before opting in or rolling back.
+For automatic editions eligible from 2026-10-16, run `orchestrate_daily.py daily --date <RELEASE-YYYY-MM-DD> --action status` from `D:\AI\PaperTrace`. Pin the release date once; its coverage remains the preceding Shanghai natural day across midnight. Read [date-isolated execution](skills/ai-quantum-news-briefing/references/date-isolated-execution.md) before `plan --record`, bounded `work`, or `packet`. Other dates are not dependencies; retired dates retain their original outcomes and are not marked published. Installation and Git push alone neither activate the queue cutoff nor create a schedule.
+
+`sources` remains the underlying compatibility interface, with `--domain ai-social` for bounded AI-only work. It reuses the leased [source-preparation store](skills/ai-quantum-news-briefing/references/source-preparation-architecture.md); admitted material remains `not_reviewed`. A bound candidate must retain selected material revisions through staging, review and first upload. The [fixed-pool contract](skills/ai-quantum-news-briefing/references/ai-social-fixed-pool.md) describes current AI HOT `/api/v1/items`, finite official/media entries, original publication-date checks and host-level 401/403 stopping. Discovery time cannot replace publication time, nor can AI-only work waive Quantum or search evidence.
 
 Failed unpublished staging uses digest-bound controlled revision, not hand-edited HTML or deleted evidence. URL identity, capture admission and recovery are defined in [source-contract recovery](skills/ai-quantum-news-briefing/references/source-contract-recovery.md). A separately authorized HTTPS preview may leave only actual display pending; it is never semantic approval, formal publication or proof that the homepage changed. See [the preview contract](skills/ai-quantum-news-briefing/references/rendered-search-and-preview-contract.md) and [.agents/RUNBOOK.md](.agents/RUNBOOK.md). Publishing code to GitHub does not enable OSS, run collection, or publish a briefing.
 

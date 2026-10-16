@@ -18,7 +18,7 @@ from datetime import date
 from pathlib import Path
 
 MAX_JSON_BYTES = 32_000_000
-KINDS = {'academic', 'aihot', 'discovery', 'capture'}
+KINDS = {'academic', 'aihot', 'discovery', 'capture', 'fixed_source'}
 ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}\Z')
 STATES = {'pending', 'running', 'retry_wait', 'succeeded', 'blocked', 'exhausted'}
 
@@ -178,7 +178,9 @@ class SourcePool:
         if not 1 <= lease_seconds <= 900:
             raise PoolConflict('lease_bound_invalid')
         with self.transaction():
-            expired = self.db.execute("SELECT task_id,attempts,max_attempts FROM tasks WHERE state='running' AND lease_until<=?", (now,)).fetchall()
+            expired = self.db.execute("SELECT task_id,attempts,max_attempts FROM tasks WHERE state='running' AND lease_until<=?"
+                                      + (' AND task_id=?' if task_id is not None else ''),
+                                      (now,task_id) if task_id is not None else (now,)).fetchall()
             for row in expired:
                 self.get(row['task_id'])  # Corruption is not a resumable worker interruption.
                 state = 'exhausted' if row['attempts'] >= row['max_attempts'] else 'retry_wait'
@@ -249,8 +251,13 @@ class SourcePool:
             self._event(task_id, state, now, diagnostic)
             return self.get(task_id)
 
-    def tasks(self):
-        return [self.get(row[0]) for row in self.db.execute('SELECT task_id FROM tasks ORDER BY rowid')]
+    def tasks(self, *, coverage_date=None):
+        result=[]
+        for row in self.db.execute('SELECT task_id,spec FROM tasks ORDER BY rowid'):
+            if coverage_date is not None and json.loads(row['spec']).get('coverage_date')!=coverage_date:
+                continue
+            result.append(self.get(row['task_id']))
+        return result
 
     def put_material(self, source_id, item, capture):
         from material_admission import admit_material

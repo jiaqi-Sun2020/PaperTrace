@@ -142,7 +142,14 @@ The 2026-07-16 briefing contains 8 academic and 12 social-news items with 60 def
 
 ## Daily pipeline v4 decision (2026-09-29)
 
-Daily delivery optimizes for trustworthy selection, not exhaustive-web claims. New releases use a declared source-capability registry and require one healthy `quantum_publisher` plus one healthy `ai_peer_review` family. Individual optional/probationary failures and malformed records are isolated and reported; family failure, missing article evidence or publication inconsistency remains blocking. Standard output is 6–8 academic and 6–12 social items, with evidence-bound `verified_shortfall` after the 14-day/72-hour expansion. `orchestrate_daily.py` is the sole routine status/preflight/collect/resume entry point and never auto-approves semantic review.
+Daily delivery optimizes for trustworthy selection, not exhaustive-web claims. New releases use a declared source-capability registry and require one healthy `quantum_publisher` plus one healthy `ai_peer_review` family. Individual optional/probationary failures and malformed records are isolated and reported; family failure, missing article evidence or publication inconsistency remains blocking. Standard output is 6–8 academic and 6–12 social items, with evidence-bound `verified_shortfall` after the 14-day/72-hour expansion. `orchestrate_daily.py` owns routine orchestration and never auto-approves semantic review.
+
+Automatic editions eligible from 2026-10-16 use `daily --date` to pin one release
+and its preceding Shanghai coverage day. Retired or deferred dates are not current
+dependencies and their historical outcomes remain intact. `sources --domain
+ai-social` is a bounded compatibility utility, not permission to skip Quantum or
+search evidence. See the Skill's date-isolated and fixed-pool contracts. Code
+installation/push does not create a schedule, activate a real queue or publish.
 
 ## Daily source and recovery contract
 
