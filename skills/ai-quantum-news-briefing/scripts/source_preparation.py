@@ -3,11 +3,12 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import hashlib
 import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 from source_pool import SourcePool, PoolConflict, checked_path, fingerprint
-from source_worker import plan_sources, source_snapshot, run_ready, claim_discovery, submit_discovery, code_binding, enqueue_captures
+from source_worker import plan_sources, source_snapshot, run_ready, claim_discovery, submit_discovery, code_binding, enqueue_captures, resume_discovery
 from material_admission import publication_day
 from daily_execution_policy import retired,retired_state
 
@@ -46,6 +47,9 @@ def source_evidence_references(pool, config, release_date):
         except PoolConflict:
             continue
         expected[(task['spec']['kind'], task['spec']['source_id'])] = task
+    from source_recovery import recheck_tasks
+    for task in recheck_tasks(pool,plan):
+        if task['state']=='succeeded':expected[('academic',task['spec']['source_id'])]=task
     refs = []
     def bind(kind, source_id, evidence):
         task = expected.get((kind, source_id))
@@ -193,6 +197,17 @@ def read_input(path):
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+def read_bound_input(path,expected_sha256):
+    import re
+    if not isinstance(expected_sha256,str) or not re.fullmatch('[0-9a-f]{64}',expected_sha256):
+        raise PoolConflict('public_input_digest_required')
+    path=checked_path(path)
+    with path.open('rb') as stream:raw=stream.read(32_000_001)
+    if len(raw)>32_000_000:raise PoolConflict('public_input_too_large')
+    if hashlib.sha256(raw).hexdigest()!=expected_sha256:raise PoolConflict('public_input_changed')
+    return json.loads(raw.decode('utf-8'))
+
+
 def check_run_pool_binding(run_dir, manifest, config):
     binding = manifest.get('source_pool_binding')
     if binding is None and config.get('source_pool_binding') is None:
@@ -214,7 +229,7 @@ def check_run_pool_binding(run_dir, manifest, config):
     return check_pool_binding(news_root, binding, release_date=manifest['date'], historical=historical)
 
 
-def orchestrate_sources(release_date, pool_dir, *, action='plan', max_tasks=4, domain='all'):
+def orchestrate_sources(release_date, pool_dir, *, action='plan', max_tasks=4, domain='all', recovery_policy=None):
     if domain not in ('all','ai-social'): raise PoolConflict('source_domain_invalid')
     if retired(release_date):
         return retired_state(release_date)
@@ -223,15 +238,31 @@ def orchestrate_sources(release_date, pool_dir, *, action='plan', max_tasks=4, d
         return {'source_preparation_version': 1, 'status': 'not_initialized', 'publication_approved': False}
     with SourcePool(path, read_only=action == 'status') as pool:
         plan = plan_sources(pool, release_date, register=action != 'status')
+        if action=='recover':
+            from source_recovery import recover,readiness
+            import time
+            if recovery_policy and recovery_policy.get('enabled'):
+                from evidence_persistence import probe_evidence_directory
+                probe_evidence_directory(Path(pool_dir).parent,release_date)
+            recovered=recover(pool,plan,recovery_policy or {'version':1,'enabled':False},now=time.time())
+            snapshot=source_snapshot(pool,plan)
+            return {'plan':plan,'recovery':recovered,'source_preparation':snapshot,
+                    'content_readiness':readiness(pool,plan,snapshot)}
         if action == 'work':
+            from evidence_persistence import probe_evidence_directory
+            probe_evidence_directory(Path(pool_dir).parent,release_date)
             selected=None
             if domain=='ai-social':
                 selected={task['task_id'] for task in pool.tasks(coverage_date=plan['coverage_date']) if task['spec']['kind'] in ('aihot','fixed_source') or task['spec']['kind']=='capture' and task['spec']['inputs'].get('item',{}).get('ai_source_provenance')}
             worked = run_ready(pool, max_tasks=max_tasks, coverage_date=plan['coverage_date'],task_ids=selected)
-            return {'plan': plan, 'work': worked, 'source_preparation': source_snapshot(pool, plan)}
+            snapshot=source_snapshot(pool,plan)
+            from source_recovery import readiness
+            return {'plan': plan, 'work': worked, 'source_preparation': snapshot,'content_readiness':readiness(pool,plan,snapshot)}
         if action == 'packet':
             return packet(pool, plan)
-        return {'plan': plan, 'source_preparation': source_snapshot(pool, plan),
+        from source_recovery import readiness
+        snapshot=source_snapshot(pool,plan)
+        return {'plan': plan, 'source_preparation': snapshot,'content_readiness':readiness(pool,plan,snapshot),
                 'pending_discovery': [{'task_id': task['task_id'], 'navigation': task['spec']['inputs']['navigation']}
                                       for task in pool.tasks(coverage_date=plan['coverage_date']) if task['task_id'] in plan['tasks']
                                       and task['spec']['kind'] == 'discovery'
@@ -241,11 +272,14 @@ def orchestrate_sources(release_date, pool_dir, *, action='plan', max_tasks=4, d
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=('plan', 'status', 'work', 'packet', 'claim-discovery', 'submit-discovery',
-                                          'record-denial', 'import-materials', 'enqueue-captures', 'bind-candidate', 'backup'))
+                                          'resume-discovery', 'reconcile-cached-failure', 'record-denial', 'import-materials', 'enqueue-captures', 'bind-candidate', 'backup'))
     parser.add_argument('--date', required=True)
     parser.add_argument('--pool-dir', type=Path, required=True)
     parser.add_argument('--task-id')
     parser.add_argument('--lease')
+    parser.add_argument('--expected-sha256')
+    parser.add_argument('--expected-failure-sha256')
+    parser.add_argument('--reason')
     parser.add_argument('--input', type=Path)
     parser.add_argument('--references', type=Path)
     parser.add_argument('--output', type=Path)
@@ -263,7 +297,7 @@ def main(argv=None):
             result = orchestrate_sources(args.date, args.pool_dir, action=args.action, max_tasks=args.max_tasks,domain=args.domain)
         else:
             with SourcePool(args.pool_dir/'pool.sqlite') as pool:
-                if args.action in ('claim-discovery','submit-discovery','record-denial'):
+                if args.action in ('claim-discovery','submit-discovery','resume-discovery','reconcile-cached-failure','record-denial'):
                     task=pool.get(args.task_id)
                     if task['spec']['coverage_date']!=(date.fromisoformat(args.date)-timedelta(days=1)).isoformat():
                         raise PoolConflict('task_release_date_mismatch')
@@ -271,6 +305,13 @@ def main(argv=None):
                     result = claim_discovery(pool, args.task_id)
                 elif args.action == 'submit-discovery':
                     result = submit_discovery(pool, args.task_id, args.lease, read_input(args.input))
+                elif args.action == 'resume-discovery':
+                    observation=read_bound_input(args.input,args.expected_sha256)
+                    result={**resume_discovery(pool,args.task_id,observation),'input_sha256':args.expected_sha256}
+                elif args.action=='reconcile-cached-failure':
+                    from source_recovery import reconcile_cached_failure
+                    result=reconcile_cached_failure(pool,args.task_id,expected_failure_sha256=args.expected_failure_sha256,
+                        expected_checkpoint_sha256=args.expected_sha256,reason=args.reason)
                 elif args.action == 'record-denial':
                     result = pool.fail(args.task_id, args.lease, {'code': 'policy_rejected', 'retryable': False})
                 elif args.action == 'import-materials':
@@ -297,9 +338,12 @@ def main(argv=None):
         print(json.dumps(result, ensure_ascii=False))
         if args.action == 'work' and any(row['state'] != 'succeeded' for row in result.get('work', {}).get('processed', [])):
             return 2
+        if args.action=='resume-discovery' and result.get('state') in ('blocked','exhausted'):return 2
+        if args.action=='reconcile-cached-failure' and result.get('status')=='cached_failure_still_invalid':return 2
         return 0
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
         print(json.dumps({'status': 'source_preparation_failed', 'code': str(exc) if isinstance(exc, PoolConflict) else type(exc).__name__,
+                          **({'original_source_failure':exc.source_failure,'source_task_id':exc.source_task_id} if hasattr(exc,'source_failure') else {}),
                           'publication_approved': False}))
         return 2
 

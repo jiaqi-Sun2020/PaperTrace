@@ -24,7 +24,8 @@ def code_binding():
     names = ('source_pool.py', 'source_worker.py', 'discovery_navigation.py', 'discovery_navigation.mjs',
              'material_admission.py', 'academic_sources.py', 'academic_venue_sweep.py', 'dated_source.py',
              'plos_source.py', 'aihot_candidates.py', 'source_capture.py', 'daily_coverage_evidence.py', 'paper_identity.py',
-             'source_preparation.py', 'ai_social_sources.py', 'daily_execution_policy.py', 'daily_pipeline.py', 'briefing_contract.py', 'release_audit.py')
+             'source_preparation.py', 'ai_social_sources.py', 'daily_execution_policy.py', 'daily_pipeline.py', 'briefing_contract.py', 'release_audit.py',
+             'source_recovery.py', 'evidence_persistence.py')
     values = {name: hashlib.sha256((SCRIPTS/name).read_bytes()).hexdigest() for name in names}
     values['source_registry'] = hashlib.sha256((SCRIPTS.parent/'references/academic_sources.v1.json').read_bytes()).hexdigest()
     return values
@@ -43,7 +44,7 @@ def plan_sources(pool, release_date, *, register=True):
     plan = build_plan_v4(['quantum', 'machine learning'], coverage)
     registered = sources_by_id()
     tasks = []
-    register_spec = pool.enqueue if register else fingerprint
+    register_spec = (lambda spec: pool.enqueue_compatible(spec, validate_result)) if register else fingerprint
     for row in plan['rows']:
         spec = task_spec('academic', row['source_id'], coverage,
                          {'row': row, 'terms': plan['terms']}, {**binding, 'source': registered[row['source_id']]})
@@ -68,9 +69,10 @@ def validate_result(spec, value):
         return ['result_shape_invalid']
     if spec['kind'] == 'academic':
         from academic_sources import row_evidence_failures, row_is_healthy
+        failures = row_evidence_failures(value, spec['coverage_date'])
         if value.get('source_id') != spec['source_id'] or not row_is_healthy(value, spec['coverage_date']):
-            return ['academic_source_incomplete']
-        return row_evidence_failures(value, spec['coverage_date'])
+            failures.append('academic_source_incomplete')
+        return sorted(set(failures))
     if spec['kind'] == 'aihot':
         from daily_coverage_evidence import validate_ai_hot_window
         return validate_ai_hot_window(value.get('ai_hot_window'), spec['coverage_date'])
@@ -141,6 +143,38 @@ def failure_for(exc, *, http_status=None, retry_after=None):
     return {k: raw[k] for k in ('code', 'retryable', 'http_status', 'retry_after_seconds') if k in raw}
 
 
+def work_eligibility(pool, task, tasks, *, now, blocked_hosts=None):
+    """One read-only eligibility contract shared by the worker and its handoff."""
+    kind=task['spec']['kind']
+    if kind=='discovery':return 'browser_required'
+    if task['state'] in ('succeeded','blocked','exhausted'):return 'task_not_claimable'
+    if task['state']=='running' and task['lease_until']>now:return 'live_lease'
+    if task['state']=='retry_wait' and task['retry_at']>now:return 'retry_after'
+    if blocked_hosts is None:
+        blocked_hosts={(t['spec']['coverage_date'],urlsplit(t['spec']['inputs']['item']['source_url']).hostname)
+            for t in tasks if t['spec']['kind']=='capture' and t['spec']['inputs'].get('item',{}).get('ai_source_provenance')
+            and (t['failure'] or {}).get('http_status') in (401,403)}
+    item=task['spec']['inputs'].get('item',{})
+    if kind=='capture' and item.get('ai_source_provenance') and (task['spec']['coverage_date'],urlsplit(item['source_url']).hostname) in blocked_hosts:
+        return 'same_ai_original_host_access_denied'
+    if kind=='fixed_source':
+        from ai_social_sources import registered,aware,ZONE
+        source=registered(task['spec']['source_id'])
+        if source['role']=='backup':
+            primary=[pool.get(t['task_id']) for t in tasks if t['spec']['kind']=='fixed_source'
+                and t['spec']['coverage_date']==task['spec']['coverage_date']
+                and t['spec']['config'].get('code')==task['spec']['config'].get('code')
+                and t['spec']['config'].get('policy')==task['spec']['config'].get('policy')
+                and registered(t['spec']['source_id'])['source_class']==source['source_class']
+                and registered(t['spec']['source_id'])['role']=='primary']
+            if any(t['state'] in ('pending','running') for t in primary):return 'backup_waits_for_primary'
+            count=sum(1 for t in primary if t['state']=='succeeded' for candidate in t['result']['candidates']
+                if aware(candidate.get('published_at')) and aware(candidate['published_at']).astimezone(ZONE).date().isoformat()==task['spec']['coverage_date'])
+            denied=any((task['spec']['coverage_date'],urlsplit(registered(t['spec']['source_id'])['url']).hostname) in blocked_hosts for t in primary)
+            if all(t['state']=='succeeded' for t in primary) and count>=3 and not denied:return 'backup_not_required'
+    return None
+
+
 def execute_existing(spec, checkpoint_dir):
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     key = fingerprint(spec)
@@ -203,65 +237,87 @@ def run_ready(pool, *, max_tasks=4, executor=None, clock=time.time, coverage_dat
             replacement_required.append({'task_id':pending['task_id'],'item_id':item['id'],
                                          'reason':'same_ai_original_host_access_denied','action':'choose_another_approved_pool_candidate'})
             continue
-        if pending['spec']['kind']=='fixed_source':
-            from ai_social_sources import registered,aware
-            source=registered(pending['spec']['source_id'])
-            if source['role']=='backup':
-                primary=[pool.get(t['task_id']) for t in tasks if t['spec']['coverage_date']==pending['spec']['coverage_date'] and t['spec']['kind']=='fixed_source' and registered(t['spec']['source_id'])['source_class']==source['source_class'] and registered(t['spec']['source_id'])['role']=='primary']
-                if any(t['state'] in ('pending','running') for t in primary): continue
-                count=sum(1 for t in primary if t['state']=='succeeded' for c in t['result']['candidates'] if aware(c.get('published_at')) and aware(c['published_at']).astimezone(__import__('ai_social_sources').ZONE).date().isoformat()==pending['spec']['coverage_date'])
-                original_denied=any((pending['spec']['coverage_date'],urlsplit(registered(t['spec']['source_id'])['url']).hostname) in blocked_hosts for t in primary)
-                if all(t['state']=='succeeded' for t in primary) and count>=3 and not original_denied: continue
+        claim_at=clock()
+        if work_eligibility(pool,pending,tasks,now=claim_at,blocked_hosts=blocked_hosts):continue
         if len(results) >= max_tasks:
             break
         if pending['spec']['kind'] == 'discovery':
             continue  # These need an explicit existing-tab observation, not an HTTP substitute.
-        lease = pool.claim(task_id=pending['task_id'], now=clock(), lease_seconds=900)
+        lease = pool.claim(task_id=pending['task_id'], now=claim_at, lease_seconds=900)
         if lease is None:
             continue
         key, token, spec = lease['task_id'], lease['lease'], lease['spec']
+        details=None
+        diagnostic_warnings=[]
+        failures=[]
         try:
             if spec['config'].get('code') != code_binding():
                 raise PoolConflict('task_code_changed')
             value = executor(spec) if executor is not None else execute_existing(spec, pool.path.parent/'checkpoints')
-            failures = validate_result(spec, value)
+            try:
+                failures = validate_result(spec, value)
+            except Exception:
+                # Broken result shapes/validators cannot erase an observed HTTP cause.
+                failures=['result_validator_exception']
+                diagnostic_warnings.append('result_validator_exception')
             if failures:
-                evidence = value.get('evidence') or {}
+                value=value if isinstance(value,dict) else {}
+                evidence=value.get('evidence') if isinstance(value.get('evidence'),dict) else {}
                 status = evidence.get('status_code')
-                if value.get('task_diagnostic'):
-                    diagnostic = value['task_diagnostic']
-                elif status in (401, 403, 404, 410, 429, 500, 502, 503, 504, 408):
+                if type(status) is int and status in (401, 403, 404, 410, 429, 500, 502, 503, 504, 408):
                     diagnostic = failure_for(ValueError(), http_status=status, retry_after=evidence.get('retry_after'))
-                elif evidence.get('failure_diagnostic'):
-                    diagnostic = {k: evidence['failure_diagnostic'][k] for k in
-                                  ('code', 'retryable', 'http_status', 'retry_after_seconds') if k in evidence['failure_diagnostic']}
-                elif value.get('capture_failures'):
-                    diagnostic = {k: value['capture_failures'][0][k] for k in
-                                  ('code', 'retryable', 'http_status', 'retry_after_seconds') if k in value['capture_failures'][0]}
-                elif spec['kind'] == 'aihot' and not value.get('ai_hot_window', {}).get('recovery', {}).get('action_required'):
-                    diagnostic = {'code': 'pagination_incomplete', 'retryable': True}
                 else:
                     diagnostic = {'code': 'result_validation_failed', 'retryable': False}
-                state = pool.fail(key, token, diagnostic, now=clock)
-            else:
-                state = pool.complete(key, token, value, validate_result, now=clock)
+                    from source_pool import ID
+                    capture=value.get('capture_failures')
+                    supplied=value.get('task_diagnostic') or evidence.get('failure_diagnostic') or (capture[0] if isinstance(capture,list) and capture else None)
+                    if supplied is not None:
+                        allowed={'code','retryable','http_status','retry_after_seconds'}
+                        control={k:v for k,v in supplied.items() if k in allowed} if isinstance(supplied,dict) else {}
+                        delay=control.get('retry_after_seconds',30);http=control.get('http_status')
+                        if (isinstance(control.get('code'),str) and ID.fullmatch(control['code']) and type(control.get('retryable')) is bool
+                                and (http is None or type(http) is int and 100<=http<=599)
+                                and type(delay) in (int,float) and math.isfinite(delay) and 0<=delay<=86400):
+                            diagnostic=control
+                        else:diagnostic_warnings.append('provider_diagnostic_invalid')
+                    elif spec['kind']=='aihot':
+                        window=value.get('ai_hot_window');recovery=window.get('recovery') if isinstance(window,dict) else None
+                        if not isinstance(recovery,dict) or not recovery.get('action_required'):
+                            diagnostic={'code':'pagination_incomplete','retryable':True}
+                if spec['kind'] == 'academic':
+                    from source_recovery import academic_diagnostic
+                    try:
+                        context=academic_diagnostic(spec,value,failures)
+                        details={'version':1,**{k:v for k,v in context.items() if k not in ('code','retryable','recovery_action')}}
+                        if diagnostic['code']=='result_validation_failed':
+                            diagnostic={'code':context['code'],'retryable':context['retryable']}
+                    except Exception:
+                        diagnostic_warnings.append('academic_diagnostic_unavailable')
         except Exception as exc:
             diagnostic = ({'code': str(exc), 'retryable': False} if isinstance(exc, PoolConflict)
                           else failure_for(exc) if isinstance(exc, (OSError, ValueError, TypeError))
                           else {'code': 'collector_'+type(exc).__name__, 'retryable': False})
-            try:
-                state = pool.fail(key, token, diagnostic, now=clock)
-            except PoolConflict as conflict:
-                if str(conflict) != 'stale_or_expired_lease':
-                    raise
-                # Another worker owns recovery after expiry. Do not overwrite
-                # its state or abort unrelated ready tasks with a stale token.
-                results.append({'task_id': key, 'state': 'lease_lost',
-                                'failure': {'code': 'stale_or_expired_lease', 'retryable': False}})
-                continue
+            failures=['collector_exception']
+            details=None
+        # Storage/contract failures are not collector failures. Record once; a
+        # broken failure store must not overwrite the original cause as a source error.
+        try:
+            state=(pool.fail(key,token,diagnostic,now=clock,details=details) if failures else
+                   pool.complete(key,token,value,validate_result,now=clock))
+        except Exception as conflict:
+            if not isinstance(conflict,PoolConflict) or str(conflict) != 'stale_or_expired_lease':
+                conflict.source_failure=dict(diagnostic) if failures else None
+                conflict.source_task_id=key
+                raise
+            # Another worker owns recovery after expiry. Do not overwrite
+            # its state or abort unrelated ready tasks with a stale token.
+            results.append({'task_id': key, 'state': 'lease_lost',
+                            'failure': {'code': 'stale_or_expired_lease', 'retryable': False}})
+            continue
         if spec['kind']=='capture' and spec['inputs']['item'].get('ai_source_provenance') and (state['failure'] or {}).get('http_status') in (401,403):
             blocked_hosts.add((spec['coverage_date'],urlsplit(spec['inputs']['item']['source_url']).hostname))
-        results.append({'task_id': key, 'state': state['state'], 'failure': state['failure']})
+        results.append({'task_id': key, 'state': state['state'], 'failure': state['failure'],
+                        **({'diagnostic_warnings':diagnostic_warnings} if diagnostic_warnings else {})})
     return {'processed': results, 'replacement_required':replacement_required, 'execution_mode': 'existing_adapters' if executor is None else 'injected_test_adapter',
             'semantic_review_status': 'not_reviewed', 'publication_approved': False}
 
@@ -284,6 +340,26 @@ def submit_discovery(pool, task_id, lease, observation, *, now=None):
     if pool.get(task_id)['spec']['kind'] != 'discovery':
         raise PoolConflict('not_a_discovery_task')
     return pool.complete(task_id, lease, observation, validate_result, now=now)
+
+
+def resume_discovery(pool,task_id,observation,*,now=None):
+    """Submit existing validated public evidence under a current lease, no browser call."""
+    task=pool.get(task_id)
+    if task['spec']['kind']!='discovery':raise PoolConflict('not_a_discovery_task')
+    if validate_result(task['spec'],observation):raise PoolConflict('saved_discovery_invalid')
+    if task['state']=='succeeded':
+        if task['result_sha']!=fingerprint(observation):raise PoolConflict('saved_discovery_result_conflict')
+        return {'status':'already_committed','state':'succeeded','task_id':task_id,'network_executed':False,'publication_approved':False}
+    owner=claim_discovery(pool,task_id,now=now)
+    if not owner.get('lease'):
+        latest=pool.get(task_id)
+        if latest['state']=='succeeded':
+            if latest['result_sha']!=fingerprint(observation):raise PoolConflict('saved_discovery_result_conflict')
+            return {'status':'already_committed','state':'succeeded','task_id':task_id,'network_executed':False,'publication_approved':False}
+        return {'status':'lease_not_available','task_id':task_id,'state':owner['state'],'network_executed':False,'publication_approved':False}
+    done=submit_discovery(pool,task_id,owner['lease'],observation,now=now)
+    return {'status':'committed_saved_evidence','state':done['state'],'task_id':task_id,'attempts':done['attempts'],
+            'network_executed':False,'publication_approved':False}
 
 
 def source_snapshot(pool, plan):
@@ -318,6 +394,22 @@ def source_snapshot(pool, plan):
             fixed.append(task['result'])
         elif spec['kind'] == 'discovery' and task['state'] == 'succeeded':
             discovery.append(task['result'])
+    current_tasks=pool.tasks(coverage_date=plan['coverage_date'])
+    # Captures are not source queries, but must be visible to phase recovery.
+    for task in current_tasks:
+        spec=task['spec']
+        if (spec['kind']=='capture' and task['state']!='succeeded'
+                and spec['config'].get('code')==plan['binding']['code']
+                and spec['config'].get('policy')==plan['binding']['policy']):
+            missing.append({'task_id':task['task_id'],'kind':'capture','source_id':spec['source_id'],
+                'state':task['state'],'failure':task['failure'],'retry_at':task['retry_at']})
+    for row in missing:
+        if row.get('state')=='not_registered' or row.get('kind')=='discovery':continue
+        reason=work_eligibility(pool,pool.get(row['task_id']),current_tasks,now=time.time())
+        row.update(work_eligible=reason is None,work_eligibility_reason=reason)
+    from source_recovery import recheck_tasks
+    latest={task['spec']['source_id']:task['result'] for task in recheck_tasks(pool,plan) if task['state']=='succeeded'}
+    rows=[latest.get(row['source_id'],row) for row in rows]
     academic = build_plan_v4(['quantum', 'machine learning'], plan['coverage_date'])
     academic.update(rows=rows, family_gate=family_gate(rows, require_query=True), source_health=health_table(rows, require_query=True))
     from ai_social_sources import pool_evidence

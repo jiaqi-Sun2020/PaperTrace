@@ -1,0 +1,868 @@
+{
+  "version": 1,
+  "kind": "production_source_snapshot_not_recovery_success",
+  "snapshot_date": "2026-10-20",
+  "repository": "jiaqi-Sun2020/PaperTrace",
+  "parent_commit": "8687a0ee6e1abbd3d7d68b45c62837f6dd6a9ba2",
+  "production_root": "D:/AI/PaperTrace",
+  "source_mode": "read_only_exact_bytes",
+  "repair_worktree_head": "3d79e5fa2673d8f6f0f957521fa490cddc626af4",
+  "repair_worktree_code_included": false,
+  "production_git_status": "Git refused ownership; no safety exception or alternate identity used. Main SHA also matched repository worktree registry and prior deployment receipt; current complete dirty status not certified.",
+  "historical_regression": {
+    "deployment": "daily-closed-loop-2026-10-19-r4",
+    "receipt_sha256": "30884bb7f0bafd8f234cc3bad043b5a6804b50f2bef57eab11a99b8324c9458b",
+    "news": {
+      "run": 804,
+      "pass": 803,
+      "fail": 0,
+      "error": 0,
+      "skip": 1
+    },
+    "fable": {
+      "run": 32,
+      "pass": 32,
+      "fail": 0,
+      "error": 0,
+      "skip": 0
+    },
+    "rerun_this_snapshot": false,
+    "current_source_hashes_compared": 134,
+    "current_source_hash_conflicts": 0,
+    "note": "Historical production regression, not a new branch validation. The excluded real-cache-dependent test module means this public snapshot does not reproduce all 804 identities."
+  },
+  "exclusions": [
+    "news/ real editions, queue, budgets, captures, reviews and receipts",
+    "tests/fixtures/recovery-academic-checkpoints.json: 14 real cached responses",
+    "tests/test_daily_bounded_recovery.py: depends on excluded real response fixture",
+    "all .tmp prototypes, diagnostics, installers, logs and backup payloads",
+    "local OpenAI automation configuration, external host approval/runtime policy and publishing configuration",
+    "credentials, cookies, sessions, personal learning data, unrelated pages and project changes",
+    "undeployed terminal-status patch and isolated child-home/receipt prototype",
+    "mixed global .agents documentation changes"
+  ],
+  "files": [
+    {
+      "path": "skills/ai-quantum-news-briefing/agents/openai.yaml",
+      "sha256": "ae515911ff75ce159ecd10f1252cfe729a1f236ee9adce9b733ebb5b34c9f0d1",
+      "git_blob_sha": "9d8260c6ce7f869cbb338f67ec7ce662ce3c2439",
+      "bytes": 376
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/academic-source-policy.md",
+      "sha256": "6987c0dea42cd8b99eb20b807b5e851d7fb9efe24b83ae855f833ba1784f8e44",
+      "git_blob_sha": "875ecffe9c9fc2227cc493c1257b2eaff58c799a",
+      "bytes": 9933
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/academic_sources.v1.json",
+      "sha256": "91514eb5d33d172c7e919e576ed9ce3b28746793dee4f952785a7bc02c19d51d",
+      "git_blob_sha": "ebb3483ea62a21c60e822e2dbf114d719310ee0d",
+      "bytes": 15881
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/ai-social-fixed-pool.md",
+      "sha256": "12c25ecbaf3ac65a9c9014cb2aaec1017da4517f4d718f47eb9b3c17f9e8f25e",
+      "git_blob_sha": "1fffa886c3320705c4679e9c30eeb9dcca6ef4a7",
+      "bytes": 8953
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/aihot-feed.sample.xml",
+      "sha256": "8c47dc8d2758a7c3488140cd8d89a5dcb6af686c240fb5b71cc145ab895feb25",
+      "git_blob_sha": "951477e29f9929caba2f076a0a72cd56e33494f0",
+      "bytes": 76541
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/aihot-readme.md",
+      "sha256": "2a39ee17e0ff8e50fa577a7566e482b8419e12e860832d527553d1deaa8810b2",
+      "git_blob_sha": "4def089be9ac75efbe08f24b12a74868c2d7d0a4",
+      "bytes": 3024
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/aihot-skill.md",
+      "sha256": "d151b961dcbf628e977da99afedf19c5a86d75a3b32d9d31eca7ddf112e943e0",
+      "git_blob_sha": "1b6e7ad9ee8f266e6c6ea7e8428cb421f2bbb1d4",
+      "bytes": 30209
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/bounded-closed-loop.md",
+      "sha256": "2f37e255c6f5343afd66c7afc73a287d3a79829d8f82338210040dcfdb2c2080",
+      "git_blob_sha": "86899455d76c44bba42bda463ab3d7aa1b014ced",
+      "bytes": 10074
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/bounded-daily-recovery.md",
+      "sha256": "131bef1edb9099af2bf213ccd76e5073c8e9d65d6f3a32b5732fe14b9a3f439c",
+      "git_blob_sha": "92cf493a8b1917e918c3f6c4f9d24e3bba4c4a57",
+      "bytes": 14507
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/company-report-sources.md",
+      "sha256": "9768d8c9224e3ca7b053a00a226b86eeaec61cffc91355aeef2e389d14d9ea48",
+      "git_blob_sha": "24e178529dd75df533e04c1e1ba1c0828ae63518",
+      "bytes": 5081
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/date-isolated-execution.md",
+      "sha256": "a6520cf5d22c726119f42e0afcefa13f7c7936c646003ad1b5a08f24f522b33f",
+      "git_blob_sha": "d52eca1286efc6a0cd63014da0646f96823ce888",
+      "bytes": 6388
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/integration-aihot.md",
+      "sha256": "49b04948094433f68ce407cb3e82a04ac7493417134bc4e714218b25143058fc",
+      "git_blob_sha": "d09b91315abf86c54040441aa3f6fde44b523507",
+      "bytes": 1671
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/network-domain-template.toml",
+      "sha256": "ab85fbf66e0f0e920b3d78624f7abad3be68d1f60810f4b8aa886bfe039320c0",
+      "git_blob_sha": "72003144de097a8526bebc777959c6974ce2baf7",
+      "bytes": 709
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/news-feedback-profile.md",
+      "sha256": "9225004d0f427d2b4b6e08b022fcbfb9eadcbebd02ae4eaacd264f231bed4358",
+      "git_blob_sha": "e7450abc9014316dae14d89f4a4fffa8dcfbeb48",
+      "bytes": 3374
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/news-html-feedback.md",
+      "sha256": "5655fee6b094d83e577ff1a33b4474be2faba9eb188751ef134d75ee41d2d7cd",
+      "git_blob_sha": "6f5c71ec6a7a2bf45dac385ccee755fae0bd8114",
+      "bytes": 10478
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/release-review-protocol.md",
+      "sha256": "cb8b4d284746dde2fc5762676f714c36ccc5edfba77fb68c5bf54f3c74c765a4",
+      "git_blob_sha": "8a402cef3e6427124ccfd413d6c317cd34781fc1",
+      "bytes": 7358
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/rendered-search-and-preview-contract.md",
+      "sha256": "2ef589feff3536b4939eed9494aab67586c6113dc6e99cffad5ddcc3dea5d9f8",
+      "git_blob_sha": "f53379c9ae8e37e1c9d70691965094463e7b13b1",
+      "bytes": 6424
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/source-contract-recovery.md",
+      "sha256": "b662e2aa6d062823043e5f69a9c2f5b17dc0d88a879517ae174b113769dd28c3",
+      "git_blob_sha": "d828d872ba4ea5b3873c7a720116368ede997eda",
+      "bytes": 8633
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/references/source-preparation-architecture.md",
+      "sha256": "e91f48429f12a626b04216a01d3f6872baba45d49b940426ed1f60fc0cf29ff4",
+      "git_blob_sha": "2b6e3e122b20faa33b4377a2dee10a29e357c43d",
+      "bytes": 6457
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/academic_sources.py",
+      "sha256": "f5c786b535742c5f049237c307d32def6d6610846abfbb8ccbd80f0f170a24ac",
+      "git_blob_sha": "691b8e34e1461ddcfad4229ebf2a36524ea55726",
+      "bytes": 13446
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/academic_venue_sweep.py",
+      "sha256": "eef4c62c591a50625f5a17fc2fc91484e294f2a02067902e3a773626c28eafdb",
+      "git_blob_sha": "8ae2e57eb536045eec12248c9c89ced448db7ea3",
+      "bytes": 52448
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/aihot_candidates.py",
+      "sha256": "b4cc464ac77e9414a67f1abd4323c5b312d58829dbfdce8aec3d546c996c61f8",
+      "git_blob_sha": "a9b93c664777f40228bc6f07762ea445c1c3f178",
+      "bytes": 27861
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/ai_social_sources.py",
+      "sha256": "266a3ac232bc3068849c289dba08065ee1fe07915cca841ad2ec2c87a6ace9d5",
+      "git_blob_sha": "ed374cc170ea333c335c8f7fe926d5e55485e3e0",
+      "bytes": 18639
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/audit_briefing_config.py",
+      "sha256": "c3b60dc1f94ae389ef1cd8eb49234ce43ec80b5a144a46157e3ed10da8b61cb6",
+      "git_blob_sha": "3eb3657c35d31d44a4316fbf2af8828e089236a8",
+      "bytes": 52571
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/briefing_contract.py",
+      "sha256": "1ecb3bfaa3d43bdeb5c228fe18f278740bdfe0e43c7bda0069e534768d864798",
+      "git_blob_sha": "fdacdea5a933f74b0b8520e1168a8394e5c57f85",
+      "bytes": 46762
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/briefing_to_feedback_html.py",
+      "sha256": "3524b5f062a1e7367d20650ba1b05f887c1df7d068ecb8afcacab893b72dc964",
+      "git_blob_sha": "b4e01f6375dadb8504462697cf853f7be014c7c0",
+      "bytes": 66747
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/collection_checkpoint.py",
+      "sha256": "4471ef934e6b2f99b3b541979839e8131b1b860cc663540528f6fb7524249d4e",
+      "git_blob_sha": "8534b557961764453be29591fd8f6bde173ff965",
+      "bytes": 2061
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/config_to_news_feedback.py",
+      "sha256": "651f5c21c04895f109230c61615b2123853a4ef040e8eb9a708fe2a254fe5d32",
+      "git_blob_sha": "4560bc94b1b000330b99438650f07f934b575ee5",
+      "bytes": 8258
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/daily_authoring.py",
+      "sha256": "a0f284eaf9c8e26699403827621fcd3b33c85de8fddfb8ee101bfa8a3aec0ff4",
+      "git_blob_sha": "544282a732b4a370a20332f923bc09c451c4a03f",
+      "bytes": 17078
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/daily_closed_loop.py",
+      "sha256": "2811280de3b5a20c559e3dd36a39bb0ef60400fb7cc783a1685d3a68019e429b",
+      "git_blob_sha": "3430e3f5f374eb008efc452d73b8c6f2b506069c",
+      "bytes": 52437
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/daily_continuation.py",
+      "sha256": "6093d1a5991d1f47910da2e9bdc6e40ff084f39cec6fe57fb29f590280f75698",
+      "git_blob_sha": "f608a13356d90c0035d99d0fd914c82ef4c3d113",
+      "bytes": 3450
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/daily_coverage_evidence.py",
+      "sha256": "bb1088269bc599b3466a638a3ee157a09bdf33ffc731a7ba17a76e7fe5dd53ff",
+      "git_blob_sha": "32c1d9eb5c9e024d1b5b4b691b22289f9f51d6b0",
+      "bytes": 19639
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/daily_delivery_policy.py",
+      "sha256": "51e95e236f89ff864d02dacbb973f42ef50a3b475c96cde96de75fd582cfd978",
+      "git_blob_sha": "b96fce474831ed688183a46319018889e8d160c6",
+      "bytes": 4580
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/daily_execution_policy.py",
+      "sha256": "d99ba1a90cd8697d2f7d53e1d77bc5a147e8019a658c440978993c55b4bf5757",
+      "git_blob_sha": "293ed23b5e92484d67a02eb007ac0e2662656c82",
+      "bytes": 1229
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/daily_pipeline.py",
+      "sha256": "67e0b5804dd23fd88b358202857ad18249ee0c436665184c591a69bb80196e53",
+      "git_blob_sha": "8d3ba31203d1baf0d0bc06312109e6e3f05ef302",
+      "bytes": 83761
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/daily_revisions.py",
+      "sha256": "4796f9ade6baa2f732f944c07d66eed1c2729483d860a0355830a2c13689c8f7",
+      "git_blob_sha": "568186481e63cc10c834e7067dc4204ba1e1f73f",
+      "bytes": 19871
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/dated_source.py",
+      "sha256": "bd003ccf7737d8a4df4b36b023576b9b462dcff00c437e238efb330a87bd9913",
+      "git_blob_sha": "5e54b4f596174db12e54309b6bfb312717c2e1ee",
+      "bytes": 15918
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/delivery_expansion.py",
+      "sha256": "a536ba4c6356ced12f21217eb50c0436eaae1e01f5cab4fba7a90cead9de597c",
+      "git_blob_sha": "f02b019bf89a435d97cbbd5e2c3b3e2e4b30c4c2",
+      "bytes": 8754
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/discovery_navigation.mjs",
+      "sha256": "875dde08431db1df7762e7550cdf615a3baf2f40bade4e8de45c8cb74f660789",
+      "git_blob_sha": "411752d1d28512be762602436ad2affc5c2c0c3c",
+      "bytes": 1096
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/discovery_navigation.py",
+      "sha256": "9e9f0bdb4eacd6a5920567878878dd6e3444df5384485218fea814aef27290d2",
+      "git_blob_sha": "8d4f79c80f2f19923fa946139675e6773edf65ac",
+      "bytes": 2345
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/evidence_persistence.py",
+      "sha256": "62d5d9059c754aff98252ed9aa358b4af5003d8132d8ae8d7eef280537c11d8b",
+      "git_blob_sha": "dea9691846782d809d63c9d10f5982e330720517",
+      "bytes": 6636
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/formula_contract.py",
+      "sha256": "5fafa3192dfde04010cbaabce7a25cd6d44fc48acde0425ee0cf86011b821391",
+      "git_blob_sha": "3555dbfbc1ba0f8947453b37973887fa9f9aaf4d",
+      "bytes": 1336
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/import_news_feedback.py",
+      "sha256": "841d2176619c3a8fe63b4393c01e582c0bd6741fcab26d25dedbd983da15028a",
+      "git_blob_sha": "c04f52558d85e5c84804fb1bed29a21a0ff76ec2",
+      "bytes": 9285
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/material_admission.py",
+      "sha256": "26ed16659f2c288bc3f8938e2198282ee3c1ca49bcf569266ba375e931c96af8",
+      "git_blob_sha": "b228328f2cffe94f17775c36dd319d9200f2b80d",
+      "bytes": 2277
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/network_preflight.py",
+      "sha256": "a83c09ddb834f967770a0c3772aa74fde49de7b912d7d159280fceb595195661",
+      "git_blob_sha": "d09e680b7aad2c26474e0b0dd62c4548e4492893",
+      "bytes": 4885
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/news_delta.py",
+      "sha256": "a5529c733d54bb030ad9f80b1fe70e5a8cda0df2403d347e2633c1f4bb95977e",
+      "git_blob_sha": "8aac4ff4bd97028b6dcd7f97ac986ee631833dac",
+      "bytes": 36845
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/orchestrate_daily.py",
+      "sha256": "77ffbb2af28d66d5cf0c3d1388cd65063932e39d2b2b41e317a9e01b850e4495",
+      "git_blob_sha": "0fed887329c1e6ea1ff75d9c577b1b5d0dd90c03",
+      "bytes": 93130
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/owned_process.py",
+      "sha256": "d053e6788c0e6317a32fcd047408ebcd1327ec5fd67cc245709b2325f0ea843e",
+      "git_blob_sha": "dbfbcf9e0e0ad796538cc4006ae63a4b6ad5046b",
+      "bytes": 11926
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/paper_identity.py",
+      "sha256": "e9c0c9356ff2229d2b1a9973273a690ef073e1f0119ea274e15a16639f5870bc",
+      "git_blob_sha": "3786e9976c8c07f575709f44f7cab1de440b33ac",
+      "bytes": 7489
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/plos_source.py",
+      "sha256": "aaceeffad952ff040c470ff6cf046f997f6fd5d8534a7d95fab8e1713c39396d",
+      "git_blob_sha": "2becbae2b3a459ec4be11be057cd01f8e82da2c9",
+      "bytes": 18408
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/publication_contracts.py",
+      "sha256": "056fc2492cb6f2bc7f3cd2b680e4ffd7faca0a1fd0e944dac6377ffe4e6d1684",
+      "git_blob_sha": "c976b7a0313352a6311fbae41c5cb017b3a95daa",
+      "bytes": 1962
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/publish_daily_to_oss.py",
+      "sha256": "626556bb5d3ed685174c24c4e3aa29af5689696d5c8ca181034e5a7df306eb80",
+      "git_blob_sha": "20a37dc2aeb5b7387a0fbd67ef9915d9adc4eac2",
+      "bytes": 39605
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/rank_briefing_candidates.py",
+      "sha256": "9336b311f440fc259c7e4224340ed7d6ef29cf5e28661cb1bfcb6113a9fc4fdf",
+      "git_blob_sha": "3436e54835a316f41958204f78df2ebf5486f4a6",
+      "bytes": 34215
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/release_audit.py",
+      "sha256": "fe8b18070b4fe7ad663b2358206dac55a916f94910301b6e89f0640c1c86ab20",
+      "git_blob_sha": "dcb967d9a5a1f4a4c01c63e7a53be66a5c3d96f5",
+      "bytes": 11377
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/release_lock.py",
+      "sha256": "c7b1518c8949c6fc03eb753f0d2e4903ce4da9da4644b9fc2a1081a7abcf73b6",
+      "git_blob_sha": "29bbb69b46dcc1928446b88224f692da8d686f67",
+      "bytes": 1628
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/science_coverage_policy.py",
+      "sha256": "c8f82cd1bf8da6e269f55f4b69f9bbc3038efee6bbf20d755fa7bd1b3fb71bb9",
+      "git_blob_sha": "17895f4153b00f71cb8eb8d1b0a81261c3a54b77",
+      "bytes": 1926
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/source_capture.py",
+      "sha256": "910d37ed001faf446a3d7ec4b9b3d6dd9065a078583e223e747024b00e05a621",
+      "git_blob_sha": "8b2f51c6b7f034b489a8dd2b25636734ef7bd282",
+      "bytes": 32918
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/source_pool.py",
+      "sha256": "ebf1991c1d7f9cbd92b5083077907d4bd97bde5838e3a23ba151e667b1f3eedc",
+      "git_blob_sha": "d0bd4fa42c5caebc780366d8d1cc4d6eb4f34877",
+      "bytes": 28236
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/source_preparation.py",
+      "sha256": "ea3208d885b342375a19da0474eb9dc370f4e2e1aa1f52acc637944284001758",
+      "git_blob_sha": "c57170fdc6d34c654af809fb800f407b36a5aa18",
+      "bytes": 22351
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/source_recovery.py",
+      "sha256": "c5fda062460c6187867a17502a56fd53bfe301aa83c9197748a347ef254c323c",
+      "git_blob_sha": "0a37720219d4c51313a8d8ce061c012d6910d8d8",
+      "bytes": 22996
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/source_worker.py",
+      "sha256": "9c07151b747ddafda50a3ca455cec16af3c4ae4d79bfeb016784401623ea545b",
+      "git_blob_sha": "57c71bafb664a38714e5ece02f1f948457341a6b",
+      "bytes": 27077
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/scripts/worker_diagnostics.py",
+      "sha256": "82dc4709278290702162acfca0e3a7bbc752ef210a066b6f2ac4f32194a21ec5",
+      "git_blob_sha": "867bf4eec3003e5493e98582fe88db494931bfe0",
+      "bytes": 9241
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/SKILL.md",
+      "sha256": "ba372c8ddc0f8b9b22f032b5fe992cf981241f6229da0f2ab242c721eb183f8d",
+      "git_blob_sha": "ff9220d8bc2b36e6a13115f0f42c4d45249f62d1",
+      "bytes": 41094
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/aihot_v1_fixtures.py",
+      "sha256": "099abe3d71ad2f899eba43fb32570a428f6db239f81a2d1bb94162792b896962",
+      "git_blob_sha": "84864778aa9caa9d3426743c75c89c01238e25f9",
+      "bytes": 360
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/evidence_fixtures.py",
+      "sha256": "e0063938c8cd658fafd68e41e5d7d21363c1d12c74d1e9b446d80cb255f0eee3",
+      "git_blob_sha": "224d5c1f3d0bde8b4ab0c7e1b149fa118a1745fa",
+      "bytes": 1088
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_academic_sources_v4.py",
+      "sha256": "3852e892418e2d8a571ee4879344c81b29388c4597986b91b6dc682d903fd368",
+      "git_blob_sha": "bf66221be9ea7238bf05c99afceb98c1a6dda09d",
+      "bytes": 11106
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_ai_social_adversarial.py",
+      "sha256": "7b9b1ad2d712d4cda09ddfcee38836e5d002b03ce356b039a45b26380cab3aa5",
+      "git_blob_sha": "8292d455dfbed4a69a824fd3f7694bb46e2eb066",
+      "bytes": 11695
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_ai_social_fixed_pool.py",
+      "sha256": "ae0758c96347bd404996dbc9ad232c436677362103ec227cf31a66edb3031e0a",
+      "git_blob_sha": "97c03f50aefb22ca677a538f5d7d02c1482cef7d",
+      "bytes": 25964
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_automatic_expansion.py",
+      "sha256": "c9178030835556a05c33e8198eab36318b382e210c204d33132479d37d52057a",
+      "git_blob_sha": "a06a105de1d70ed393cb1846cf80625deb2f7102",
+      "bytes": 6888
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_browser_lane_recovery.py",
+      "sha256": "96422b883598a67a2d813e4ae1f1463a57aa12629b9975bcebdbae3007b9f97a",
+      "git_blob_sha": "616ffee9cea7a1a58a65e8191b1041c756f794af",
+      "bytes": 19575
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_capture_admission_repair.py",
+      "sha256": "615d3cbcdf361cd1c4dd8a388f53a1d4414a61023a54b4239c19b91323645d39",
+      "git_blob_sha": "fc5deda2bcf2ac2215a7cb442435aaa37735f2aa",
+      "bytes": 15147
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_closed_loop_boundaries.py",
+      "sha256": "53fc7f962b1ebc2c432085469d8b897fafdc259adaa917bf90281e15b70164af",
+      "git_blob_sha": "820ab560de04eb7013f7e2a5079aadc1054235e6",
+      "bytes": 16280
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_collection_coverage.py",
+      "sha256": "c116f5014add40cf95ae740353995497e049e8e8ec60f8f3fe12be093cae56d3",
+      "git_blob_sha": "b560c0a9da11d5a073fc37ffe0d1996ae8ae8d03",
+      "bytes": 21676
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_collection_reliability.py",
+      "sha256": "3cbc358ccc3039506a147cbe67066419e69085233342155fff57894cbef2abd7",
+      "git_blob_sha": "31aa2716f616259d77493ac530b7c4a6630d82a5",
+      "bytes": 20691
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_daily_authoring.py",
+      "sha256": "33990474ac86b0646cb95ddb01ebe4fa824b17c4b58a7378e078a579a2436557",
+      "git_blob_sha": "5137a77ede072eecafabfb3a8b7b6606e800ad74",
+      "bytes": 13464
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_daily_closed_loop.py",
+      "sha256": "70783bbfb97fd549163d130df49611c8de360d6bac5a5024357341fd29ec415c",
+      "git_blob_sha": "3e015ca21d4cd8423c315b1a71b27b639a4cd628",
+      "bytes": 22814
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_daily_date_isolation.py",
+      "sha256": "62dd31df7bbfa619931a0bf86d5e2f424cda81da9943d05d940016a67c6f43db",
+      "git_blob_sha": "8bde1dc49a739da4d9913b788432ae3ce26d7870",
+      "bytes": 13962
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_daily_pipeline.py",
+      "sha256": "374d7fef2109d8642beb1a4aa1f0feb51406aae7eb92362c867824cb76045942",
+      "git_blob_sha": "d1bdaac496c33e11e7f247f94e523e3203892c19",
+      "bytes": 81511
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_daily_reading_mode.py",
+      "sha256": "1233fa8b5eb394bd3e06ccc900c7b626b2cbeff1d8bab46a85a7e29f4c8281f2",
+      "git_blob_sha": "8add5db33c654044fa827811573a598bfb6c234f",
+      "bytes": 14521
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_daily_recovery_trace.py",
+      "sha256": "9b22da76f87065be1b9250bed02f6fa0ca68151b096eec5437a9628317511fdb",
+      "git_blob_sha": "1381f15a4e5f4cbf115da13881246c8d3d111e13",
+      "bytes": 13132
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_dated_source.py",
+      "sha256": "464c2707c4633a5cf1bc2b68f666190c5813808e491d7d163d6df2b3ddee36c8",
+      "git_blob_sha": "ff83822055701fb1768d6711ec6d0ad47267f4dd",
+      "bytes": 7347
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_delivery_expansion.py",
+      "sha256": "2d3d1fb9f01285c39d9db2a9bba205de04a4272033739b30f0da214d24356f45",
+      "git_blob_sha": "a71009ba6342c3754a78343b08bf48778b85e0a3",
+      "bytes": 13149
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_delivery_policy_consistency.py",
+      "sha256": "3171ff5dcf57685abe45b5be81f7459ad815eab55f4310f208335080f95bc3af",
+      "git_blob_sha": "17f342e7eaef032b822f8a14ad4783f18afef6b0",
+      "bytes": 1630
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_failure_context_and_discovery_resume.py",
+      "sha256": "9ebff0a9f99343d394f6bb09dbf1a29cb6a7b2103a409790f87a0b55be2bf56d",
+      "git_blob_sha": "f778c10204e957ed63b1c2f31a460a68875a6189",
+      "bytes": 14151
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_failure_contract_audit_r2.py",
+      "sha256": "c561ff61d75061f728b8f2fce93522f6b89178efeea07e54678588d3ffd73bba",
+      "git_blob_sha": "70d7ffaed9182b3b76f6546824469594cfec2810",
+      "bytes": 12273
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_feed_window_diagnostics.py",
+      "sha256": "849d0e3ea5b2f20b524fc3560ded9700d434cf092aa4254486e49a723cfb2e64",
+      "git_blob_sha": "6eb56d5ab01c3dbd7c7db3864861310fa88b6617",
+      "bytes": 2760
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_formula_revision_1010.py",
+      "sha256": "f434fa9f08db47735576ad84c84e3debc41baa6c6422e1a49cad0bbd7437fc21",
+      "git_blob_sha": "039a8d594e6e40a086f0fb419fd4d2e5a2291cad",
+      "bytes": 15397
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_migration_commit_boundary.py",
+      "sha256": "9d0fbacbe8af1338d36fd1992c92390c66b7e0488960c552a81f2569ae8d6463",
+      "git_blob_sha": "6c58720360f7867de7d85b988ee5b415a6b151ca",
+      "bytes": 6710
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_network_preflight.py",
+      "sha256": "2755b306eb47a4e88940e73b0a0eec3726775b6b8c36d400d6c2e0873a861754",
+      "git_blob_sha": "47e69247e412011d3a2fa2c1d1f195234bdca221",
+      "bytes": 4800
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_orchestrate_daily.py",
+      "sha256": "6bc3a197a1ded90eb88996d29aed763ba48d718955b2101b06477e5624c7b8d2",
+      "git_blob_sha": "fd51f453b3af666e619553a5a9aa8c81b9fa5dfb",
+      "bytes": 24820
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_orchestrate_diagnostics.py",
+      "sha256": "77fd57e7739c0eed401d481d1f15758022a48d2a2465af73930e4ea80c9dc8ed",
+      "git_blob_sha": "339a9573d048d32766566af47ff9152c6434c44b",
+      "bytes": 8929
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_plos_source.py",
+      "sha256": "9cfd0344107783dd93d1aaee1025858ad988c7dfde6f83149eb5e361b40eb4ec",
+      "git_blob_sha": "0902259c436c1b73183a4f26207acda53adc2f52",
+      "bytes": 16741
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_preview_display_pending.py",
+      "sha256": "ab6ba022f6ec84a89f30db46c9750546d96998d6c76d784982f703ef2094d133",
+      "git_blob_sha": "dfda2462583683ef65ff73510ea181ac7244d6e8",
+      "bytes": 12650
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_production_merge_guards.py",
+      "sha256": "c406897ac385a914d180b7c6c6b7f816a0d13a73c47a9598af70f42b4d881613",
+      "git_blob_sha": "5152c23f8fc7e1037971a12c67c3c1fe7c8b6a4a",
+      "bytes": 6309
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_publication_v3.py",
+      "sha256": "545de3e1a512838fcd7a9bd2611e989ed767fab9ff01f65d16c2d69ab294d56b",
+      "git_blob_sha": "380f1d436900c8913d2139236ee224b661f9f115",
+      "bytes": 20385
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_publication_v4.py",
+      "sha256": "cd6e76cd6890212534f03f9bee78e6444372e2131de2156afbd994af687de0ef",
+      "git_blob_sha": "ae641ff8238b3d0e6439f155d37046f462b632a6",
+      "bytes": 15747
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_publish_daily_to_oss.py",
+      "sha256": "48c453a1933231ac8a5c77b361723caf72ec26cc4f4a1a6730d5eec1a8d1951e",
+      "git_blob_sha": "b7566204ae858abdb8674c1b4ff38dc0ee356b5b",
+      "bytes": 23936
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_publish_preview.py",
+      "sha256": "1a4254de37d09375b3f506f2c494d394c16343307d643001f67dfb9b69f7efe0",
+      "git_blob_sha": "31c9937bca8fb4b85e5325b661da9bd2d9b96e76",
+      "bytes": 16578
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_publish_render_headers.py",
+      "sha256": "d5c8f7d0be1a508228a932a15d39654badceebf418f089ab1428259db59974d0",
+      "git_blob_sha": "8adad84c62dc95499951c52189f69ca6501314ef",
+      "bytes": 6936
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_recovery_adversarial_r2.py",
+      "sha256": "844217caa4547f973d28d944bde779e3eaf2b50ecf72688363c841df806e301e",
+      "git_blob_sha": "7d4680e49cc8e510890999cab9c32b18b1cd7121",
+      "bytes": 14835
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_recovery_contracts.py",
+      "sha256": "5df181ebb5b9b873ddac31ef37806a72c86b654d2d0f83948b9c746f4c723bd9",
+      "git_blob_sha": "ea4f018a58ccca37235ef2f3268f7d26123c01d1",
+      "bytes": 25603
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_release_lock.py",
+      "sha256": "b52a21b9b603a841eda0a193078573a3121e2c6a4c2cd8feec7e6854e8aa3b10",
+      "git_blob_sha": "b8d6dca536f857ac2b059e0aa2e9e8c4785aa13a",
+      "bytes": 3011
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_release_protocol.py",
+      "sha256": "8faa428e953ceac5f9558018df92d3beff2134424acb87a11d27ca5c3a5c8533",
+      "git_blob_sha": "51a214fec553d43a3ff2113aed061b107ec00bd6",
+      "bytes": 30685
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_rendered_search_evidence.py",
+      "sha256": "1763b36dbbdf99070012c49bfda49ede15516fd7ab2576e52ea0823c8386c60f",
+      "git_blob_sha": "8bb4a7dd58bcaf87673da06ccace3f0dc8428c3e",
+      "bytes": 9691
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_source_optimization_adversarial.py",
+      "sha256": "ad3f1fd58738aa82d05a8fc1ffc27a8e21ba8acab54d2540dbc10da6f0c871f6",
+      "git_blob_sha": "0a0a05eef46a8740d9b88f73f8eab117aeb03a5e",
+      "bytes": 5026
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_source_pool.py",
+      "sha256": "1714978ef5fdea622d03b39f909938fab47f7c746d0ab80760a172a2c4eabd37",
+      "git_blob_sha": "6f29f29e545047f994557a06dad04a446f9009ef",
+      "bytes": 19864
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_source_preparation_flow.py",
+      "sha256": "a20785381774f0236b936ee7180cd22be14f2e562f878c7ca2f3361af0721816",
+      "git_blob_sha": "0d4a2a492beab4336f6683bb446b669367e25f03",
+      "bytes": 21024
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_source_repair_integration.py",
+      "sha256": "23a1de278a2ee602b3836fc6fe4286c2be7a5a5d28d1010171c7030d95973f93",
+      "git_blob_sha": "cb61b7d183046254837049420554cf993736a8b0",
+      "bytes": 6817
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_staging_revision_repair.py",
+      "sha256": "4f92b95dad412559765d70f439caaf81fca2a49ee65883ec507ca4f7b61d1f1c",
+      "git_blob_sha": "b5f2a3086b0b8862c85b76dbd29c5755c9ef588e",
+      "bytes": 17149
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_url_contract_repair.py",
+      "sha256": "37a61575560cd2896e06a3a3785dd9646796043482f6ac14c0f913caf5974a9e",
+      "git_blob_sha": "a9d19938426d5357e10720eab923432a63d39f6a",
+      "bytes": 4916
+    },
+    {
+      "path": "skills/ai-quantum-news-briefing/tests/test_worker_diagnostics.py",
+      "sha256": "4d3256084a27f8b5d29d5aa9dc0a0d8f787baaa62ccefb0b4fe5070d1f44f64c",
+      "git_blob_sha": "9f84c0c49c7ed6048bb278ee7c219382b64bae8a",
+      "bytes": 16150
+    },
+    {
+      "path": "skills/allegory-teach/agents/openai.yaml",
+      "sha256": "db3f02c30d9016995786681f2c8d66417d0aea85bfaf7e64884dbf1cf159633f",
+      "git_blob_sha": "5f7cfb4f78f34569ffe1aeb4561c567dc000c9c6",
+      "bytes": 388
+    },
+    {
+      "path": "skills/allegory-teach/references/bridge-mode-contract.md",
+      "sha256": "6341ef057ae61068da498b3de4195c46019d498f0835d32177b78b0407288e8e",
+      "git_blob_sha": "0ad8d7341208f5d38fe45441b09b8d0b92fc134f",
+      "bytes": 9298
+    },
+    {
+      "path": "skills/allegory-teach/references/daily-briefing-interface.md",
+      "sha256": "fe0df41d49c4d8d8cf238c6853f4d339eb5150f4c77a13b2d4dedcce316aca08",
+      "git_blob_sha": "8cef2a62336f91e4657efb20b6c394c53973c141",
+      "bytes": 12188
+    },
+    {
+      "path": "skills/allegory-teach/references/everyday-analogy-contract.md",
+      "sha256": "f83c719adfcb6b535cbbcbd4cec09942e1214deb31721e458d9992804fad76e6",
+      "git_blob_sha": "13ff664b53f6c4dea3cc5f654c8c5b0c7a45bcef",
+      "bytes": 4572
+    },
+    {
+      "path": "skills/allegory-teach/references/logic-chain-explanation.md",
+      "sha256": "1e6a3e3a9fe097e86b7808f9ea905eb277cbf14650f307bf3acf220611e6d17c",
+      "git_blob_sha": "301e88bf1ca5a34ac4fc607900ca0a3c2b7056e3",
+      "bytes": 10221
+    },
+    {
+      "path": "skills/allegory-teach/references/narrative-language-firewall.md",
+      "sha256": "fb95ed9c5b8dfcb036362c6842fa0ccaf5480b21fbe57dd97fbe2a631ee81bef",
+      "git_blob_sha": "185d3b8063870d296bb84474a547a2cc6b59ffe4",
+      "bytes": 7329
+    },
+    {
+      "path": "skills/allegory-teach/references/story-output-contract.md",
+      "sha256": "8ec6f8db5e268973d58e43661f7ff7c7afe058f8f6a8a903abc6e4bf9034e917",
+      "git_blob_sha": "9b78c1992e0f2fa73cc69fed24b6bb151638d1e4",
+      "bytes": 32635
+    },
+    {
+      "path": "skills/allegory-teach/references/worked-example-contract.md",
+      "sha256": "f7593c4f9b1e6f8badb238f97d52ad556f854fe0bb6215d1763ed8a6ce662985",
+      "git_blob_sha": "7a6221a87b00753efe06437a79ae59db06fc372d",
+      "bytes": 11646
+    },
+    {
+      "path": "skills/allegory-teach/scripts/audit_daily_story.py",
+      "sha256": "9270a3d4078787e31697449d1915161452ee4eb3257d66950810f3e58e61e73f",
+      "git_blob_sha": "6e9fe48b1de30fef77cc0aa317b44357d67459cf",
+      "bytes": 3151
+    },
+    {
+      "path": "skills/allegory-teach/scripts/review_evidence.py",
+      "sha256": "8ce132b8a5fbc31192d5cd3b5ef5509889c86723836f8db0927bb18240197718",
+      "git_blob_sha": "250d0bfa647bf723853ac30baf4b13eded6283fe",
+      "bytes": 12828
+    },
+    {
+      "path": "skills/allegory-teach/SKILL.md",
+      "sha256": "0255fda74615c5fcb635bcda6bb90553d60785d08efb88c3724c8c23253aada0",
+      "git_blob_sha": "5c2570854d19ca00c0105a9dfcd1c9ec0d162a53",
+      "bytes": 24274
+    },
+    {
+      "path": "skills/allegory-teach/tests/regression_cases.json",
+      "sha256": "7e4badff3c41e7e937a80ef67b4519003e945c86c72af077f17132efc1e598f5",
+      "git_blob_sha": "1a3393cd8b131fac267c898c92dea761327395f6",
+      "bytes": 34283
+    },
+    {
+      "path": "skills/allegory-teach/tests/test_contracts.py",
+      "sha256": "381fdf51b65967e165a6d9476d6cd41970c66e670ce7af068a1a2791df404f14",
+      "git_blob_sha": "1de78ba98ee94980c4d44ad69ee99c193c43be52",
+      "bytes": 20583
+    },
+    {
+      "path": "skills/allegory-teach/tests/test_review_evidence.py",
+      "sha256": "b6775ba321a4a6c2b22b88993b8f6d5bf988b3c6b3fdf5bd470de6fab243521b",
+      "git_blob_sha": "e9956e4964909ed3fac1a79cbcc478a5e8c08570",
+      "bytes": 7423
+    },
+    {
+      "path": "skills/utils/lean-html-skill/agents/openai.yaml",
+      "sha256": "ab274cca1a5131182934123242ef876126b108e559459d1de292813dfc09ba0b",
+      "git_blob_sha": "4fb11370585b3132c4ccb53342fb6685b239018b",
+      "bytes": 222
+    },
+    {
+      "path": "skills/utils/lean-html-skill/references/cosmic-sci-fi-design-system.md",
+      "sha256": "537f8d57b847baa84aa655b17373f012698ad65cef3fb36dcbfffef73e2bc24d",
+      "git_blob_sha": "247d7ff3e4dc28287f6be4497944fb146e4e8fac",
+      "bytes": 6937
+    },
+    {
+      "path": "skills/utils/lean-html-skill/references/feedback2-contract.md",
+      "sha256": "1861acc56664c955bf50481aa487e0a29da006f8a7540d9446183e0610cfddaf",
+      "git_blob_sha": "6041f4b5ca95689961f8ad47561dacd461bb6551",
+      "bytes": 3690
+    },
+    {
+      "path": "skills/utils/lean-html-skill/scripts/feedback_recovery.py",
+      "sha256": "2a5973ba67a6bc6a9ffc815623d1ff13b631c61d18f4061d6aaa0390b5611018",
+      "git_blob_sha": "35fd7bd2eb06eb7f277f1f49573c016e5dfb913b",
+      "bytes": 6348
+    },
+    {
+      "path": "skills/utils/lean-html-skill/scripts/feedback_ux.py",
+      "sha256": "227bcc0dba69206ad758a61a18f51eb823c77ea246d312bc6f6f27f28031da50",
+      "git_blob_sha": "290de71763b63ed9109838227e82d084dbeaa316",
+      "bytes": 19481
+    },
+    {
+      "path": "skills/utils/lean-html-skill/scripts/lean_html.py",
+      "sha256": "8402c442c2ce9b810b502645c2a0f63139b72d140a8a397ddcc645f5c847f715",
+      "git_blob_sha": "9d80ad631a372f24f6fd7865813c06180f3a877c",
+      "bytes": 57970
+    },
+    {
+      "path": "skills/utils/lean-html-skill/scripts/logic_diagram_ui.py",
+      "sha256": "980adf7ada6b4ae13654ec74ff9da4ee7c9a1c274179ab319e631e13962e5bc6",
+      "git_blob_sha": "5bfb87d8de4fb41313b5b9d4d4b5c890ad23366c",
+      "bytes": 5468
+    },
+    {
+      "path": "skills/utils/lean-html-skill/scripts/paper_history_ui.py",
+      "sha256": "9238d413b3c063ff12f2cee5b4707f5f8b752d826a2ffc0f29b4cf610eb87cbb",
+      "git_blob_sha": "7a5c6771a7a3585937ce36d379812d2151a07e09",
+      "bytes": 8668
+    },
+    {
+      "path": "skills/utils/lean-html-skill/scripts/reader_html_contract.py",
+      "sha256": "e611b8d5397bc790de2248eac5008262d23f916883fc46a6c00cc739abf3ce21",
+      "git_blob_sha": "53387468ed522ce9924f6c86c48f42ee57745134",
+      "bytes": 18488
+    },
+    {
+      "path": "skills/utils/lean-html-skill/scripts/reader_theme.py",
+      "sha256": "4b27a921770791a267857da582199d0d5e9a53bf2453eee640f124102e6ca942",
+      "git_blob_sha": "da40ee945bde629ca455a8baccb7f78ec4af1a8c",
+      "bytes": 6855
+    },
+    {
+      "path": "skills/utils/lean-html-skill/SKILL.md",
+      "sha256": "5eedea274d5293d7218b2b25d6abc27ebd08b30b1b1e4d6d0febea11af8f3569",
+      "git_blob_sha": "4cff59c8b4067c376c886f649a5019126538095a",
+      "bytes": 11249
+    },
+    {
+      "path": "skills/utils/lean-html-skill/tests/test_feedback_ux.py",
+      "sha256": "6bfef882ecd63b8ae107ca3690596bbc22525676f16e4b90bbe00f0ac17aa148",
+      "git_blob_sha": "9695596e6801c6bce1b50e53b497908d8d5d6d7f",
+      "bytes": 4283
+    }
+  ]
+}

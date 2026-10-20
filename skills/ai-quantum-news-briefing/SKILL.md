@@ -499,3 +499,8 @@ authorization still apply; a preview receipt is not publication or display appro
 ## AI social fixed-pool increment (2026-10-16 r1)
 
 AI social/industry discovery: use the production-bound ai-social domain and the finite registry described in references/ai-social-fixed-pool.md. OpenAI RSS is discovery only; original 403 stops the host, then choose a qualified pool alternative. Do not use discovery time as publication time. Quantum evidence and all strict review/publication gates are unchanged.
+
+
+## Bounded daily continuation (2026-10-17 repair)
+
+See skills/ai-quantum-news-briefing/references/bounded-daily-recovery.md. The current date-isolated `orchestrate_daily.py daily` entry separates source coverage from article discovery/capture/qualification, supports read-only `--action diagnose`, and reviewed-policy `--action recover` / `--action continue`. Same-window rechecks use the existing source pool and queue continuation; no schedule or publication gate is waived. Public HTTP receipts use `evidence_persistence.py` with byte-count/SHA-256 binding, not a large prose patch. The recovery policy is disabled until explicitly reviewed; production timing, wakeup and deployment still need approval.

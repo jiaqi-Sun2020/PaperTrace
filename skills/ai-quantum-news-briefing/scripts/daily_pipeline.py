@@ -1301,6 +1301,8 @@ def _commit_local(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def cmd_finalize(args: argparse.Namespace) -> int:
+    if getattr(args,'local_only',False) and getattr(args,'require_remote',False):
+        raise ValueError('local-only and require-remote are incompatible')
     run_root = Path(args.run_dir).expanduser().resolve()
     manifest_files = list(run_root.glob("daily_pipeline_manifest_*.json"))
     if len(manifest_files) != 1:
@@ -1316,9 +1318,10 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     from publish_daily_to_oss import auto_publish_after_finalize
 
     output_root = Path(local["output_dir"])
-    remote_publish = auto_publish_after_finalize(
+    remote_publish = ({"status": "disabled", "reason": "explicit_local_only"}
+                      if getattr(args, "local_only", False) else auto_publish_after_finalize(
         output_root, correction_reason=getattr(args, "correction_reason", None),
-        supersedes_hash=getattr(args, "supersedes_hash", None))
+        supersedes_hash=getattr(args, "supersedes_hash", None)))
     checkpoint = "recorded"
     state = {"phase": "remote_pending", "remote_status": "not_checked"}
     attempted_remote = remote_publish.get("status") in {"published", "no_change"}
@@ -1367,6 +1370,8 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
         if name == "verify":
             command.add_argument("--structure-only", action="store_true")
         else:
+            command.add_argument("--local-only", action="store_true",
+                                 help="Commit locally without invoking automatic remote publication.")
             command.add_argument("--require-remote", action="store_true")
             command.add_argument("--correction-reason")
             command.add_argument("--supersedes-hash")
