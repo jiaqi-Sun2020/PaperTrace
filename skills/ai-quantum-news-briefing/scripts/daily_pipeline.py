@@ -130,7 +130,7 @@ def atomic_json(path: Path, data: dict[str, Any]) -> None:
 
 def atomic_copy(source: Path, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".new", dir=target.parent)
+    fd, temp_name = tempfile.mkstemp(prefix=".pt-copy-", suffix=".new", dir=target.parent)
     os.close(fd)
     try:
         shutil.copy2(source, temp_name)
@@ -290,6 +290,8 @@ def verify_artifacts(run_root: Path, *, strict: bool = True, structure_only: boo
 
     if not failures:
         config = load_json(paths["delta_config"])
+        from taskbox_contract import validate_mode
+        failures.extend(validate_mode(manifest, config))
         from source_preparation import check_run_pool_binding
         failures.extend(check_run_pool_binding(run_root, manifest, config))
         # Invalid formula transport is a failed audit, not an exception that
@@ -804,6 +806,12 @@ def cmd_run(args: argparse.Namespace) -> int:
             manifest["delivery_expansion_version"] = int(canonical["delivery_expansion"].get("version") or 1)
             manifest["delivery_expansion"] = canonical["delivery_expansion"]
             manifest["delivery_expansion_ref"] = evidence_digest(canonical["delivery_expansion"])
+    if "taskbox_contract" in canonical:
+        from taskbox_contract import validate_mode
+        manifest['taskbox_contract'] = canonical['taskbox_contract']
+        mode_failures = validate_mode(manifest, canonical)
+        if mode_failures:
+            raise ValueError('; '.join(mode_failures))
     with release_lock(NEWS_ROOT if protocol >= 3 else output_root.parent):
         if source_pool_binding is not None:
             from source_preparation import check_pool_binding
@@ -822,7 +830,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         os.replace(preparation, run_root)
         if protocol >= 4:
             try:
-                register_stage(NEWS_ROOT, run_date, run_id, revision_id, correction=correction is not None)
+                register_stage(NEWS_ROOT, run_date, run_id, revision_id,
+                               correction=correction is not None,
+                               taskbox_contract=canonical.get("taskbox_contract"))
             except (OSError, ValueError, TypeError):
                 # Failed lifecycle commit retains prepared bytes outside active staging.
                 os.replace(run_root, preparation)
@@ -1016,6 +1026,19 @@ def cmd_review_template(args: argparse.Namespace) -> int:
                                      for name in ("facts", "judgment", "relevance")}}
                   for item in selected_items(config)],
     }
+    if 'taskbox_contract' in manifest:
+        from taskbox_contract import CONTEXT
+        story_review['taskbox_context'] = dict(CONTEXT)
+        news_review['taskbox_context'] = dict(CONTEXT)
+        from review_evidence import DISPLAY_CHECKS
+        third = next(row for row in story_rounds if row['id'] == 'cross-surface-and-display')
+        third['cross_surface_checks'] = {'judgment': 'unreviewed', 'reason': ''}
+        third['display_review'] = {'version': 1, 'status': 'pending',
+            'html_sha256': sha256_file(run_root / manifest['artifacts']['html']),
+            'checks': [{'id': key, 'status': 'pending'} for key in sorted(DISPLAY_CHECKS)]}
+        for row in news_review['items']:
+            row['source_crosscheck'] = {'capture_record_sha256': '', 'response_sha256': '',
+                'quoted_excerpt': '', 'checked_at': '', 'reading_scope': 'captured_primary_excerpt'}
     review_paths = {key: run_root / REVIEW_NAMES[key].format(date=manifest["date"])
                     for key in ("story_review", "news_review")}
     for path in review_paths.values():
@@ -1301,6 +1324,8 @@ def _commit_local(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def cmd_finalize(args: argparse.Namespace) -> int:
+    if getattr(args,'local_only',False) and getattr(args,'require_remote',False):
+        raise ValueError('local-only and require-remote are incompatible')
     run_root = Path(args.run_dir).expanduser().resolve()
     manifest_files = list(run_root.glob("daily_pipeline_manifest_*.json"))
     if len(manifest_files) != 1:
@@ -1316,9 +1341,10 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     from publish_daily_to_oss import auto_publish_after_finalize
 
     output_root = Path(local["output_dir"])
-    remote_publish = auto_publish_after_finalize(
+    remote_publish = ({"status": "disabled", "reason": "explicit_local_only"}
+                      if getattr(args, "local_only", False) else auto_publish_after_finalize(
         output_root, correction_reason=getattr(args, "correction_reason", None),
-        supersedes_hash=getattr(args, "supersedes_hash", None))
+        supersedes_hash=getattr(args, "supersedes_hash", None)))
     checkpoint = "recorded"
     state = {"phase": "remote_pending", "remote_status": "not_checked"}
     attempted_remote = remote_publish.get("status") in {"published", "no_change"}
@@ -1367,6 +1393,8 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
         if name == "verify":
             command.add_argument("--structure-only", action="store_true")
         else:
+            command.add_argument("--local-only", action="store_true",
+                                 help="Commit locally without invoking automatic remote publication.")
             command.add_argument("--require-remote", action="store_true")
             command.add_argument("--correction-reason")
             command.add_argument("--supersedes-hash")

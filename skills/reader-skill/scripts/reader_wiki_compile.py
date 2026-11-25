@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from completion_state import PIPELINE_VERSION, canonical_path, load_all_records, read_json as read_completion_json, reader_is_formal_ready, run_state_path
-from formula_contract import atomic_formula_issues, canonical_math_signature
+from formula_contract import atomic_formula_issues, canonical_math_signature, math_components, math_body
 from reading_analysis import validate_reading_analysis
 from logic_diagrams import diagrams_in_notes, notes_prose
 
@@ -340,6 +340,9 @@ def load_authored_paper_summary(
         errors.append("paper_summary.json language must be zh-CN")
 
     valid_anchors = source_anchor_ids(source_map, blocks)
+    if "result_brief" in summary:
+        from reading_scan import validate_scan
+        errors.extend(validate_scan(summary, {}, valid_anchors, required=False))
 
     def validate_entry(entry: Any, label: str, minimum_chars: int) -> None:
         if not isinstance(entry, dict):
@@ -579,10 +582,14 @@ def validate_math_balance(text: str) -> list[str]:
     for opener, closer in (("\\[", "\\]"), ("\\(", "\\)")):
         if text.count(opener) != text.count(closer):
             errors.append(f"unbalanced {opener} {closer}")
-    for opener, closer in (("{", "}"), ("(", ")"), ("[", "]")):
-        if text.count(opener) != text.count(closer):
-            # Markdown links and prose can legitimately contain brackets; keep as warning elsewhere.
-            if opener == "{" or "\\[" in text or "\\(" in text or "$" in text:
+    # Panel labels such as 'a)' belong to prose, not TeX. Half-open intervals
+    # deliberately use different endpoint delimiters and are valid math too.
+    for component in math_components(text):
+        body = math_body(component)
+        body = re.sub(r"\[([^\[\]()]*,[^\[\()]*)\)", r"(\1)", body)
+        body = re.sub(r"\(([^\[\]()]*,[^\[\()]*)\]", r"(\1)", body)
+        for opener, closer in (("{", "}"), ("(", ")"), ("[", "]")):
+            if body.count(opener) != body.count(closer):
                 errors.append(f"possibly unbalanced {opener}{closer} in math-bearing block")
     for formula in DISPLAY_MATH_RE.findall(text):
         if re.search(r"[。，；：！？]", formula):
@@ -1249,6 +1256,7 @@ def compile_reader_wiki(reader_dir: Path, strict: bool = True, profile_path: Pat
         "bilingual_blocks": blocks,
         "paper_summary": paper_summary,
         "reading_analysis_version": analysis_contract.get("reading_analysis_version"),
+        "reading_scan_version": analysis_contract.get("reading_scan_version"),
         "logic_visualization_version": analysis_contract.get("logic_visualization_version"),
         "paper_history": paper_history,
         "normalized_markdown": "reader_wiki/normalized_reader.md",

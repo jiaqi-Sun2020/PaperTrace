@@ -103,7 +103,7 @@ repaired rather than displayed as verified.
 
 The first content module after title/controls is one chronological vertical
 timeline, then Paper Summary, then the existing reader panels. Every paper's
-date, short title, contribution and typed relationship are visible once;
+date, topic and actual contribution are visible without opening a detail;
 native inline details retain full titles/dates, methods, effects, conditions
 and evidence. All details start closed and may open independently. Timeline
 segments express chronology only. Do not create inheritance arrows from dates.
@@ -112,6 +112,41 @@ Respond to actual article-container width: keep three columns only when they
 fit; otherwise put analysis below the bilingual pair, then stack on mobile.
 Never override the resizable source-pane width. Keyboard, all reader themes,
 offline, no-script and print remain readable. No new framework or live AI call.
+
+## First read (reading_scan_version: 1)
+
+New batch declarations require these additions. Historical declarations without
+the flag still render with the old fields. Author the fields against the current
+paper, in Chinese; do not derive roles from a citation verb or a publication date.
+
+- Each history node has `reading_role: {label, topic, explanation, source_anchors}`.
+  Use a short role in this paper (e.g. proof technique, competing baseline, data
+  source, conflicting evidence), a short topic, and one sentence explaining the
+  use. If one work supplies two roles, say both. Include the current paper with
+  its own contribution. If the evidence is external-only, use empty source_anchors
+  and `evidence_relation: [from_id, to_id, type]` pointing to the node's verified
+  evidence in details. A genuinely unresolved external role uses the literal
+  label `关系待核实`, explains the gap and may use an empty anchor list; do not
+  infer ancestry. Verified edges and primary evidence remain separate, in details.
+- In `paper_summary.json` author `result_brief: {headline, items}`. The headline
+  states the main finding (not “results overview”). Each item has `kind`,
+  `subject`, `finding`, `scope`, and nonempty `source_anchors`. For `comparison`
+  also supply `metric` (what was measured, including units as needed) and
+  `baseline` (named comparator/configuration); state direction and magnitude in
+  the finding, and conditions such as best case, sample or error in scope.
+  For `standalone` omit the baseline; metric is optional. A theorem, null result,
+  qualitative finding or proposed protocol is not a speedup: state what is
+  supported and, where relevant, what was not tested. No fixed count. Cover each
+  distinct principal finding once, not every ablation; use the same metric name
+  only for genuinely comparable measures. Don't sort by effect size.
+- The authoring helper accepts `result_brief` alongside `logic_chain` or retains
+  the one already in the summary. The initial view groups by metric, puts the
+  named comparator and scope next to each result, and keeps complete explanations
+  and evidence below. For a long list, prioritize the main conclusion in the
+  headline/first group; never clip findings just to fit a viewport.
+- In the existing dates/metrics and freshness/display review rounds, check each
+  label against evidence and read each finding with its comparator. Check desktop
+  and narrow article widths; a comparison must not require expanding a disclosure.
 
 ## Review boundary
 

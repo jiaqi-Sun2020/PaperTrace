@@ -27,6 +27,7 @@ from urllib.request import Request, urlopen
 from release_audit import validate_bundle
 from release_lock import release_lock
 from publication_contracts import coverage_contract_for_manifest
+from daily_runtime import runtime_scope, RuntimeConfigurationError
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parents[2]
@@ -235,14 +236,141 @@ def oss_key(config: dict[str, str], filename: str) -> str:
     return f"{config['object_prefix']}/{filename}" if config["object_prefix"] else filename
 
 
+def ossutil_program() -> str:
+    program = os.environ.get('PAPERTRACE_OSSUTIL_EXECUTABLE', 'ossutil')
+    if program != 'ossutil' and (not Path(program).is_absolute() or not Path(program).is_file()):
+        raise PublishError('Configured ossutil executable is unavailable', code='ossutil_unavailable')
+    return program
+
+
+def ossutil_command(config: dict[str, str], arguments: list[str]) -> list[str]:
+    command = [ossutil_program(), *arguments]
+    config_file = os.environ.get('PAPERTRACE_OSSUTIL_CONFIG')
+    if config_file:
+        if not Path(config_file).is_absolute() or not Path(config_file).is_file():
+            raise PublishError('Configured ossutil profile container is unavailable', code='profile_unavailable')
+        command.extend(['--config-file', config_file])
+    endpoint = os.environ.get('PAPERTRACE_OSSUTIL_ENDPOINT')
+    if endpoint:
+        # An arbitrary endpoint could receive signed requests. Bind it to the
+        # existing routing region; no new destination or credential source.
+        if endpoint != 'https://oss-' + config['region'] + '.aliyuncs.com':
+            raise PublishError('OSS endpoint differs from the routing region', code='oss_endpoint_mismatch')
+        command.extend(['--endpoint', endpoint])
+    if os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'):
+        # Native ossutil v2 opt-in to inherited proxies. Leave environment and
+        # TLS verification unchanged; never copy proxy values into argv.
+        # A failed proxied command has no direct-connection fallback.
+        command.extend(['--proxy', 'env'])
+    return command
+
+
+def _safe_connection_error(value: str) -> str:
+    """Retain error context, never credentials, signed queries or proxy values."""
+    for name, secret in sorted(os.environ.items(), key=lambda item: -len(item[1])):
+        if not secret:
+            continue
+        if name.upper().endswith('_PROXY') or name.upper() == 'ALL_PROXY':
+            value = value.replace(secret, '<proxy-redacted>')
+            if '://' in secret:
+                try:
+                    parts = urlsplit(secret)
+                except ValueError:
+                    continue  # Invalid proxy text still must not break diagnosis.
+                for fragment in (parts.netloc, parts.hostname):
+                    if fragment:
+                        value = value.replace(fragment, '<proxy-redacted>')
+        elif re.search(r'(?:SECRET|TOKEN|PASSWORD|ACCESS_KEY|API_KEY)', name, re.I):
+            value = value.replace(secret, '<secret-redacted>')
+    # Authentication headers may contain multiple comma-separated credentials.
+    value = re.sub(r'(?im)\b(authorization|proxy-authorization|cookie|set-cookie)\s*[:=][^\r\n]*',
+                   r'\1: <redacted>', value)
+    def safe_url(match):
+        url = match.group(0)
+        url = re.sub(r'(?<=://)[^/\s]*@', '<userinfo-redacted>@', url)
+        return url.split('?', 1)[0] + ('?<query-redacted>' if '?' in url else '')
+    value = re.sub(r'[a-zA-Z][a-zA-Z0-9+.-]*://[^\s\"<>]+', safe_url, value)
+    value = re.sub(r'(?i)([\"\'](?:AccessKeyId|AccessKeySecret|SecurityToken|Signature|'
+                   r'Password|Token|Secret|ApiKey)[\"\']\s*:\s*)[\"\'][^\"\'\r\n]*[\"\']',
+                   r'\1"<redacted>"', value)
+    value = re.sub(r'(?i)\b(access[-_]?key(?:[-_]?id|[-_]?secret)?|security[-_]?token|'
+                   r'x-oss-security-token|signature|password|secret|token|api[-_]?key)'
+                   r'(\s*[=:]\s*)[^\s,;<>]+', r'\1\2<redacted>', value)
+    value = re.sub(r'(?is)<(AccessKeyId|AccessKeySecret|SecurityToken|Signature|Password)>'
+                   r'.*?</\1>', r'<\1><redacted></\1>', value)
+    return value
+
+
+def _connection_details(diagnostic: str) -> dict[str, Any]:
+    lower = diagnostic.lower()
+    http = re.search(r'(?i)(?:status(?:code| code)?\s*[:=]?|http/\S+)\s*([45]\d\d)\b', diagnostic)
+    if http or 'accessdenied' in lower:
+        stage = 'cloud_http'
+    elif 'proxyconnect' in lower or 'proxy authentication' in lower:
+        stage = 'proxy'
+    elif any(word in lower for word in ('no such host', 'getaddrinfo', 'name resolution', 'lookup ')):
+        stage = 'dns'
+    elif any(word in lower for word in ('x509:', 'tls handshake', 'certificate verify', 'certificate signed')):
+        stage = 'tls'
+    elif 'dial tcp' in lower or 'connectex' in lower:
+        stage = 'tcp_connect'
+    elif 'timeout' in lower or 'timed out' in lower:
+        stage = 'timeout_stage_unknown'
+    else:
+        stage = 'unknown'
+    return {'connection_stage': stage,
+            'http_status': int(http.group(1)) if http else None,
+            'socket_permission_denied': any(word in lower for word in
+                ('10013', 'forbidden by its access permissions', 'permission denied', 'access is denied')),
+            'cloud_authentication_verified': False,
+            'connection_error': _safe_connection_error(diagnostic)}
+
+
+def head_bucket_index(config: dict[str, str], *, connection_details: bool = False) -> dict[str, Any]:
+    """Ordinary connection diagnosis needs HeadObject, never GetObjectAcl."""
+    command = ossutil_command(config, ['api', 'head-object', '--bucket', config['bucket'],
+        '--key', oss_key(config, 'index.html'), '--profile', config['ossutil_profile'],
+        '--region', config['region'], '--retry-times', '0',
+        '--connect-timeout', '5', '--read-timeout', '10'])
+    started = now_utc()
+    def attach(value, error=''):
+        if connection_details:
+            value['diagnostic'] = {'started_utc': started, 'finished_utc': now_utc(),
+                'entry': str(Path(__file__).resolve()), 'python_executable': sys.executable,
+                'working_directory': str(Path.cwd()), 'command': command,
+                'proxy_environment_present': {name: bool(os.environ.get(name)) for name in
+                    ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY')},
+                **(_connection_details(error) if error else {'connection_stage': 'head_object_passed'})}
+        return value
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=25,
+                                encoding='utf-8', errors='replace', check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return attach({'status': 'blocked', 'code': 'oss_connection_environment_blocked',
+                'operation': 'HeadObject', 'exception_type': type(exc).__name__}, str(exc))
+    if result.returncode == 0:
+        return attach({'status': 'pass', 'code': 'head_object_passed', 'operation': 'HeadObject', 'exit_code': 0})
+    diagnostic = (result.stderr or '') + '\n' + (result.stdout or '')
+    if 'SigningContext.Credentials is null or empty' in diagnostic:
+        code = 'profile_unavailable'
+    elif 'AccessDenied' in diagnostic:
+        code = 'head_object_access_denied'
+    elif _connection_details(diagnostic)['connection_stage'] in ('dns', 'tcp_connect', 'tls', 'proxy', 'timeout_stage_unknown'):
+        code = 'oss_connection_environment_blocked'
+    else:
+        code = 'head_object_failed'
+    return attach({'status': 'blocked', 'code': code, 'operation': 'HeadObject',
+            'exit_code': result.returncode}, diagnostic)
+
+
 def read_bucket_index(config: dict[str, str]) -> bytes:
     source = f"oss://{config['bucket']}/{oss_key(config, 'index.html')}"
     with tempfile.TemporaryDirectory(prefix="papertrace-oss-check-") as temp:
         target = Path(temp) / "index.html"
-        command = [
-            "ossutil", "cp", source, str(target),
+        command = ossutil_command(config, [
+            "cp", source, str(target),
             "--profile", config["ossutil_profile"], "--region", config["region"], "--force",
-        ]
+        ])
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False)
         except (OSError, subprocess.TimeoutExpired) as exc:
@@ -264,34 +392,53 @@ def check_bucket_binding(config: dict[str, str], website_index: bytes) -> None:
                            code="deployment_mismatch")
 
 
-def doctor(config_path: Path) -> dict[str, Any]:
+def doctor(config_path: Path, *, head_only: bool = False, connection_details: bool = False) -> dict[str, Any]:
     """Read-only checks in the current process; never alter the publish lock."""
     try:
         config = load_config(config_path)
     except PublishError:
         return {"status": "blocked", "code": "config_unavailable",
                 "next_action": "Check the local publishing configuration without sharing it"}
-    if shutil.which("ossutil") is None:
+    try:
+        program = ossutil_program()
+    except PublishError as exc:
+        return {'status': 'blocked', 'code': exc.code}
+    if shutil.which(program) is None:
         return {"status": "blocked", "code": "ossutil_unavailable",
                 "next_action": "Make ossutil available in this execution environment"}
+    try:
+        connection = (head_bucket_index(config, connection_details=True) if connection_details
+                      else head_bucket_index(config))
+    except PublishError as exc:
+        return {'status': 'blocked', 'code': exc.code}
+    if connection['status'] != 'pass':
+        return connection
+    # Do not emit object metadata on success; only diagnostic execution context.
+    context = {'head_object_status': 'pass', 'upload_status': 'not_tested',
+               'browser_display_status': 'not_tested'}
+    if 'diagnostic' in connection:
+        context['diagnostic'] = connection['diagnostic']
+    if head_only:
+        return {**context, 'status': 'ready', 'code': 'head_object_passed',
+                'public_site_status': 'not_checked', 'bucket_binding_status': 'not_checked'}
     try:
         linked_url, index_bytes = checked_site(config)
     except PublishError as exc:
         if exc.code in {"html_forced_download", "html_force_download_invalid",
                         "html_attachment", "html_disposition_invalid"}:
-            return {"status": "blocked", "code": "inline_http_blocked",
+            return {**context, "status": "blocked", "code": "inline_http_blocked",
                     "reason_code": exc.code, "inline_http_status": "blocked",
                     "browser_display_status": "not_tested",
                     "next_action": "Verify authorized custom-domain hosting and HTML response headers; do not change browser security"}
-        return {"status": "blocked", "code": "network_unavailable" if exc.code == "transient" else "site_unverified",
+        return {**context, "status": "blocked", "code": "network_unavailable" if exc.code == "transient" else "site_unverified",
                 "next_action": "Verify the public website from this same execution environment"}
     try:
         check_bucket_binding(config, index_bytes)
     except PublishError as exc:
         code = exc.code if exc.code in {"profile_unavailable", "deployment_mismatch"} else "bucket_unavailable"
-        return {"status": "blocked", "code": code,
+        return {**context, "status": "blocked", "code": code,
                 "next_action": "Check this environment's ossutil profile and read-only bucket access"}
-    return {"status": "ready", "code": "read_only_checks_passed", "existing_briefing_url": linked_url,
+    return {**context, "status": "ready", "code": "read_only_checks_passed", "existing_briefing_url": linked_url,
             "inline_http_status": "eligible", "browser_display_status": "not_tested",
             "note": "Read-only checks cannot prove PutObject permission or actual browser display"}
 
@@ -315,11 +462,11 @@ def inspect_public_release(config: dict[str, str], run_date: str, expected_hash:
 
 def upload_file(config: dict[str, str], source: Path, filename: str) -> None:
     destination = f"oss://{config['bucket']}/{oss_key(config, filename)}"
-    command = [
-        "ossutil", "cp", str(source), destination,
+    command = ossutil_command(config, [
+        "cp", str(source), destination,
         "--profile", config["ossutil_profile"], "--region", config["region"],
         "--content-type", "text/html; charset=utf-8", "--cache-control", "no-cache", "--force",
-    ]
+    ])
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=180, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -354,10 +501,10 @@ def verified_release(run_dir: Path, *, require_audit: bool = True) -> tuple[str,
 
 def check_preview_overwrite_safety(config: dict[str, str]) -> None:
     """OSS ignores forbid-overwrite for enabled/suspended versioning; fail closed."""
-    command = ["ossutil", "api", "get-bucket-versioning", "--bucket", config["bucket"],
+    command = ossutil_command(config, ["api", "get-bucket-versioning", "--bucket", config["bucket"],
                "--profile", config["ossutil_profile"], "--region", config["region"],
                "--output-format", "raw", "--retry-times", "0",
-               "--connect-timeout", "5", "--read-timeout", "10", "--quiet"]
+               "--connect-timeout", "5", "--read-timeout", "10", "--quiet"])
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=20, check=False)
         if result.returncode != 0 or len(result.stdout) > 4096:
@@ -379,12 +526,12 @@ def upload_preview_file(config: dict[str, str], source: Path, key: str) -> None:
     if not re.fullmatch(r"_preview/20\d{2}-\d{2}-\d{2}/20\d{2}-\d{2}-\d{2}-[0-9a-f]{12}/[0-9a-f]{64}\.html", key):
         raise PublishError("Invalid preview object key", code="preview_identity_invalid")
     check_preview_overwrite_safety(config)
-    command = ["ossutil", "api", "put-object", "--bucket", config["bucket"],
+    command = ossutil_command(config, ["api", "put-object", "--bucket", config["bucket"],
                "--key", oss_key(config, key), "--body", "file://" + str(source.absolute()),
                "--profile", config["ossutil_profile"], "--region", config["region"],
                "--content-type", "text/html; charset=utf-8", "--content-disposition", "inline",
                "--cache-control", "no-cache", "--forbid-overwrite=true",
-               "--retry-times", "0", "--connect-timeout", "5", "--read-timeout", "20"]
+               "--retry-times", "0", "--connect-timeout", "5", "--read-timeout", "20"])
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=45, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -548,6 +695,15 @@ def publish(run_dir: Path, config_path: Path, *, correction_reason: str | None =
 
 def _publish_locked(run_dir: Path, config_path: Path, *, correction_reason: str | None,
                     supersedes_hash: str | None) -> dict[str, Any]:
+    manifest_path = run_dir / ('daily_pipeline_manifest_' + run_dir.name + '.json')
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        taskbox = manifest.get('taskbox_contract')
+        if taskbox is not None:
+            if not isinstance(taskbox, dict) or taskbox.get('deployment_id') != deployment_id(load_config(config_path)):
+                return {'status': 'blocked', 'code': 'taskbox_destination_changed'}
+            # Taskbox content failure must stop even before remote reconciliation.
+            verified_release(run_dir, require_audit=True)
     state_path, receipt_dir = locations(config_path)
     state = load_state(state_path)
     if not state.get("enabled"):
@@ -698,34 +854,42 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("status", "doctor", "enable", "publish", "preview"))
     parser.add_argument("--config", type=Path, default=PROJECT_ROOT / "news_publish.local.json")
+    parser.add_argument('--runtime-config', type=Path, help='Non-secret process-scoped runtime settings; routing identity is unchanged')
+    parser.add_argument('--head-only', action='store_true', help='doctor only: HeadObject without site, ACL or upload operations')
+    parser.add_argument('--connection-details', action='store_true', help='doctor only: sanitized connection error and execution context; no proxy values')
     parser.add_argument("--run-dir", type=Path, help="Completed local daily release directory; required for publish")
     parser.add_argument("--correction-reason", help="Required to replace different content for an already published date")
     parser.add_argument("--supersedes-hash", help="SHA-256 of the old published HTML being corrected")
     parser.add_argument("--expected-run-sha256", help="Exact staging snapshot authorized for preview")
     parser.add_argument("--expected-html-sha256", help="Exact staging HTML authorized for preview")
     args = parser.parse_args(argv)
+    if args.head_only and args.command != 'doctor':
+        parser.error('--head-only is restricted to doctor')
+    if args.connection_details and args.command != 'doctor':
+        parser.error('--connection-details is restricted to doctor')
     config_path = args.config.expanduser().resolve()
     try:
-        if args.command == "status":
-            result = status(config_path)
-        elif args.command == "doctor":
-            result = doctor(config_path)
-        elif args.command == "enable":
-            result = enable(config_path)
-        elif args.command == "preview":
-            if args.run_dir is None or not args.expected_run_sha256 or not args.expected_html_sha256:
-                parser.error("preview requires --run-dir, --expected-run-sha256 and --expected-html-sha256")
-            result = preview(args.run_dir.expanduser().absolute(), config_path,
-                             expected_run_sha256=args.expected_run_sha256,
-                             expected_html_sha256=args.expected_html_sha256)
-        else:
-            if args.run_dir is None:
-                parser.error("publish requires --run-dir")
-            result = publish(args.run_dir.expanduser().resolve(), config_path,
-                             correction_reason=args.correction_reason,
-                             supersedes_hash=args.supersedes_hash)
-    except PublishError as exc:
-        result = {"status": "failed", "reason": str(exc)}
+        with runtime_scope(args.runtime_config):
+            if args.command == "status":
+                result = status(config_path)
+            elif args.command == "doctor":
+                result = doctor(config_path, head_only=args.head_only, connection_details=args.connection_details)
+            elif args.command == "enable":
+                result = enable(config_path)
+            elif args.command == "preview":
+                if args.run_dir is None or not args.expected_run_sha256 or not args.expected_html_sha256:
+                    parser.error("preview requires --run-dir, --expected-run-sha256 and --expected-html-sha256")
+                result = preview(args.run_dir.expanduser().absolute(), config_path,
+                                 expected_run_sha256=args.expected_run_sha256,
+                                 expected_html_sha256=args.expected_html_sha256)
+            else:
+                if args.run_dir is None:
+                    parser.error("publish requires --run-dir")
+                result = publish(args.run_dir.expanduser().resolve(), config_path,
+                                 correction_reason=args.correction_reason,
+                                 supersedes_hash=args.supersedes_hash)
+    except (PublishError, RuntimeConfigurationError) as exc:
+        result = {"status": "failed", "code": exc.code if isinstance(exc, PublishError) else "runtime_configuration_unavailable", "reason": str(exc) if isinstance(exc, PublishError) else type(exc).__name__}
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if args.command == "doctor":
         return 0 if result["status"] == "ready" else 1

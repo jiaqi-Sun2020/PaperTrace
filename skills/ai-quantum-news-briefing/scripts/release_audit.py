@@ -44,6 +44,8 @@ def content_digest(manifest: dict[str, Any]) -> str:
         payload["required_story_review_protocol"] = manifest["required_story_review_protocol"]
     if int(manifest.get("pipeline_version") or 1) >= 3:
         payload["correction"] = manifest.get("correction")
+    if 'taskbox_contract' in manifest:
+        payload['taskbox_contract'] = manifest['taskbox_contract']
     return digest(payload)
 
 
@@ -79,6 +81,11 @@ def validate_bundle(run_dir: Path, manifest: dict[str, Any], *, require_manifest
             or (preview_display_pending and (require_manifest_binding or require_audit_report))):
         return ["display pending is restricted to unsealed preview validation"]
     failures: list[str] = []
+    from daily_revisions import assert_active_stage
+    try:
+        assert_active_stage(run_dir, manifest)
+    except ValueError as exc:
+        failures.append(str(exc))
     names = {key: template.format(date=manifest["date"])
              for key, template in REVIEW_NAMES.items()}
     try:
@@ -92,6 +99,16 @@ def validate_bundle(run_dir: Path, manifest: dict[str, Any], *, require_manifest
 
     from source_preparation import check_run_pool_binding
     failures.extend(check_run_pool_binding(run_dir, manifest, config))
+    from taskbox_contract import validate_reviews
+    if ('taskbox_contract' in manifest or 'taskbox_contract' in config
+            or 'taskbox_context' in news_review or 'taskbox_context' in story_review):
+        try:
+            captures = _read_json(run_dir / manifest['artifacts']['source_captures']).get('items', {})
+            failures.extend(validate_reviews(manifest, config, news_review, story_review, captures,
+                html_sha256=_file_hash(run_dir / manifest['artifacts']['html']),
+                preview_display_pending=preview_display_pending))
+        except (OSError, ValueError, KeyError, TypeError):
+            failures.append('taskbox_review_contract_invalid')
     story = config.get("opening_story")
     if not isinstance(story, dict):
         return ["opening story missing from release config"]

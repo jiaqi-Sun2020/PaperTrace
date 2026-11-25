@@ -11,6 +11,7 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit
 from logic_diagrams import diagrams_in_notes, notes_prose, validate_logic_diagram
+from reading_scan import validate_scan
 
 CONTRACT_FILE = "reading_analysis_contract.json"
 RELATIONS = {"cites", "uses", "extends", "tests", "challenges", "related"}
@@ -148,6 +149,13 @@ def validate_reading_analysis(reader_dir, records, summary):
         if not note or re.search(r"\[.*required\]|这一块用于定位|逻辑位置：本文主题是|待补充", note):
             errors.append(f"{record['stable_id']}: missing/non-specific logical analysis")
     anchors = {r.get("source_anchor") for r in records}
+    scan_version = contract.get("reading_scan_version")
+    state_path = wiki / "completion_run_state.json"
+    if state_path.exists() and json.loads(state_path.read_text(encoding="utf-8")).get("reading_scan_version") == 1 and scan_version != 1:
+        errors.append("reading scan declaration removed from an upgraded reader")
+    if scan_version is not None and (type(scan_version) is not int or scan_version != 1):
+        errors.append("unsupported reading scan version")
+    errors.extend(validate_scan(summary, history, anchors, required=scan_version == 1))
     visual_version = contract.get('logic_visualization_version')
     state_path = wiki / 'completion_run_state.json'
     if state_path.exists() and json.loads(state_path.read_text(encoding='utf-8')).get('logic_visualization_version') == 1 and visual_version != 1:
@@ -217,13 +225,16 @@ def declare_reading_analysis(reader_dir, *, bind_frozen=True):
     from completion_state import atomic_write_json
     source = json.loads((reader_dir / "source_map.json").read_text(encoding="utf-8"))
     pdf_hash = str((source.get("paper") or {}).get("source_pdf_sha256") or "")
+    scan_feature = {"reading_scan_version": 1}
     if path.exists():
         existing = json.loads(path.read_text(encoding="utf-8"))
+        # Resuming an already started legacy run must not silently upgrade it.
+        scan_feature = {k: existing[k] for k in scan_feature if k in existing}
         if not (bind_frozen and existing.get("source_map_binding") == "pending_freeze"
                 and existing.get("reading_analysis_version") == 1 and existing.get("required") is True
                 and existing.get("source_pdf_sha256") == pdf_hash):
             return
-    atomic_write_json(path, {"reading_analysis_version": 1, "required": True,
+    atomic_write_json(path, {"reading_analysis_version": 1, "required": True, **scan_feature,
                              "logic_visualization_version": 1,
                              "source_map_sha256": file_hash(reader_dir / "source_map.json") if bind_frozen else "",
                              "source_map_binding": "frozen" if bind_frozen else "pending_freeze",

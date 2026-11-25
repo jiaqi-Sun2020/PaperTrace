@@ -35,8 +35,9 @@ from completion_state import (  # noqa: E402
     sha256_file,
     update_run_state,
     write_record,
+    validate_record,
 )
-from reader_wiki_compile import compile_reader_wiki, load_authored_paper_summary, validate_source_page_assets  # noqa: E402
+from reader_wiki_compile import compile_reader_wiki, load_authored_paper_summary, validate_source_page_assets, validate_math_balance  # noqa: E402
 from markdown_reader_to_html import (  # noqa: E402
     annotate_html_text,
     build_knowledge_panel,
@@ -78,6 +79,23 @@ def source_map() -> dict:
         "tables": [{"id": "T001", "page": 1, "caption_original": "Table 1. Fixture data."}],
         "algorithms": [{"id": "A001", "page": 1, "source_block_id": "", "original_text": "1: Input circuit\n2: Output result"}],
     }
+
+
+def test_identical_math_is_not_duplicated_english_prose(tmp_path):
+    write_json(tmp_path / "source_map.json", source_map())
+    seed_records(tmp_path)
+    record = next(r for r in load_all_records(tmp_path) if r["stable_id"] == "block:S001")
+    record.update(original=r"\(k_{\mathrm{proj}}\)", zh=r"\(k_{\mathrm{proj}}\)", notes="A mathematical source fragment.", status="pass")
+    assert not any("duplicates translatable" in error for error in validate_record(record))
+    record.update(original="The quantum program is correct.", zh="The quantum program is correct.")
+    assert any("duplicates translatable" in error for error in validate_record(record))
+
+
+def test_math_balance_ignores_panel_labels_and_accepts_half_open_intervals():
+    assert not validate_math_balance(r"a) Plot; b) transform \(x\in[0,1)\) and \(y\in(0,1]\).")
+    assert validate_math_balance(r"\(x+(y\)")
+    assert validate_math_balance(r"\(x+[y\)")
+    assert validate_math_balance(r"\(x^{2\)")
 
 
 def complete_records(reader: Path) -> None:

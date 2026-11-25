@@ -268,3 +268,10 @@ This file records dated implementation and local-release milestones. Durable bou
 - Updated AI HOT to its bounded v1 API with opaque pagination, representation-bound cache validation and separate publication/discovery time. Added a finite official/media source registry and bounded AI-only discovery.
 - Bound AI originals to canonical article publication evidence; access denial stops same-day host retries while retaining successful captures and allowing qualified alternative hosts. Discovery never grants content or publication approval.
 - Synchronized public documentation and the ignored local knowledge topic from verified code. No real queue activation, collection, schedule update or OSS publication was performed.
+
+## 2026-11-25 - Existing Pipeline maintenance and delivery preparation
+
+- Added bounded continuation, explicit ordinary-task self-review and runtime/transport diagnostics while keeping source, review, display and publication authority separate. Closed-loop execution remains opt-in and disabled without reviewed policy.
+- Added publisher HTML discovery, saved-observation recovery and source-scoped diagnostics. Updated the historical-cache regression to require rejection of the old IEEE query snapshot after its registered URL changed; no cache or evidence gate was weakened.
+- Added source-bound first-read history roles and result briefs, with visible comparator/metric/scope; retained legacy compatibility and formal audits. Partial Poppler fallback keeps source and object-completion checks.
+- Synchronized bilingual README and local knowledge topics. Excluded the separate untracked ai-quantum-news framework and all runtime data from this publication; added an explicit runtime ignore rule. No collection, Reader regeneration, schedule/policy activation or OSS publication was performed.

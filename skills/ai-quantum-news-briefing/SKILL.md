@@ -7,6 +7,46 @@ description: Create source-grounded AI and quantum briefings with a complete Fab
 
 Use this skill to produce the user's recurring Chinese news briefings on AI, frontier models, agentic AI, industry/regulation, academic trends, and quantum physics/quantum computing.
 
+## Ordinary Codex task execution (explicit same-task self review)
+
+For a user-authorized ordinary-task edition, follow
+[taskbox execution](references/taskbox-execution.md) in the current task.
+Use scripts/taskbox_daily.py only as deterministic wiring into the existing
+source, controlled-authoring, staging, review, strict-finalize and publisher
+owners. The active task authors the content and checks every selected claim
+against actual captured primary evidence. Record review_method=self and
+taskbox_context with mode=same_task_self, context_isolation=none and
+independent_review=false in both reviews. A story-only reading round in this
+same task is a self-check, not an independent or isolated blind review.
+
+New runs also retain their creation identity in the existing staging lifecycle.
+Deleting rendered mode/review/display fields cannot grant historical privileges
+through a shared owner. Preserve the lifecycle and source/revision records.
+After reinstall, scripts/run_daily.ps1 probes existing Python sqlite3/ssl support
+and forwards an explicit action/date; it is not a scheduler or model caller.
+
+This route calls no separate model/API/provider, CLI model subprocess or new
+reviewer task. Do not select the optional closed-loop/model-dispatch route,
+create a schedule, change budgets, install dependencies or claim extra spending
+authorization. Actual source/browser/network/filesystem permissions still apply.
+
+New taskbox releases pin pipeline 4 / coverage contract 3 / source URL contract 2
+and story-review protocol 3. News review version 1, all source crosschecks and the
+three complete actual display checks are mandatory. display_review must exist
+and bind the exact current HTML bytes; historical absence compatibility cannot
+approve a new taskbox run. Pending display is restricted to the existing typed
+pre-display preview path and never authorizes sealing, strict release or upload.
+Templates remain unreviewed and cannot manufacture semantic/display approval.
+
+The ordinary task still completes the existing reviewed release sequence.
+Local finalize is explicitly strict and local-only. Existing-site upload is a
+separate explicitly scoped operation after local verification; verify the actual
+destination and remote HTML, preserve uncertain outcomes and reuse unchanged
+publication receipts. No production migration, preview upload, publication or
+automation activation is implied by this isolated implementation or its tests.
+The linked runbook provides complete commands, controlled UTF-8 saves, revision
+handling, stopping rules and a ready-to-paste ordinary task instruction.
+
 ## Pipeline Identity and Terminal Gate
 
 This skill owns **Primary Pipeline 2: AI + Quantum Daily Briefing Release**. It is distinct from Pipeline 1 paper PDF-to-HTML, Pipeline 3 local chat-to-profile import, and Pipeline 4 adaptive teaching decisions/evidence return.
@@ -499,3 +539,8 @@ authorization still apply; a preview receipt is not publication or display appro
 ## AI social fixed-pool increment (2026-10-16 r1)
 
 AI social/industry discovery: use the production-bound ai-social domain and the finite registry described in references/ai-social-fixed-pool.md. OpenAI RSS is discovery only; original 403 stops the host, then choose a qualified pool alternative. Do not use discovery time as publication time. Quantum evidence and all strict review/publication gates are unchanged.
+
+
+## Bounded daily continuation (2026-10-17 repair)
+
+See skills/ai-quantum-news-briefing/references/bounded-daily-recovery.md. The current date-isolated `orchestrate_daily.py daily` entry separates source coverage from article discovery/capture/qualification, supports read-only `--action diagnose`, and reviewed-policy `--action recover` / `--action continue`. Same-window rechecks use the existing source pool and queue continuation; no schedule or publication gate is waived. Public HTTP receipts use `evidence_persistence.py` with byte-count/SHA-256 binding, not a large prose patch. The recovery policy is disabled until explicitly reviewed; production timing, wakeup and deployment still need approval.

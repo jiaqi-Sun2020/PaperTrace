@@ -332,6 +332,8 @@ python .\skills\reader-skill\scripts\markdown_reader_to_html.py "<reader-dir>" -
 
 逐段“逻辑分析”继续以原有 `notes` 为唯一内容来源，包含完整解释与主模型直接创作的可选择文字图示。关系区分操作顺序、数据流、论证支持和对照，并绑定条件与来源；不从关键词自动猜测因果。图示按正文容器实际宽度重排，沿用 Reader 主题。历史关系、检索范围和未核实续作须如实标注；旧 Reader 不自动迁移。详见[阅读分析契约](skills/reader-skill/references/reading-analysis-contract.md)。结构校验、来源／逻辑自评与实际浏览器验收分别报告，不能把结构通过当作视觉或科学正确性证明。
 
+新 `reading_scan_version=1` 产物让历史节点直接说明“这项工作在当前论文中做什么”，并在详细总结前显示有来源锚点的 `result_brief`。对比结论必须紧邻基线、指标及适用条件；不能仅凭引用关系推断作用或继承。旧 Reader 不自动迁移。PDF 初始提取兼容部分 Poppler 工具缺失，仍须通过原始证据、图表对象及正式 HTML 门禁。
+
 ### 4. Adversarial audit
 
 生成后必须跑对抗性 HTML 审核：
@@ -504,6 +506,8 @@ python D:\AI\PaperTrace\skills\reader-learner\scripts\feedback_visible_wiki_pipe
 `sources` 保留底层兼容用途；`--domain ai-social` 只做有限 AI 来源工作。它复用[来源准备存储](skills/ai-quantum-news-briefing/references/source-preparation-architecture.md)，材料准入仍是 `not_reviewed`，选中材料的依赖需贯穿审核、finalize 和首次上传。新 [AI 固定来源契约](skills/ai-quantum-news-briefing/references/ai-social-fixed-pool.md)规定 AI HOT `/api/v1/items`、官方／媒体入口、原始文章日期核对及主机级 401/403 停止。发现时间不冒充发表时间；AI-only 不豁免量子或检索证据。
 
 失败的未发布 staging 使用[摘要绑定修订](skills/ai-quantum-news-briefing/references/source-contract-recovery.md)，不能手改 HTML、删除证据或复用旧 PASS。单独授权的 HTTPS 预览只允许实际显示审核待完成，不能冒充正式发布或网站已更新；详见[预览契约](skills/ai-quantum-news-briefing/references/rendered-search-and-preview-contract.md)与[运行手册](.agents/RUNBOOK.md)。推送代码到 GitHub 不会启用 OSS、启动采集或发布日报。
+
+[普通任务入口](skills/ai-quantum-news-briefing/references/taskbox-execution.md)以 `taskbox_daily.py` 执行显式、确定性的步骤，审核如实标注为同任务自评，不冒称独立评审。日报使用经核验的 Python 3.12 和已忽略、不含密钥的本机运行配置；终端存在 `python` 别名不代表解释器可用。[有界恢复](skills/ai-quantum-news-briefing/references/bounded-daily-recovery.md)保留原始来源失败、已保存观察、次数预算和当期日期绑定。[闭环执行器](skills/ai-quantum-news-briefing/references/bounded-closed-loop.md)是独立 opt-in 路径，默认不启用，需批准确切运行策略；待唤醒、待发送不等于已有调度或通知已送达。这些代码不授予读取凭据、改变宿主权限或真实发布的权限。
 
 ## Lean HTML 与设计层
 

@@ -908,6 +908,27 @@ def summary_source_links(anchors: object) -> str:
     return f'<span class="summary-sources" aria-label="Source anchors">{" ".join(links)}</span>' if links else ""
 
 
+def render_result_brief(brief: dict) -> str:
+    """Static, evidence-linked first read; keep unlike measures in separate groups."""
+    if not brief:
+        return ""
+    esc = html.escape
+    groups = {}
+    for row in brief["items"]:
+        groups.setdefault(row.get("metric") or "主要发现", []).append(row)
+    sections = []
+    for metric, rows in groups.items():
+        items = []
+        for row in rows:
+            first, *rest = row["source_anchors"]
+            baseline = f'对照：{esc(row["baseline"])}；' if row["kind"] == "comparison" else ""
+            items.append(f'<li><a href="#{esc(first)}">{esc(row["subject"])}</a> · <strong>{esc(row["finding"])}</strong>'
+                         f'<div class="result-context">{baseline}{esc(row["scope"])}{summary_source_links(rest)}</div></li>')
+        sections.append(f'<section><h4>{esc(metric)}</h4><ul>{"".join(items)}</ul></section>')
+    return (f'<div class="result-brief"><h3>{esc(brief["headline"])}</h3>{"".join(sections)}</div>'
+            '<h3 class="result-detail-heading">完整解读</h3>')
+
+
 def build_paper_summary_panel(
     summary: dict,
     base_dir: Path,
@@ -959,6 +980,7 @@ def build_paper_summary_panel(
     return f'''
 <section class="paper-summary" id="paper-summary">
   <h2>Paper Summary / 论文总结</h2>
+  {render_result_brief(summary.get("result_brief"))}
   <div class="paper-summary-overview">
     <p>{overview_text}</p>
     {summary_source_links(overview.get("source_anchors"))}
@@ -2926,6 +2948,14 @@ main { min-width: 0; }
   padding: 20px;
 }
 .paper-summary h2 { margin: 0 0 12px; letter-spacing: 0; }
+.result-brief { max-width:48rem; overflow-wrap:anywhere; }
+.result-brief h3 { margin:.25rem 0 .7rem; font-size:1.23rem; line-height:1.4; }
+.result-brief h4 { margin:.7rem 0 .2rem; font-size:.92rem; }
+.result-brief ul { list-style:none; padding:0; margin:0; }
+.result-brief li { border-top:1px solid var(--reader-border); padding:.3rem 0; line-height:1.45; }
+.result-brief a { color:var(--reader-link); text-underline-offset:.18em; }
+.result-context { font-size:.88rem; line-height:1.45; }
+.result-detail-heading { margin:1rem 0 .5rem; font-size:1.05rem; }
 .paper-summary-overview {
   border-left: 4px solid var(--accent);
   background: var(--reader-note-bg);
@@ -3320,6 +3350,10 @@ def math_support(math_renderer: str, mathjax_url: str) -> str:
         inlineMath: [['\\\\(', '\\\\)'], ['$', '$']],
         displayMath: [['\\\\[', '\\\\]'], ['$$', '$$']],
         processEscapes: true,
+        macros: {
+          llbracket: '\\u27e6',
+          rrbracket: '\\u27e7'
+        },
         tags: 'ams'
       },
       options: {

@@ -229,6 +229,8 @@ Per-block **logical analysis** keeps full explanations in the canonical `notes` 
 
 Structural validation, source/logic self-review and actual browser acceptance are separate checks. A passing structural audit is not proof of scientific correctness or a passed visual test; pending browser checks must be disclosed.
 
+New `reading_scan_version=1` bundles make each historical work's paper-specific role visible and add a source-anchored `result_brief` before the full summary. Comparisons retain the named baseline, metric and conditions beside the finding; citations alone do not establish a role or inheritance. Existing readers are not silently migrated. PDF bootstrap also supports a partial Poppler installation via the existing bounded fallbacks; formal source/object validation still applies.
+
 ### 4. Adversarial audit
 
     cd D:\AI\PaperTrace
@@ -321,6 +323,8 @@ For automatic editions eligible from 2026-10-16, run `orchestrate_daily.py daily
 `sources` remains the underlying compatibility interface, with `--domain ai-social` for bounded AI-only work. It reuses the leased [source-preparation store](skills/ai-quantum-news-briefing/references/source-preparation-architecture.md); admitted material remains `not_reviewed`. A bound candidate must retain selected material revisions through staging, review and first upload. The [fixed-pool contract](skills/ai-quantum-news-briefing/references/ai-social-fixed-pool.md) describes current AI HOT `/api/v1/items`, finite official/media entries, original publication-date checks and host-level 401/403 stopping. Discovery time cannot replace publication time, nor can AI-only work waive Quantum or search evidence.
 
 Failed unpublished staging uses digest-bound controlled revision, not hand-edited HTML or deleted evidence. URL identity, capture admission and recovery are defined in [source-contract recovery](skills/ai-quantum-news-briefing/references/source-contract-recovery.md). A separately authorized HTTPS preview may leave only actual display pending; it is never semantic approval, formal publication or proof that the homepage changed. See [the preview contract](skills/ai-quantum-news-briefing/references/rendered-search-and-preview-contract.md) and [.agents/RUNBOOK.md](.agents/RUNBOOK.md). Publishing code to GitHub does not enable OSS, run collection, or publish a briefing.
+
+The [ordinary-task entry](skills/ai-quantum-news-briefing/references/taskbox-execution.md) now supports explicit deterministic `taskbox_daily.py` steps with honestly labelled same-task self-review, not an independent reviewer. Its daily runtime is pinned to Python 3.12 through ignored, non-secret runtime configuration; a `python` shell alias is not evidence of a working interpreter. [Bounded recovery](skills/ai-quantum-news-briefing/references/bounded-daily-recovery.md) preserves original source failures, saved observations, attempts and current-date bindings. The separate [closed-loop executor](skills/ai-quantum-news-briefing/references/bounded-closed-loop.md) is opt-in and disabled until an exact runtime policy is approved; pending wakeups or notifications are not scheduled execution or delivered messages. None of these code paths authorizes credential access, changes to host permissions, or actual publication.
 
 ## Lean HTML and design layer
 

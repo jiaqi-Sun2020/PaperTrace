@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from formula_contract import atomic_formula_issues, bilingual_math_issues, source_math_evidence_issues, source_math_inventory_issues
+from formula_contract import atomic_formula_issues, bilingual_math_issues, prose_without_math, source_math_evidence_issues, source_math_inventory_issues
 
 
 SCHEMA_VERSION = 3
@@ -192,7 +192,7 @@ def validate_record(record: dict[str, Any]) -> list[str]:
             return errors
         if not original or not zh:
             errors.append("pass block requires Original and Chinese text")
-        if original == zh and re.search(r"[A-Za-z]{4}", original):
+        if original == zh and re.search(r"[A-Za-z]{4}", prose_without_math(original)):
             errors.append("pass block Chinese text duplicates translatable Original text")
         if PLACEHOLDER_RE.search(original + "\n" + zh):
             errors.append("pass block contains a placeholder")
@@ -432,6 +432,10 @@ def update_run_state(reader_dir: Path, *, last_failure_gate: str = "") -> dict[s
     }
     # Independent feature contract survives recomputing the derived run state.
     analysis_path = reader_dir / "reader_wiki" / "reading_analysis_contract.json"
+    previous = read_json(run_state_path(reader_dir)) if run_state_path(reader_dir).exists() else {}
+    scan = (read_json(analysis_path).get("reading_scan_version") if analysis_path.exists() else None)
+    if previous.get("reading_scan_version") or scan:
+        state["reading_scan_version"] = previous.get("reading_scan_version") or scan
     if analysis_path.exists():
         state["reading_analysis_version"] = read_json(analysis_path).get("reading_analysis_version")
         previous_visual = read_json(run_state_path(reader_dir)).get('logic_visualization_version') if run_state_path(reader_dir).exists() else None

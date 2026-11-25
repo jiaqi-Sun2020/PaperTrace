@@ -120,12 +120,12 @@ def run(args: list[str]) -> None:
 
 def extract_reading_order_pages(pdf_path: Path, page_count: int) -> list[str]:
     """Prefer Poppler reading order and fail over when its Unicode mapping is visibly corrupt."""
-    pdftotext = require_executable("pdftotext")
+    pdftotext = shutil.which("pdftotext")
     completed = subprocess.run(
         [pdftotext, "-raw", "-enc", "UTF-8", str(pdf_path), "-"],
         capture_output=True,
-    )
-    if completed.returncode == 0:
+    ) if pdftotext else None
+    if completed is not None and completed.returncode == 0:
         poppler_text = completed.stdout.decode("utf-8", errors="replace").replace("\r\n", "\n")
         poppler_pages = poppler_text.split("\f")
         if poppler_pages and not poppler_pages[-1].strip():
@@ -262,7 +262,7 @@ def discover_caption_lines(page_text: str) -> list[str]:
 
 
 def source_page_paths(reader_dir: Path, pdf_path: Path, page_count: int) -> list[dict[str, str | int]]:
-    pdftocairo = require_executable("pdftocairo")
+    renderer = shutil.which("pdftocairo") or require_executable("pdftoppm")
     output_dir = reader_dir / "assets" / "source_pages"
     output_dir.mkdir(parents=True, exist_ok=True)
     # Some Windows Poppler builds can read a Unicode PDF path but cannot create
@@ -273,12 +273,12 @@ def source_page_paths(reader_dir: Path, pdf_path: Path, page_count: int) -> list
     with tempfile.TemporaryDirectory(prefix="papertrace_render_") as temp_dir:
         temp_output_dir = Path(temp_dir)
         prefix = temp_output_dir / "render"
-        run([pdftocairo, "-png", "-r", "144", str(pdf_path), str(prefix)])
+        run([renderer, "-png", "-r", "144", str(pdf_path), str(prefix)])
         for page_no in range(1, page_count + 1):
             candidates = [temp_output_dir / f"render-{page_no}.png", temp_output_dir / f"render-{page_no:02d}.png"]
             source = next((candidate for candidate in candidates if candidate.exists()), None)
             if source is None:
-                raise RuntimeError(f"missing rendered page {page_no} after pdftocairo")
+                raise RuntimeError(f"missing rendered page {page_no} after {Path(renderer).name}")
             target = output_dir / f"page-{page_no:02d}.png"
             if target.exists():
                 target.unlink()
@@ -292,9 +292,20 @@ def source_page_paths(reader_dir: Path, pdf_path: Path, page_count: int) -> list
 
 
 def extract_embedded_images(reader_dir: Path, pdf_path: Path) -> list[dict[str, str]]:
-    pdfimages = require_executable("pdfimages")
+    pdfimages = shutil.which("pdfimages")
     output_dir = reader_dir / "assets" / "image_objects"
     output_dir.mkdir(parents=True, exist_ok=True)
+    if not pdfimages:
+        for page_no, page in enumerate(PdfReader(str(pdf_path)).pages, start=1):
+            for image_no, image in enumerate(page.images, start=1):
+                suffix = Path(image.name).suffix.lower()
+                if not re.fullmatch(r"\.[a-z0-9]{1,8}", suffix):
+                    raise RuntimeError(f"unsupported embedded-image extension: {image.name}")
+                (output_dir / f"page-{page_no:03d}-image-{image_no:03d}{suffix}").write_bytes(image.data)
+        return [
+            {"path": image.relative_to(reader_dir).as_posix(), "sha256": sha256_file(image)}
+            for image in sorted(output_dir.iterdir()) if image.is_file()
+        ]
     # Several Windows Poppler builds accept a Unicode input path but fail when
     # their output prefix contains typographic punctuation (for example the
     # en dash in a paper title).  Extract under an ASCII-only system temp path

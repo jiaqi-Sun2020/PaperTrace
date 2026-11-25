@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import base64
 import binascii
+from copy import deepcopy
 import json
 import re
 from datetime import date, datetime, time, timedelta, timezone
@@ -30,6 +31,53 @@ OBSERVATION_KEYS = {"page_url", "displayed_query", "query_verified_in_UI", "reco
                     "zero_account_publications_established", "publication_dates_verified", "personalization_possible"}
 HTTP_RECEIPT_KEYS = {"query_url", "final_url", "status_code", "response_hash", "retrieved_at", "coverage_start",
                      "coverage_end", "hash_scope", "body_base64"}
+
+
+def classify_rendered_search_results(results, targets):
+    """Classify observed hrefs without following/decoding opaque redirects.
+
+    A target match remains a discovery lead, never article/date corroboration.
+    Off-scope results are retained, not rewritten as an empty search.
+    """
+    classified = []
+    for index, result in enumerate(results):
+        url = _public_url(result.get('url')) if isinstance(result, dict) else None
+        if not url:
+            raise ValueError('invalid_search_result_url')
+        host = url.hostname.lower().removeprefix('www.')
+        matched = any(host == target.split('/')[0].lower() and ('/' not in target
+                      or url.path.lower().startswith('/' + target.split('/', 1)[1].lower() + '/'))
+                      for target in targets)
+        status, candidate = 'off_scope', None
+        if host == 'google.com' and url.path == '/goto' and set(parse_qs(url.query)) == {'url'}:
+            status = 'unresolved_google_redirect'
+        elif matched:
+            if host == 'x.com' and not re.fullmatch(r'/[^/]+/status/[0-9]+/?', url.path):
+                status = 'target_non_post'
+            else:
+                status, candidate = 'target_discovery_lead', result['url']
+        classified.append({'result_index': index, 'classification': status, 'candidate_url': candidate})
+    return classified
+
+
+def adapt_rendered_search_observation(record, day):
+    """Version an actual saved DOM+HTTP record; never fabricate missing evidence."""
+    if not isinstance(record, dict) or type(record.get('version')) is not int or record['version'] not in (1, 2):
+        raise ValueError('unsupported_rendered_search_version')
+    value = deepcopy(record)
+    if value['version'] == 1:
+        observation = value.get('observation')
+        if not isinstance(observation, dict) or set(observation) != OBSERVATION_KEYS:
+            raise ValueError('rendered_search_observation_missing')
+        if value.get('observation_sha256') != evidence_digest(observation)[7:]:
+            raise ValueError('rendered_search_observation_changed')
+        observation['result_classifications'] = classify_rendered_search_results(
+            observation.get('public_result_links', []), value.get('source_targets', []))
+        value['version'] = 2
+        value['observation_sha256'] = evidence_digest(observation)[7:]
+    if validate_rendered_search_observation(value, day):
+        raise ValueError('rendered_search_adaptation_invalid')
+    return value
 
 
 def _public_url(value: Any):
@@ -58,27 +106,31 @@ def validate_rendered_search_observation(record: Any, day: str) -> list[str]:
     bad = [f"{day}: invalid rendered search discovery evidence"]
     if (not isinstance(record, dict) or set(record) != RENDERED_RECORD_KEYS
             or record.get("evidence_type") != "rendered_search_observation"
-            or type(record.get("version")) is not int or record["version"] != 1
+            or type(record.get("version")) is not int or record["version"] not in (1, 2)
             or not isinstance(record.get("source_class"), str)
             or record["source_class"] not in RENDERED_SEARCH_TARGETS
             or record.get("coverage_start") != start.isoformat()
             or record.get("coverage_end") != end.isoformat()):
         return bad
     observation, receipt = record.get("observation"), record.get("http_receipt")
-    if (not isinstance(observation, dict) or set(observation) != OBSERVATION_KEYS
+    version = record['version']
+    observation_keys = OBSERVATION_KEYS | ({'result_classifications'} if version == 2 else set())
+    if (not isinstance(observation, dict) or set(observation) != observation_keys
             or not isinstance(receipt, dict) or set(receipt) != HTTP_RECEIPT_KEYS):
         return bad
     query_url, page_url = _public_url(record.get("query_url")), _public_url(observation.get("page_url"))
     if (not query_url or not page_url or query_url.hostname not in ("www.google.com", "google.com")
             or page_url.hostname != query_url.hostname or query_url.path != page_url.path or query_url.path != "/search"):
         return bad
-    query_params, page_params = parse_qs(query_url.query), parse_qs(page_url.query)
+    query_params, page_params = parse_qs(query_url.query, keep_blank_values=True), parse_qs(page_url.query, keep_blank_values=True)
     query = observation.get("displayed_query")
     if (not isinstance(query, str) or not query.strip() or len(query) > 2000
             or any(ord(ch) < 32 for ch in query)
             or query_params.get("q") != [query] or page_params.get("q") != [query]
             or not set(query_params) <= {"q", "hl", "start", "num", "filter"}
-            or not set(page_params) <= {"q", "hl", "start", "num", "filter"}
+            or not set(page_params) <= ({"q", "hl", "start", "num", "filter"} | ({'sei'} if version == 2 else set()))
+            or (version == 2 and (any(len(values) != 1 for values in page_params.values())
+                or ('sei' in page_params and not re.fullmatch(r'[A-Za-z0-9_-]{1,256}', page_params['sei'][0]))))
             or re.findall(r"after:([^\s)]+)", query) != [(start.date() - timedelta(days=1)).isoformat()]
             or re.findall(r"before:([^\s)]+)", query) != [end.date().isoformat()]):
         return bad
@@ -126,12 +178,24 @@ def validate_rendered_search_observation(record: Any, day: str) -> list[str]:
         host = url.hostname.lower()
         if host.startswith("www."):
             host = host[4:]
-        if not any(host == target.split("/")[0] and ("/" not in target
+        if version == 1 and not any(host == target.split("/")[0] and ("/" not in target
                    or url.path.lower().startswith("/" + target.split("/", 1)[1] + "/")) for target in declared):
             return bad
         urls.append(result["url"])
     if len(urls) != len(set(urls)):
         return bad
+    if version == 2:
+        classes = observation.get('result_classifications')
+        if (not isinstance(classes, list) or any(not isinstance(row, dict)
+                or set(row) != {'result_index', 'classification', 'candidate_url'}
+                or type(row.get('result_index')) is not int for row in classes)):
+            return bad
+        try:
+            expected = classify_rendered_search_results(results, targets)
+        except (ValueError, TypeError, AttributeError):
+            return bad
+        if classes != expected:
+            return bad
     if record.get("observation_sha256") != evidence_digest(observation)[7:]:
         return bad
     final = _public_url(receipt.get("final_url"))

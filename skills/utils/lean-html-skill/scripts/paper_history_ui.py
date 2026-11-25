@@ -35,10 +35,26 @@ def render_paper_history(history):
         sources += ' ' + ' '.join(f'<a href="#{esc(a)}">本文 {esc(a)}</a>' for a in node.get("source_anchors",[]))
         current = ' aria-current="true"' if node.get("current") else ''
         current_label = '<span class="history-current-label">当前论文</span>' if node.get("current") else ''
+        heading = esc(short_name(node)) + current_label
+        contribution = esc(node["summary"])
+        relation = f'<p class="history-relation">{esc(relation_text)}</p>'
+        extra = ''
+        role = node.get("reading_role")
+        if role:
+            label = role["label"]
+            if node.get("current") and label != "当前论文":
+                label = "当前论文 · " + label
+            heading = f'<span class="history-role">{esc(label)}</span> {esc(role["topic"])}'
+            contribution = esc(role["explanation"])
+            role_links = ' '.join(f'<a href="#{esc(a)}">{esc(a)}</a>' for a in role["source_anchors"])
+            extra = f'<p>{esc(node["summary"])}</p>{relation}'
+            if role_links:
+                extra += f'<p class="history-source-links">作用依据：{role_links}</p>'
+            relation = ''
         rows.append(f'''<li class="history-node"{current}>
 <div class="history-date">{esc(first_date)}<span>{DATES[dates[0]["kind"]] if dates[0]["kind"] != "unknown" else "待核实"}</span></div>
-<div class="history-node-body"><h3>{esc(short_name(node))}{current_label}</h3><p class="history-contribution">{esc(node["summary"])}</p><p class="history-relation">{esc(relation_text)}</p>
-<details id="{esc(target)}" class="history-detail"><summary>研究详情与依据</summary><div class="history-detail-content"><h4>{esc(node["title"])}</h4><p class="history-all-dates">{esc(all_dates)}</p>
+<div class="history-node-body"><h3>{heading}</h3><p class="history-contribution">{contribution}</p>{relation}
+<details id="{esc(target)}" class="history-detail"><summary>研究详情与依据</summary><div class="history-detail-content"><h4>{esc(node["title"])}</h4><p class="history-all-dates">{esc(all_dates)}</p>{extra}
 <section><h5>研究问题与方法</h5><p>{esc(node["question"])}</p><p>{esc(node["method"])}</p></section>
 <section><h5>推进与效果条件</h5><p>{esc(node["advance"])}</p><p>{esc(node["results"])}</p></section>
 <section><h5>局限与关系依据</h5><p>{esc(node["limitations"])}</p><p class="history-source-links">{sources}</p><ul class="history-evidence">{''.join(evidence_rows)}</ul></section></div></details></div></li>''')
@@ -58,6 +74,8 @@ def paper_history_styles():
 .history-node:last-child .history-node-body{padding-bottom:.5rem}.history-date{font-size:.83rem;font-variant-numeric:tabular-nums;line-height:1.65;padding-top:1px}.history-date span{display:block;font-size:.76rem}
 .history-node h3{font-size:1.06rem;line-height:1.5;font-weight:600;margin:0 0 .35rem;color:var(--reader-text)}.history-current-label{font-size:.75rem;margin-left:.65rem;color:var(--reader-link);font-weight:600}.history-node[aria-current] .history-node-body{border-left-color:var(--reader-link)}
 .history-contribution{line-height:1.75;margin:0 0 .5rem;font-size:.94rem}.history-relation{font-size:.81rem;line-height:1.7;margin:0 0 .3rem;color:var(--reader-text)}
+.history-role{padding-inline-end:.55em;margin-inline-end:.2em;border-inline-end:1px solid var(--reader-border);color:var(--reader-link);font-size:.82em}
+.history-node-body:has(.history-role){padding-bottom:.6rem}.history-node-body:has(.history-role) .history-contribution{line-height:1.55;margin-bottom:0}
 .history-detail{margin:0;border:0;padding:0;border-radius:0}.history-detail summary,.history-scope summary{cursor:pointer;min-height:44px;align-content:center;color:var(--reader-link);font-weight:500;font-size:.86rem;list-style-position:inside}
 .history-detail-content{padding:.9rem 0 .5rem}.history-detail h4{font-size:.95rem;font-weight:600;line-height:1.7;margin:0 0 .5rem}.history-all-dates{font-size:.8rem;line-height:1.7}.history-detail h5{font-size:.86rem;line-height:1.6;margin:1rem 0 .4rem;font-weight:600;color:var(--reader-text)}
 .history-detail p{font-size:.9rem;line-height:1.8;margin:0 0 .55rem}.history-evidence{padding-left:1.1rem;font-size:.86rem;line-height:1.7}.history-evidence li{margin:.9rem 0}.paper-history blockquote{margin:.5rem 0;padding:.35rem .8rem;border-left:2px solid var(--reader-border);font-size:.85rem;line-height:1.7}

@@ -1014,7 +1014,7 @@ def normalize_briefing_config(
     }
     if url_version == 2:
         normalized["source_url_contract_version"] = 2
-        for key in ("candidate_admission", "revision_id", "supersedes_run_id", "source_pool_binding"):
+        for key in ("candidate_admission", "revision_id", "supersedes_run_id", "source_pool_binding", "taskbox_contract"):
             if key in config:
                 normalized[key] = config[key]
     assert_opening_story_contract(

@@ -24,6 +24,7 @@ def fixture(tmp_path):
     # This fixture intentionally represents the original analysis-v1 contract.
     contract = json.loads((wiki / 'reading_analysis_contract.json').read_text())
     contract.pop('logic_visualization_version', None)
+    contract.pop('reading_scan_version', None)
     write(wiki / 'reading_analysis_contract.json', contract)
     node = {"id":"current", "identity":{"arxiv":"2601.00001"}, "current":True, "title":"Example", "url":"https://arxiv.org/abs/2601.00001", "summary":"对象明确", "question":"问题", "method":"动作", "advance":"进展", "results":"条件内的结果", "limitations":"范围", "dates":[{"kind":"preprint", "date":"2026-01-01", "source_url":"https://arxiv.org/abs/2601.00001"}], "source_anchors":["S001"]}
     history = {"schema_version":1,"source_map_sha256":file_hash(tmp_path / "source_map.json"),"status":"partial","checked_as_of":"2026-10-13","nodes":[node],"relations":[],"searches":[],"gaps":["Network unavailable; no successor claim."]}
@@ -127,11 +128,13 @@ def test_new_bundle_feature_survives_discovery_resume(tmp_path):
     pending = json.loads((tmp_path / "reader_wiki/reading_analysis_contract.json").read_text())
     assert pending["source_map_binding"] == "pending_freeze"
     assert pending['logic_visualization_version'] == 1
+    assert pending['reading_scan_version'] == 1
     write(tmp_path / "source_map.json", {"paper":{"source_pdf_sha256":"same-pdf"},"blocks":[{"id":"F001"}]})
     declare_reading_analysis(tmp_path,bind_frozen=True)
     frozen = json.loads((tmp_path / "reader_wiki/reading_analysis_contract.json").read_text())
     assert frozen["source_map_sha256"] == file_hash(tmp_path / "source_map.json")
     assert frozen["source_map_binding"] == "frozen"
+    assert frozen["reading_scan_version"] == 1
 
 
 def test_formal_status_refresh_replaces_old_failure_fields(tmp_path,monkeypatch):

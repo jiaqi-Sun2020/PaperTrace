@@ -97,3 +97,6 @@ id_rsa*
 *cookie*
 *session*
 .agents/memory/
+
+# Unpublished framework's local source/run data (never public code)
+/skills/ai-quantum-news/.runtime/

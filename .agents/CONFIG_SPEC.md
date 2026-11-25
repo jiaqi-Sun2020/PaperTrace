@@ -752,3 +752,33 @@ pool bindings, or delete old evidence to force recovery or rollback.
 ## AI social fixed-pool increment (2026-10-16 r1)
 
 AI social fixed pool is a frozen code registry in ai_social_sources.py (six existing verified entries, The Verge backup), not a local-secret setting. AIHOT uses current /api/v1 with 7d/published cursor pagination. No Cookie configuration is introduced. Existing publication policies, historical cutoff and stricter local overrides retain authority.
+
+
+## Bounded daily continuation (2026-10-17 repair)
+
+See skills/ai-quantum-news-briefing/references/bounded-daily-recovery.md. The current date-isolated `orchestrate_daily.py daily` entry separates source coverage from article discovery/capture/qualification, supports read-only `--action diagnose`, and reviewed-policy `--action recover` / `--action continue`. Same-window rechecks use the existing source pool and queue continuation; no schedule or publication gate is waived. Public HTTP receipts use `evidence_persistence.py` with byte-count/SHA-256 binding, not a large prose patch. The recovery policy is disabled until explicitly reviewed; production timing, wakeup and deployment still need approval.
+
+## Bounded closed-loop runtime policy and journal
+
+The opt-in version-1 contract is in
+`skills/ai-quantum-news-briefing/references/bounded-closed-loop.md`.
+`workflow_queue.json.daily_continuations[date].closed_loop` stores only bounded
+execution metadata: frozen coverage, exact policy/code hashes, reserved action
+and process slots, next wakeup and real outcome. Source/review/release authority
+stays with existing owners. Terminal states cannot be cleared by repeated runs
+or policy changes. `notification_outbox` pending_send is not confirmed delivery.
+No runtime policy, date widening, budget reset or publication exemption is
+approved by installing the code. Historic records and lifecycle are retained.
+
+## Ordinary-task and Reader first-read contracts (2026-11-25 sync)
+
+`taskbox_daily.py` binds explicit-date ordinary-task runs to their creation
+identity. Same-task self-review is not an independent or blind review. Read
+`skills/ai-quantum-news-briefing/references/taskbox-execution.md` for authoritative
+runtime, save/review and strict publication requirements. Closed-loop execution
+is a separately approved opt-in path; no policy or schedule is enabled here.
+
+Reader `reading_scan_version=1` declares authored history reading roles and
+summary `result_brief`, bound through existing source, freshness and audit gates.
+The reading-analysis contract owns the schema; undeclared legacy readers remain
+compatible and must not be silently upgraded. No paper content is changed by sync.

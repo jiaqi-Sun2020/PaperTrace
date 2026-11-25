@@ -53,6 +53,10 @@ class OssPublisherTests(unittest.TestCase):
         bucket_patch = patch.object(publisher, "read_bucket_index", side_effect=lambda _config: self.bucket_index)
         bucket_patch.start()
         self.addCleanup(bucket_patch.stop)
+        head_patch = patch.object(publisher, 'head_bucket_index', return_value={
+            'status': 'pass', 'code': 'head_object_passed', 'operation': 'HeadObject', 'exit_code': 0})
+        head_patch.start()
+        self.addCleanup(head_patch.stop)
 
     def site_fetch(self, url: str) -> tuple[str, bytes]:
         if url == self.config["site_index_url"]:

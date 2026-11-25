@@ -936,3 +936,119 @@ environment instead of skipping their assertions. No test authorizes OSS work.
 ## AI social fixed-pool increment (2026-10-16 r1)
 
 AI social fixed-source discovery now has an explicit --domain ai-social route. See skills/ai-quantum-news-briefing/references/ai-social-fixed-pool.md for exact commands, bounded failure recovery and unchanged Quantum gates. This does not authorize deployment, candidate migration or publication.
+
+
+## Bounded daily continuation (2026-10-17 repair)
+
+See skills/ai-quantum-news-briefing/references/bounded-daily-recovery.md. The current date-isolated `orchestrate_daily.py daily` entry separates source coverage from article discovery/capture/qualification, supports read-only `--action diagnose`, and reviewed-policy `--action recover` / `--action continue`. Same-window rechecks use the existing source pool and queue continuation; no schedule or publication gate is waived. Public HTTP receipts use `evidence_persistence.py` with byte-count/SHA-256 binding, not a large prose patch. The recovery policy is disabled until explicitly reviewed; production timing, wakeup and deployment still need approval.
+## Failure diagnostics / saved observations / false-failure cache correction
+
+## Reinstalled daily runtime (2026-10-25)
+
+Use the verified Python 3.12 runtime for daily execution. A successful
+`conda run -p D:/AI/Anaconda` import in Python 3.8 does not authorize downgrading
+this entry. Keep unrelated environments, global PATH, DLLs and system permissions unchanged.
+The ignored `news_runtime.local.json` stores only version=1, python_executable,
+ossutil_executable, ossutil_config (a path only) and ossutil_endpoint.
+The original five-field news_publish.local.json and deployment identity do not change.
+
+Run from `D:/AI/PaperTrace`:
+
+```powershell
+& .\skills\ai-quantum-news-briefing\scripts\run_daily.ps1 -Publisher status
+& .\skills\ai-quantum-news-briefing\scripts\run_daily.ps1 -Publisher doctor --head-only
+```
+
+The launcher rejects non-3.12 interpreters, uses process-scoped transport
+overrides and restores them afterward. It does not install, change PATH, call a
+model, choose a date, upload or enable a schedule. Ordinary taskbox actions still
+require an explicit --date. Direct publisher CLI also accepts --runtime-config
+with the same non-secret file. Do not read/copy/print the credential container.
+
+Connection diagnosis uses bounded API HeadObject, explicit executable/config
+path/profile/region/endpoint, never stat or GetObjectAcl. A stat ACL 403 is not
+proof of expired credentials. HeadObject success proves neither PutObject nor
+website/body binding. Full doctor and publishing retain the existing GetObject
+content comparison; pre-display preview retains Bucket versioning verification
+(oss:GetBucketVersioning). No ACL permission expansion is introduced.
+
+If a task-environment HeadObject stops during dial/connect, retain that scoped
+environment failure separately from cloud AccessDenied or missing-profile
+errors. Native os.link WinError5 remains blocking; do not substitute an overwrite
+operation or another link API. Local shell success is not task-environment success.
+
+The exact increment must be approved and deployed before using these new actions.
+From `D:/AI/PaperTrace`, the existing date-isolated `orchestrate_daily.py daily
+--date <release-day> --action diagnose` remains read-only. It must not clear old
+`failure_contract_invalid` records or reset attempts. Failure-store errors retain
+the original source diagnostic separately; do not count a contract error as a
+network outage. Typed secondary diagnostics never approve source evidence.
+
+`evidence_persistence.py save-discovery` saves complete real rendered-search
+envelopes (DOM observation plus independent raw HTTP receipt) using exact file
+SHA-256 and byte length. A failed desktop export is an external permission issue:
+do not switch writers to bypass it. `source_preparation.py resume-discovery`
+requires a saved-file SHA-256 and uses existing lease/attempt limits. It is offline,
+rejects live owners/exhaustion, and checks a concurrent committed result digest.
+
+## Saved rendered-search adapter (2026-10-25 edition repair)
+
+Run from D:/AI/PaperTrace with the verified Python 3.12 direct entry.
+`source_preparation.py adapt-discovery` is an offline, read-only conversion of an
+existing saved DOM observation plus its independent raw HTTP receipt. It requires
+--date, --pool-dir, --task-id, --input and the exact --expected-sha256. It emits
+version 2; preserve the input and save output to a new file. See the complete
+ordinary-task instructions in
+skills/ai-quantum-news-briefing/references/taskbox-execution.md.
+
+Version 2 retains the actual Google page URL (including a bounded sei parameter),
+all observed result links/counts and the raw receipt. Deterministic per-result
+classifications keep opaque /goto redirects unresolved, without a candidate URL.
+Off-scope/non-post links remain visible observations, never zero-result or
+verified-publication claims. A target match is only a discovery lead. Missing
+HTTP bytes, changed queries/digests or forged classifications still fail closed.
+This action does not acquire a lease, reopen blocked tasks, rekey identities,
+reset budgets, capture an article, approve content, finalize or publish.
+
+Offline edition diagnosis uses the unchanged production delivery defaults and
+source-only ranker v2 with actual admitted captures. Ranking exclusions retain
+each binding organization/topic limit. A feed's updated timestamp is not a
+publication fallback; new funnel counters cannot recreate missing historical
+counts. An effective config audit is separate from source binding, semantic and
+display review, strict finalize and remote verification. No schedule changes.
+
+`source_preparation.py reconcile-cached-failure` is an explicit offline action on
+a current-code academic alias, never an automatic retry/unblock. Bind release day,
+task ID, canonical old failure SHA-256, original checkpoint file SHA-256 and a
+controlled reason. Only a valid, requalified cache behind the exact two-field
+`failure_contract_invalid` can restore that new alias; original tasks/cache remain
+immutable. A real denial, invalid evidence or exhausted budget stops. Changed
+acquisition/lifecycle records forbid old-code automatic rollback. Exact commands,
+hash definitions and preconditions: `skills/ai-quantum-news-briefing/references/bounded-daily-recovery.md`,
+section “Adversarial follow-up r2”. These actions never complete semantic review.
+
+
+The explicit saved discovery-format requalification owner and registered
+publisher-subject RSS relevance repair are documented in
+`skills/ai-quantum-news-briefing/references/taskbox-execution.md`, section
+“Requalify a saved discovery-format failure (bounded repair)”.
+`source_preparation.py requalify-discovery` requires the frozen release date,
+current compatible code alias, exact persisted public-file SHA-256, canonical
+old-failure SHA-256 and a controlled reason. Only repaired rendered-search
+format failures qualify; original blocked history/attempts stay intact.
+HTTP/policy denials, exhausted budgets, live owners and conflicting results
+remain blocked. No network or automatic reopen occurs. Registered subject-feed
+classification only repairs discovery relevance; original article/date and
+all content, class, quota, display and publication gates remain mandatory.
+
+## Opt-in bounded daily executor (isolated review candidate)
+
+See `skills/ai-quantum-news-briefing/references/bounded-closed-loop.md` before
+using `orchestrate_daily.py daily --action close-loop --record --runtime-policy
+<APPROVED-JSON> --runtime-policy-sha256 <EXACT-SHA256> --date <FROZEN-DAY>`.
+The increment is disabled by default and does not install or update scheduling.
+Reviewers return read-only proposals through controlled, digest-bound saves;
+Fable blind/mapping review uses separate fresh processes. Source budgets and
+publication gates remain authoritative. Pending wakeups need an approved live
+host; pending_send is not delivery. Production switching requires a freshly
+bound installation scope and external recovery backup, not an old r2 installer.

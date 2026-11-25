@@ -556,8 +556,19 @@ def audit(reader_dir: Path) -> tuple[list[str], dict[str, Any]]:
         for name in ("paper_history", "reading_analysis_contract", "reading_analysis_review"):
             if source_of_truth.get(name + "_sha256") != sha256_file(wiki / (name + ".json")):
                 fail("stale/missing reading analysis source binding: " + name, issues)
-        if render_paper_history(history) not in html_text:
+        if not analysis_issues and render_paper_history(history) not in html_text:
             fail("visible history/embedded data mismatch with validated paper_history", issues)
+        if contract.get("reading_scan_version") == 1 and not analysis_issues:
+            from markdown_reader_to_html import render_result_brief
+            if manifest.get("reading_scan_version") != 1:
+                fail("manifest omits first-read declaration", issues)
+            brief = manifest_summary["result_brief"]
+            start = '<section class="paper-summary" id="paper-summary">'
+            heading = '<h2>Paper Summary / 论文总结</h2>'
+            panel = html_text.partition(start)[2].lstrip()
+            if (read_json(summary_path).get("result_brief") != brief or not panel.startswith(heading)
+                    or not panel[len(heading):].lstrip().startswith(render_result_brief(brief))):
+                fail("first-screen result brief is missing, misplaced or differs from its authored source", issues)
         if contract.get('logic_visualization_version') == 1:
             if manifest.get('logic_visualization_version') != 1:
                 fail('manifest omits logic visualization declaration', issues)

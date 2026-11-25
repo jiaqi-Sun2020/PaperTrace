@@ -630,6 +630,7 @@ def write_authoring_packet(result: dict[str, Any], *, packet_size: int) -> dict[
         "preflight_issues": list(result.get("preflight_issues") or []),
         "formal_errors": list(result.get("reasons") or []),
         "reading_analysis_version": 1 if (reader_dir / "reader_wiki" / "reading_analysis_contract.json").exists() else None,
+        "reading_scan_instruction": "For reading_scan_version 1, author each node's evidence-bound reading_role and a result_brief in the summary. Cover this paper's main findings, metric and named baseline for comparisons, scope and source anchors. Do not invent a comparator or use a fixed count. See references/reading-analysis-contract.md.",
         "reading_analysis_instruction": "Author block-specific notes with source-bound reader-logic v1 diagrams for substantive records, role cards for declarations and typed sequence/data_flow/supports/contrast edges. Preserve full prose and necessary conditions. Read references/reading-analysis-contract.md. Also author paper summary v2 logic_chain, paper_history and eight honestly labelled self-review rounds; unknown history is disclosed, not invented.",
         "instruction": (
             "The current-session primary model must complete only these source-bound records or repair the named gate, "

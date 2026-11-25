@@ -141,7 +141,7 @@ For full papers, require a completion-authored `reader_wiki/concept_candidates.j
 
 The Personal Knowledge Boundary must be visible from both the header and TOC, summarize profile statuses, and never expose an absolute local profile path. Its visible interface language is English except for the values under `Chinese Name` and `Role in This Paper`, which remain Chinese. Use the exact English columns `Concept`, `Personal Status`, `Chinese Name`, `Type`, and `Role in This Paper`; render statuses and concept types as readable English labels, never internal enum tokens.
 
-Full-paper readers also require completion-authored `reader_wiki/paper_summary.json`. Reader-skill validates and renders it but never invents it. The summary must include a detailed Chinese overview plus distinct source-grounded sections for what the paper does, how it works, why it matters, and evidence/scope/limitations. Every item links back to valid completion anchors.
+Full-paper readers require completion-authored `reader_wiki/paper_summary.json`. For new readers, lead with this paper's principal results, including the metric and actual comparator for each comparison; label each timeline node by its evidenced function, not just its citation relationship. Follow `references/reading-analysis-contract.md` for the scan fields. Retain the detailed Chinese overview, what/how/why, limitations and source anchors below. The renderer never invents claims.
 
 If `structure_validation_report.json` has `status: "fail"`, stop. Do not write a best-effort HTML file.
 

@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from completion_state import atomic_write_json, load_all_records, record_path, write_record, utc_now, update_run_state, compile_canonical_markdown
 from reading_analysis import analysis_records, notes_digest, declare_reading_analysis, file_hash, validate_history
+from reading_scan import validate_scan
 
 
 def apply(reader, authored):
@@ -24,6 +25,13 @@ def apply(reader, authored):
     summary = json.loads((wiki / "paper_summary.json").read_text(encoding="utf-8"))
     summary["schema_version"] = 2
     summary["logic_chain"] = authored["logic_chain"]
+    if "result_brief" in authored:
+        summary["result_brief"] = authored["result_brief"]
+    contract_path = wiki / "reading_analysis_contract.json"
+    required = not contract_path.exists() or json.loads(contract_path.read_text(encoding="utf-8")).get("reading_scan_version") == 1
+    errors = validate_scan(summary, history, {r["source_anchor"] for r in records}, required=required)
+    if errors:
+        raise ValueError("; ".join(errors))
     for record in records:
         if record["stable_id"] in notes:
             record["notes"] = notes[record["stable_id"]]

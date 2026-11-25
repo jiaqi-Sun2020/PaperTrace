@@ -29,8 +29,9 @@ from formula_contract import atomic_formula_issues  # noqa: E402
 
 
 ANCHOR_RE = re.compile(r'(?m)^<a\s+id=["\']([^"\']+)["\']\s*>\s*</a>\s*$')
-FIGURE_CAPTION_RE = re.compile(r'(?im)^\s*(?:fig(?:ure)?\.?\s*\d+\b)')
-TABLE_CAPTION_RE = re.compile(r'(?im)^\s*(?:table\s+[ivxlcdm\d]+\b)')
+FIGURE_CAPTION_RE = re.compile(r'(?im)^\s*(?:fig(?:ure)?\.?\s*S?\d+\b)')
+TABLE_CAPTION_RE = re.compile(r'(?im)^\s*(?:table\s+(?:S\d+|[ivxlcdm\d]+)\b)')
+CAPTION_TOKEN_RE = re.compile(r'(?i)(fig(?:ure)?\.?\s*(S?\d+)|table\s+(S\d+|[ivxlcdm\d]+))')
 REFERENCE_ENTRY_RE = re.compile(r'(?m)^\s*\[\d+\]\s+')
 REFERENCE_HEADING_RE = re.compile(r'(?im)^\s*(?:references|bibliography)\s*$')
 PSEUDOCODE_RE = re.compile(r'\b(?:algorithm|procedure|pseudocode)\b', re.I)
@@ -86,6 +87,8 @@ def caption_candidates(reader_dir: Path) -> dict[str, list[dict[str, Any]]]:
         page = int(page_match.group(1)) if page_match else 0
         for raw_line in raw_page.read_text(encoding="utf-8", errors="replace").splitlines():
             line = re.sub(r"\s+", " ", raw_line).strip()
+            if re.match(r'(?i)^(?:fig(?:ure)?\.?\s*S?\d+|table\s+(?:S\d+|[ivxlcdm\d]+))\s+of\s+ref\.', line):
+                continue  # A reference to another paper's object is not a local caption.
             if FIGURE_CAPTION_RE.match(line):
                 figures.append({"page": page, "caption_candidate": line})
             elif TABLE_CAPTION_RE.match(line):
@@ -97,9 +100,9 @@ def registered_caption_tokens(rows: list[dict[str, Any]]) -> set[str]:
     values: set[str] = set()
     for row in rows:
         text = str(row.get("caption_original") or row.get("caption") or "")
-        match = re.search(r"(?i)(fig(?:ure)?\.?\s*(\d+)|table\s+([ivxlcdm\d]+))", text)
+        match = CAPTION_TOKEN_RE.search(text)
         if match:
-            values.add(f"figure:{match.group(2)}" if match.group(2) else f"table:{match.group(3).lower()}")
+            values.add(f"figure:{match.group(2).lower()}" if match.group(2) else f"table:{match.group(3).lower()}")
     return values
 
 
@@ -156,8 +159,8 @@ def build_preflight_manifest(reader_dir: Path) -> tuple[dict[str, Any], list[str
     unresolved_caption_candidates: list[dict[str, Any]] = []
     for kind, token_set in (("figure", figure_tokens), ("table", table_tokens)):
         for candidate in candidates[f"{kind}s"]:
-            match = re.search(r"(?i)(fig(?:ure)?\.?\s*(\d+)|table\s+([ivxlcdm\d]+))", candidate["caption_candidate"])
-            token = (f"figure:{match.group(2)}" if match and match.group(2) else
+            match = CAPTION_TOKEN_RE.search(candidate["caption_candidate"])
+            token = (f"figure:{match.group(2).lower()}" if match and match.group(2) else
                      f"table:{match.group(3).lower()}" if match and match.group(3) else "")
             if token and token not in token_set:
                 unresolved_caption_candidates.append({"kind": kind, **candidate})

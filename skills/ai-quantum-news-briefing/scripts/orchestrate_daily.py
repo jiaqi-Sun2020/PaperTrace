@@ -948,14 +948,70 @@ def _execution_blocked(day, stage, exc, *, scope='shared'):
     return {**execution_policy.execution_window(day),'phase':'execution_blocked','run_outcome':'blocked',
             'action_required':True,'publication_approved':False,'operation_failed':True,
             'execution_order':[day],'next_date':day,'final_response_allowed':True,
-            'terminal_blocker':{'stage':stage,'scope':scope,'code':code},
+            'terminal_blocker':{'stage':stage,'scope':scope,'code':code,
+                **({'original_source_failure':exc.source_failure,'source_task_id':exc.source_task_id} if hasattr(exc,'source_failure') else {})},
             'next_action':'Repair the cited '+scope+' '+stage+' failure, preserve evidence, then resume this same explicit date.'}
 
 
-def daily_execution(day: str, *, action='status', record=False, max_tasks=4):
+def daily_execution(day: str, *, action='status', record=False, max_tasks=4, recovery_policy=None, recovery_policy_path=None):
+    if action in {'status','diagnose'} or execution_policy.retired(day):
+        return _daily_execution(day,action=action,record=record,max_tasks=max_tasks,
+                                recovery_policy=recovery_policy,recovery_policy_path=recovery_policy_path)
+    try:
+        # Per-edition OS ownership survives metadata expiry, but not process
+        # death. Do not hold the shared publication/index lock over requests.
+        with release_lock(NEWS_ROOT/'_automation'/('attempt-'+day),timeout=0):
+            return _owned_daily_attempt(day,action=action,record=record,max_tasks=max_tasks,
+                                         recovery_policy=recovery_policy,recovery_policy_path=recovery_policy_path)
+    except TimeoutError:
+        return _execution_blocked(day,'daily_continuation',CollectionError('daily_attempt_already_running'),scope='current_date')
+
+
+def _daily_start_now():
+    from datetime import datetime,timezone
+    return datetime.now(timezone.utc).timestamp()
+
+
+def _owned_daily_attempt(day: str, *, action, record, max_tasks, recovery_policy, recovery_policy_path):
+    from daily_continuation import begin,finish
+    from source_pool import PoolConflict
+    # A host may wake early. Its timestamp is not permission to start business
+    # collection before the configured Shanghai 01:00 boundary. Read-only status
+    # remains available; keep the exact requested edition across the wait.
+    from datetime import datetime
+    not_before=datetime.fromisoformat(day+'T01:00:00+08:00').timestamp()
+    if action not in ('status','diagnose') and _daily_start_now()<not_before:
+        return {**execution_policy.execution_window(day),'phase':'execution_waiting',
+            'run_outcome':'pending','action_required':True,'publication_approved':False,
+            'code':'before_0100','next_wakeup_at':not_before,'terminal_blocker':None,
+            'next_commands':[] if recovery_policy_path else [{'cwd':str(NEWS_ROOT.parent),'argv':[sys.executable,'-B',
+                str(SCRIPT_DIR/'orchestrate_daily.py'),'daily','--date',day,'--action',action,
+                '--max-tasks',str(max_tasks),'--record']}],
+            'resume_requires_original_approved_arguments':bool(recovery_policy_path),
+            'resume_instruction':'At the wakeup repeat the original invocation; preserve any approved policy path and digest.',
+            'scheduling_status':'not_scheduled_by_code','final_response_allowed':False}
+    identity=None
+    try:
+        if workflow_queue(day)['run_outcome']=='not_scheduled':
+            return _daily_execution(day,action=action,record=record,max_tasks=max_tasks)
+        identity=begin(NEWS_ROOT,day,policy=recovery_policy)
+        result=_daily_execution(day,action=action,record=record,max_tasks=max_tasks,
+                                recovery_policy=recovery_policy,recovery_policy_path=recovery_policy_path)
+        result['continuation']=finish(NEWS_ROOT,day,identity,result)
+        return result
+    except (OSError,ValueError,TypeError,sqlite3.Error) as exc:
+        result=_execution_blocked(day,'daily_continuation',exc)
+        if isinstance(exc,PoolConflict):result['terminal_blocker']['code']=str(exc)
+        if identity:
+            try:finish(NEWS_ROOT,day,identity,result)
+            except (OSError,ValueError,TypeError,sqlite3.Error):pass
+        return result
+
+
+def _daily_execution(day: str, *, action='status', record=False, max_tasks=4, recovery_policy=None, recovery_policy_path=None):
     """One pinned edition; new acquisition only, existing release authority."""
     execution_policy.release_date(day)
-    if action not in {'status','plan','work','packet'}:raise ValueError('daily_action_invalid')
+    if action not in {'status','plan','work','packet','diagnose','recover','continue'}:raise ValueError('daily_action_invalid')
     try:
         queue=workflow_queue(day,record=record)
     except (OSError,ValueError,TypeError,AttributeError,TimeoutError) as exc:
@@ -974,13 +1030,46 @@ def daily_execution(day: str, *, action='status', record=False, max_tasks=4):
         result['next_commands']=([{'cwd':str(NEWS_ROOT.parent),'argv':command+['status','--date',day,'--online','--record']}]
                                  if edition['phase']=='remote_pending' else [])
         return result
+    if action=='continue':
+        from daily_continuation import _queue
+        from source_recovery import validate_policy
+        _,_,records=_queue(NEWS_ROOT)
+        saved=records.get(day,{}).get('last_transition')
+        if not saved:
+            return {**result,**_execution_blocked(day,'continuation',CollectionError('continuation_not_recorded'),scope='current_date')}
+        bounds=validate_policy(recovery_policy or {'version':1,'enabled':False},day)
+        if bounds is None:
+            return {**result,**_execution_blocked(day,'continuation',CollectionError('recovery_policy_required'),scope='current_date')}
+        import time
+        now=time.time()
+        if now<bounds[0] or now>=bounds[1]:
+            return {**result,**_execution_blocked(day,'continuation',CollectionError('continuation_outside_approved_window'),scope='current_date')}
     from source_preparation import orchestrate_sources
     try:
-        acquisition=orchestrate_sources(day,NEWS_ROOT/'_sources',action=action,max_tasks=max_tasks)
+        if action=='continue':
+            # Saved state is a wakeup handoff, never authority over fresher
+            # source/material results committed after the last checkpoint.
+            # Continue is a mutating recovery action: register compatible current
+            # identities before reading them. A read-only status cannot resolve
+            # task IDs that changed after a code deployment. Plan makes no requests.
+            current=orchestrate_sources(day,NEWS_ROOT/'_sources',action='plan',max_tasks=max_tasks)
+            current_source=current.get('source_preparation',current)
+            current_counts=current.get('content_readiness',{}).get('counts',{})
+            action=('recover' if current_source.get('status')=='coverage_ready' and current_counts.get('academic',{}).get('discovery_gap')
+                    else 'work' if current_source.get('status')!='coverage_ready' else 'status')
+        options={'action':'status' if action=='diagnose' else action,'max_tasks':max_tasks}
+        if action=='recover':options['recovery_policy']=recovery_policy
+        acquisition=orchestrate_sources(day,NEWS_ROOT/'_sources',**options)
     except (OSError,ValueError,TypeError,KeyError,sqlite3.Error,TimeoutError) as exc:
         return {**result,**_execution_blocked(day,'source_pool',exc)}
     source=acquisition.get('source_preparation',acquisition)
     result['source_preparation']=acquisition
+    if action=='diagnose' and (NEWS_ROOT/'_sources/pool.sqlite').is_file():
+        from source_pool import SourcePool
+        from source_worker import plan_sources
+        from source_recovery import diagnose_cached
+        with SourcePool(NEWS_ROOT/'_sources/pool.sqlite',read_only=True) as pool:
+            result['academic_diagnostics']=diagnose_cached(pool,plan_sources(pool,day,register=False))
     ready=source.get('status')=='coverage_ready'
     result['phase']='authoring_pending' if ready else 'source_and_authoring_pending'
     result['next_action']=('Author admitted materials, bind the candidate, then use existing controlled staging/review/strict release.'
@@ -989,6 +1078,36 @@ def daily_execution(day: str, *, action='status', record=False, max_tasks=4):
     if any(row.get('state')=='not_registered' for row in source.get('missing_tasks',[])):
         next_action='plan'
     result['next_commands']=[{'cwd':str(NEWS_ROOT.parent),'argv':command+['daily','--date',day,'--action',next_action,'--record']}]
+    content=acquisition.get('content_readiness')
+    if content:
+        result['content_readiness']=content
+        result['stage_dependencies']={'qualification':'agent-authored article inputs and original captures required',
+                                      'authoring_fable':'agent required','content_review':'actual review required',
+                                      'display':'permitted browser and current HTML required',
+                                      'publish':'existing lifecycle/strict/receipt gates only'}
+        if ready and content['counts']['academic']['discovery_gap']:
+            result.update(phase='candidate_shortage',run_outcome='blocked',final_response_allowed=True,
+                          terminal_blocker={'stage':'content_supply','scope':'current_date','code':'academic_discovery_shortage'})
+            result['next_commands']=[]
+            if recovery_policy_path:
+                result['next_commands']=[{'cwd':str(NEWS_ROOT.parent),'argv':command+['daily','--date',day,'--action','recover','--record','--recovery-policy',str(recovery_policy_path)]}]
+            result['next_action']='Run bounded same-window recovery with an approved explicit policy; otherwise retain shortage. No packet loop, older dates or lowered quota.'
+            if content.get('rechecks',{}).get('all_terminal'):
+                result['next_commands']=[]
+                result['terminal_blocker']['code']='academic_shortage_after_bounded_recovery'
+                result['next_action']='Bounded recovery finished without enough discoveries. Preserve evidence; additional qualified same-day sources or an explicit product-policy decision is required. Do not repeat recovery automatically.'
+        elif ready and any(row['qualified_gap'] for row in content['counts'].values()):
+            result.update(phase='article_qualification_pending',run_outcome='pending',next_commands=[])
+            result['next_action']='Agent must prepare current-date article inputs, capture originals, qualify/import and rank using existing controlled interfaces; evidence counts do not approve prose.'
+    if acquisition.get('recovery'):
+        result['recovery']=acquisition['recovery']
+        if acquisition['recovery']['status'] in {'retry_wait','recovery_policy_required','recovery_deadline_reached','recovery_no_eligible_sources'}:
+            result.update(run_outcome='blocked',final_response_allowed=True,
+                          terminal_blocker={'stage':'bounded_recovery','scope':'current_date','code':acquisition['recovery']['status']})
+            if acquisition['recovery']['status']!='retry_wait':result['next_commands']=[]
+    if action=='work' and not acquisition.get('recovery'):
+        retries=[row.get('retry_at') for row in source.get('missing_tasks',[]) if row.get('state')=='retry_wait' and row.get('retry_at')]
+        if retries:result['recovery']={'status':'retry_wait','earliest_retry_at':min(retries),'semantic_review_status':'not_reviewed'}
     missing=source.get('missing_tasks',[])
     discovery=[row for row in missing if row.get('kind')=='discovery' and row.get('state') in {'pending','retry_wait'}]
     core_ready=(source.get('academic',{}).get('family_gate',{}).get('status')=='pass' and source.get('aihot') is not None)
@@ -1264,7 +1383,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     sub = parser.add_subparsers(dest="command", required=True)
     daily = sub.add_parser("daily", help="Pinned current-edition execution; no automatic backfill.")
     daily.add_argument("--date",required=True)
-    daily.add_argument("--action",choices=("status","plan","work","packet"),default="status")
+    daily.add_argument("--action",choices=("status","plan","work","packet","diagnose","recover","continue","close-loop"),default="status")
+    daily.add_argument("--recovery-policy",type=Path,help="Explicit reviewed same-window recovery policy; no schedule is activated.")
+    daily.add_argument("--runtime-policy",type=Path,help="Digest-bound opt-in closed-loop runtime policy.")
+    daily.add_argument("--runtime-policy-sha256",help="Exact approved runtime-policy file SHA-256.")
     daily.add_argument("--record",action="store_true")
     daily.add_argument("--max-tasks",type=int,default=4)
     sources = sub.add_parser("sources", help="Independent source preparation; never publication status.")
@@ -1293,7 +1415,20 @@ def main(argv: list[str] | None = None) -> int:
                                 "--max-tasks", str(args.max_tasks), "--domain",args.domain])
     try:
         if args.command == "daily":
-            state = daily_execution(args.date,action=args.action,record=args.record,max_tasks=args.max_tasks)
+            recovery_policy=load_json(args.recovery_policy) if args.recovery_policy else None
+            if args.action == 'close-loop':
+                from daily_closed_loop import Backend, drive, load_policy
+                if not args.record or not args.runtime_policy:
+                    raise CollectionError('closed_loop_requires_record_and_approved_policy')
+                policy = load_policy(args.runtime_policy, args.runtime_policy_sha256, args.date)
+                if args.recovery_policy and hashlib.sha256(args.recovery_policy.read_bytes()).hexdigest() != policy.get('recovery_policy_sha256'):
+                    raise CollectionError('closed_loop_recovery_policy_digest_mismatch')
+                state = drive(Backend(sys.modules[__name__], recovery_policy, args.recovery_policy),
+                                args.date, policy, policy_sha256=args.runtime_policy_sha256)
+                state['operation_failed'] = state['status'] in {'blocked','expired','budget_exhausted'}
+            else:
+                state = daily_execution(args.date,action=args.action,record=args.record,max_tasks=args.max_tasks,
+                                        recovery_policy=recovery_policy,recovery_policy_path=args.recovery_policy)
         elif args.command == "queue":
             state = workflow_queue(args.date, record=args.record, withdraw_reason=args.withdraw_reason)
         elif args.command in {"collect", "resume"}:

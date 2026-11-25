@@ -21,22 +21,48 @@ async function main(){
   const page=await context.newPage();
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const checks=[];
+  const wiki=path.join(reader,'reader_wiki');
+  const read=name=>JSON.parse(fs.readFileSync(path.join(wiki,name),'utf8'));
+  const disk=read('paper_history.json'), count=read('reader_manifest.json').bilingual_blocks.length;
+  const recordDir=path.join(wiki,'completion_blocks');
+  const diagrams=fs.readdirSync(recordDir).filter(f=>f.endsWith('.json')).map(f=>read('completion_blocks/'+f))
+    .filter(r=>!['reference','formula'].includes(r.record_kind))
+    .reduce((n,r)=>n+(r.notes.match(/^```reader-logic\s*$/gm)||[]).length,0);
+  assert(count>0 && diagrams>0 && disk.nodes.length>0);
   try{
     await page.goto(url);
     assert.equal(await page.locator('#readerDocument > section').first().getAttribute('id'),'paper-history');
-    assert.equal(await page.locator('.history-detail').count(),5);
+    assert.equal(await page.locator('.history-detail').count(),disk.nodes.length);
     assert.equal(await page.locator('.history-detail[open]').count(),0);
-    assert.equal(await page.locator('.bilingual-block').count(),121);
-    assert.equal(await page.locator('.bilingual-block .reader-notes h3').count(),121);
+    assert.equal(await page.locator('.bilingual-block').count(),count);
+    assert.equal(await page.locator('.bilingual-block .reader-notes h3').count(),count);
     assert.equal(await page.locator('.history-node[aria-current="true"]').count(),1);
     assert.equal(await page.locator('.history-rail,.history-details').count(),0);
-    assert.equal(await page.locator('.argument-map>li').count(),6);
-    assert.equal(await page.locator('.logic-diagram').count(),159);
+    assert.equal(await page.locator('.argument-map>li').count(),read('paper_summary.json').logic_chain.length);
+    assert.equal(await page.locator('.logic-diagram').count(),diagrams);
     for(const node of await page.locator('.history-contribution').all())assert(await node.isVisible());
     const embedded=JSON.parse(await page.locator('#paper-history-data').textContent());
-    const disk=JSON.parse(fs.readFileSync(path.join(reader,'reader_wiki/paper_history.json'),'utf8'));
     assert.deepEqual(embedded,disk);
-    checks.push({check:'content_order_and_full_coverage',result:'pass',evidence:'history first; five papers; 121 visible-source bilingual analysis blocks; embedded history equals file'});
+    if(read('reading_analysis_contract.json').reading_scan_version===1){
+      const brief=read('paper_summary.json').result_brief;
+      const items=page.locator('#paper-summary .result-brief li');
+      assert.equal(await items.count(),brief.items.length);
+      for(const node of disk.nodes){
+        const row=page.locator('#history-'+node.id).locator('..');
+        assert((await row.locator('.history-role').innerText()).includes(node.reading_role.label));
+        assert.equal(await row.locator('.history-contribution').innerText(),node.reading_role.explanation);
+      }
+      for(const width of [390,1440]){
+        await page.setViewportSize({width,height:width===390?844:900});
+        const top=await page.locator('#paper-summary').evaluate(e=>e.getBoundingClientRect().top);
+        assert(await items.first().evaluate((e,t)=>e.getBoundingClientRect().bottom-t<innerHeight,top),
+          'opening finding and comparator do not fit the first summary viewport');
+        for(const el of await items.all())assert(await el.isVisible());
+      }
+      checks.push({check:'first_read',result:'pass',findings:brief.items.length,
+        evidence:'actual roles exposed; full first finding fits desktop and phone; remaining findings freely readable'});
+    }
+    checks.push({check:'content_order_and_full_coverage',result:'pass',history_nodes:disk.nodes.length,bilingual_blocks:count,logic_diagrams:diagrams,evidence:'history first; embedded history equals file'});
 
     const first=page.locator('.history-detail summary').first();await first.focus();await page.keyboard.press('Enter');
     const target=await first.evaluate(el=>el.parentElement.id);
@@ -72,7 +98,7 @@ async function main(){
     checks.push({check:'themes_and_responsive',result:'pass',contrasts:measured,evidence:'no overflow at five widths; diagram text readable in four themes; analysis responds to actual article width'});
 
     await page.evaluate(()=>document.dispatchEvent(new Event('beforeprint')));
-    assert.equal(await page.locator('.paper-history details[open]').count(),6);
+    assert.equal(await page.locator('.paper-history details[open]').count(),disk.nodes.length+1);
     await page.evaluate(()=>document.dispatchEvent(new Event('afterprint')));
     assert.equal(await page.locator('.paper-history details[open]').count(),0);
     const plain=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:844}});

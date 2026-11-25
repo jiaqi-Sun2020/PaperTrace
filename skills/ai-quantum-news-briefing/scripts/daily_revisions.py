@@ -104,6 +104,17 @@ def lifecycle(root, day):
             raise ValueError("revision_peer_bindings_invalid")
     if revision and revision not in {record["revision_id"] for record in value["superseded_runs"].values()}:
         raise ValueError("revision_identity_invalid")
+    origins = value.get("taskbox_runs", {})
+    if not isinstance(origins, dict):
+        raise ValueError("taskbox_lifecycle_origin_invalid")
+    for run_id, origin in origins.items():
+        from taskbox_contract import contract, valid_context
+        if (not isinstance(run_id, str) or not RUN.fullmatch(run_id)
+                or not run_id.startswith(day + "-") or not isinstance(origin, dict)
+                or type(origin.get("version")) is not int
+                or not valid_context(origin.get("review_context"))
+                or origin != contract(day, origin.get("deployment_id"))):
+            raise ValueError("taskbox_lifecycle_origin_invalid")
     return value
 
 
@@ -151,11 +162,14 @@ def assert_active_stage(stage, manifest):
     day = manifest.get("date")
     if stage.parent.name == ".staging":
         root = stage.parents[2]
-    elif stage.name == day and manifest.get("pipeline_version") in (3, 4):
+    elif stage.name == day:
         root = stage.parent  # Relocation cannot revive a superseded run.
     else:
         return  # Historical releases without a lifecycle keep their semantics.
     value = lifecycle(root, day)
+    origin = value.get("taskbox_runs", {}).get(manifest.get("run_id", stage.name))
+    if origin is not None and manifest.get("taskbox_contract") != origin:
+        raise ValueError("taskbox_creation_contract_changed")
     if manifest.get("run_id", stage.name) in value["superseded_runs"]:
         raise ValueError("staging_revision_superseded")
     lifecycle_version = manifest.get("staging_lifecycle_version")
@@ -174,7 +188,7 @@ def assert_current_candidate(root, day, path):
     return value.get("active_revision")
 
 
-def register_stage(root, day, run_id, revision_id, *, correction=False):
+def register_stage(root, day, run_id, revision_id, *, correction=False, taskbox_contract=None):
     """Caller holds release_lock. Commit the sole active run after installation.
 
 A crash before this commit leaves an unregistered run unable to pass verification;
@@ -189,6 +203,16 @@ it can be explicitly revised with its snapshot. Finalized releases stay readable
     if not correction and any(path.name != run_id for path in stages):
         raise ValueError("active_staging_exists_use_controlled_revision")
     value["active_run_id"] = run_id
+    if taskbox_contract is not None:
+        from taskbox_contract import contract, valid_context
+        if (type(taskbox_contract.get("version")) is not int
+                or not valid_context(taskbox_contract.get("review_context"))
+                or taskbox_contract != contract(day, taskbox_contract.get("deployment_id"))):
+            raise ValueError("taskbox_lifecycle_origin_invalid")
+        origins = value.setdefault("taskbox_runs", {})
+        if run_id in origins and origins[run_id] != taskbox_contract:
+            raise ValueError("taskbox_creation_contract_changed")
+        origins[run_id] = deepcopy(taskbox_contract)
     value["state_sha256"] = fingerprint({k: v for k, v in value.items() if k != "state_sha256"})
     atomic_json(lifecycle_path(root, day), value)
 

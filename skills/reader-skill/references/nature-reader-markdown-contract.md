@@ -68,7 +68,7 @@ The Concept Ledger / Personal Knowledge Boundary is an English-language interfac
 
 ## Paper Summary Contract
 
-Full-paper bundles include a completion-authored `reader_wiki/paper_summary.json` with `schema_version: 1`, `language: zh-CN`, one `overview` object, and item arrays named `what_it_does`, `how_it_works`, `why_it_matters`, and `evidence_and_limitations`. Every object contains substantive Chinese `text` plus one or more valid `source_anchors`. The renderer validates and displays this content; it must never generate semantic summary prose from concepts or notes.
+Full-paper bundles include a completion-authored `reader_wiki/paper_summary.json` with `language: zh-CN`, one `overview` object, and item arrays named `what_it_does`, `how_it_works`, `why_it_matters`, and `evidence_and_limitations`. These entries contain substantive Chinese `text` and valid `source_anchors`. New batch readers use summary v2 with a logic chain and the result-first fields in `reading-analysis-contract.md`; legacy v1 remains readable. The renderer never generates semantic summary prose from concepts or notes.
 
 PDF source-page images remain evidence-side assets under `assets/source_pages/`. Reader blocks carry `data-source-page`, and the left viewer may display only the page map bound in `source_map.pages`. Full-page evidence must never be inserted into an inline `figure-card`. Collapsing Original or source pages is a reversible view state; it cannot delete source content, alter feedback identity, or hide Original in print.
 

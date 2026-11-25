@@ -235,7 +235,7 @@ def build_plan_v4(terms: list[str], date_range: str, include_arxiv: bool = True)
     }
 
 
-def _aps_recent_items(body: bytes, expected_journal: str) -> tuple[list[dict[str, str]], int]:
+def _aps_recent_items(body: bytes, expected_journal: str, *, funnel: dict | None = None) -> tuple[list[dict[str, str]], int]:
     """Extract bounded article identities; malformed items are quarantined, not dated by guesswork."""
     root = ET.fromstring(body)
     if root.tag != "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF":
@@ -244,6 +244,8 @@ def _aps_recent_items(body: bytes, expected_journal: str) -> tuple[list[dict[str
     if not channel.startswith("Recent Articles in "):
         raise ValueError("APS recent feed has an unexpected channel")
     entries = root.findall("rss:item", APS_RSS_NS)
+    if funnel is not None:
+        funnel.update(returned_records=len(entries), parsed_records=0, parse_rejected=0)
     if not entries:
         raise ValueError("APS recent feed contains no article items")
     items: list[dict[str, str]] = []
@@ -260,9 +262,14 @@ def _aps_recent_items(body: bytes, expected_journal: str) -> tuple[list[dict[str
         if (not title or not doi.startswith("10.1103/") or journal != expected_journal
                 or timestamp is None or timestamp.tzinfo is None):
             quarantined += 1
+            if funnel is not None:
+                funnel['parse_rejected'] += 1
             continue
         items.append({"title": title, "doi": doi, "published_at": timestamp.isoformat(),
+                      "publication_date_raw": published, "date_semantics": "aps_feed_publication_timestamp",
                       "description": (entry.findtext("rss:description", namespaces=APS_RSS_NS) or "")[:1500]})
+        if funnel is not None:
+            funnel['parsed_records'] += 1
     if not items:
         raise ValueError("APS recent feed has no valid dated article items")
     return items, quarantined
@@ -412,10 +419,13 @@ def _request_source_with_retry(url: str, timeout: int, attempts: int = 3) -> tup
     return last
 
 
-def _generic_feed_items(body: bytes) -> tuple[list[dict[str, str]], int]:
+def _generic_feed_items(body: bytes, *, funnel: dict | None = None) -> tuple[list[dict[str, str]], int]:
     """Parse RSS/Atom defensively; one malformed item never invalidates its peers."""
     root = ET.fromstring(body)
     nodes = [node for node in root.iter() if node.tag.rsplit("}", 1)[-1].lower() in {"item", "entry"}]
+    if funnel is not None:
+        funnel.update(returned_records=len(nodes), parsed_records=0, parse_rejected=0,
+                      publication_date_unresolved=0, updated_only_rejected=0)
     if not nodes:
         raise ValueError("feed_has_no_items")
     items: list[dict[str, str]] = []
@@ -431,14 +441,26 @@ def _generic_feed_items(body: bytes) -> tuple[list[dict[str, str]], int]:
             if name == "link":
                 link = value or str(child.attrib.get("href") or "")
         title = fields.get("title", "")
-        published = next((fields[key] for key in ("published", "updated", "date", "pubdate") if fields.get(key)), "")
+        # Atom updated is a modification instant, never a publication fallback.
+        date_field = next((key for key in ("published", "pubdate", "date") if fields.get(key)), None)
+        published = fields.get(date_field, "")
         timestamp = _parse_published_timestamp(published)
         if not title or timestamp is None:
             quarantined += 1
+            if funnel is not None:
+                funnel['parse_rejected'] += 1
+                if timestamp is None:
+                    funnel['publication_date_unresolved'] += 1
+                    if not date_field and fields.get('updated'):
+                        funnel['updated_only_rejected'] += 1
             continue
         items.append({"title": title, "published_at": timestamp.isoformat(), "url": link,
                       "description": fields.get("description", fields.get("summary", "")),
-                      "doi": fields.get("doi", "")})
+                      "doi": fields.get("doi", ""), "publication_date_raw": published,
+                      "date_semantics": "feed_" + date_field + "_publication_timestamp",
+                      "updated_at_raw": fields.get('updated', '')})
+        if funnel is not None:
+            funnel['parsed_records'] += 1
     if not items:
         raise ValueError("feed_has_no_valid_items")
     return items, quarantined
@@ -491,24 +513,41 @@ def _fetch_v4_row(row: dict[str, object], source: dict[str, object], terms: list
         items: list[dict[str, str]] = []
         quarantined = 0
         if adapter == "aps_rss":
-            items, quarantined = _aps_recent_items(body, str(source.get("expected_journal") or ""))
+            result['collection_funnel'] = {}
+            items, quarantined = _aps_recent_items(body, str(source.get("expected_journal") or ""), funnel=result['collection_funnel'])
         elif adapter == "jmlr_rss":
             # JMLR's live RSS currently publishes year-only pubDate fields.
             # Preserve useful structured discovery without inventing instants.
             root = ET.fromstring(body)
             discovered = []
-            for node in root.iter("item"):
+            entries = list(root.iter("item"))
+            result['collection_funnel'] = {'returned_records': len(entries), 'parsed_records': 0,
+                'parse_rejected': 0, 'publication_date_unresolved': 0,
+                'publication_date_confirmed': 0, 'year_only_dates': 0,
+                'date_filtered': 0, 'discovery_matches': 0,
+                'deduplication_performed': False, 'duplicate_records_removed': 0,
+                'article_capture_not_attempted_here': True}
+            from academic_html import publication_label
+            for node in entries:
                 record = {child.tag: " ".join((child.text or "").split()) for child in node}
                 link = urlsplit(record.get("link", ""))
                 if (not record.get("title") or link.hostname not in {"jmlr.org", "www.jmlr.org"}
                         or not link.path.startswith("/papers/")):
                     quarantined += 1
+                    result['collection_funnel']['parse_rejected'] += 1
                     continue
+                record['publication_date_evidence'] = {**publication_label(record.get('pubDate')),
+                    'source_field': 'RSS pubDate', 'semantics': 'publisher_feed_publication_label'}
                 discovered.append(record)
+                result['collection_funnel']['parsed_records'] += 1
                 stamp = _parse_published_timestamp(record.get("pubDate", ""))
                 if stamp is None:
                     quarantined += 1
+                    result['collection_funnel']['publication_date_unresolved'] += 1
+                    if record['publication_date_evidence']['precision'] == 'year':
+                        result['collection_funnel']['year_only_dates'] += 1
                 else:
+                    result['collection_funnel']['publication_date_confirmed'] += 1
                     items.append({"title": record["title"], "url": record["link"],
                                   "published_at": stamp.isoformat(), "description": record.get("description", "")})
             if not discovered:
@@ -522,7 +561,8 @@ def _fetch_v4_row(row: dict[str, object], source: dict[str, object], terms: list
                               note="Structured JMLR identities preserved; year-only dates cannot prove the Shanghai daily window or satisfy family health.")
                 return result
         elif adapter in {"rss", "arxiv_atom"}:
-            items, quarantined = _generic_feed_items(body)
+            result['collection_funnel'] = {}
+            items, quarantined = _generic_feed_items(body, funnel=result['collection_funnel'])
         elif adapter == "openreview_api":
             payload = json.loads(body)
             notes = payload.get("notes", []) if isinstance(payload, dict) else []
@@ -547,6 +587,19 @@ def _fetch_v4_row(row: dict[str, object], source: dict[str, object], terms: list
                     continue
                 items.append({"title": str(title), "published_at": published_at,
                               "url": "https://openreview.net/forum?id=" + str(note.get("id") or "")})
+        elif adapter == 'html_listing' and source.get('source_id') in {'iop-qst', 'ieee-tqe'}:
+            from academic_html import listing_records
+            parsed = listing_records(str(source['source_id']), body, url)
+            result.update(parse_status='success' if parsed['records'] else 'unstructured',
+                          window_status='unknown', coverage_claim='discovery_only',
+                          candidate_count=0, quarantined_count=0, matches=[], result='degraded',
+                          discovery_records=parsed['records'], structured_candidate_count=len(parsed['records']),
+                          collection_funnel=parsed['collection_funnel'],
+                          parser_diagnostic=parsed['diagnostic'],
+                          window_evidence={'source_scope': 'returned_publisher_listing',
+                                           'publisher_day_coverage_complete': False},
+                          next_action='verify_article_publication_dates' if parsed['records'] else 'publisher_structured_response_required')
+            return result
         else:
             text = body.decode("utf-8", errors="replace")
             if not text.strip():
@@ -569,12 +622,40 @@ def _fetch_v4_row(row: dict[str, object], source: dict[str, object], terms: list
             except ValueError:
                 item_days.append("")
         matches: list[dict[str, str]] = []
+        date_filtered = term_filtered = subject_matches = 0
+        # These two existing registered feeds are already publisher-scoped by
+        # subject. A paper need not repeat "machine learning" in its title or
+        # abstract (e.g. protein language models). This is discovery relevance,
+        # never article qualification, publication proof or a family waiver.
+        subject_terms = []
+        if source.get('source_id') in {'nature-quantum', 'nature-machine-learning'}:
+            registered = next(s for s in load_registry()['sources'] if s['source_id'] == source['source_id'])
+            if (source.get('url') == registered['url'] == evidence.get('query_url') == evidence.get('final_url')
+                    and source.get('adapter') == registered['adapter'] == 'rss'):
+                normalize_term = lambda value: ' '.join(value.casefold().replace('_', ' ').split())
+                topics = {normalize_term(v) for v in registered.get('topics', [])}
+                subject_terms = [v for v in terms if normalize_term(v) in topics]
+        if subject_terms:
+            result['topic_filter_evidence'] = {'basis':'registered_publisher_subject_feed',
+                'source_id':source['source_id'],'scope_url':source['url'],
+                'requested_terms_matched':subject_terms,'article_qualification':False}
         for item, item_day in zip(items, item_days):
             haystack = (item.get("title", "") + " " + item.get("description", "")).lower()
             in_window = not target_days or item_day in target_days
-            if in_window and any(all(token in haystack for token in re.findall(r"[\w-]+", term.lower()))
-                                 for term in terms):
+            literal_match = any(all(token in haystack for token in re.findall(r"[\w-]+", term.lower())) for term in terms)
+            if not in_window:
+                date_filtered += 1
+            elif literal_match or subject_terms:
+                if not literal_match:
+                    item['topic_match_basis'] = 'registered_publisher_subject_feed'
+                    subject_matches += 1
                 matches.append(item)
+            else:
+                term_filtered += 1
+        if 'collection_funnel' in result:
+            result['collection_funnel'].update(date_filtered=date_filtered, term_filtered=term_filtered,
+                duplicate_records_removed=0, deduplication_performed=False,
+                subject_scope_matches=subject_matches, discovery_matches=len(matches), article_capture_not_attempted_here=True)
         dated_days = [day for day in item_days if day]
         window = "rolling_window"
         basis = "no_requested_window"

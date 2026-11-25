@@ -10,6 +10,40 @@ Publication requires at least one healthy publisher in both `quantum_publisher` 
 
 The first expanded set includes APS PRX, Physical Review Applied, Physical Review Research, PRB, PRD and RMP feeds; Nature quantum and machine-learning RSS; JMLR; IOP Quantum Science and Technology; IEEE Transactions on Quantum Engineering; AAAI proceedings; and category-specific arXiv queries. IOP, IEEE and AAAI begin as probationary sources and cannot silently become hard gates. Crossref remains identity/metadata discovery only.
 
+### Publisher HTML and publication precision (2026-10-25 repair)
+
+`academic_html.py` parses the observed JMLR citation/abstract metadata and the
+registered IOP QST article-title links. It retains source precision explicitly:
+year/month-only labels cannot supply a day; date-only labels never acquire a
+clock or timezone; an aware instant is converted using the existing Shanghai
+window rules. Updated, indexed, deposited, fetched and journal-issue dates are
+not substitutes for first-online publication. JMLR's observed RSS, article and
+BibTeX samples all give only 2026; their paper identities and abstracts remain
+useful, but they do not prove eligibility for October 24.
+
+IEEE TQE's official journal homepage links Current Issue to publication number
+8924785 (`/xpl/mostRecentIssue.jsp`); the previous 9140343 entry was incorrect.
+An HTTP 200 Angular shell without article records is `client_rendered_shell`,
+not a complete empty inventory. IOP/IEEE undated records remain discovery only,
+with independent duplicate/date counters and an unknown daily window.
+
+Existing native material admission needs an original article-level URL, stable
+paper identity, source title/excerpt/fingerprint, an acceptable publication date
+and a validated actual capture. The ranker additionally needs authored Chinese
+facts/judgment/relevance; content review checks the actual claim support. The
+schema carries authors/DOI when known but does not universally require a DOI
+when a stable publisher paper URL exists. Abstract-level introductions may use
+the original abstract page; no universal PDF/full-text download requirement
+exists. Claims extending beyond the abstract require supporting evidence.
+Crossref metadata/abstracts can enrich the same DOI but cannot pretend to be a
+publisher capture. A publisher announcement date is not automatically the paper
+publication date. Preserve version identities and every original date field.
+
+Academic `formal_academic`/`arxiv_preprint` classes and the non-arXiv quota are
+separate from social `primary-official` and social source-class diversity.
+The latter counts only `official_primary`/`government_or_regulator`; neither
+papers nor company social posts can be relabeled to fill that social quota.
+
 Normal delivery is 6–8 academic and 6–12 social items. After the 14-day/72-hour expansion is exhausted, `delivery_expansion.version=2` may document a quality-first shortfall, but it never waives both family gates, article-level evidence, semantic review, deduplication or the requirement for at least one audited item in each category.
 
 ## First Principle

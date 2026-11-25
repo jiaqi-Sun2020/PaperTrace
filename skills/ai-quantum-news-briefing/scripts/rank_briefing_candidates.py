@@ -99,6 +99,13 @@ def is_academic_domain(domain: str) -> bool:
 
 
 def parse_iso_date(value: Any) -> date | None:
+    # The edition's natural day is Shanghai; an aware UTC instant near 16:00
+    # must not acquire an extra day's age merely from its string prefix.
+    from material_admission import publication_day
+    try:
+        return publication_day(clean_text(value, 120))
+    except (TypeError, ValueError):
+        pass  # Preserve historical free-text date compatibility below.
     match = re.search(r"(20\d{2}-\d{2}-\d{2})", clean_text(value, 120))
     if not match:
         return None
@@ -352,23 +359,28 @@ def is_primary_official(source_class: str) -> bool:
     return source_class in {"official_primary", "government_or_regulator"}
 
 
-def constraint_reason(candidate: dict[str, Any], selected: list[dict[str, Any]], kind: str, policy: dict[str, Any]) -> str:
+def constraint_reasons(candidate: dict[str, Any], selected: list[dict[str, Any]], kind: str, policy: dict[str, Any]) -> list[str]:
+    reasons = []
     novelty = candidate["score"]["novelty"]
     topic = candidate["score"]["topic"]
     organization = candidate["score"]["organization"]
     if kind == "academic":
         if novelty == "new" and sum(row["score"]["novelty"] == "new" for row in selected) >= int(policy["maximum_new_items"]):
-            return "maximum_new_items"
+            reasons.append("maximum_new_items")
         if novelty == "continuing" and sum(row["score"]["novelty"] == "continuing" for row in selected) >= int(policy["maximum_continuing_items"]):
-            return "maximum_continuing_items"
+            reasons.append("maximum_continuing_items")
     else:
         if novelty == "continuing" and sum(row["score"]["novelty"] == "continuing" for row in selected) >= int(policy["maximum_continuing_items"]):
-            return "maximum_continuing_items"
+            reasons.append("maximum_continuing_items")
         if organization and sum(row["score"]["organization"] == organization for row in selected) >= int(policy["maximum_items_per_organization"]):
-            return "maximum_items_per_organization"
+            reasons.append("maximum_items_per_organization")
     if topic and sum(row["score"]["topic"] == topic for row in selected) >= int(policy["maximum_items_per_topic"]):
-        return "maximum_items_per_topic"
-    return ""
+        reasons.append("maximum_items_per_topic")
+    return reasons
+
+
+def constraint_reason(candidate: dict[str, Any], selected: list[dict[str, Any]], kind: str, policy: dict[str, Any]) -> str:
+    return next(iter(constraint_reasons(candidate, selected, kind, policy)), "")
 
 
 def need_bonus(candidate: dict[str, Any], selected: list[dict[str, Any]], kind: str, policy: dict[str, Any]) -> float:
@@ -614,7 +626,8 @@ def rank_briefing_config(
             selected = id(candidate) in selected_candidate_ids
             reasons = list(candidate["eligibility_failures"])
             if not selected and not reasons:
-                reasons.append("below_target_or_constrained")
+                reasons.extend(constraint_reasons(candidate, selected_by_kind[kind], kind, policy[kind])
+                               or ["target_items_reached"])
             ledger.append(
                 {
                     "story_id": story_id,

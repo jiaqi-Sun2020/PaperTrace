@@ -93,7 +93,7 @@ class RenderHeadersTests(unittest.TestCase):
                                     "ossutil_profile": "test-profile"}), encoding="utf-8")
         return path
 
-    def test_doctor_explains_inline_block_without_writing_state_or_cloud_query(self):
+    def test_doctor_explains_inline_block_without_writing_state_or_bucket_read(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             config = self.config(root)
@@ -103,6 +103,7 @@ class RenderHeadersTests(unittest.TestCase):
             original = state.read_bytes()
             response = Response(self.url, [("x-oss-force-download", "true")])
             with patch.object(publisher.shutil, "which", return_value="ossutil"), \
+                    patch.object(publisher, 'head_bucket_index', return_value={'status':'pass'}), \
                     patch.object(publisher, "urlopen", return_value=response) as transport, \
                     patch.object(publisher, "check_bucket_binding") as bucket:
                 result = publisher.doctor(config)
@@ -117,6 +118,7 @@ class RenderHeadersTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as name:
             config = self.config(Path(name))
             with patch.object(publisher.shutil, "which", return_value="ossutil"), \
+                    patch.object(publisher, 'head_bucket_index', return_value={'status':'pass'}), \
                     patch.object(publisher, "checked_site", return_value=(self.url, b"<html>x</html>")), \
                     patch.object(publisher, "check_bucket_binding"):
                 result = publisher.doctor(config)

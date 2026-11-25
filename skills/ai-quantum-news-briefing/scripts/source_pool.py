@@ -173,6 +173,93 @@ class SourcePool:
             raise PoolConflict('task_result_corrupt')
         return value
 
+    def _compatible_scope(self, spec):
+        value = json.loads(encoded(spec))
+        value['config'].pop('code', None)
+        ref=value['inputs'].get('recovery')
+        if isinstance(ref,dict):
+            parent=self.get(ref.get('parent_task_id'))['spec']
+            if (parent['inputs'].get('recovery') is not None or parent['kind']!='academic'
+                    or parent['source_id']!=spec['source_id'] or parent['coverage_date']!=spec['coverage_date']):
+                raise PoolConflict('recovery_parent_invalid')
+            # The query's identity survives its parent's code alias too. This
+            # normalization is budget-only; stored specs/results are not edited.
+            parent=json.loads(encoded(parent));parent['config'].pop('code',None)
+            ref['parent_task_id']=fingerprint(parent)
+        return value
+
+    def _compatible_rows(self, spec):
+        scope = self._compatible_scope(spec)
+        related=[]
+        for row in self.db.execute('SELECT task_id,spec FROM tasks ORDER BY rowid'):
+            value=json.loads(row['spec'])
+            if (value.get('coverage_date') != spec['coverage_date'] or value.get('kind')!=spec['kind']
+                    or value.get('source_id')!=spec['source_id']):
+                continue
+            if self._compatible_scope(value)==scope:
+                related.append(self.get(row['task_id']))
+        return related
+
+    def _compatible_budget(self, rows):
+        # A copied counter is not a new request. Running events are actual claims;
+        # retain the largest saved counter as a conservative legacy lower bound.
+        claims = sum(self.db.execute("SELECT count(*) FROM events WHERE task_id=? AND state='running'",
+                                     (row['task_id'],)).fetchone()[0] for row in rows)
+        return max(claims, max(row['attempts'] for row in rows)), min(row['max_attempts'] for row in rows)
+
+    def enqueue_compatible(self, spec, validator):
+        """Rebind unchanged query/policy identities without resetting retry history.
+
+        Old rows/results remain immutable. Only code identity may differ; every
+        successful result is checked by the current validator before reuse.
+        """
+        normalized=task_spec(spec['kind'],spec['source_id'],spec['coverage_date'],spec['inputs'],spec['config'])
+        if normalized!=spec:raise PoolConflict('task_contract_invalid')
+        key = fingerprint(spec)
+        with self.transaction():
+            if self.db.execute('SELECT 1 FROM tasks WHERE task_id=?', (key,)).fetchone():
+                return key
+            related = self._compatible_rows(spec)
+            if not related:
+                self.db.execute('INSERT INTO tasks(task_id,spec,state,max_attempts) VALUES(?,?,?,?)',
+                                (key, encoded(spec), 'pending', 3))
+                self._event(key, 'pending', time.time(), {})
+                return key
+            if any(row['state'] == 'running' and row['lease_until'] > time.time() for row in related):
+                raise PoolConflict('previous_binding_lease_requires_owner_reconciliation')
+            prior = related[-1]
+            spent, maximum = self._compatible_budget(related)
+            attempts = min(spent, maximum)
+            retry_at = max((row['retry_at'] or 0 for row in related), default=0) or None
+            valid = [row for row in related if row['state'] == 'succeeded'
+                     and not validator(spec, row['result'])]
+            if valid:
+                prior = valid[-1]
+                state, result, result_sha, failure = 'succeeded', prior['result'], prior['result_sha'], None
+            else:
+                exhausted=[row for row in related if row['state']=='exhausted']
+                blocked=[row for row in related if row['state']=='blocked']
+                if exhausted or blocked:prior=(exhausted or blocked)[-1]
+                result, result_sha = None, None
+                state = 'exhausted' if attempts >= maximum else prior['state']
+                failure = prior['failure']
+                if state == 'running':
+                    state = 'retry_wait'
+                    failure = {'code':'worker_interrupted','retryable':True}
+                    retry_at = max(retry_at or 0, time.time())
+                if state == 'succeeded':
+                    state = 'blocked'
+                    failure = {'code':'cached_result_requires_requalification', 'retryable':False,
+                               'validation_failures':validator(spec, prior['result'])}
+            self.db.execute('''INSERT INTO tasks(task_id,spec,state,attempts,max_attempts,retry_at,
+                               result,result_sha,checkpoint,failure) VALUES(?,?,?,?,?,?,?,?,?,?)''',
+                            (key, encoded(spec), state, attempts, maximum, retry_at,
+                             encoded(result) if result is not None else None, result_sha,
+                             encoded({'rebound_from':prior['task_id'] ,'old_result_sha256':prior['result_sha']}),
+                             encoded(failure) if failure else None))
+            self._event(key, state, time.time(), {'rebound_from':prior['task_id'], 'attempts_preserved':attempts, 'actual_claims':spent})
+            return key
+
     def claim(self, *, task_id=None, now=None, lease_seconds=300):
         now = time.time() if now is None else now
         if not 1 <= lease_seconds <= 900:
@@ -182,7 +269,9 @@ class SourcePool:
                                       + (' AND task_id=?' if task_id is not None else ''),
                                       (now,task_id) if task_id is not None else (now,)).fetchall()
             for row in expired:
-                self.get(row['task_id'])  # Corruption is not a resumable worker interruption.
+                current = self.get(row['task_id'])  # Validate before lease reconciliation.
+                if self._compatible_rows(current['spec'])[-1]['task_id'] != row['task_id']:
+                    continue  # Superseded identities and their evidence remain immutable.
                 state = 'exhausted' if row['attempts'] >= row['max_attempts'] else 'retry_wait'
                 self.db.execute('UPDATE tasks SET state=?,lease=NULL,lease_until=NULL,retry_at=?,failure=? WHERE task_id=?',
                                 (state, now, encoded({'code': 'worker_interrupted', 'retryable': state != 'exhausted'}), row['task_id']))
@@ -192,8 +281,31 @@ class SourcePool:
             if task_id is not None:
                 sql += ' AND task_id=?'
                 params.append(task_id)
-            row = self.db.execute(sql + ' ORDER BY rowid LIMIT 1', params).fetchone()
-            if not row:
+            row = None
+            for candidate in self.db.execute(sql + ' ORDER BY rowid', params).fetchall():
+                target = self.get(candidate['task_id'])
+                related = self._compatible_rows(target['spec'])
+                if related[-1]['task_id'] != candidate['task_id']:
+                    continue
+                spent, maximum = self._compatible_budget(related)
+                if any(t['state']=='running' and t['lease_until']>now for t in related):
+                    continue
+                denied = next((t for t in reversed(related) if t['state']=='blocked'), None)
+                if denied is not None:
+                    continue  # Neither a stale code identity nor direct enqueue resets a denial.
+                if spent >= maximum:
+                    self.db.execute("UPDATE tasks SET state='exhausted',attempts=?,max_attempts=? WHERE task_id=?",
+                                    (maximum,maximum,candidate['task_id']))
+                    continue
+                if any((t['retry_at'] or 0)>now for t in related):
+                    continue
+                row = candidate
+                # Share consumption across code bindings, including legacy identities
+                # created before compatible enqueue existed.
+                self.db.execute('UPDATE tasks SET attempts=?,max_attempts=? WHERE task_id=?',
+                                (spent,maximum,row['task_id']))
+                break
+            if row is None:
                 return None
             token = uuid.uuid4().hex
             self.db.execute("UPDATE tasks SET state='running',attempts=attempts+1,lease=?,lease_until=?,retry_at=NULL WHERE task_id=?",
@@ -232,23 +344,47 @@ class SourcePool:
             self._event(task_id, 'succeeded', now, {'result_sha256': result_sha})
             return self.get(task_id)
 
-    def fail(self, task_id, lease, diagnostic, *, now=None):
+    def fail(self, task_id, lease, diagnostic, *, now=None, details=None):
         allowed = {'code', 'retryable', 'retry_after_seconds', 'http_status'}
         if (not isinstance(diagnostic, dict) or set(diagnostic) - allowed
                 or not ID.fullmatch(str(diagnostic.get('code', '')))
                 or type(diagnostic.get('retryable')) is not bool):
             raise PoolConflict('failure_contract_invalid')
+        stored=dict(diagnostic)
+        if details is not None:
+            fields={'version','source_id','coverage_date','validation_failures','row_status','window_basis',
+                    'candidate_count','quarantined_count','raw_response_sha256'}
+            flags={'result','retrieval_status','parse_status','window_status','coverage_claim'}
+            if (not isinstance(details,dict) or set(details)!=fields or type(details.get('version')) is not int
+                    or details['version']!=1 or not ID.fullmatch(str(details.get('source_id','')))
+                    or not isinstance(details.get('validation_failures'),list) or len(details['validation_failures'])>64
+                    or not all(isinstance(v,str) and ID.fullmatch(v) for v in details['validation_failures'])
+                    or not isinstance(details.get('row_status'),dict) or set(details['row_status'])!=flags):
+                raise PoolConflict('failure_details_invalid')
+            for value in list(details['row_status'].values())+[details['window_basis']]:
+                if value is not None and type(value) is not bool and (not isinstance(value,str) or not ID.fullmatch(value)):
+                    raise PoolConflict('failure_details_invalid')
+            for key in ('candidate_count','quarantined_count'):
+                value=details[key]
+                if value is not None and (type(value) is not int or not 0<=value<=1000000):raise PoolConflict('failure_details_invalid')
+            digest=details['raw_response_sha256']
+            if digest is not None and (not isinstance(digest,str) or not re.fullmatch('[0-9a-f]{64}',digest)):
+                raise PoolConflict('failure_details_invalid')
+            if len(encoded(details))>8192:raise PoolConflict('failure_details_invalid')
+            stored['details']=json.loads(encoded(details))
         delay = diagnostic.get('retry_after_seconds', 30)
         if type(delay) not in (int, float) or not 0 <= delay <= 86400:
             raise PoolConflict('retry_after_invalid')
         with self.transaction():
             now = time.time() if now is None else now() if callable(now) else now
             row = self._owned(task_id, lease, now)
+            if details is not None and (row['spec']['kind']!='academic' or details['source_id']!=row['spec']['source_id'] or details['coverage_date']!=row['spec']['coverage_date']):
+                raise PoolConflict('failure_details_binding_changed')
             state = ('blocked' if not diagnostic['retryable'] else
                      'exhausted' if row['attempts'] >= row['max_attempts'] else 'retry_wait')
             self.db.execute('UPDATE tasks SET state=?,failure=?,lease=NULL,lease_until=NULL,retry_at=? WHERE task_id=?',
-                            (state, encoded(diagnostic), now + delay if state == 'retry_wait' else None, task_id))
-            self._event(task_id, state, now, diagnostic)
+                            (state, encoded(stored), now + delay if state == 'retry_wait' else None, task_id))
+            self._event(task_id, state, now, stored)
             return self.get(task_id)
 
     def tasks(self, *, coverage_date=None):
